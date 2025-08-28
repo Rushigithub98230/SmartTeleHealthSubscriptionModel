@@ -1,0 +1,331 @@
+{
+  "Version": 1,
+  "Hash": "5LmN90RV6+tpNlT3Xo2pLJYGbP47pdaAfpFYQ9ng+k0=",
+  "Source": "SmartTelehealth.API",
+  "BasePath": "_content/SmartTelehealth.API",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "SmartTelehealth.API\\wwwroot",
+      "Source": "SmartTelehealth.API",
+      "ContentRoot": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\",
+      "BasePath": "_content/SmartTelehealth.API",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": [
+    {
+      "Identity": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\chat-test.html",
+      "SourceId": "SmartTelehealth.API",
+      "SourceType": "Discovered",
+      "ContentRoot": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\",
+      "BasePath": "_content/SmartTelehealth.API",
+      "RelativePath": "chat-test#[.{fingerprint}]?.html",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "op4s9uc7ak",
+      "Integrity": "JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\chat-test.html"
+    },
+    {
+      "Identity": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\opentok-video-call-test.html",
+      "SourceId": "SmartTelehealth.API",
+      "SourceType": "Discovered",
+      "ContentRoot": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\",
+      "BasePath": "_content/SmartTelehealth.API",
+      "RelativePath": "opentok-video-call-test#[.{fingerprint}]?.html",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "a6ix2q87q2",
+      "Integrity": "QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\opentok-video-call-test.html"
+    },
+    {
+      "Identity": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\video-call-test.html",
+      "SourceId": "SmartTelehealth.API",
+      "SourceType": "Discovered",
+      "ContentRoot": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\",
+      "BasePath": "_content/SmartTelehealth.API",
+      "RelativePath": "video-call-test#[.{fingerprint}]?.html",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "t51g89qnm3",
+      "Integrity": "H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\video-call-test.html"
+    }
+  ],
+  "Endpoints": [
+    {
+      "Route": "chat-test.html",
+      "AssetFile": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\chat-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "18749"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs="
+        }
+      ]
+    },
+    {
+      "Route": "chat-test.op4s9uc7ak.html",
+      "AssetFile": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\chat-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "18749"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "op4s9uc7ak"
+        },
+        {
+          "Name": "label",
+          "Value": "chat-test.html"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs="
+        }
+      ]
+    },
+    {
+      "Route": "opentok-video-call-test.a6ix2q87q2.html",
+      "AssetFile": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\opentok-video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "29277"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "a6ix2q87q2"
+        },
+        {
+          "Name": "label",
+          "Value": "opentok-video-call-test.html"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="
+        }
+      ]
+    },
+    {
+      "Route": "opentok-video-call-test.html",
+      "AssetFile": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\opentok-video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "29277"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="
+        }
+      ]
+    },
+    {
+      "Route": "video-call-test.html",
+      "AssetFile": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "24628"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo="
+        }
+      ]
+    },
+    {
+      "Route": "video-call-test.t51g89qnm3.html",
+      "AssetFile": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "24628"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "t51g89qnm3"
+        },
+        {
+          "Name": "label",
+          "Value": "video-call-test.html"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo="
+        }
+      ]
+    }
+  ]
+}

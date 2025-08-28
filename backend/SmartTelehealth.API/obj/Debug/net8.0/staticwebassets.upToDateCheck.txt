@@ -1,0 +1,3 @@
+wwwroot\chat-test.html
+wwwroot\opentok-video-call-test.html
+wwwroot\video-call-test.html

@@ -1,0 +1,90 @@
+2025-08-28 21:13:32.148 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:13:32.188 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:13:32.274 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-28 21:13:33.435 +05:30 [WRN] The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+2025-08-28 21:13:34.087 +05:30 [INF] Subscription Background Service started
+2025-08-28 21:13:34.366 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:13:34.367 +05:30 [INF] Starting automated billing process
+2025-08-28 21:13:34.368 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-28 21:13:34.444 +05:30 [INF] Automated billing service started
+2025-08-28 21:13:34.453 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-28 21:13:34.453 +05:30 [INF] Automated billing completed
+2025-08-28 21:13:34.490 +05:30 [INF] Starting lifecycle management process
+2025-08-28 21:13:34.508 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-28 21:13:34.547 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-28 21:13:34.548 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:13:34.551 +05:30 [INF] Starting automated billing cycle at "2025-08-28T15:43:34.5515991Z"
+2025-08-28 21:13:34.568 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-28 21:13:34.636 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-28 21:13:34.711 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-28 21:13:34.712 +05:30 [INF] Completed automated billing cycle at "2025-08-28T15:43:34.7118878Z"
+2025-08-28 21:13:34.888 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-28 21:13:35.434 +05:30 [WRN] Failed to determine the https port for redirect.
+2025-08-28 21:23:35.697 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:23:35.739 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:23:35.809 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-28 21:23:36.641 +05:30 [WRN] The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+2025-08-28 21:23:36.934 +05:30 [INF] Subscription Background Service started
+2025-08-28 21:23:37.088 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:23:37.090 +05:30 [INF] Starting automated billing process
+2025-08-28 21:23:37.092 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-28 21:23:37.150 +05:30 [INF] Automated billing service started
+2025-08-28 21:23:37.162 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-28 21:23:37.164 +05:30 [INF] Automated billing completed
+2025-08-28 21:23:37.195 +05:30 [INF] Starting lifecycle management process
+2025-08-28 21:23:37.203 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-28 21:23:37.210 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-28 21:23:37.212 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:23:37.215 +05:30 [INF] Starting automated billing cycle at "2025-08-28T15:53:37.2152278Z"
+2025-08-28 21:23:37.232 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-28 21:23:37.263 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-28 21:23:37.302 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-28 21:23:37.304 +05:30 [INF] Completed automated billing cycle at "2025-08-28T15:53:37.3045561Z"
+2025-08-28 21:23:37.410 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-28 21:23:47.663 +05:30 [INF] Automated billing service stopped
+2025-08-28 21:23:47.666 +05:30 [INF] Subscription Background Service cancelled
+2025-08-28 21:23:47.668 +05:30 [INF] Subscription Background Service stopped
+2025-08-28 21:28:45.052 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:28:45.087 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:28:45.156 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-28 21:28:46.104 +05:30 [WRN] The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+2025-08-28 21:28:46.463 +05:30 [INF] Subscription Background Service started
+2025-08-28 21:28:46.648 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:28:46.648 +05:30 [INF] Starting automated billing process
+2025-08-28 21:28:46.649 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-28 21:28:46.711 +05:30 [INF] Automated billing service started
+2025-08-28 21:28:46.722 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-28 21:28:46.722 +05:30 [INF] Automated billing completed
+2025-08-28 21:28:46.756 +05:30 [INF] Starting lifecycle management process
+2025-08-28 21:28:46.773 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-28 21:28:46.789 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-28 21:28:46.790 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:28:46.793 +05:30 [INF] Starting automated billing cycle at "2025-08-28T15:58:46.7933139Z"
+2025-08-28 21:28:46.808 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-28 21:28:46.854 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-28 21:28:46.896 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-28 21:28:46.897 +05:30 [INF] Completed automated billing cycle at "2025-08-28T15:58:46.8969570Z"
+2025-08-28 21:28:47.076 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-28 21:28:47.597 +05:30 [WRN] Failed to determine the https port for redirect.
+2025-08-28 21:36:03.090 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:36:03.125 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-28 21:36:03.200 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-28 21:36:04.146 +05:30 [WRN] The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+2025-08-28 21:36:04.494 +05:30 [INF] Subscription Background Service started
+2025-08-28 21:36:04.682 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:36:04.682 +05:30 [INF] Starting automated billing process
+2025-08-28 21:36:04.684 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-28 21:36:04.746 +05:30 [INF] Automated billing service started
+2025-08-28 21:36:04.757 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-28 21:36:04.757 +05:30 [INF] Automated billing completed
+2025-08-28 21:36:04.789 +05:30 [INF] Starting lifecycle management process
+2025-08-28 21:36:04.806 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-28 21:36:04.823 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-28 21:36:04.823 +05:30 [INF] Stripe service initialized successfully
+2025-08-28 21:36:04.828 +05:30 [INF] Starting automated billing cycle at "2025-08-28T16:06:04.8281795Z"
+2025-08-28 21:36:04.847 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-28 21:36:04.898 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-28 21:36:04.940 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-28 21:36:04.940 +05:30 [INF] Completed automated billing cycle at "2025-08-28T16:06:04.9403606Z"
+2025-08-28 21:36:05.122 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-28 21:36:05.409 +05:30 [WRN] Failed to determine the https port for redirect.

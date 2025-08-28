@@ -1,0 +1,343 @@
+2025-08-25 00:53:23.652 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 00:53:23.653 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 00:53:23.674 +05:30 [INF] Starting automated billing process
+2025-08-25 00:53:23.675 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 00:53:23.675 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 00:53:23.675 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 00:53:23.678 +05:30 [INF] Starting automated billing cycle at "2025-08-24T19:23:23.6782087Z"
+2025-08-25 00:53:23.769 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 00:53:23.770 +05:30 [INF] Automated billing completed
+2025-08-25 00:53:23.770 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 00:53:23.770 +05:30 [INF] Starting lifecycle management process
+2025-08-25 00:53:23.779 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 00:53:23.788 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 00:53:23.788 +05:30 [INF] Completed automated billing cycle at "2025-08-24T19:23:23.7884733Z"
+2025-08-25 00:53:23.788 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 01:53:23.810 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 01:53:23.810 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 01:53:23.811 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 01:53:23.811 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 01:53:23.811 +05:30 [INF] Starting automated billing process
+2025-08-25 01:53:23.811 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 01:53:23.814 +05:30 [INF] Starting automated billing cycle at "2025-08-24T20:23:23.8148901Z"
+2025-08-25 01:53:23.917 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 01:53:23.918 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 01:53:23.918 +05:30 [INF] Automated billing completed
+2025-08-25 01:53:23.919 +05:30 [INF] Starting lifecycle management process
+2025-08-25 01:53:23.922 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 01:53:23.928 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 01:53:23.929 +05:30 [INF] Completed automated billing cycle at "2025-08-24T20:23:23.9290465Z"
+2025-08-25 01:53:23.931 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 02:53:23.947 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 02:53:23.947 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 02:53:23.947 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 02:53:23.948 +05:30 [INF] Starting automated billing cycle at "2025-08-24T21:23:23.9489201Z"
+2025-08-25 02:53:23.952 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 02:53:23.952 +05:30 [INF] Starting automated billing process
+2025-08-25 02:53:23.952 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 02:53:24.055 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 02:53:24.057 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 02:53:24.058 +05:30 [INF] Automated billing completed
+2025-08-25 02:53:24.061 +05:30 [INF] Starting lifecycle management process
+2025-08-25 02:53:24.063 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 02:53:24.070 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 02:53:24.070 +05:30 [INF] Completed automated billing cycle at "2025-08-24T21:23:24.0702704Z"
+2025-08-25 02:53:24.076 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 03:53:24.093 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 03:53:24.094 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 03:53:24.094 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 03:53:24.094 +05:30 [INF] Starting automated billing cycle at "2025-08-24T22:23:24.0944725Z"
+2025-08-25 03:53:24.127 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 03:53:24.127 +05:30 [INF] Starting automated billing process
+2025-08-25 03:53:24.127 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 03:53:24.215 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 03:53:24.216 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 03:53:24.217 +05:30 [INF] Automated billing completed
+2025-08-25 03:53:24.220 +05:30 [INF] Starting lifecycle management process
+2025-08-25 03:53:24.222 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 03:53:24.230 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 03:53:24.230 +05:30 [INF] Completed automated billing cycle at "2025-08-24T22:23:24.2302080Z"
+2025-08-25 03:53:24.236 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 04:53:24.241 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 04:53:24.241 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 04:53:24.241 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 04:53:24.242 +05:30 [INF] Starting automated billing cycle at "2025-08-24T23:23:24.2423269Z"
+2025-08-25 04:53:24.250 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 04:53:24.250 +05:30 [INF] Starting automated billing process
+2025-08-25 04:53:24.250 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 04:53:24.348 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 04:53:24.348 +05:30 [INF] Automated billing completed
+2025-08-25 04:53:24.349 +05:30 [INF] Starting lifecycle management process
+2025-08-25 04:53:24.349 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 04:53:24.356 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 04:53:24.365 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 04:53:24.367 +05:30 [INF] Completed automated billing cycle at "2025-08-24T23:23:24.3655024Z"
+2025-08-25 04:53:24.378 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 05:53:24.383 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 05:53:24.384 +05:30 [INF] Starting automated billing process
+2025-08-25 05:53:24.384 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 05:53:24.384 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 05:53:24.387 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 05:53:24.388 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 05:53:24.388 +05:30 [INF] Starting automated billing cycle at "2025-08-25T00:23:24.3889326Z"
+2025-08-25 05:53:24.493 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 05:53:24.494 +05:30 [INF] Automated billing completed
+2025-08-25 05:53:24.494 +05:30 [INF] Starting lifecycle management process
+2025-08-25 05:53:24.494 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 05:53:24.499 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 05:53:24.506 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 05:53:24.507 +05:30 [INF] Completed automated billing cycle at "2025-08-25T00:23:24.5069705Z"
+2025-08-25 05:53:24.508 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 06:53:24.522 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 06:53:24.522 +05:30 [INF] Starting automated billing process
+2025-08-25 06:53:24.522 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 06:53:24.524 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 06:53:24.525 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 06:53:24.525 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 06:53:24.527 +05:30 [INF] Starting automated billing cycle at "2025-08-25T01:23:24.5274802Z"
+2025-08-25 06:53:24.622 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 06:53:24.622 +05:30 [INF] Automated billing completed
+2025-08-25 06:53:24.623 +05:30 [INF] Starting lifecycle management process
+2025-08-25 06:53:24.623 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 06:53:24.629 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 06:53:24.635 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 06:53:24.636 +05:30 [INF] Completed automated billing cycle at "2025-08-25T01:23:24.6359320Z"
+2025-08-25 06:53:24.637 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 07:53:24.680 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 07:53:24.680 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 07:53:24.680 +05:30 [INF] Starting automated billing process
+2025-08-25 07:53:24.682 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 07:53:24.680 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 07:53:24.683 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 07:53:24.686 +05:30 [INF] Starting automated billing cycle at "2025-08-25T02:23:24.6864886Z"
+2025-08-25 07:53:24.778 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 07:53:24.779 +05:30 [INF] Automated billing completed
+2025-08-25 07:53:24.779 +05:30 [INF] Starting lifecycle management process
+2025-08-25 07:53:24.780 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 07:53:24.785 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 07:53:24.792 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 07:53:24.792 +05:30 [INF] Completed automated billing cycle at "2025-08-25T02:23:24.7922670Z"
+2025-08-25 07:53:24.792 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 08:53:24.826 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 08:53:24.826 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 08:53:24.826 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 08:53:24.826 +05:30 [INF] Starting automated billing process
+2025-08-25 08:53:24.826 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 08:53:24.826 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 08:53:24.834 +05:30 [INF] Starting automated billing cycle at "2025-08-25T03:23:24.8340571Z"
+2025-08-25 08:53:24.935 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 08:53:24.936 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 08:53:24.936 +05:30 [INF] Automated billing completed
+2025-08-25 08:53:24.937 +05:30 [INF] Starting lifecycle management process
+2025-08-25 08:53:24.941 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 08:53:24.949 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 08:53:24.949 +05:30 [INF] Completed automated billing cycle at "2025-08-25T03:23:24.9496696Z"
+2025-08-25 08:53:24.952 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 09:53:24.960 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 09:53:24.961 +05:30 [INF] Starting automated billing process
+2025-08-25 09:53:24.961 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 09:53:24.961 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 09:53:24.961 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 09:53:24.961 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 09:53:24.961 +05:30 [INF] Starting automated billing cycle at "2025-08-25T04:23:24.9618005Z"
+2025-08-25 09:53:25.082 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 09:53:25.082 +05:30 [INF] Automated billing completed
+2025-08-25 09:53:25.083 +05:30 [INF] Starting lifecycle management process
+2025-08-25 09:53:25.083 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 09:53:25.090 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 09:53:25.097 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 09:53:25.098 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 09:53:25.098 +05:30 [INF] Completed automated billing cycle at "2025-08-25T04:23:25.0981900Z"
+2025-08-25 10:53:25.107 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 10:53:25.108 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 10:53:25.108 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 10:53:25.108 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 10:53:25.108 +05:30 [INF] Starting automated billing process
+2025-08-25 10:53:25.109 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 10:53:25.109 +05:30 [INF] Starting automated billing cycle at "2025-08-25T05:23:25.1091177Z"
+2025-08-25 10:53:25.217 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 10:53:25.217 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 10:53:25.217 +05:30 [INF] Automated billing completed
+2025-08-25 10:53:25.219 +05:30 [INF] Starting lifecycle management process
+2025-08-25 10:53:25.224 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 10:53:25.231 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 10:53:25.231 +05:30 [INF] Completed automated billing cycle at "2025-08-25T05:23:25.2311907Z"
+2025-08-25 10:53:25.240 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 11:53:25.255 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 11:53:25.255 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 11:53:25.255 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 11:53:25.255 +05:30 [INF] Starting automated billing process
+2025-08-25 11:53:25.255 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 11:53:25.255 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 11:53:25.255 +05:30 [INF] Starting automated billing cycle at "2025-08-25T06:23:25.2558690Z"
+2025-08-25 11:53:25.383 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 11:53:25.383 +05:30 [INF] Automated billing completed
+2025-08-25 11:53:25.384 +05:30 [INF] Starting lifecycle management process
+2025-08-25 11:53:25.384 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 11:53:25.389 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 11:53:25.397 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 11:53:25.397 +05:30 [INF] Completed automated billing cycle at "2025-08-25T06:23:25.3976333Z"
+2025-08-25 11:53:25.398 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 12:53:25.424 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 12:53:25.425 +05:30 [INF] Starting automated billing process
+2025-08-25 12:53:25.425 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 12:53:25.425 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 12:53:25.425 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 12:53:25.425 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 12:53:25.426 +05:30 [INF] Starting automated billing cycle at "2025-08-25T07:23:25.4261235Z"
+2025-08-25 12:53:25.537 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 12:53:25.538 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 12:53:25.538 +05:30 [INF] Automated billing completed
+2025-08-25 12:53:25.539 +05:30 [INF] Starting lifecycle management process
+2025-08-25 12:53:25.543 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 12:53:25.549 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 12:53:25.549 +05:30 [INF] Completed automated billing cycle at "2025-08-25T07:23:25.5496869Z"
+2025-08-25 12:53:25.551 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 13:53:25.563 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 13:53:25.564 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 13:53:25.564 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 13:53:25.564 +05:30 [INF] Starting automated billing process
+2025-08-25 13:53:25.564 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 13:53:25.564 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 13:53:25.564 +05:30 [INF] Starting automated billing cycle at "2025-08-25T08:23:25.5645058Z"
+2025-08-25 13:53:25.678 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 13:53:25.679 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 13:53:25.679 +05:30 [INF] Automated billing completed
+2025-08-25 13:53:25.680 +05:30 [INF] Starting lifecycle management process
+2025-08-25 13:53:25.684 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 13:53:25.691 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 13:53:25.691 +05:30 [INF] Completed automated billing cycle at "2025-08-25T08:23:25.6919335Z"
+2025-08-25 13:53:25.693 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 14:53:25.704 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 14:53:25.704 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 14:53:25.704 +05:30 [INF] Starting automated billing process
+2025-08-25 14:53:25.704 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 14:53:25.704 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 14:53:25.704 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 14:53:25.704 +05:30 [INF] Starting automated billing cycle at "2025-08-25T09:23:25.7043785Z"
+2025-08-25 14:53:25.809 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 14:53:25.810 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 14:53:25.810 +05:30 [INF] Automated billing completed
+2025-08-25 14:53:25.811 +05:30 [INF] Starting lifecycle management process
+2025-08-25 14:53:25.815 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 14:53:25.821 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 14:53:25.821 +05:30 [INF] Completed automated billing cycle at "2025-08-25T09:23:25.8214417Z"
+2025-08-25 14:53:25.825 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 15:53:25.869 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 15:53:25.869 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 15:53:25.870 +05:30 [INF] Starting automated billing process
+2025-08-25 15:53:25.870 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 15:53:25.870 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 15:53:25.870 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 15:53:25.870 +05:30 [INF] Starting automated billing cycle at "2025-08-25T10:23:25.8708421Z"
+2025-08-25 15:53:26.004 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 15:53:26.004 +05:30 [INF] Automated billing completed
+2025-08-25 15:53:26.005 +05:30 [INF] Starting lifecycle management process
+2025-08-25 15:53:26.005 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 15:53:26.012 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 15:53:26.020 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 15:53:26.020 +05:30 [INF] Completed automated billing cycle at "2025-08-25T10:23:26.0207764Z"
+2025-08-25 15:53:26.021 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 16:53:26.047 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 16:53:26.047 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 16:53:26.047 +05:30 [INF] Starting automated billing process
+2025-08-25 16:53:26.047 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 16:53:26.047 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 16:53:26.047 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 16:53:26.047 +05:30 [INF] Starting automated billing cycle at "2025-08-25T11:23:26.0479831Z"
+2025-08-25 16:53:26.147 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 16:53:26.147 +05:30 [INF] Automated billing completed
+2025-08-25 16:53:26.148 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 16:53:26.148 +05:30 [INF] Starting lifecycle management process
+2025-08-25 16:53:26.154 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 16:53:26.161 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 16:53:26.162 +05:30 [INF] Completed automated billing cycle at "2025-08-25T11:23:26.1620286Z"
+2025-08-25 16:53:26.162 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 17:53:26.181 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 17:53:26.181 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 17:53:26.181 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 17:53:26.181 +05:30 [INF] Starting automated billing process
+2025-08-25 17:53:26.181 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 17:53:26.181 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 17:53:26.182 +05:30 [INF] Starting automated billing cycle at "2025-08-25T12:23:26.1820935Z"
+2025-08-25 17:53:26.281 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 17:53:26.283 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 17:53:26.283 +05:30 [INF] Automated billing completed
+2025-08-25 17:53:26.283 +05:30 [INF] Starting lifecycle management process
+2025-08-25 17:53:26.287 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 17:53:26.294 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 17:53:26.294 +05:30 [INF] Completed automated billing cycle at "2025-08-25T12:23:26.2949904Z"
+2025-08-25 17:53:26.297 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 20:47:49.933 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 20:47:49.978 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 20:47:50.071 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-25 20:47:53.070 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 20:47:53.070 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 20:47:53.111 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-25 20:47:53.281 +05:30 [ERR] Failed executing DbCommand (13ms) [Parameters=[], CommandType='"Text"', CommandTimeout='60']
+CREATE DATABASE [SmartTelehealthDb];
+2025-08-25 20:55:05.377 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 20:55:05.425 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 20:55:05.495 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-25 20:55:06.339 +05:30 [WRN] The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+2025-08-25 20:55:06.724 +05:30 [INF] Subscription Background Service started
+2025-08-25 20:55:06.913 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 20:55:06.915 +05:30 [INF] Starting automated billing process
+2025-08-25 20:55:06.917 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 20:55:06.976 +05:30 [INF] Automated billing service started
+2025-08-25 20:55:06.988 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 20:55:06.991 +05:30 [INF] Automated billing completed
+2025-08-25 20:55:07.020 +05:30 [INF] Starting lifecycle management process
+2025-08-25 20:55:07.028 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 20:55:07.044 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 20:55:07.047 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 20:55:07.051 +05:30 [INF] Starting automated billing cycle at "2025-08-25T15:25:07.0510929Z"
+2025-08-25 20:55:07.065 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 20:55:07.096 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 20:55:07.130 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 20:55:07.132 +05:30 [INF] Completed automated billing cycle at "2025-08-25T15:25:07.1324543Z"
+2025-08-25 20:55:07.227 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 21:04:51.001 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 21:04:51.039 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 21:04:51.111 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-25 21:04:52.266 +05:30 [WRN] The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+2025-08-25 21:04:52.648 +05:30 [INF] Subscription Background Service started
+2025-08-25 21:04:52.895 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 21:04:52.896 +05:30 [INF] Starting automated billing process
+2025-08-25 21:04:52.897 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 21:04:52.969 +05:30 [INF] Automated billing service started
+2025-08-25 21:04:52.980 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 21:04:52.980 +05:30 [INF] Automated billing completed
+2025-08-25 21:04:53.013 +05:30 [INF] Starting lifecycle management process
+2025-08-25 21:04:53.083 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 21:04:53.122 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 21:04:53.123 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 21:04:53.132 +05:30 [INF] Starting automated billing cycle at "2025-08-25T15:34:53.1320738Z"
+2025-08-25 21:04:53.148 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 21:04:53.208 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 21:04:53.259 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 21:04:53.259 +05:30 [INF] Completed automated billing cycle at "2025-08-25T15:34:53.2592452Z"
+2025-08-25 21:04:53.421 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 21:04:54.022 +05:30 [WRN] Failed to determine the https port for redirect.
+2025-08-25 21:05:10.956 +05:30 [WRN] The foreign key property 'QuestionnaireTemplate.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 21:05:10.992 +05:30 [WRN] The foreign key property 'UserResponse.CategoryId1' was created in shadow state because a conflicting property with the simple name 'CategoryId' exists in the entity type, but is either not mapped, is already used for another relationship, or is incompatible with the associated primary key type. See https://aka.ms/efcore-relationships for information on mapping relationships in EF Core.
+2025-08-25 21:05:11.060 +05:30 [WRN] No store type was specified for the decimal property 'Amount' on entity type 'Subscription'. This will cause values to be silently truncated if they do not fit in the default precision and scale. Explicitly specify the SQL server column type that can accommodate all the values in 'OnModelCreating' using 'HasColumnType', specify precision and scale using 'HasPrecision', or configure a value converter using 'HasConversion'.
+2025-08-25 21:05:12.051 +05:30 [WRN] The query uses the 'First'/'FirstOrDefault' operator without 'OrderBy' and filter operators. This may lead to unpredictable results.
+2025-08-25 21:05:12.421 +05:30 [INF] Subscription Background Service started
+2025-08-25 21:05:12.613 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 21:05:12.613 +05:30 [INF] Starting automated billing process
+2025-08-25 21:05:12.615 +05:30 [INF] Starting recurring billing process by user 0
+2025-08-25 21:05:12.683 +05:30 [INF] Automated billing service started
+2025-08-25 21:05:12.695 +05:30 [INF] Completed recurring billing process by user 0
+2025-08-25 21:05:12.696 +05:30 [INF] Automated billing completed
+2025-08-25 21:05:12.730 +05:30 [INF] Starting lifecycle management process
+2025-08-25 21:05:12.746 +05:30 [INF] Twilio SMS client initialized successfully
+2025-08-25 21:05:12.764 +05:30 [INF] SendGrid email client initialized successfully
+2025-08-25 21:05:12.764 +05:30 [INF] Stripe service initialized successfully
+2025-08-25 21:05:12.772 +05:30 [INF] Starting automated billing cycle at "2025-08-25T15:35:12.7716147Z"
+2025-08-25 21:05:12.791 +05:30 [INF] Found 0 subscriptions due for billing
+2025-08-25 21:05:12.836 +05:30 [INF] Found 0 suspended subscriptions
+2025-08-25 21:05:12.882 +05:30 [INF] Found 0 subscriptions with usage counters to reset
+2025-08-25 21:05:12.885 +05:30 [INF] Completed automated billing cycle at "2025-08-25T15:35:12.8827392Z"
+2025-08-25 21:05:13.070 +05:30 [INF] Lifecycle management completed. Expired: 0, Trial Expired: 0
+2025-08-25 21:05:13.095 +05:30 [WRN] Failed to determine the https port for redirect.

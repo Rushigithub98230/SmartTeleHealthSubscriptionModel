@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Telehealth OpenTok Video Call Test</title>
+    <script src="https://static.opentok.com/v2/js/opentok.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .main-content {
+            display: flex;
+            height: 700px;
+        }
+
+        .chat-section {
+            width: 350px;
+            border-right: 1px solid #ddd;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-container {
+            flex: 1;
+            background: #000;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .video-placeholder {
+            text-align: center;
+            padding: 20px;
+        }
+
+        #publisher {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 200px;
+            height: 150px;
+            background: #333;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+        }
+
+        #subscribers {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .subscriber {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: #333;
+            border-radius: 8px;
+        }
+
+        .controls {
+            padding: 15px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .control-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            min-width: 120px;
+        }
+
+        .control-button.primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .control-button.danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .control-button.success {
+            background: #28a745;
+            color: white;
+        }
+
+        .control-button.warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .control-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            background: white;
+            border: 1px solid #ddd;
+        }
+
+        .message.sent {
+            background: #007bff;
+            color: white;
+            margin-left: 20px;
+        }
+
+        .message.received {
+            background: #e9ecef;
+            margin-right: 20px;
+        }
+
+        .chat-input {
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .status {
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .call-info {
+            padding: 10px;
+            background: #e9ecef;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .participants {
+            padding: 10px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .participant {
+            padding: 5px;
+            margin: 2px 0;
+            background: white;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .session-info {
+            padding: 10px;
+            background: #e3f2fd;
+            border-bottom: 1px solid #ddd;
+            font-size: 12px;
+        }
+
+        .quality-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Telehealth OpenTok Video Call Test</h1>
+            <div id="status" class="status disconnected">Disconnected</div>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-section">
+                <div class="session-info">
+                    <h3>OpenTok Session Info</h3>
+                    <div id="session-details">No active session</div>
+                </div>
+                
+                <div class="call-info">
+                    <h3>Call Information</h3>
+                    <div id="call-details">No active call</div>
+                </div>
+                
+                <div class="participants">
+                    <h3>Participants</h3>
+                    <div id="participants-list">No participants</div>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message received">
+                        <strong>System:</strong> Welcome to the OpenTok video call test. You can create sessions and join video calls.
+                    </div>
+                </div>
+
+                <div class="chat-input">
+                    <input type="text" id="chat-input" placeholder="Type a message..." disabled>
+                    <button id="send-chat-btn" class="control-button primary" disabled>Send</button>
+                </div>
+            </div>
+
+            <div class="video-section">
+                <div class="video-container" id="video-container">
+                    <div class="video-placeholder">
+                        <h2>OpenTok Video Call</h2>
+                        <p>Click "Create Session" to begin a video call</p>
+                        <p>This uses Vonage Video API (formerly OpenTok)</p>
+                    </div>
+                    <div id="publisher"></div>
+                    <div id="subscribers"></div>
+                    <div class="quality-indicator" id="quality-indicator" style="display: none;">
+                        Audio: <span id="audio-quality">-</span> | 
+                        Video: <span id="video-quality">-</span> | 
+                        Network: <span id="network-quality">-</span>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button id="create-session-btn" class="control-button primary">Create Session</button>
+                    <button id="join-session-btn" class="control-button success" disabled>Join Session</button>
+                    <button id="leave-session-btn" class="control-button danger" disabled>Leave Session</button>
+                    <button id="toggle-video-btn" class="control-button warning" disabled>Toggle Video</button>
+                    <button id="toggle-audio-btn" class="control-button warning" disabled>Toggle Audio</button>
+                    <button id="screen-share-btn" class="control-button warning" disabled>Screen Share</button>
+                    <button id="start-recording-btn" class="control-button primary" disabled>Start Recording</button>
+                    <button id="stop-recording-btn" class="control-button danger" disabled>Stop Recording</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+    <script>
+        class OpenTokVideoCallClient {
+            constructor() {
+                this.signalRConnection = null;
+                this.openTokSession = null;
+                this.openTokPublisher = null;
+                this.openTokSubscribers = {};
+                this.currentSessionId = null;
+                this.currentToken = null;
+                this.isInCall = false;
+                this.isRecording = false;
+                this.recordingId = null;
+                this.authToken = this.getAuthToken();
+                
+                this.setupEventHandlers();
+                this.connect();
+            }
+
+            getAuthToken() {
+                return localStorage.getItem('authToken') || 'your-test-token-here';
+            }
+
+            async connect() {
+                try {
+                    this.signalRConnection = new signalR.HubConnectionBuilder()
+                        .withUrl('/videoCallHub', {
+                            accessTokenFactory: () => this.authToken
+                        })
+                        .withAutomaticReconnect()
+                        .build();
+
+                    this.setupSignalREventHandlers();
+                    await this.signalRConnection.start();
+                    
+                    this.updateStatus('Connected to SignalR', true);
+                    this.addChatMessage('System', 'Connected to video call hub', 'received');
+                } catch (err) {
+                    console.error('Error connecting to SignalR:', err);
+                    this.updateStatus('Connection failed', false);
+                }
+            }
+
+            setupSignalREventHandlers() {
+                this.signalRConnection.onreconnecting(() => {
+                    this.updateStatus('Reconnecting...', false);
+                });
+
+                this.signalRConnection.onreconnected(() => {
+                    this.updateStatus('Connected', true);
+                });
+
+                this.signalRConnection.onclose(() => {
+                    this.updateStatus('Disconnected', false);
+                });
+
+                // OpenTok specific events
+                this.signalRConnection.on('OpenTokSessionCreated', (session) => {
+                    this.currentSessionId = session.sessionId;
+                    this.updateSessionDetails(session);
+                    this.addChatMessage('System', `OpenTok session created: ${session.sessionId}`, 'received');
+                    this.enableSessionControls();
+                });
+
+                this.signalRConnection.on('OpenTokTokenGenerated', (token) => {
+                    this.currentToken = token;
+                    this.addChatMessage('System', 'OpenTok token generated', 'received');
+                });
+            }
+
+            setupEventHandlers() {
+                const createSessionBtn = document.getElementById('create-session-btn');
+                const joinSessionBtn = document.getElementById('join-session-btn');
+                const leaveSessionBtn = document.getElementById('leave-session-btn');
+                const toggleVideoBtn = document.getElementById('toggle-video-btn');
+                const toggleAudioBtn = document.getElementById('toggle-audio-btn');
+                const screenShareBtn = document.getElementById('screen-share-btn');
+                const startRecordingBtn = document.getElementById('start-recording-btn');
+                const stopRecordingBtn = document.getElementById('stop-recording-btn');
+                const chatInput = document.getElementById('chat-input');
+                const sendChatBtn = document.getElementById('send-chat-btn');
+
+                createSessionBtn.addEventListener('click', () => {
+                    this.createOpenTokSession();
+                });
+
+                joinSessionBtn.addEventListener('click', () => {
+                    this.joinOpenTokSession();
+                });
+
+                leaveSessionBtn.addEventListener('click', () => {
+                    this.leaveOpenTokSession();
+                });
+
+                toggleVideoBtn.addEventListener('click', () => {
+                    this.toggleOpenTokVideo();
+                });
+
+                toggleAudioBtn.addEventListener('click', () => {
+                    this.toggleOpenTokAudio();
+                });
+
+                screenShareBtn.addEventListener('click', () => {
+                    this.toggleOpenTokScreenSharing();
+                });
+
+                startRecordingBtn.addEventListener('click', () => {
+                    this.startOpenTokRecording();
+                });
+
+                stopRecordingBtn.addEventListener('click', () => {
+                    this.stopOpenTokRecording();
+                });
+
+                chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.sendChatMessage();
+                    }
+                });
+
+                sendChatBtn.addEventListener('click', () => {
+                    this.sendChatMessage();
+                });
+            }
+
+            async createOpenTokSession() {
+                if (!this.signalRConnection) return;
+
+                try {
+                    const sessionName = `TestSession_${Date.now()}`;
+                    const session = await this.signalRConnection.invoke('CreateOpenTokSession', sessionName);
+                    
+                    if (session) {
+                        this.currentSessionId = session.sessionId;
+                        this.updateSessionDetails(session);
+                        this.addChatMessage('System', `OpenTok session created: ${session.sessionId}`, 'received');
+                        this.enableSessionControls();
+                    } else {
+                        this.showNotification('Failed to create OpenTok session');
+                    }
+                } catch (err) {
+                    console.error('Error creating OpenTok session:', err);
+                    this.showNotification('Failed to create OpenTok session');
+                }
+            }
+
+            async joinOpenTokSession() {
+                if (!this.currentSessionId || !this.signalRConnection) return;
+
+                try {
+                    const userName = 'Test User';
+                    const token = await this.signalRConnection.invoke('GetOpenTokToken', this.currentSessionId, userName);
+                    
+                    if (token) {
+                        this.currentToken = token;
+                        this.initializeOpenTokSession();
+                    } else {
+                        this.showNotification('Failed to get OpenTok token');
+                    }
+                } catch (err) {
+                    console.error('Error joining OpenTok session:', err);
+                    this.showNotification('Failed to join OpenTok session');
+                }
+            }
+
+            initializeOpenTokSession() {
+                if (!this.currentSessionId || !this.currentToken) return;
+
+                try {
+                    // Initialize OpenTok session
+                    this.openTokSession = OT.initSession(this.currentSessionId, this.currentToken);
+                    
+                    // Set up session event handlers
+                    this.openTokSession.on('streamCreated', (event) => {
+                        this.addChatMessage('System', 'New stream created', 'received');
+                        this.openTokSession.subscribe(event.stream, 'subscribers', {
+                            insertMode: 'append',
+                            width: '100%',
+                            height: '100%'
+                        });
+                    });
+
+                    this.openTokSession.on('streamDestroyed', (event) => {
+                        this.addChatMessage('System', 'Stream destroyed', 'received');
+                    });
+
+                    this.openTokSession.on('sessionDisconnected', (event) => {
+                        this.addChatMessage('System', 'Session disconnected', 'received');
+                        this.leaveOpenTokSession();
+                    });
+
+                    // Connect to the session
+                    this.openTokSession.connect((error) => {
+                        if (error) {
+                            console.error('Error connecting to OpenTok session:', error);
+                            this.showNotification('Failed to connect to OpenTok session');
+                        } else {
+                            this.addChatMessage('System', 'Connected to OpenTok session', 'received');
+                            this.isInCall = true;
+                            this.enableCallControls();
+                            this.publishOpenTokStream();
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error initializing OpenTok session:', err);
+                    this.showNotification('Failed to initialize OpenTok session');
+                }
+            }
+
+            publishOpenTokStream() {
+                if (!this.openTokSession) return;
+
+                try {
+                    // Initialize publisher
+                    this.openTokPublisher = OT.initPublisher('publisher', {
+                        width: '200px',
+                        height: '150px',
+                        insertMode: 'append'
+                    });
+
+                    this.openTokPublisher.on('streamCreated', (event) => {
+                        this.addChatMessage('System', 'Publisher stream created', 'received');
+                    });
+
+                    this.openTokPublisher.on('streamDestroyed', (event) => {
+                        this.addChatMessage('System', 'Publisher stream destroyed', 'received');
+                    });
+
+                    // Publish to session
+                    this.openTokSession.publish(this.openTokPublisher, (error) => {
+                        if (error) {
+                            console.error('Error publishing to OpenTok session:', error);
+                            this.showNotification('Failed to publish to OpenTok session');
+                        } else {
+                            this.addChatMessage('System', 'Published to OpenTok session', 'received');
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error publishing OpenTok stream:', err);
+                    this.showNotification('Failed to publish OpenTok stream');
+                }
+            }
+
+            leaveOpenTokSession() {
+                if (this.openTokSession) {
+                    this.openTokSession.disconnect();
+                }
+                
+                if (this.openTokPublisher) {
+                    this.openTokPublisher.destroy();
+                }
+
+                this.isInCall = false;
+                this.currentSessionId = null;
+                this.currentToken = null;
+                this.openTokSession = null;
+                this.openTokPublisher = null;
+                
+                this.disableCallControls();
+                this.updateSessionDetails(null);
+                this.addChatMessage('System', 'Left OpenTok session', 'received');
+            }
+
+            toggleOpenTokVideo() {
+                if (this.openTokPublisher) {
+                    const isVideoEnabled = this.openTokPublisher.getVideoSource();
+                    this.openTokPublisher.publishVideo(!isVideoEnabled);
+                    
+                    const btn = document.getElementById('toggle-video-btn');
+                    btn.textContent = isVideoEnabled ? 'Enable Video' : 'Disable Video';
+                    
+                    this.addChatMessage('System', `Video ${isVideoEnabled ? 'disabled' : 'enabled'}`, 'received');
+                }
+            }
+
+            toggleOpenTokAudio() {
+                if (this.openTokPublisher) {
+                    const isAudioEnabled = this.openTokPublisher.getAudioSource();
+                    this.openTokPublisher.publishAudio(!isAudioEnabled);
+                    
+                    const btn = document.getElementById('toggle-audio-btn');
+                    btn.textContent = isAudioEnabled ? 'Enable Audio' : 'Disable Audio';
+                    
+                    this.addChatMessage('System', `Audio ${isAudioEnabled ? 'disabled' : 'enabled'}`, 'received');
+                }
+            }
+
+            toggleOpenTokScreenSharing() {
+                if (this.openTokPublisher) {
+                    // Note: Screen sharing requires additional setup with OpenTok
+                    this.addChatMessage('System', 'Screen sharing not implemented in demo', 'received');
+                }
+            }
+
+            async startOpenTokRecording() {
+                if (!this.currentSessionId || !this.signalRConnection) return;
+
+                try {
+                    const recordingName = `Recording_${Date.now()}`;
+                    const success = await this.signalRConnection.invoke('StartOpenTokRecording', this.currentSessionId, recordingName);
+                    
+                    if (success) {
+                        this.isRecording = true;
+                        this.addChatMessage('System', 'Recording started', 'received');
+                        this.updateRecordingControls();
+                    } else {
+                        this.showNotification('Failed to start recording');
+                    }
+                } catch (err) {
+                    console.error('Error starting OpenTok recording:', err);
+                    this.showNotification('Failed to start recording');
+                }
+            }
+
+            async stopOpenTokRecording() {
+                if (!this.recordingId || !this.signalRConnection) return;
+
+                try {
+                    const success = await this.signalRConnection.invoke('StopOpenTokRecording', this.recordingId);
+                    
+                    if (success) {
+                        this.isRecording = false;
+                        this.addChatMessage('System', 'Recording stopped', 'received');
+                        this.updateRecordingControls();
+                    } else {
+                        this.showNotification('Failed to stop recording');
+                    }
+                } catch (err) {
+                    console.error('Error stopping OpenTok recording:', err);
+                    this.showNotification('Failed to stop recording');
+                }
+            }
+
+            async sendChatMessage() {
+                const chatInput = document.getElementById('chat-input');
+                const message = chatInput.value.trim();
+                
+                if (!message) return;
+
+                this.addChatMessage('You', message, 'sent');
+                chatInput.value = '';
+                
+                // In a real implementation, you would send this via SignalR
+                this.addChatMessage('System', 'Chat messages not implemented in demo', 'received');
+            }
+
+            addChatMessage(sender, content, type) {
+                const messagesContainer = document.getElementById('chat-messages');
+                const messageEl = document.createElement('div');
+                messageEl.className = `message ${type}`;
+                messageEl.innerHTML = `<strong>${sender}:</strong> ${content}`;
+                messagesContainer.appendChild(messageEl);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            updateStatus(text, isConnected) {
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = text;
+                statusEl.className = `status ${isConnected ? 'connected' : 'disconnected'}`;
+            }
+
+            updateSessionDetails(session) {
+                const sessionDetailsEl = document.getElementById('session-details');
+                if (session) {
+                    sessionDetailsEl.innerHTML = `
+                        <p><strong>Session ID:</strong> ${session.sessionId}</p>
+                        <p><strong>Session Name:</strong> ${session.sessionName}</p>
+                        <p><strong>Created:</strong> ${new Date(session.createdAt).toLocaleString()}</p>
+                        <p><strong>Archived:</strong> ${session.isArchived ? 'Yes' : 'No'}</p>
+                    `;
+                } else {
+                    sessionDetailsEl.innerHTML = 'No active session';
+                }
+            }
+
+            updateCallDetails(call) {
+                const callDetailsEl = document.getElementById('call-details');
+                if (call) {
+                    callDetailsEl.innerHTML = `
+                        <p><strong>Call ID:</strong> ${call.callId}</p>
+                        <p><strong>Status:</strong> ${call.status}</p>
+                        <p><strong>Type:</strong> ${call.type}</p>
+                    `;
+                } else {
+                    callDetailsEl.innerHTML = 'No active call';
+                }
+            }
+
+            enableSessionControls() {
+                document.getElementById('join-session-btn').disabled = false;
+            }
+
+            enableCallControls() {
+                document.getElementById('leave-session-btn').disabled = false;
+                document.getElementById('toggle-video-btn').disabled = false;
+                document.getElementById('toggle-audio-btn').disabled = false;
+                document.getElementById('screen-share-btn').disabled = false;
+                document.getElementById('start-recording-btn').disabled = false;
+                document.getElementById('chat-input').disabled = false;
+                document.getElementById('send-chat-btn').disabled = false;
+            }
+
+            disableCallControls() {
+                document.getElementById('leave-session-btn').disabled = true;
+                document.getElementById('toggle-video-btn').disabled = true;
+                document.getElementById('toggle-audio-btn').disabled = true;
+                document.getElementById('screen-share-btn').disabled = true;
+                document.getElementById('start-recording-btn').disabled = true;
+                document.getElementById('stop-recording-btn').disabled = true;
+                document.getElementById('chat-input').disabled = true;
+                document.getElementById('send-chat-btn').disabled = true;
+            }
+
+            updateRecordingControls() {
+                const startBtn = document.getElementById('start-recording-btn');
+                const stopBtn = document.getElementById('stop-recording-btn');
+                
+                startBtn.disabled = this.isRecording;
+                stopBtn.disabled = !this.isRecording;
+            }
+
+            showNotification(message) {
+                const notificationEl = document.createElement('div');
+                notificationEl.className = 'notification';
+                notificationEl.textContent = message;
+                
+                const container = document.getElementById('notification-container');
+                container.appendChild(notificationEl);
+
+                setTimeout(() => {
+                    notificationEl.remove();
+                }, 5000);
+            }
+        }
+
+        // Initialize the OpenTok video call client when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const openTokClient = new OpenTokVideoCallClient();
+        });
+    </script>
+</body>
+</html> 

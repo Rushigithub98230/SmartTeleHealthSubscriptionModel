@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartTelehealth.Core", "SmartTelehealth.Core\SmartTelehealth.Core.csproj", "{FC31A65D-3130-4CE6-85BA-4CC024E99771}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartTelehealth.Infrastructure", "SmartTelehealth.Infrastructure\SmartTelehealth.Infrastructure.csproj", "{0A7053F1-F9D5-4D55-9DC3-2146BBA3390C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartTelehealth.Application", "SmartTelehealth.Application\SmartTelehealth.Application.csproj", "{98DC95BE-11A8-491B-A3C8-24CB0B1AF7EF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartTelehealth.API", "SmartTelehealth.API\SmartTelehealth.API.csproj", "{CFDCCCB3-9E94-48B8-8004-827E7ABE0F36}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FC31A65D-3130-4CE6-85BA-4CC024E99771}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC31A65D-3130-4CE6-85BA-4CC024E99771}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC31A65D-3130-4CE6-85BA-4CC024E99771}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC31A65D-3130-4CE6-85BA-4CC024E99771}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A7053F1-F9D5-4D55-9DC3-2146BBA3390C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A7053F1-F9D5-4D55-9DC3-2146BBA3390C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A7053F1-F9D5-4D55-9DC3-2146BBA3390C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A7053F1-F9D5-4D55-9DC3-2146BBA3390C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{98DC95BE-11A8-491B-A3C8-24CB0B1AF7EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98DC95BE-11A8-491B-A3C8-24CB0B1AF7EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98DC95BE-11A8-491B-A3C8-24CB0B1AF7EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98DC95BE-11A8-491B-A3C8-24CB0B1AF7EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CFDCCCB3-9E94-48B8-8004-827E7ABE0F36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CFDCCCB3-9E94-48B8-8004-827E7ABE0F36}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CFDCCCB3-9E94-48B8-8004-827E7ABE0F36}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CFDCCCB3-9E94-48B8-8004-827E7ABE0F36}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

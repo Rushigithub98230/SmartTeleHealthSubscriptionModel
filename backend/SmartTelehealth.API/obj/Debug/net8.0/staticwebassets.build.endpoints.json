@@ -1,0 +1,252 @@
+{
+  "Version": 1,
+  "ManifestType": "Build",
+  "Endpoints": [
+    {
+      "Route": "chat-test.html",
+      "AssetFile": "chat-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "18749"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs="
+        }
+      ]
+    },
+    {
+      "Route": "chat-test.op4s9uc7ak.html",
+      "AssetFile": "chat-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "18749"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "op4s9uc7ak"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs="
+        },
+        {
+          "Name": "label",
+          "Value": "chat-test.html"
+        }
+      ]
+    },
+    {
+      "Route": "opentok-video-call-test.a6ix2q87q2.html",
+      "AssetFile": "opentok-video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "29277"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "a6ix2q87q2"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="
+        },
+        {
+          "Name": "label",
+          "Value": "opentok-video-call-test.html"
+        }
+      ]
+    },
+    {
+      "Route": "opentok-video-call-test.html",
+      "AssetFile": "opentok-video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "29277"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="
+        }
+      ]
+    },
+    {
+      "Route": "video-call-test.html",
+      "AssetFile": "video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "24628"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo="
+        }
+      ]
+    },
+    {
+      "Route": "video-call-test.t51g89qnm3.html",
+      "AssetFile": "video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "24628"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 28 Aug 2025 13:55:34 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "t51g89qnm3"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo="
+        },
+        {
+          "Name": "label",
+          "Value": "video-call-test.html"
+        }
+      ]
+    }
+  ]
+}

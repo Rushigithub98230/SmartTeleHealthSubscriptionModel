@@ -1,0 +1,37 @@
+{
+  "Files": [
+    {
+      "Id": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\chat-test.html",
+      "PackagePath": "staticwebassets\\chat-test.html"
+    },
+    {
+      "Id": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\opentok-video-call-test.html",
+      "PackagePath": "staticwebassets\\opentok-video-call-test.html"
+    },
+    {
+      "Id": "D:\\DayUsers\\Rushikesh\\Personal\\.Net Projects\\SmartTeleHealthSubscriptionModel\\backend\\SmartTelehealth.API\\wwwroot\\video-call-test.html",
+      "PackagePath": "staticwebassets\\video-call-test.html"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.SmartTelehealth.API.Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.SmartTelehealth.API.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.SmartTelehealth.API.props",
+      "PackagePath": "build\\SmartTelehealth.API.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.SmartTelehealth.API.props",
+      "PackagePath": "buildMultiTargeting\\SmartTelehealth.API.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.SmartTelehealth.API.props",
+      "PackagePath": "buildTransitive\\SmartTelehealth.API.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

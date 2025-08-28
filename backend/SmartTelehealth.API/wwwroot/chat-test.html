@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Telehealth Chat Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .chat-container {
+            display: flex;
+            height: 600px;
+        }
+
+        .sidebar {
+            width: 300px;
+            border-right: 1px solid #ddd;
+            background: #f8f9fa;
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            background: #f8f9fa;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: white;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 70%;
+        }
+
+        .message.sent {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+        }
+
+        .message.received {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .message-header {
+            font-size: 12px;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+
+        .message-content {
+            word-wrap: break-word;
+        }
+
+        .input-area {
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            background: white;
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .send-button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .send-button:hover {
+            background: #0056b3;
+        }
+
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .typing-indicator {
+            padding: 5px 15px;
+            font-style: italic;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .room-list {
+            padding: 15px;
+        }
+
+        .room-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: white;
+            border: 1px solid #ddd;
+        }
+
+        .room-item:hover {
+            background: #f8f9fa;
+        }
+
+        .room-item.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            margin: 10px 0;
+            background: #f8d7da;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Smart Telehealth Chat Test</h1>
+            <div id="status" class="status disconnected">Disconnected</div>
+        </div>
+
+        <div class="chat-container">
+            <div class="sidebar">
+                <div class="room-list">
+                    <h3>Chat Rooms</h3>
+                    <div id="room-list"></div>
+                    <button id="create-room-btn" style="margin-top: 10px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Create Room</button>
+                </div>
+            </div>
+
+            <div class="chat-main">
+                <div class="chat-header">
+                    <h3 id="current-room">Select a chat room</h3>
+                    <div id="online-users"></div>
+                </div>
+
+                <div class="messages" id="messages"></div>
+
+                <div id="typing-indicator" class="typing-indicator" style="display: none;"></div>
+
+                <div class="input-area">
+                    <input type="text" id="message-input" class="message-input" placeholder="Type your message..." disabled>
+                    <button id="send-button" class="send-button" disabled>Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+    <script>
+        class ChatTestClient {
+            constructor() {
+                this.connection = null;
+                this.currentRoom = null;
+                this.rooms = [];
+                this.typingTimeout = null;
+                this.authToken = this.getAuthToken();
+                
+                this.setupEventHandlers();
+                this.connect();
+            }
+
+            getAuthToken() {
+                // In a real app, this would come from your authentication system
+                // For testing, you can set a token here or get it from localStorage
+                return localStorage.getItem('authToken') || 'your-test-token-here';
+            }
+
+            async connect() {
+                try {
+                    this.connection = new signalR.HubConnectionBuilder()
+                        .withUrl('/chatHub', {
+                            accessTokenFactory: () => this.authToken
+                        })
+                        .withAutomaticReconnect()
+                        .build();
+
+                    this.setupSignalREventHandlers();
+                    await this.connection.start();
+                    this.updateStatus('Connected', true);
+                    this.loadRooms();
+                } catch (err) {
+                    console.error('Error connecting to chat hub:', err);
+                    this.updateStatus('Connection failed', false);
+                }
+            }
+
+            setupSignalREventHandlers() {
+                // Connection events
+                this.connection.onreconnecting(() => {
+                    this.updateStatus('Reconnecting...', false);
+                });
+
+                this.connection.onreconnected(() => {
+                    this.updateStatus('Connected', true);
+                });
+
+                this.connection.onclose(() => {
+                    this.updateStatus('Disconnected', false);
+                });
+
+                // Chat room events
+                this.connection.on('JoinedChatRoom', (chatRoomId) => {
+                    console.log('Joined chat room:', chatRoomId);
+                    this.currentRoom = chatRoomId;
+                    this.updateCurrentRoom();
+                });
+
+                this.connection.on('UserJoined', (userId, userName) => {
+                    this.showNotification(`${userName} joined the chat`);
+                });
+
+                this.connection.on('UserLeft', (userId, userName) => {
+                    this.showNotification(`${userName} left the chat`);
+                });
+
+                // Message events
+                this.connection.on('MessageReceived', (message) => {
+                    this.addMessage(message, false);
+                });
+
+                this.connection.on('MessageSent', (messageId) => {
+                    console.log('Message sent:', messageId);
+                });
+
+                this.connection.on('MessageFailed', (error) => {
+                    this.showError('Failed to send message: ' + error);
+                });
+
+                // Typing indicator
+                this.connection.on('TypingIndicator', (typingData) => {
+                    this.showTypingIndicator(typingData);
+                });
+
+                // Read receipts
+                this.connection.on('MessageRead', (messageId, userId) => {
+                    console.log('Message read:', messageId, userId);
+                });
+
+                // Reactions
+                this.connection.on('ReactionAdded', (messageId, reaction) => {
+                    console.log('Reaction added:', reaction);
+                });
+
+                this.connection.on('ReactionRemoved', (messageId, userId, emoji) => {
+                    console.log('Reaction removed:', messageId, userId, emoji);
+                });
+
+                // Notifications
+                this.connection.on('NotificationReceived', (notification) => {
+                    this.showNotification(notification.title + ': ' + notification.message);
+                });
+
+                // Online users
+                this.connection.on('OnlineUsers', (chatRoomId, userIds) => {
+                    this.updateOnlineUsers(userIds);
+                });
+
+                // Access denied
+                this.connection.on('AccessDenied', (message) => {
+                    this.showError('Access denied: ' + message);
+                });
+            }
+
+            setupEventHandlers() {
+                const messageInput = document.getElementById('message-input');
+                const sendButton = document.getElementById('send-button');
+                const createRoomBtn = document.getElementById('create-room-btn');
+
+                messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                sendButton.addEventListener('click', () => {
+                    this.sendMessage();
+                });
+
+                createRoomBtn.addEventListener('click', () => {
+                    this.createRoom();
+                });
+
+                messageInput.addEventListener('input', () => {
+                    this.handleTyping();
+                });
+            }
+
+            async loadRooms() {
+                try {
+                    const response = await fetch('/api/chat/rooms', {
+                        headers: {
+                            'Authorization': 'Bearer ' + this.authToken
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        this.rooms = result.data || [];
+                        this.renderRooms();
+                    }
+                } catch (err) {
+                    console.error('Error loading rooms:', err);
+                }
+            }
+
+            renderRooms() {
+                const roomList = document.getElementById('room-list');
+                roomList.innerHTML = '';
+
+                this.rooms.forEach(room => {
+                    const roomEl = document.createElement('div');
+                    roomEl.className = 'room-item';
+                    roomEl.textContent = room.name;
+                    roomEl.onclick = () => this.joinRoom(room.id);
+                    roomList.appendChild(roomEl);
+                });
+            }
+
+            async createRoom() {
+                const roomName = prompt('Enter room name:');
+                if (!roomName) return;
+
+                try {
+                    const response = await fetch('/api/chat/rooms', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + this.authToken
+                        },
+                        body: JSON.stringify({
+                            name: roomName,
+                            description: 'Test room',
+                            type: 0, // Consultation
+                            isGroupChat: false
+                        })
+                    });
+
+                    if (response.ok) {
+                        this.loadRooms();
+                    }
+                } catch (err) {
+                    console.error('Error creating room:', err);
+                }
+            }
+
+            async joinRoom(roomId) {
+                if (!this.connection) return;
+
+                try {
+                    await this.connection.invoke('JoinChatRoom', roomId);
+                    this.enableInput();
+                } catch (err) {
+                    console.error('Error joining room:', err);
+                }
+            }
+
+            async sendMessage() {
+                if (!this.currentRoom || !this.connection) return;
+
+                const messageInput = document.getElementById('message-input');
+                const content = messageInput.value.trim();
+                
+                if (!content) return;
+
+                try {
+                    await this.connection.invoke('SendMessage', this.currentRoom, content);
+                    messageInput.value = '';
+                } catch (err) {
+                    console.error('Error sending message:', err);
+                }
+            }
+
+            async handleTyping() {
+                if (!this.currentRoom || !this.connection) return;
+
+                if (this.typingTimeout) {
+                    clearTimeout(this.typingTimeout);
+                }
+
+                try {
+                    await this.connection.invoke('SendTypingIndicator', this.currentRoom, true);
+                    
+                    this.typingTimeout = setTimeout(async () => {
+                        await this.connection.invoke('SendTypingIndicator', this.currentRoom, false);
+                    }, 3000);
+                } catch (err) {
+                    console.error('Error sending typing indicator:', err);
+                }
+            }
+
+            addMessage(message, isSent) {
+                const messagesContainer = document.getElementById('messages');
+                const messageEl = document.createElement('div');
+                messageEl.className = `message ${isSent ? 'sent' : 'received'}`;
+                
+                messageEl.innerHTML = `
+                    <div class="message-header">
+                        <strong>${message.senderName || 'Unknown'}</strong>
+                        <small>${new Date(message.createdAt).toLocaleTimeString()}</small>
+                    </div>
+                    <div class="message-content">${message.content}</div>
+                `;
+
+                messagesContainer.appendChild(messageEl);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            showTypingIndicator(typingData) {
+                const typingEl = document.getElementById('typing-indicator');
+                if (typingData.isTyping) {
+                    typingEl.textContent = `${typingData.userName} is typing...`;
+                    typingEl.style.display = 'block';
+                } else {
+                    typingEl.style.display = 'none';
+                }
+            }
+
+            updateStatus(text, isConnected) {
+                const statusEl = document.getElementById('status');
+                statusEl.textContent = text;
+                statusEl.className = `status ${isConnected ? 'connected' : 'disconnected'}`;
+            }
+
+            updateCurrentRoom() {
+                const currentRoomEl = document.getElementById('current-room');
+                const room = this.rooms.find(r => r.id === this.currentRoom);
+                currentRoomEl.textContent = room ? room.name : 'Unknown Room';
+            }
+
+            updateOnlineUsers(userIds) {
+                const onlineUsersEl = document.getElementById('online-users');
+                onlineUsersEl.textContent = `Online: ${userIds.length} users`;
+            }
+
+            enableInput() {
+                const messageInput = document.getElementById('message-input');
+                const sendButton = document.getElementById('send-button');
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+
+            showNotification(message) {
+                const notificationEl = document.createElement('div');
+                notificationEl.className = 'notification';
+                notificationEl.textContent = message;
+                
+                const container = document.getElementById('notification-container');
+                container.appendChild(notificationEl);
+
+                setTimeout(() => {
+                    notificationEl.remove();
+                }, 5000);
+            }
+
+            showError(message) {
+                const errorEl = document.createElement('div');
+                errorEl.className = 'error';
+                errorEl.textContent = message;
+                
+                const container = document.querySelector('.chat-main');
+                container.insertBefore(errorEl, container.firstChild);
+
+                setTimeout(() => {
+                    errorEl.remove();
+                }, 5000);
+            }
+        }
+
+        // Initialize the chat client when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatClient = new ChatTestClient();
+        });
+    </script>
+</body>
+</html> 
