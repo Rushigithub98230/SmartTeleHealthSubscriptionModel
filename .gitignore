@@ -1,0 +1,57 @@
+# Ignore Visual Studio files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Ignore build output
+bin/
+obj/
+
+# Ignore logs
+*.log
+
+# Ignore build artifacts
+*.dll
+*.exe
+*.pdb
+*.cache
+*.db
+*.db-shm
+*.db-wal
+*.v9.bin
+*.vsidx
+*.dtbcache.v2
+*.futdcache.v2
+*.sourcelink.json
+*.genruntimeconfig.cache
+*.backup.json
+*.json
+*.txt
+
+# Ignore node modules
+frontend/node_modules/
+
+# Ignore environment files
+.env
+
+# Ignore test output
+TestResults/
+
+# Ignore Angular build output
+frontend/dist/
+
+# Ignore cursor and Copilot files
+.cursor/
+CopilotIndices/
+
+# Ignore other IDE files
+.idea/
+*.iml
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore Windows system files
+Thumbs.db

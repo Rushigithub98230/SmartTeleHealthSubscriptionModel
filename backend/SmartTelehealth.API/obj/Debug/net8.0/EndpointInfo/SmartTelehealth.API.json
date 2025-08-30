@@ -166,6 +166,211 @@
         }
       }
     },
+    "/api/admin/AdminStripeSync/plans/{planId}/sync": {
+      "post": {
+        "tags": [
+          "AdminStripeSync"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/AdminStripeSync/plans/{planId}/validate": {
+      "get": {
+        "tags": [
+          "AdminStripeSync"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/AdminStripeSync/plans/{planId}/repair": {
+      "post": {
+        "tags": [
+          "AdminStripeSync"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/AdminStripeSync/subscriptions/{subscriptionId}/validate": {
+      "get": {
+        "tags": [
+          "AdminStripeSync"
+        ],
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/AdminStripeSync/subscriptions/{subscriptionId}/repair": {
+      "post": {
+        "tags": [
+          "AdminStripeSync"
+        ],
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/AdminStripeSync/customers/{userId}/sync": {
+      "post": {
+        "tags": [
+          "AdminStripeSync"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/AdminStripeSync/status": {
+      "get": {
+        "tags": [
+          "AdminStripeSync"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/AdminSubscription": {
       "get": {
         "tags": [
@@ -4764,6 +4969,116 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Billing/{id}/generate-invoice": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Billing/invoice/{invoiceNumber}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "parameters": [
+          {
+            "name": "invoiceNumber",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Billing/invoice/{invoiceNumber}/status": {
+      "put": {
+        "tags": [
+          "Billing"
+        ],
+        "parameters": [
+          {
+            "name": "invoiceNumber",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.API.Controllers.UpdateInvoiceStatusRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.API.Controllers.UpdateInvoiceStatusRequestDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.API.Controllers.UpdateInvoiceStatusRequestDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success",
@@ -22451,6 +22766,15 @@
         },
         "additionalProperties": false
       },
+      "SmartTelehealth.API.Controllers.UpdateInvoiceStatusRequestDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "SmartTelehealth.API.Controllers.UpdatePaymentMethodRequestDto": {
         "type": "object",
         "properties": {
@@ -23244,8 +23568,9 @@
             "minLength": 1,
             "type": "string"
           },
-          "currency": {
+          "currencyId": {
             "type": "string",
+            "format": "uuid",
             "nullable": true
           },
           "paidAt": {
@@ -26441,6 +26766,11 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "trialEndDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -26542,6 +26872,10 @@
           },
           "isActive": {
             "type": "boolean"
+          },
+          "stripeCustomerId": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false

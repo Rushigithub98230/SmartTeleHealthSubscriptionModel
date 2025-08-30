@@ -40,6 +40,7 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\ba
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Application\obj\Debug\net8.0\SmartTelehealth.Application.AssemblyInfoInputs.cache
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Application\obj\Debug\net8.0\SmartTelehealth.Application.AssemblyInfo.cs
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Application\obj\Debug\net8.0\SmartTelehealth.Application.csproj.CoreCompileInputs.cache
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Application\obj\Debug\net8.0\SmartTelehealth.Application.sourcelink.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Application\obj\Debug\net8.0\SmartTel.F8BB03A2.Up2Date
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Application\obj\Debug\net8.0\SmartTelehealth.Application.dll
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Application\obj\Debug\net8.0\refint\SmartTelehealth.Application.dll

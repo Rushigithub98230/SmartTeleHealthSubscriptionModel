@@ -4,37 +4,37 @@
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\chat-test.html'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
       <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs\u002BPcrJsp0K3lVsHs="}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"18749"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022JJgzEGetWwTyw1vLsNLzFsxdSDZs\u002BPcrJsp0K3lVsHs=\u0022"},{"Name":"Last-Modified","Value":"Thu, 28 Aug 2025 13:55:34 GMT"}]]]></ResponseHeaders>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"18749"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022JJgzEGetWwTyw1vLsNLzFsxdSDZs\u002BPcrJsp0K3lVsHs=\u0022"},{"Name":"Last-Modified","Value":"Fri, 29 Aug 2025 10:46:54 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/SmartTelehealth.API/chat-test.op4s9uc7ak.html">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\chat-test.html'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
       <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"op4s9uc7ak"},{"Name":"integrity","Value":"sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs\u002BPcrJsp0K3lVsHs="},{"Name":"label","Value":"_content/SmartTelehealth.API/chat-test.html"}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"18749"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022JJgzEGetWwTyw1vLsNLzFsxdSDZs\u002BPcrJsp0K3lVsHs=\u0022"},{"Name":"Last-Modified","Value":"Thu, 28 Aug 2025 13:55:34 GMT"}]]]></ResponseHeaders>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"18749"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022JJgzEGetWwTyw1vLsNLzFsxdSDZs\u002BPcrJsp0K3lVsHs=\u0022"},{"Name":"Last-Modified","Value":"Fri, 29 Aug 2025 10:46:54 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/SmartTelehealth.API/opentok-video-call-test.a6ix2q87q2.html">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\opentok-video-call-test.html'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
       <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"a6ix2q87q2"},{"Name":"integrity","Value":"sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="},{"Name":"label","Value":"_content/SmartTelehealth.API/opentok-video-call-test.html"}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"29277"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\u0022"},{"Name":"Last-Modified","Value":"Thu, 28 Aug 2025 13:55:34 GMT"}]]]></ResponseHeaders>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"29277"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\u0022"},{"Name":"Last-Modified","Value":"Fri, 29 Aug 2025 10:46:54 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/SmartTelehealth.API/opentok-video-call-test.html">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\opentok-video-call-test.html'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
       <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"29277"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\u0022"},{"Name":"Last-Modified","Value":"Thu, 28 Aug 2025 13:55:34 GMT"}]]]></ResponseHeaders>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"29277"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\u0022"},{"Name":"Last-Modified","Value":"Fri, 29 Aug 2025 10:46:54 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/SmartTelehealth.API/video-call-test.html">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\video-call-test.html'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
       <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo="}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"24628"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\u0022"},{"Name":"Last-Modified","Value":"Thu, 28 Aug 2025 13:55:34 GMT"}]]]></ResponseHeaders>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"24628"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\u0022"},{"Name":"Last-Modified","Value":"Fri, 29 Aug 2025 10:46:54 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/SmartTelehealth.API/video-call-test.t51g89qnm3.html">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\video-call-test.html'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
       <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"t51g89qnm3"},{"Name":"integrity","Value":"sha256-H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo="},{"Name":"label","Value":"_content/SmartTelehealth.API/video-call-test.html"}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"24628"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\u0022"},{"Name":"Last-Modified","Value":"Thu, 28 Aug 2025 13:55:34 GMT"}]]]></ResponseHeaders>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"24628"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022H2qmvxnLYC7UPvLjD3P7FF3yh8XXocHVqzmzJ2zaPVo=\u0022"},{"Name":"Last-Modified","Value":"Fri, 29 Aug 2025 10:46:54 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
   </ItemGroup>
 </Project>

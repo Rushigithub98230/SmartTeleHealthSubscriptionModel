@@ -108,6 +108,7 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\ba
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Infrastructure\obj\Debug\net8.0\SmartTelehealth.Infrastructure.AssemblyInfoInputs.cache
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Infrastructure\obj\Debug\net8.0\SmartTelehealth.Infrastructure.AssemblyInfo.cs
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Infrastructure\obj\Debug\net8.0\SmartTelehealth.Infrastructure.csproj.CoreCompileInputs.cache
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Infrastructure\obj\Debug\net8.0\SmartTelehealth.Infrastructure.sourcelink.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Infrastructure\obj\Debug\net8.0\SmartTel.45D0C4C5.Up2Date
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Infrastructure\obj\Debug\net8.0\SmartTelehealth.Infrastructure.dll
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.Infrastructure\obj\Debug\net8.0\refint\SmartTelehealth.Infrastructure.dll

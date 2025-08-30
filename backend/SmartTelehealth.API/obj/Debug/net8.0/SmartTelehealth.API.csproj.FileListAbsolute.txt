@@ -502,6 +502,7 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\TeleHealthWithSubscriptionModel-v2\
 D:\DayUsers\Rushikesh\Personal\.Net Projects\TeleHealthWithSubscriptionModel-v2\backend\SmartTelehealth.API\obj\Debug\net8.0\ref\SmartTelehealth.API.dll
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\appsettings.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\appsettings.test.json
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.API.staticwebassets.runtime.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.API.staticwebassets.endpoints.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\LatoFont\Lato-Black.ttf
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\LatoFont\Lato-BlackItalic.ttf
@@ -522,7 +523,6 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\ba
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\LatoFont\Lato-Thin.ttf
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\LatoFont\Lato-ThinItalic.ttf
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\LatoFont\OFL.txt
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.API.staticwebassets.runtime.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.API.exe
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.API.deps.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.API.runtimeconfig.json
@@ -733,6 +733,7 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\ba
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.csproj.CoreCompileInputs.cache
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.MvcApplicationPartsAssemblyInfo.cs
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.MvcApplicationPartsAssemblyInfo.cache
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.sourcelink.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\scopedcss\bundle\SmartTelehealth.API.styles.css
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\staticwebassets.build.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\staticwebassets.development.json
