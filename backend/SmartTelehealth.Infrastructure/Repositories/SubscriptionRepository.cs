@@ -372,4 +372,11 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
 
         await _context.SaveChangesAsync();
     }
+
+    // Billing cycle methods
+    public async Task<MasterBillingCycle?> GetBillingCycleByIdAsync(Guid billingCycleId)
+    {
+        return await _context.MasterBillingCycles
+            .FirstOrDefaultAsync(bc => bc.Id == billingCycleId);
+    }
 } 

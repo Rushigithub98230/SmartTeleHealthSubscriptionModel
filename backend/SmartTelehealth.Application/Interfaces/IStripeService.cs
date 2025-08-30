@@ -28,6 +28,7 @@ public interface IStripeService
     // Price Management
     Task<string> CreatePriceAsync(string productId, decimal amount, string currency, string interval, int intervalCount, TokenModel tokenModel);
     Task<bool> UpdatePriceAsync(string priceId, decimal amount, TokenModel tokenModel);
+    Task<string> UpdatePriceWithNewPriceAsync(string oldPriceId, string productId, decimal newAmount, string currency, string interval, int intervalCount, TokenModel tokenModel);
     Task<bool> DeactivatePriceAsync(string priceId, TokenModel tokenModel);
     
     // Subscription Management

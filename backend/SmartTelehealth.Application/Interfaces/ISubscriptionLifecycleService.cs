@@ -1,5 +1,5 @@
-using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
+using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Application.Interfaces;
@@ -23,4 +23,9 @@ public interface ISubscriptionLifecycleService
     // Process methods for automation
     Task<bool> ProcessSubscriptionExpirationAsync(Guid subscriptionId, TokenModel tokenModel = null);
     Task<bool> ProcessSubscriptionSuspensionAsync(Guid subscriptionId, string reason, TokenModel tokenModel = null);
+    
+    // Trial management methods
+    Task<JsonModel> ExtendTrialAsync(string subscriptionId, int additionalDays, string reason = null);
+    Task<JsonModel> ConvertTrialToActiveAsync(string subscriptionId, string paymentMethodId = null);
+    Task<JsonModel> ProcessTrialExpirationAsync(string subscriptionId);
 }

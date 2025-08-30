@@ -107,6 +107,9 @@ namespace SmartTelehealth.Application.DTOs
         public string? Country { get; set; }
         public string? ProfilePictureUrl { get; set; }
         public bool IsActive { get; set; } = true;
+        
+        // Stripe Integration
+        public string? StripeCustomerId { get; set; }
     }
 
     public class UpdateUserProfileDto

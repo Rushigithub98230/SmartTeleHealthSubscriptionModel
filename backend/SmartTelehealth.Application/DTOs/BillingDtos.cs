@@ -62,6 +62,22 @@ public class BillingAdjustmentDto
     public string? Notes { get; set; }
 }
 
+public class InvoiceDto
+{
+    public Guid Id { get; set; }
+    public string InvoiceNumber { get; set; } = string.Empty;
+    public int UserId { get; set; }
+    public decimal Amount { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime BillingDate { get; set; }
+    public DateTime? DueDate { get; set; }
+    public string? Description { get; set; }
+    public string? StripeInvoiceId { get; set; }
+    public string? StripePaymentIntentId { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 public class CreateInvoiceDto
 {
     public int UserId { get; set; }

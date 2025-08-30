@@ -145,7 +145,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             
             // Process the plan change
             subscription.SubscriptionPlanId = newPlanId;
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
             
             await _subscriptionRepository.UpdateAsync(subscription);
             
@@ -230,7 +230,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             {
                 // Update subscription status
                 subscription.Status = Subscription.SubscriptionStatuses.Active;
-                subscription.UpdatedAt = DateTime.UtcNow;
+                subscription.UpdatedDate = DateTime.UtcNow;
                 await _subscriptionRepository.UpdateAsync(subscription);
                 
                 // Log audit trail

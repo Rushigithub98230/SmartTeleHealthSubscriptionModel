@@ -85,8 +85,8 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.CanResume, opt => opt.MapFrom(src => src.CanResume))
             .ForMember(dest => dest.CanCancel, opt => opt.MapFrom(src => src.CanCancel))
             .ForMember(dest => dest.CanRenew, opt => opt.MapFrom(src => src.CanRenew))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedDate))
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedDate));
         CreateMap<SubscriptionStatusHistory, SubscriptionStatusHistoryDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
             .ForMember(dest => dest.SubscriptionId, opt => opt.MapFrom(src => src.SubscriptionId.ToString()))

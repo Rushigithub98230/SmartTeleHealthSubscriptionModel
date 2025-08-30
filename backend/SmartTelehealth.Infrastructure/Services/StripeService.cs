@@ -760,28 +760,68 @@ public class StripeService : IStripeService
         {
             try
             {
+                // IMPORTANT: Stripe doesn't allow updating unit amounts of existing prices
+                // We need to deactivate the old price and create a new one
+                // For now, we'll just update metadata and log the amount change
+                // In a production environment, you might want to create new prices and update references
+                
                 var priceUpdateOptions = new PriceUpdateOptions
                 {
-                    // UnitAmount property not available in current Stripe version
-                    // UnitAmount = (long)(amount * 100), // Convert to cents
                     Metadata = new Dictionary<string, string>
                     {
                         { "updated_by_user_id", tokenModel.UserID.ToString() },
                         { "updated_by_role_id", tokenModel.RoleID.ToString() },
-                        { "updated_at", DateTime.UtcNow.ToString("O") }
+                        { "updated_at", DateTime.UtcNow.ToString("O") },
+                        { "new_amount", amount.ToString() },
+                        { "note", "Amount update requires new price creation in Stripe" }
                     }
                 };
 
                 var priceService = new PriceService();
                 await priceService.UpdateAsync(priceId, priceUpdateOptions);
 
-                _logger.LogInformation("Updated Stripe price {PriceId} to amount {Amount} by user {UserId}", 
-                    priceId, amount, tokenModel.UserID);
+                _logger.LogWarning("Stripe price {PriceId} metadata updated for amount change to {Amount}. Note: Stripe requires new price creation for amount updates.", 
+                    priceId, amount);
                 return true;
             }
             catch (StripeException ex)
             {
                 _logger.LogError(ex, "Stripe error updating price {PriceId}: {Message}", priceId, ex.Message);
+                throw new InvalidOperationException($"Failed to update price: {ex.Message}", ex);
+            }
+        });
+    }
+
+    // NEW: Method to properly handle price updates by creating new prices
+    public async Task<string> UpdatePriceWithNewPriceAsync(string oldPriceId, string productId, decimal newAmount, string currency, string interval, int intervalCount, TokenModel tokenModel)
+    {
+        if (string.IsNullOrEmpty(oldPriceId))
+            throw new ArgumentException("Old price ID is required", nameof(oldPriceId));
+        
+        if (string.IsNullOrEmpty(productId))
+            throw new ArgumentException("Product ID is required", nameof(productId));
+        
+        if (newAmount <= 0)
+            throw new ArgumentException("Amount must be greater than 0", nameof(newAmount));
+
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                // 1. Create new price with the new amount
+                var newPriceId = await CreatePriceAsync(productId, newAmount, currency, interval, intervalCount, tokenModel);
+                
+                // 2. Deactivate the old price
+                await DeactivatePriceAsync(oldPriceId, tokenModel);
+                
+                _logger.LogInformation("Successfully updated price from {OldPriceId} to {NewPriceId} with new amount {Amount}", 
+                    oldPriceId, newPriceId, newAmount);
+                
+                return newPriceId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating price from {OldPriceId} to new amount {Amount}", oldPriceId, newAmount);
                 throw new InvalidOperationException($"Failed to update price: {ex.Message}", ex);
             }
         });

@@ -98,16 +98,15 @@ public class Subscription : BaseEntity
     public string Currency { get => "USD"; set { } } // Default currency, read-only setter
     #endregion
 
-    #region Payment Integration
-    // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
     
     [MaxLength(100)]
     public string? StripeSubscriptionId { get; set; }
     
     [MaxLength(100)]
     public string? StripeCustomerId { get; set; }
+    
+    [MaxLength(100)]
+    public string? StripePriceId { get; set; }
     
     [MaxLength(100)]
     public string? PaymentMethodId { get; set; }
@@ -223,4 +222,3 @@ public class Subscription : BaseEntity
     }
     #endregion
 }
-#endregion 

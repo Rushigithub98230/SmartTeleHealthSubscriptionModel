@@ -25,4 +25,8 @@ public interface IBillingRepository : IRepositoryBase<BillingRecord>
     Task<IEnumerable<BillingRecord>> GetByBillingCycleIdAsync(Guid billingCycleId);
     Task<IEnumerable<BillingRecord>> GetOverdueRecordsAsync();
     Task<IEnumerable<BillingRecord>> GetPendingRecordsAsync();
+    
+    // Webhook support methods
+    Task<BillingRecord?> GetByStripePaymentIntentIdAsync(string stripePaymentIntentId);
+    Task<BillingRecord?> GetByStripeInvoiceIdAsync(string stripeInvoiceId);
 } 

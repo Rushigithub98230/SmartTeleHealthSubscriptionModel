@@ -408,6 +408,33 @@ public class BillingController : BaseController
     {
         return await _billingService.GetPaymentAnalyticsAsync(userId, startDate, endDate, GetToken(HttpContext));
     }
+
+    /// <summary>
+    /// Generate invoice for a billing record
+    /// </summary>
+    [HttpPost("{id}/generate-invoice")]
+    public async Task<JsonModel> GenerateInvoice(Guid id)
+    {
+        return await _billingService.GenerateInvoiceAsync(id, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get invoice by invoice number
+    /// </summary>
+    [HttpGet("invoice/{invoiceNumber}")]
+    public async Task<JsonModel> GetInvoice(string invoiceNumber)
+    {
+        return await _billingService.GetInvoiceAsync(invoiceNumber, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Update invoice status
+    /// </summary>
+    [HttpPut("invoice/{invoiceNumber}/status")]
+    public async Task<JsonModel> UpdateInvoiceStatus(string invoiceNumber, [FromBody] UpdateInvoiceStatusRequestDto request)
+    {
+        return await _billingService.UpdateInvoiceStatusAsync(invoiceNumber, request.Status, GetToken(HttpContext));
+    }
 }
 
 // DTOs for the controller
@@ -467,4 +494,9 @@ public class OverdueStatusDto
     public bool IsOverdue { get; set; }
     public DateTime? DueDate { get; set; }
     public int DaysOverdue { get; set; }
+}
+
+public class UpdateInvoiceStatusRequestDto
+{
+    public string Status { get; set; } = string.Empty;
 } 

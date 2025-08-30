@@ -54,4 +54,9 @@ public interface IBillingService
     
     // Export functionality
     Task<JsonModel> ExportBillingRecordsAsync(TokenModel tokenModel, int page, int pageSize, string? searchTerm, string[]? status, string[]? type, string[]? userId, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, string format);
+    
+    // NEW: Enhanced invoice management methods
+    Task<JsonModel> GenerateInvoiceAsync(Guid billingRecordId, TokenModel tokenModel);
+    Task<JsonModel> GetInvoiceAsync(string invoiceNumber, TokenModel tokenModel);
+    Task<JsonModel> UpdateInvoiceStatusAsync(string invoiceNumber, string newStatus, TokenModel tokenModel);
 } 

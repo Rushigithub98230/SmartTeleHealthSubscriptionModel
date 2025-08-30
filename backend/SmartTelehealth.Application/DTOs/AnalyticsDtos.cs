@@ -137,7 +137,10 @@ namespace SmartTelehealth.Application.DTOs
         public decimal PaidAmount { get; set; }
         public int TotalInvoices { get; set; }
         public int PaidInvoices { get; set; }
+        public int PendingInvoices { get; set; } // Added missing property
+        public int FailedInvoices { get; set; } // Added missing property
         public int OverdueInvoices { get; set; }
+        public decimal AverageInvoiceAmount { get; set; } // Added missing property
         public decimal AveragePaymentTime { get; set; }
         public List<RevenueSourceDto> TopRevenueSources { get; set; } = new List<RevenueSourceDto>();
         public decimal MonthlyRecurringRevenue { get; set; }
@@ -288,6 +291,7 @@ namespace SmartTelehealth.Application.DTOs
         public decimal Revenue { get; set; }
         public int BillingCount { get; set; }
         public int PaymentCount { get; set; }
+        public int InvoiceCount { get; set; } // Added for invoice analytics
     }
 
     public class BillingStatusDto
@@ -331,4 +335,6 @@ namespace SmartTelehealth.Application.DTOs
         public decimal Revenue { get; set; }
         public int SubscriptionCount { get; set; }
     }
+
+
 } 

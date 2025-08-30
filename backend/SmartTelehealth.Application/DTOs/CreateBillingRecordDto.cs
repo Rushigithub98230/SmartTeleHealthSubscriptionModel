@@ -37,7 +37,7 @@ public class CreateBillingRecordDto
     [Required]
     public string Type { get; set; } = "Subscription";
     
-    public string? Currency { get; set; } = "USD";
+    public Guid? CurrencyId { get; set; }
     
     public DateTime? PaidAt { get; set; }
     

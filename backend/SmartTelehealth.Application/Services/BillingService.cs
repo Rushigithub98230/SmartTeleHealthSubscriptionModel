@@ -407,92 +407,7 @@ namespace SmartTelehealth.Application.Services
             }
         }
 
-        public async Task<JsonModel> GetBillingAnalyticsAsync(TokenModel tokenModel)
-        {
-            try
-            {
-                // Placeholder implementation
-                var analytics = new BillingAnalyticsDto
-                {
-                    TotalRevenue = 50000.00m,
-                    MonthlyRevenue = new List<MonthlyRevenueDto>
-                    {
-                        new MonthlyRevenueDto { Month = "January", Revenue = 5000.00m, BillingCount = 50 },
-                        new MonthlyRevenueDto { Month = "February", Revenue = 5500.00m, BillingCount = 55 },
-                        new MonthlyRevenueDto { Month = "March", Revenue = 6000.00m, BillingCount = 60 }
-                    },
-                    OutstandingAmount = 2500.00m,
-                    PaidAmount = 47500.00m,
-                    TotalInvoices = 150,
-                    PaidInvoices = 140,
-                    OverdueInvoices = 10,
-                    AveragePaymentTime = 3.5m,
-                    TopRevenueSources = new List<RevenueSourceDto>
-                    {
-                        new RevenueSourceDto { Source = "Subscriptions", Amount = 30000.00m, Percentage = 60.0m },
-                        new RevenueSourceDto { Source = "Consultations", Amount = 15000.00m, Percentage = 30.0m },
-                        new RevenueSourceDto { Source = "Medications", Amount = 5000.00m, Percentage = 10.0m }
-                    }
-                };
 
-                return new JsonModel { data = analytics, Message = "Billing analytics retrieved successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting billing analytics");
-                return new JsonModel { data = new object(), Message = "Error retrieving billing analytics", StatusCode = 500 };
-            }
-        }
-
-        // Phase 2: Enhanced Billing Features
-        public async Task<JsonModel> CreateRecurringBillingAsync(CreateRecurringBillingDto createDto, TokenModel tokenModel)
-        {
-            try
-            {
-                var billingRecord = _mapper.Map<BillingRecord>(createDto);
-                billingRecord.CreatedDate = DateTime.UtcNow;
-                billingRecord.Status = BillingRecord.BillingStatus.Pending;
-
-                var createdRecord = await _billingRepository.CreateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
-                
-                return new JsonModel { data = billingRecordDto, Message = "Recurring billing created successfully", StatusCode = 201 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating recurring billing");
-                return new JsonModel { data = new object(), Message = "Error creating recurring billing", StatusCode = 500 };
-            }
-        }
-
-        public async Task<JsonModel> ProcessRecurringPaymentAsync(Guid subscriptionId, TokenModel tokenModel)
-        {
-            try
-            {
-                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
-                if (subscription == null)
-                {
-                    return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-                }
-
-                // TODO: Implement recurring payment processing
-                var result = new PaymentResultDto
-                {
-                    Status = "succeeded",
-                    PaymentIntentId = Guid.NewGuid().ToString(),
-                    Amount = subscription.Amount,
-                    Currency = subscription.Currency,
-                    ProcessedAt = DateTime.UtcNow
-                };
-                
-                return new JsonModel { data = result, Message = "Recurring payment processed successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing recurring payment for subscription {SubscriptionId}", subscriptionId);
-                return new JsonModel { data = new object(), Message = "Error processing recurring payment", StatusCode = 500 };
-            }
-        }
 
         public async Task<JsonModel> CancelRecurringBillingAsync(Guid subscriptionId, TokenModel tokenModel)
         {
@@ -1210,6 +1125,219 @@ namespace SmartTelehealth.Application.Services
             // For now, return CSV format as Excel generation would require additional libraries
             // In a real implementation, you'd use EPPlus or similar library
             return GenerateBillingRecordsCsv(billingRecords);
+        }
+
+        // NEW: Enhanced invoice management methods
+        public async Task<JsonModel> GenerateInvoiceAsync(Guid billingRecordId, TokenModel tokenModel)
+        {
+            try
+            {
+                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
+                if (billingRecord == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+                }
+
+                // Generate invoice number if not exists
+                if (string.IsNullOrEmpty(billingRecord.InvoiceNumber))
+                {
+                    billingRecord.InvoiceNumber = GenerateInvoiceNumber();
+                    await _billingRepository.UpdateAsync(billingRecord);
+                }
+
+                // Create invoice DTO
+                var invoiceDto = new InvoiceDto
+                {
+                    Id = billingRecord.Id,
+                    InvoiceNumber = billingRecord.InvoiceNumber,
+                    UserId = billingRecord.UserId,
+                    Amount = billingRecord.Amount,
+                    Currency = billingRecord.Currency?.Code ?? "USD",
+                    Status = billingRecord.Status.ToString(),
+                    BillingDate = billingRecord.BillingDate,
+                    DueDate = billingRecord.DueDate,
+                    Description = billingRecord.Description,
+                    StripeInvoiceId = billingRecord.StripeInvoiceId,
+                    StripePaymentIntentId = billingRecord.StripePaymentIntentId,
+                    CreatedAt = billingRecord.CreatedDate ?? DateTime.UtcNow
+                };
+
+                return new JsonModel { data = invoiceDto, Message = "Invoice generated successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating invoice for billing record {BillingRecordId}", billingRecordId);
+                return new JsonModel { data = new object(), Message = "Error generating invoice", StatusCode = 500 };
+            }
+        }
+
+        public async Task<JsonModel> GetInvoiceAsync(string invoiceNumber, TokenModel tokenModel)
+        {
+            try
+            {
+                var billingRecord = await _billingRepository.GetByInvoiceNumberAsync(invoiceNumber);
+                if (billingRecord == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Invoice not found", StatusCode = 404 };
+                }
+
+                var invoiceDto = _mapper.Map<InvoiceDto>(billingRecord);
+                return new JsonModel { data = invoiceDto, Message = "Invoice retrieved successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting invoice {InvoiceNumber}", invoiceNumber);
+                return new JsonModel { data = new object(), Message = "Error retrieving invoice", StatusCode = 500 };
+            }
+        }
+
+        public async Task<JsonModel> UpdateInvoiceStatusAsync(string invoiceNumber, string newStatus, TokenModel tokenModel)
+        {
+            try
+            {
+                var billingRecord = await _billingRepository.GetByInvoiceNumberAsync(invoiceNumber);
+                if (billingRecord == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Invoice not found", StatusCode = 404 };
+                }
+
+                // Validate status transition
+                if (Enum.TryParse<BillingRecord.BillingStatus>(newStatus, out var status))
+                {
+                    billingRecord.Status = status;
+                    billingRecord.UpdatedDate = DateTime.UtcNow;
+                    
+                    if (status == BillingRecord.BillingStatus.Paid)
+                    {
+                        billingRecord.PaidAt = DateTime.UtcNow;
+                    }
+
+                    await _billingRepository.UpdateAsync(billingRecord);
+                    
+                    var invoiceDto = _mapper.Map<InvoiceDto>(billingRecord);
+                    return new JsonModel { data = invoiceDto, Message = "Invoice status updated successfully", StatusCode = 200 };
+                }
+                else
+                {
+                    return new JsonModel { data = new object(), Message = "Invalid status", StatusCode = 400 };
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating invoice status for {InvoiceNumber}", invoiceNumber);
+                return new JsonModel { data = new object(), Message = "Error updating invoice status", StatusCode = 500 };
+            }
+        }
+
+        public async Task<JsonModel> GetBillingAnalyticsAsync(TokenModel tokenModel)
+        {
+            try
+            {
+                var allBillingRecords = await _billingRepository.GetAllAsync();
+                
+                var analytics = new BillingAnalyticsDto
+                {
+                    TotalRevenue = allBillingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.Amount),
+                    TotalInvoices = allBillingRecords.Count(),
+                    PaidInvoices = allBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Paid),
+                    PendingInvoices = allBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Pending),
+                    FailedInvoices = allBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Failed),
+                    OverdueInvoices = allBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Overdue),
+                    AverageInvoiceAmount = allBillingRecords.Any() ? allBillingRecords.Average(br => br.Amount) : 0,
+                    MonthlyRevenue = allBillingRecords
+                        .Where(br => br.Status == BillingRecord.BillingStatus.Paid && br.CreatedDate.HasValue)
+                        .GroupBy(br => new { br.CreatedDate.Value.Year, br.CreatedDate.Value.Month })
+                        .Select(g => new MonthlyRevenueDto
+                        {
+                            Month = $"{g.Key.Year}-{g.Key.Month:D2}",
+                            Revenue = g.Sum(br => br.Amount),
+                            InvoiceCount = g.Count()
+                        })
+                        .OrderBy(mr => mr.Month)
+                        .ToList()
+                };
+
+                return new JsonModel { data = analytics, Message = "Billing analytics retrieved successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting billing analytics");
+                return new JsonModel { data = new object(), Message = "Error retrieving billing analytics", StatusCode = 500 };
+            }
+        }
+
+        public async Task<JsonModel> CreateRecurringBillingAsync(CreateRecurringBillingDto createDto, TokenModel tokenModel)
+        {
+            try
+            {
+                var billingRecord = _mapper.Map<BillingRecord>(createDto);
+                billingRecord.CreatedDate = DateTime.UtcNow;
+                billingRecord.Status = BillingRecord.BillingStatus.Pending;
+                billingRecord.IsRecurring = true;
+                // For now, use a default 30-day billing cycle since BillingCycleId doesn't contain days
+                billingRecord.NextBillingDate = CalculateNextBillingDate(DateTime.UtcNow, 30);
+
+                var createdRecord = await _billingRepository.CreateAsync(billingRecord);
+                var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
+                
+                return new JsonModel { data = billingRecordDto, Message = "Recurring billing created successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating recurring billing");
+                return new JsonModel { data = new object(), Message = "Error creating recurring billing", StatusCode = 500 };
+            }
+        }
+
+        public async Task<JsonModel> ProcessRecurringPaymentAsync(Guid subscriptionId, TokenModel tokenModel)
+        {
+            try
+            {
+                // Get subscription details
+                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+                if (subscription == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
+                }
+
+                // Create billing record for recurring payment
+                var billingRecord = new BillingRecord
+                {
+                    UserId = subscription.UserId,
+                    SubscriptionId = subscription.Id,
+                    Amount = subscription.CurrentPrice,
+                    // Use a default currency ID since Subscription doesn't have CurrencyId
+                    CurrencyId = Guid.Empty, // This should be replaced with actual currency logic
+                    Status = BillingRecord.BillingStatus.Pending,
+                    Type = BillingRecord.BillingType.Subscription,
+                    Description = $"Recurring payment for subscription {subscription.Id}",
+                    BillingDate = DateTime.UtcNow,
+                    DueDate = subscription.NextBillingDate,
+                    IsRecurring = true,
+                    NextBillingDate = CalculateNextBillingDate(subscription.NextBillingDate, 30) // Default to monthly
+                };
+
+                var createdRecord = await _billingRepository.CreateAsync(billingRecord);
+                var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
+                
+                return new JsonModel { data = billingRecordDto, Message = "Recurring payment processed successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing recurring payment for subscription {SubscriptionId}", subscriptionId);
+                return new JsonModel { data = new object(), Message = "Error processing recurring payment", StatusCode = 500 };
+            }
+        }
+
+        // Helper methods
+        private string GenerateInvoiceNumber()
+        {
+            return $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+        }
+
+        private DateTime CalculateNextBillingDate(DateTime currentDate, int billingCycleDays)
+        {
+            return currentDate.AddDays(billingCycleDays);
         }
     }
 } 

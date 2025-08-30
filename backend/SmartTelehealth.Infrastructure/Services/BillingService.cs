@@ -311,7 +311,7 @@ public class BillingService : IBillingService
                     subscription.LastPaymentFailedDate = DateTime.UtcNow;
                     subscription.LastPaymentError = billingRecord.FailureReason;
                     subscription.SuspendedDate = DateTime.UtcNow;
-                    subscription.UpdatedAt = DateTime.UtcNow;
+                    subscription.UpdatedDate = DateTime.UtcNow;
                     
                     await _subscriptionRepository.UpdateAsync(subscription);
                     
@@ -1774,6 +1774,85 @@ public class BillingService : IBillingService
         {
             _logger.LogError(ex, "Error exporting billing records");
             return new JsonModel { data = new object(), Message = "Failed to export billing records", StatusCode = 500 };
+        }
+    }
+
+    // Added missing invoice methods to implement IBillingService interface
+    public async Task<JsonModel> GenerateInvoiceAsync(Guid billingRecordId, TokenModel tokenModel)
+    {
+        try
+        {
+            // Get billing record
+            var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
+            if (billingRecord == null)
+            {
+                return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+            }
+
+            // Generate invoice number
+            var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+
+            // Create invoice DTO
+            var invoiceDto = new InvoiceDto
+            {
+                Id = Guid.NewGuid(),
+                InvoiceNumber = invoiceNumber,
+                UserId = billingRecord.UserId,
+                Amount = billingRecord.Amount,
+                Currency = "USD",
+                Status = "Generated",
+                BillingDate = billingRecord.BillingDate,
+                DueDate = billingRecord.DueDate,
+                Description = billingRecord.Description,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            return new JsonModel { data = invoiceDto, Message = "Invoice generated successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating invoice for billing record {BillingRecordId}", billingRecordId);
+            return new JsonModel { data = new object(), Message = "Error generating invoice", StatusCode = 500 };
+        }
+    }
+
+    public async Task<JsonModel> GetInvoiceAsync(string invoiceNumber, TokenModel tokenModel)
+    {
+        try
+        {
+            // For now, return a placeholder since this is infrastructure layer
+            // The actual invoice retrieval logic should be in the Application layer
+            return new JsonModel 
+            { 
+                data = new { invoiceNumber, message = "Invoice retrieval not implemented in Infrastructure layer" }, 
+                Message = "Invoice retrieval not implemented in Infrastructure layer", 
+                StatusCode = 501 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting invoice {InvoiceNumber}", invoiceNumber);
+            return new JsonModel { data = new object(), Message = "Error getting invoice", StatusCode = 500 };
+        }
+    }
+
+    public async Task<JsonModel> UpdateInvoiceStatusAsync(string invoiceNumber, string newStatus, TokenModel tokenModel)
+    {
+        try
+        {
+            // For now, return a placeholder since this is infrastructure layer
+            // The actual invoice status update logic should be in the Application layer
+            return new JsonModel 
+            { 
+                data = new { invoiceNumber, newStatus, message = "Invoice status update not implemented in Infrastructure layer" }, 
+                Message = "Invoice status update not implemented in Infrastructure layer", 
+                StatusCode = 501 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating invoice status for {InvoiceNumber}", invoiceNumber);
+            return new JsonModel { data = new object(), Message = "Error updating invoice status", StatusCode = 500 };
         }
     }
 } 

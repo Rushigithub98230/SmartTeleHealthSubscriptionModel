@@ -15,7 +15,8 @@ public class BillingRecord : BaseEntity
         Failed,
         Cancelled,
         Refunded,
-        Overdue
+        Overdue,
+        Upcoming
     }
     
     public enum BillingType

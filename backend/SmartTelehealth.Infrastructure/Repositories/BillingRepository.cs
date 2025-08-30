@@ -178,5 +178,24 @@ namespace SmartTelehealth.Infrastructure.Repositories
                 .OrderBy(b => b.DueDate)
                 .ToListAsync();
         }
+        
+        // Webhook support methods
+        public async Task<BillingRecord?> GetByStripePaymentIntentIdAsync(string stripePaymentIntentId)
+        {
+            return await _context.BillingRecords
+                .Include(b => b.User)
+                .Include(b => b.Subscription)
+                .Include(b => b.Currency)
+                .FirstOrDefaultAsync(b => b.StripePaymentIntentId == stripePaymentIntentId);
+        }
+
+        public async Task<BillingRecord?> GetByStripeInvoiceIdAsync(string stripeInvoiceId)
+        {
+            return await _context.BillingRecords
+                .Include(b => b.User)
+                .Include(b => b.Subscription)
+                .Include(b => b.Currency)
+                .FirstOrDefaultAsync(b => b.StripeInvoiceId == stripeInvoiceId);
+        }
     }
 } 

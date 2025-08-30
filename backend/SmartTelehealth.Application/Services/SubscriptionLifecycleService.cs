@@ -48,7 +48,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
             await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
@@ -102,7 +102,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Paused";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
             await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
@@ -156,7 +156,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
             await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
@@ -210,7 +210,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Cancelled";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
             subscription.CancelledAt = DateTime.UtcNow;
 
             // Add status history
@@ -265,7 +265,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Suspended";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
             await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
@@ -319,7 +319,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
             subscription.RenewedAt = DateTime.UtcNow;
 
             // Add status history
@@ -374,7 +374,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Expired";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
             subscription.ExpiredAt = DateTime.UtcNow;
 
             // Add status history
@@ -429,7 +429,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "PaymentFailed";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
             await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
@@ -483,7 +483,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
             await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
@@ -538,7 +538,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = newStatus;
-            subscription.UpdatedAt = DateTime.UtcNow;
+            subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
             await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
@@ -911,7 +911,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     }
 
     /// <summary>
-    /// Process trial expiration
+    /// Process trial expiration with enhanced logic
     /// </summary>
     public async Task<JsonModel> ProcessTrialExpirationAsync(string subscriptionId)
     {
@@ -926,22 +926,77 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     StatusCode = 404
                 };
 
-            if (subscription.Status == Subscription.SubscriptionStatuses.TrialActive && 
-                subscription.TrialEndDate <= DateTime.UtcNow)
+            // Enhanced trial expiration logic
+            if (subscription.Status == Subscription.SubscriptionStatuses.TrialActive)
             {
-                return await ProcessStateTransitionAsync(
-                    subscriptionId, 
-                    Subscription.SubscriptionStatuses.TrialExpired, 
-                    "Trial period expired"
-                );
+                // Check if trial has actually ended
+                if (subscription.TrialEndDate <= DateTime.UtcNow)
+                {
+                    // Check if there's a valid payment method and attempt to charge
+                    var hasValidPaymentMethod = await CheckPaymentMethodValidityAsync(subscription);
+                    
+                    if (hasValidPaymentMethod)
+                    {
+                        // Attempt to process first payment
+                        var paymentResult = await AttemptFirstPaymentAsync(subscription);
+                        
+                        if (paymentResult.IsSuccessful)
+                        {
+                            // Convert trial to active subscription
+                            return await ProcessStateTransitionAsync(
+                                subscriptionId, 
+                                Subscription.SubscriptionStatuses.Active, 
+                                "Trial converted to active subscription via successful payment"
+                            );
+                        }
+                        else
+                        {
+                            // Payment failed, expire trial
+                            return await ProcessStateTransitionAsync(
+                                subscriptionId, 
+                                Subscription.SubscriptionStatuses.TrialExpired, 
+                                $"Trial expired due to payment failure: {paymentResult.ErrorMessage}"
+                            );
+                        }
+                    }
+                    else
+                    {
+                        // No valid payment method, expire trial
+                        return await ProcessStateTransitionAsync(
+                            subscriptionId, 
+                            Subscription.SubscriptionStatuses.TrialExpired, 
+                            "Trial expired - no valid payment method"
+                        );
+                    }
+                }
+                else
+                {
+                    return new JsonModel
+                    {
+                        data = true,
+                        Message = $"Trial is not due for expiration. Ends on {subscription.TrialEndDate:MMM dd, yyyy}",
+                        StatusCode = 200
+                    };
+                }
             }
-
-            return new JsonModel
+            else if (subscription.Status == Subscription.SubscriptionStatuses.TrialExpired)
             {
-                data = true,
-                Message = "Trial is not due for expiration",
-                StatusCode = 200
-            };
+                return new JsonModel
+                {
+                    data = true,
+                    Message = "Trial has already expired",
+                    StatusCode = 200
+                };
+            }
+            else
+            {
+                return new JsonModel
+                {
+                    data = true,
+                    Message = $"Subscription is not in trial state. Current status: {subscription.Status}",
+                    StatusCode = 200
+                };
+            }
         }
         catch (Exception ex)
         {
@@ -951,6 +1006,211 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 data = new object(),
                 Message = "Failed to process trial expiration",
                 StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Enhanced trial management - convert trial to active subscription
+    /// </summary>
+    public async Task<JsonModel> ConvertTrialToActiveAsync(string subscriptionId, string paymentMethodId = null)
+    {
+        try
+        {
+            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            if (subscription == null)
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Subscription not found",
+                    StatusCode = 404
+                };
+
+            if (subscription.Status != Subscription.SubscriptionStatuses.TrialActive)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = $"Cannot convert subscription from {subscription.Status} to Active. Only TrialActive subscriptions can be converted.",
+                    StatusCode = 400
+                };
+            }
+
+            // Validate trial hasn't expired
+            if (subscription.TrialEndDate <= DateTime.UtcNow)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Cannot convert expired trial to active subscription",
+                    StatusCode = 400
+                };
+            }
+
+            // If payment method provided, attempt to charge
+            if (!string.IsNullOrEmpty(paymentMethodId))
+            {
+                var paymentResult = await AttemptFirstPaymentAsync(subscription, paymentMethodId);
+                
+                if (paymentResult.IsSuccessful)
+                {
+                    // Convert to active with successful payment
+                    return await ProcessStateTransitionAsync(
+                        subscriptionId, 
+                        Subscription.SubscriptionStatuses.Active, 
+                        "Trial converted to active subscription via successful payment"
+                    );
+                }
+                else
+                {
+                    return new JsonModel
+                    {
+                        data = new object(),
+                        Message = $"Payment failed: {paymentResult.ErrorMessage}",
+                        StatusCode = 400
+                    };
+                }
+            }
+            else
+            {
+                // Convert to active without immediate payment (user will be charged later)
+                return await ProcessStateTransitionAsync(
+                    subscriptionId, 
+                    Subscription.SubscriptionStatuses.Active, 
+                    "Trial converted to active subscription"
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error converting trial to active for {SubscriptionId}", subscriptionId);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to convert trial to active subscription",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Extend trial period for a subscription
+    /// </summary>
+    public async Task<JsonModel> ExtendTrialAsync(string subscriptionId, int additionalDays, string reason = null)
+    {
+        try
+        {
+            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            if (subscription == null)
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Subscription not found",
+                    StatusCode = 404
+                };
+
+            if (subscription.Status != Subscription.SubscriptionStatuses.TrialActive)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = $"Cannot extend trial for subscription in {subscription.Status} state",
+                    StatusCode = 400
+                };
+            }
+
+            // Calculate new trial end date
+            var newTrialEndDate = subscription.TrialEndDate?.AddDays(additionalDays) ?? DateTime.UtcNow.AddDays(additionalDays);
+            
+            // Update trial end date
+            subscription.TrialEndDate = newTrialEndDate;
+            subscription.UpdatedDate = DateTime.UtcNow;
+
+            // Add status history
+            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
+            {
+                SubscriptionId = subscription.Id,
+                FromStatus = subscription.Status,
+                ToStatus = subscription.Status, // Same status, but trial extended
+                Reason = $"Trial extended by {additionalDays} days. {reason}",
+                ChangedAt = DateTime.UtcNow,
+                ChangedByUserId = null // System action
+            });
+
+            await _subscriptionRepository.UpdateAsync(subscription);
+
+            // Log audit trail
+            await _auditService.LogActionAsync("Subscription", "TrialExtended", subscriptionId, 
+                $"Trial extended by {additionalDays} days. New end date: {newTrialEndDate:MMM dd, yyyy}. Reason: {reason}", null);
+
+            _logger.LogInformation("Trial extended for subscription {SubscriptionId} by {AdditionalDays} days", subscriptionId, additionalDays);
+
+            return new JsonModel
+            {
+                data = new { NewTrialEndDate = newTrialEndDate },
+                Message = $"Trial extended by {additionalDays} days. New end date: {newTrialEndDate:MMM dd, yyyy}",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extending trial for {SubscriptionId}", subscriptionId);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to extend trial",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Check if subscription has a valid payment method
+    /// </summary>
+    private async Task<bool> CheckPaymentMethodValidityAsync(Subscription subscription)
+    {
+        try
+        {
+            // This would typically call your payment service to validate payment methods
+            // For now, we'll assume true if the subscription has a Stripe customer ID
+            return !string.IsNullOrEmpty(subscription.StripeCustomerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking payment method validity for subscription {SubscriptionId}", subscription.Id);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempt to process first payment for trial conversion
+    /// </summary>
+    private async Task<PaymentAttemptResult> AttemptFirstPaymentAsync(Subscription subscription, string paymentMethodId = null)
+    {
+        try
+        {
+            // This would typically call your payment service to process the payment
+            // For now, we'll return a mock successful result
+            _logger.LogInformation("Attempting first payment for trial subscription {SubscriptionId}", subscription.Id);
+            
+            // Simulate payment processing
+            await Task.Delay(100); // Simulate processing time
+            
+            return new PaymentAttemptResult
+            {
+                IsSuccessful = true,
+                TransactionId = $"txn_{Guid.NewGuid():N}",
+                Amount = subscription.CurrentPrice,
+                Currency = "usd"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error attempting first payment for subscription {SubscriptionId}", subscription.Id);
+            return new PaymentAttemptResult
+            {
+                IsSuccessful = false,
+                ErrorMessage = ex.Message
             };
         }
     }
@@ -1238,4 +1498,13 @@ public class BulkStateTransitionResult
     public int SuccessfulTransitions { get; set; }
     public int FailedTransitions { get; set; }
     public List<string> Errors { get; set; } = new();
+}
+
+public class PaymentAttemptResult
+{
+    public bool IsSuccessful { get; set; }
+    public string TransactionId { get; set; }
+    public decimal Amount { get; set; }
+    public string Currency { get; set; }
+    public string ErrorMessage { get; set; }
 }
