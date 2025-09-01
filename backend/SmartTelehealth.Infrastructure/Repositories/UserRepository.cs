@@ -17,18 +17,21 @@ public class UserRepository : RepositoryBase<User>, IUserRepository
     public async Task<User?> GetByIdAsync(int id)
     {
         return await _context.Users
+            .Include(u => u.UserRole)
             .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
     }
 
     public async Task<User?> GetByEmailAsync(string email)
     {
         return await _context.Users
+            .Include(u => u.UserRole)
             .FirstOrDefaultAsync(u => u.Email == email && !u.IsDeleted);
     }
 
     public async Task<User?> GetByUserNameAsync(string userName)
     {
         return await _context.Users
+            .Include(u => u.UserRole)
             .FirstOrDefaultAsync(u => u.UserName == userName && !u.IsDeleted);
     }
 

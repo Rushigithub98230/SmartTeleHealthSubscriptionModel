@@ -9,7 +9,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.API.Hubs;
 
-[Authorize]
+//[Authorize]
 public class ChatHub : Hub
 {
     private readonly IMessagingService _messagingService;

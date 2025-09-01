@@ -8,7 +8,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("webadmin/subscription-management")]
-[Authorize]
+//[Authorize]
 public class SubscriptionManagementController : BaseController
 {
     private readonly ISubscriptionService _subscriptionService;

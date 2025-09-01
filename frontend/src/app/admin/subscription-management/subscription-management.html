@@ -1,1 +1,209 @@
-<p>subscription-management works!</p>
+
+<div class="admin-container">
+	<mat-card>
+		<mat-card-header>
+			<mat-card-title>
+				<mat-icon>subscriptions</mat-icon>
+				Subscription Management
+			</mat-card-title>
+		</mat-card-header>
+
+		<mat-card-content>
+			<mat-tab-group [(selectedIndex)]="selectedTab">
+				<!-- Subscription Plans Tab -->
+				<mat-tab label="Subscription Plans">
+					<div class="tab-content">
+						<div class="actions-bar">
+							<button mat-raised-button color="primary" (click)="openCreatePlanDialog()">
+								<mat-icon>add</mat-icon>
+								Create New Plan
+							</button>
+              
+							<mat-form-field appearance="outline" class="search-field">
+								<mat-label>Search Plans</mat-label>
+								<input matInput [(ngModel)]="planSearchTerm" (input)="searchPlans()">
+								<mat-icon matSuffix>search</mat-icon>
+							</mat-form-field>
+						</div>
+
+						<div class="table-container">
+							<table mat-table [dataSource]="plans" class="plans-table">
+								<ng-container matColumnDef="name">
+									<th mat-header-cell *matHeaderCellDef>Name</th>
+									<td mat-cell *matCellDef="let plan">{{ plan.name }}</td>
+								</ng-container>
+
+								<ng-container matColumnDef="price">
+									<th mat-header-cell *matHeaderCellDef>Price</th>
+									<td mat-cell *matCellDef="let plan">{{ plan.price }}</td>
+								</ng-container>
+
+								<ng-container matColumnDef="status">
+									<th mat-header-cell *matHeaderCellDef>Status</th>
+									<td mat-cell *matCellDef="let plan">
+										<mat-chip [color]="plan.isActive ? 'primary' : 'warn'">
+											{{ plan.isActive ? 'Active' : 'Inactive' }}
+										</mat-chip>
+									</td>
+								</ng-container>
+
+								<ng-container matColumnDef="popular">
+									<th mat-header-cell *matHeaderCellDef>Tags</th>
+									<td mat-cell *matCellDef="let plan">
+										<mat-chip *ngIf="plan.isMostPopular" color="accent">Popular</mat-chip>
+										<mat-chip *ngIf="plan.isTrending" color="primary">Trending</mat-chip>
+									</td>
+								</ng-container>
+
+								<ng-container matColumnDef="actions">
+									<th mat-header-cell *matHeaderCellDef>Actions</th>
+									<td mat-cell *matCellDef="let plan">
+										<button mat-icon-button [matMenuTriggerFor]="menu">
+											<mat-icon>more_vert</mat-icon>
+										</button>
+										<mat-menu #menu="matMenu">
+											<button mat-menu-item (click)="editPlan(plan)">
+												<mat-icon>edit</mat-icon>
+												Edit
+											</button>
+											<button mat-menu-item (click)="viewPlan(plan)">
+												<mat-icon>visibility</mat-icon>
+												View Details
+											</button>
+											<button mat-menu-item (click)="deletePlan(plan.id)">
+												<mat-icon>delete</mat-icon>
+												Delete
+											</button>
+										</mat-menu>
+									</td>
+								</ng-container>
+
+								<tr mat-header-row *matHeaderRowDef="planColumns"></tr>
+								<tr mat-row *matRowDef="let row; columns: planColumns;"></tr>
+							</table>
+						</div>
+
+						<mat-paginator 
+							[length]="planTotalCount"
+							[pageSize]="planPageSize"
+							[pageSizeOptions]="[10, 20, 50]"
+							(page)="onPlanPageChange($event)">
+						</mat-paginator>
+					</div>
+				</mat-tab>
+
+				<!-- User Subscriptions Tab -->
+				<mat-tab label="User Subscriptions">
+					<div class="tab-content">
+						<div class="actions-bar">
+							<mat-form-field appearance="outline" class="search-field">
+								<mat-label>Search Subscriptions</mat-label>
+								<input matInput [(ngModel)]="subscriptionSearchTerm" (input)="searchSubscriptions()">
+								<mat-icon matSuffix>search</mat-icon>
+							</mat-form-field>
+
+							<mat-form-field appearance="outline">
+								<mat-label>Filter by Status</mat-label>
+								<mat-select [(ngModel)]="selectedStatus" (selectionChange)="filterSubscriptions()">
+									<mat-option value="">All</mat-option>
+									<mat-option value="active">Active</mat-option>
+									<mat-option value="paused">Paused</mat-option>
+									<mat-option value="cancelled">Cancelled</mat-option>
+									<mat-option value="expired">Expired</mat-option>
+								</mat-select>
+							</mat-form-field>
+						</div>
+
+						<div class="table-container">
+							<table mat-table [dataSource]="subscriptions" class="subscriptions-table">
+								<ng-container matColumnDef="user">
+									<th mat-header-cell *matHeaderCellDef>User</th>
+									<td mat-cell *matCellDef="let subscription">{{ subscription.userName }}</td>
+								</ng-container>
+
+								<ng-container matColumnDef="plan">
+									<th mat-header-cell *matHeaderCellDef>Plan</th>
+									<td mat-cell *matCellDef="let subscription">{{ subscription.planName }}</td>
+								</ng-container>
+
+								<ng-container matColumnDef="status">
+									<th mat-header-cell *matHeaderCellDef>Status</th>
+									<td mat-cell *matCellDef="let subscription">
+										<mat-chip [color]="getStatusColor(subscription.status)">
+											{{ subscription.status }}
+										</mat-chip>
+									</td>
+								</ng-container>
+
+								<ng-container matColumnDef="price">
+									<th mat-header-cell *matHeaderCellDef>Price</th>
+									<td mat-cell *matCellDef="let subscription">{{ subscription.currentPrice | currency:'USD' }}</td>
+								</ng-container>
+
+								<ng-container matColumnDef="nextBilling">
+									<th mat-header-cell *matHeaderCellDef>Next Billing</th>
+									<td mat-cell *matCellDef="let subscription">{{ subscription.nextBillingDate | date:'short' }}</td>
+								</ng-container>
+
+								<ng-container matColumnDef="actions">
+									<th mat-header-cell *matHeaderCellDef>Actions</th>
+									<td mat-cell *matCellDef="let subscription">
+										<button mat-icon-button [matMenuTriggerFor]="subscriptionMenu">
+											<mat-icon>more_vert</mat-icon>
+										</button>
+										<mat-menu #subscriptionMenu="matMenu">
+											<button mat-menu-item (click)="viewSubscription(subscription)">
+												<mat-icon>visibility</mat-icon>
+												View Details
+											</button>
+											<button mat-menu-item (click)="pauseSubscription(subscription.id)" [disabled]="subscription.isPaused">
+												<mat-icon>pause</mat-icon>
+												Pause
+											</button>
+											<button mat-menu-item (click)="resumeSubscription(subscription.id)" [disabled]="!subscription.isPaused">
+												<mat-icon>play_arrow</mat-icon>
+												Resume
+											</button>
+											<button mat-menu-item (click)="cancelSubscription(subscription.id)" [disabled]="subscription.isCancelled">
+												<mat-icon>cancel</mat-icon>
+												Cancel
+											</button>
+										</mat-menu>
+									</td>
+								</ng-container>
+
+								<tr mat-header-row *matHeaderRowDef="subscriptionColumns"></tr>
+								<tr mat-row *matRowDef="let row; columns: subscriptionColumns;"></tr>
+							</table>
+						</div>
+
+						<mat-paginator 
+							[length]="subscriptionTotalCount"
+							[pageSize]="subscriptionPageSize"
+							[pageSizeOptions]="[10, 20, 50]"
+							(page)="onSubscriptionPageChange($event)">
+						</mat-paginator>
+					</div>
+				</mat-tab>
+			</mat-tab-group>
+		</mat-card-content>
+	</mat-card>
+</div>
+
+<!-- Create/Edit Plan Dialog -->
+<div *ngIf="showCreateDialog" class="dialog-overlay" (click)="closeCreateDialog()">
+	<div class="dialog-content" (click)="$event.stopPropagation()">
+		<div class="dialog-header">
+			<h2>{{ editingPlan ? 'Edit Plan' : 'Create New Plan' }}</h2>
+			<button mat-icon-button (click)="closeCreateDialog()">
+				<mat-icon>close</mat-icon>
+			</button>
+		</div>
+		<app-subscription-stepper 
+			[editMode]="!!editingPlan"
+			[existingPlan]="editingPlan"
+			(planSubmitted)="onPlanCreated($event)"
+			(planUpdated)="onPlanUpdated($event)">
+		</app-subscription-stepper>
+	</div>
+</div>

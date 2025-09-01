@@ -10,7 +10,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/provider/user")]
-[Authorize]
+//[Authorize]
 public class ProviderPrivilegesController : BaseController
 {
     private readonly ISubscriptionRepository _subscriptionRepo;

@@ -7,7 +7,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class DocumentsController : BaseController
 {
     private readonly IDocumentService _documentService;

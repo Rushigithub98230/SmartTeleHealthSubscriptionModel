@@ -7,7 +7,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class AppointmentsController : BaseController
 {
     private readonly IAppointmentService _appointmentService;

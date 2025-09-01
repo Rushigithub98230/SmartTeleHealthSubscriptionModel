@@ -7,7 +7,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class AnalyticsController : BaseController
 {
     private readonly IAnalyticsService _analyticsService;

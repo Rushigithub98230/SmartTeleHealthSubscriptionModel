@@ -8,7 +8,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class PrivilegesController : BaseController
 {
     private readonly IPrivilegeService _privilegeService;

@@ -1,0 +1,38 @@
+<div class="manual-actions-container">
+  <h2>Manual Subscription Actions</h2>
+  <form [formGroup]="actionForm" (ngSubmit)="onSubmit()">
+    <mat-form-field appearance="outline">
+      <mat-label>Subscription ID</mat-label>
+      <input matInput formControlName="subscriptionId" required>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Action Type</mat-label>
+      <mat-select formControlName="actionType" required>
+        <mat-option value="pause">Pause</mat-option>
+        <mat-option value="resume">Resume</mat-option>
+        <mat-option value="cancel">Cancel</mat-option>
+        <mat-option value="upgrade">Upgrade</mat-option>
+        <mat-option value="refund">Refund</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" *ngIf="actionForm.value.actionType === 'cancel'">
+      <mat-label>Reason</mat-label>
+      <input matInput formControlName="reason">
+    </mat-form-field>
+    <mat-form-field appearance="outline" *ngIf="actionForm.value.actionType === 'upgrade'">
+      <mat-label>New Plan ID</mat-label>
+      <input matInput formControlName="newPlanId">
+    </mat-form-field>
+    <mat-form-field appearance="outline" *ngIf="actionForm.value.actionType === 'refund'">
+      <mat-label>Refund Amount</mat-label>
+      <input matInput formControlName="refundAmount" type="number">
+    </mat-form-field>
+    <mat-form-field appearance="outline" *ngIf="actionForm.value.actionType === 'refund'">
+      <mat-label>Reason</mat-label>
+      <input matInput formControlName="reason">
+    </mat-form-field>
+    <button mat-raised-button color="primary" type="submit" [disabled]="loading">Submit</button>
+    <div *ngIf="error" class="error">{{ error }}</div>
+    <div *ngIf="success" class="success">{{ success }}</div>
+  </form>
+</div>

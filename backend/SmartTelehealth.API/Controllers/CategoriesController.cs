@@ -7,7 +7,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class CategoriesController : BaseController
 {
     private readonly ICategoryService _categoryService;

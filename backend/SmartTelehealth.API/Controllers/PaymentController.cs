@@ -8,7 +8,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/payments")]
-[Authorize]
+//[Authorize]
 public class PaymentController : BaseController
 {
     private readonly IStripeService _stripeService;

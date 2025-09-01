@@ -7,7 +7,7 @@ using System.Security.Claims;
 
 namespace SmartTelehealth.API.Hubs;
 
-[Authorize]
+//[Authorize]
 public class VideoCallHub : Hub
 {
     private readonly IVideoCallService _videoCallService;

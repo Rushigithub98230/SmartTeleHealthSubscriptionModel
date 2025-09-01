@@ -8,7 +8,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class FileStorageController : BaseController
 {
     private readonly IFileStorageService _fileStorageService;

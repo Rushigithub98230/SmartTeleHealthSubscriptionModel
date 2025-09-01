@@ -22,7 +22,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get current user profile
         /// </summary>
         [HttpGet("profile")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetCurrentUserProfile()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -43,7 +43,7 @@ namespace SmartTelehealth.API.Controllers
         /// Update current user profile
         /// </summary>
         [HttpPut("profile")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UpdateProfile([FromBody] UpdateUserDto updateDto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -65,7 +65,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get user by ID
         /// </summary>
         [HttpGet("{userId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetUser(int userId)
         {
             return await _userService.GetUserByIdAsync(userId, GetToken(HttpContext));
@@ -75,7 +75,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get all users with optional filtering and search
         /// </summary>
         [HttpGet]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetAllUsers(
             [FromQuery] string? searchText = null,
             [FromQuery] string? role = null,
@@ -90,7 +90,7 @@ namespace SmartTelehealth.API.Controllers
         /// Create new user
         /// </summary>
         [HttpPost]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> CreateUser([FromBody] CreateUserDto createUserDto)
         {
             return await _userService.CreateUserAsync(createUserDto, GetToken(HttpContext));
@@ -100,7 +100,7 @@ namespace SmartTelehealth.API.Controllers
         /// Update user
         /// </summary>
         [HttpPut("{userId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UpdateUser(int userId, [FromBody] UpdateUserDto updateDto)
         {
             return await _userService.UpdateUserAsync(userId, updateDto, GetToken(HttpContext));
@@ -110,7 +110,7 @@ namespace SmartTelehealth.API.Controllers
         /// Delete user
         /// </summary>
         [HttpDelete("{userId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> DeleteUser(int userId)
         {
             return await _userService.DeleteUserAsync(userId, GetToken(HttpContext));
@@ -120,7 +120,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get users by role
         /// </summary>
         [HttpGet("role/{role}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetUsersByRole(string role)
         {
             return await _userService.GetUsersByRoleAsync(role, GetToken(HttpContext));
@@ -130,7 +130,7 @@ namespace SmartTelehealth.API.Controllers
         /// Change password
         /// </summary>
         [HttpPost("change-password")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> ChangePassword([FromBody] ChangePasswordDto changePasswordDto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -178,7 +178,7 @@ namespace SmartTelehealth.API.Controllers
         /// Upload profile picture
         /// </summary>
         [HttpPost("profile-picture")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UploadProfilePicture(IFormFile file)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -199,7 +199,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get user documents
         /// </summary>
         [HttpGet("documents")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetUserDocuments([FromQuery] string? referenceType = null)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -220,7 +220,7 @@ namespace SmartTelehealth.API.Controllers
         /// Upload user document
         /// </summary>
         [HttpPost("documents")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UploadUserDocument([FromBody] UploadUserDocumentRequest request)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -241,7 +241,7 @@ namespace SmartTelehealth.API.Controllers
         /// Delete user document
         /// </summary>
         [HttpDelete("documents/{documentId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> DeleteUserDocument(Guid documentId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -262,7 +262,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get user medical history
         /// </summary>
         [HttpGet("medical-history")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetMedicalHistory()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -283,7 +283,7 @@ namespace SmartTelehealth.API.Controllers
         /// Update user medical history
         /// </summary>
         [HttpPut("medical-history")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UpdateMedicalHistory([FromBody] UpdateMedicalHistoryDto medicalHistoryDto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -304,7 +304,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get user preferences
         /// </summary>
         [HttpGet("preferences")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetUserPreferences()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -325,7 +325,7 @@ namespace SmartTelehealth.API.Controllers
         /// Update user preferences
         /// </summary>
         [HttpPut("preferences")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UpdateUserPreferences([FromBody] UpdateUserPreferencesDto preferencesDto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -346,7 +346,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get user notifications
         /// </summary>
         [HttpGet("notifications")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetUserNotifications()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -367,7 +367,7 @@ namespace SmartTelehealth.API.Controllers
         /// Mark notification as read
         /// </summary>
         [HttpPut("notifications/{notificationId}/read")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> MarkNotificationAsRead(Guid notificationId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -387,7 +387,7 @@ namespace SmartTelehealth.API.Controllers
         /// Mark all notifications as read
         /// </summary>
         [HttpPut("notifications/read-all")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> MarkAllNotificationsAsRead()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -408,7 +408,7 @@ namespace SmartTelehealth.API.Controllers
         /// Delete notification
         /// </summary>
         [HttpDelete("notifications/{notificationId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> DeleteNotification(Guid notificationId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -428,7 +428,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get user stats
         /// </summary>
         [HttpGet("stats")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetUserStats()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -449,7 +449,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get payment methods
         /// </summary>
         [HttpGet("payment-methods")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetPaymentMethods()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -470,7 +470,7 @@ namespace SmartTelehealth.API.Controllers
         /// Add payment method
         /// </summary>
         [HttpPost("payment-methods")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> AddPaymentMethod([FromBody] AddPaymentMethodDto addPaymentMethodDto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -491,7 +491,7 @@ namespace SmartTelehealth.API.Controllers
         /// Delete payment method
         /// </summary>
         [HttpDelete("payment-methods/{paymentMethodId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> DeletePaymentMethod(string paymentMethodId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -512,7 +512,7 @@ namespace SmartTelehealth.API.Controllers
         /// Set default payment method
         /// </summary>
         [HttpPut("payment-methods/{paymentMethodId}/default")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> SetDefaultPaymentMethod(string paymentMethodId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -533,7 +533,7 @@ namespace SmartTelehealth.API.Controllers
         /// Send email verification
         /// </summary>
         [HttpPost("send-email-verification")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> SendEmailVerification()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -554,7 +554,7 @@ namespace SmartTelehealth.API.Controllers
         /// Resend email verification
         /// </summary>
         [HttpPost("resend-email-verification")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> ResendEmailVerification()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -594,7 +594,7 @@ namespace SmartTelehealth.API.Controllers
         /// Delete account
         /// </summary>
         [HttpDelete("account")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> DeleteAccount([FromBody] string reason)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -617,7 +617,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get provider by ID
         /// </summary>
         [HttpGet("providers/{providerId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetProvider(int providerId)
         {
             return await _userService.GetProviderByIdAsync(providerId, GetToken(HttpContext));
@@ -627,7 +627,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get all providers
         /// </summary>
         [HttpGet("providers")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetAllProviders()
         {
             return await _userService.GetAllProvidersAsync(GetToken(HttpContext));
@@ -637,7 +637,7 @@ namespace SmartTelehealth.API.Controllers
         /// Create provider
         /// </summary>
         [HttpPost("providers")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> CreateProvider([FromBody] CreateProviderDto createDto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -657,7 +657,7 @@ namespace SmartTelehealth.API.Controllers
         /// Update provider
         /// </summary>
         [HttpPut("providers/{providerId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UpdateProvider(int providerId, [FromBody] UpdateProviderDto updateDto)
         {
             return await _userService.UpdateProviderAsync(providerId, updateDto, GetToken(HttpContext));
@@ -667,7 +667,7 @@ namespace SmartTelehealth.API.Controllers
         /// Delete provider
         /// </summary>
         [HttpDelete("providers/{providerId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> DeleteProvider(int providerId)
         {
             return await _userService.DeleteProviderAsync(providerId, GetToken(HttpContext));
@@ -677,7 +677,7 @@ namespace SmartTelehealth.API.Controllers
         /// Verify provider
         /// </summary>
         [HttpPut("providers/{providerId}/verify")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> VerifyProvider(int providerId)
         {
             return await _userService.VerifyProviderAsync(providerId, GetToken(HttpContext));
@@ -687,7 +687,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get provider schedule
         /// </summary>
         [HttpGet("providers/{providerId}/schedule")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetProviderSchedule(int providerId)
         {
             return await _userService.GetProviderScheduleAsync(providerId, GetToken(HttpContext));
@@ -697,7 +697,7 @@ namespace SmartTelehealth.API.Controllers
         /// Update provider schedule
         /// </summary>
         [HttpPut("providers/{providerId}/schedule")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UpdateProviderSchedule(int providerId, [FromBody] UpdateProviderScheduleDto scheduleDto)
         {
             return await _userService.UpdateProviderScheduleAsync(providerId, scheduleDto, GetToken(HttpContext));
@@ -707,7 +707,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get provider reviews
         /// </summary>
         [HttpGet("providers/{providerId}/reviews")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetProviderReviews(int providerId)
         {
             return await _userService.GetProviderReviewsAsync(providerId, GetToken(HttpContext));
@@ -717,7 +717,7 @@ namespace SmartTelehealth.API.Controllers
         /// Add provider review
         /// </summary>
         [HttpPost("providers/{providerId}/reviews")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> AddProviderReview(int providerId, [FromBody] AddReviewDto reviewDto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -740,7 +740,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get patient by ID
         /// </summary>
         [HttpGet("patients/{patientId}")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetPatient(int patientId)
         {
             return await _userService.GetPatientByIdAsync(patientId, GetToken(HttpContext));
@@ -750,7 +750,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get all patients
         /// </summary>
         [HttpGet("patients")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetAllPatients()
         {
             return await _userService.GetAllPatientsAsync(GetToken(HttpContext));
@@ -760,7 +760,7 @@ namespace SmartTelehealth.API.Controllers
         /// Get patient medical history
         /// </summary>
         [HttpGet("patients/{patientId}/medical-history")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> GetPatientMedicalHistory(int patientId)
         {
             return await _userService.GetPatientMedicalHistoryAsync(patientId, GetToken(HttpContext));
@@ -770,7 +770,7 @@ namespace SmartTelehealth.API.Controllers
         /// Update patient medical history
         /// </summary>
         [HttpPut("patients/{patientId}/medical-history")]
-        [Authorize]
+        //[Authorize]
         public async Task<JsonModel> UpdatePatientMedicalHistory(int patientId, [FromBody] UpdateMedicalHistoryDto medicalHistoryDto)
         {
             return await _userService.UpdatePatientMedicalHistoryAsync(patientId, medicalHistoryDto, GetToken(HttpContext));

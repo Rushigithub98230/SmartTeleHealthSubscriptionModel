@@ -5,7 +5,7 @@ using System.Security.Claims;
 
 namespace SmartTelehealth.API.Controllers
 {
-    [Authorize]
+    //[Authorize]
     [Produces("application/json")]
     public abstract class BaseController : Controller
     {
@@ -13,7 +13,7 @@ namespace SmartTelehealth.API.Controllers
         public TokenModel GetToken(HttpContext httpContext)
         {
             var userIDClaim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var roleIDClaim = httpContext.User.FindFirst(ClaimTypes.Role)?.Value;
+            var roleIDClaim = httpContext.User.FindFirst("RoleId")?.Value; // Use custom RoleId claim instead of ClaimTypes.Role
 
             int userID = 0;
             int roleID = 0;

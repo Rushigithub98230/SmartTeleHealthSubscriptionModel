@@ -1695,15 +1695,17 @@ public class UserService : IUserService
 
     private async Task<UserRole> GetUserRoleByNameAsync(string userTypeName)
     {
+        _logger.LogInformation("Looking up UserRole for userType: {UserType}", userTypeName);
+        
         // First, try to get all UserRoles to see what's available
         var allUserRoles = await _userRoleRepository.GetAllAsync();
-        _logger.LogInformation("Available UserRoles: {UserRoles}", string.Join(", ", allUserRoles.Select(ur => ur.Name)));
+        _logger.LogInformation("Available UserRoles: {UserRoles}", string.Join(", ", allUserRoles.Select(ur => $"{ur.Name}(ID:{ur.Id})")));
         
         // Try exact match first
         var userRole = await _userRoleRepository.GetByNameAsync(userTypeName);
         if (userRole != null)
         {
-            _logger.LogInformation("Found UserRole: {UserRoleName} with ID: {UserRoleId}", userRole.Name, userRole.Id);
+            _logger.LogInformation("Found UserRole (exact match): {UserRoleName} with ID: {UserRoleId}", userRole.Name, userRole.Id);
             return userRole;
         }
         
@@ -1728,11 +1730,11 @@ public class UserService : IUserService
             { "Provider", "Provider" },
             { "Doctor", "Provider" },
             { "Physician", "Provider" },
-
         };
         
         if (roleMapping.TryGetValue(userTypeName, out var mappedRole))
         {
+            _logger.LogInformation("Mapping {UserType} to {MappedRole}", userTypeName, mappedRole);
             userRole = allUserRoles.FirstOrDefault(ur => 
                 ur.Name.Equals(mappedRole, StringComparison.OrdinalIgnoreCase));
             
@@ -1743,8 +1745,8 @@ public class UserService : IUserService
             }
         }
         
-        _logger.LogWarning("No UserRole found for userType: {UserType}. Available roles: {AvailableRoles}", 
-            userTypeName, string.Join(", ", allUserRoles.Select(ur => ur.Name)));
+        _logger.LogError("No UserRole found for userType: {UserType}. Available roles: {AvailableRoles}", 
+            userTypeName, string.Join(", ", allUserRoles.Select(ur => $"{ur.Name}(ID:{ur.Id})")));
         
         return null;
     }

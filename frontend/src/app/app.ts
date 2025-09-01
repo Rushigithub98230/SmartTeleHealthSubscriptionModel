@@ -3,10 +3,21 @@ import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
+  standalone: true,
   imports: [RouterOutlet],
-  templateUrl: './app.html',
-  styleUrl: './app.scss'
+  template: `
+    <div class="app-container">
+      <router-outlet></router-outlet>
+    </div>
+  `,
+  styles: [`
+    .app-container {
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+  `]
 })
 export class App {
-  protected readonly title = signal('frontend');
+  protected readonly title = signal('SmartTeleHealth Admin Portal');
 }

@@ -8,14 +8,18 @@ import {
   CreateSubscriptionPlanDto, 
   UpdateSubscriptionPlanDto,
   ApiResponse,
-  PaginatedResponse 
+  PaginatedResponse,
+  MasterBillingCycle,
+  MasterCurrency,
+  MasterPrivilegeType,
+  Privilege
 } from '../models/subscription.models';
 
 @Injectable({
   providedIn: 'root'
 })
 export class SubscriptionService {
-  private readonly baseUrl = 'https://localhost:7001/api'; // Update with your API URL
+  private readonly baseUrl = 'http://localhost:61376/api'; // Updated to match backend URL
 
   constructor(private http: HttpClient) {}
 
@@ -29,23 +33,23 @@ export class SubscriptionService {
     if (categoryId) params = params.set('categoryId', categoryId);
     if (isActive !== undefined) params = params.set('isActive', isActive.toString());
 
-    return this.http.get<ApiResponse<PaginatedResponse<SubscriptionPlanDto>>>(`${this.baseUrl}/subscriptions/admin/plans`, { params });
+    return this.http.get<ApiResponse<PaginatedResponse<SubscriptionPlanDto>>>(`${this.baseUrl}/SubscriptionPlans`, { params });
   }
 
   getPlanById(planId: string): Observable<ApiResponse<SubscriptionPlanDto>> {
-    return this.http.get<ApiResponse<SubscriptionPlanDto>>(`${this.baseUrl}/subscriptions/admin/plans/${planId}`);
+    return this.http.get<ApiResponse<SubscriptionPlanDto>>(`${this.baseUrl}/SubscriptionPlans/${planId}`);
   }
 
   createPlan(planDto: CreateSubscriptionPlanDto): Observable<ApiResponse<SubscriptionPlanDto>> {
-    return this.http.post<ApiResponse<SubscriptionPlanDto>>(`${this.baseUrl}/subscriptions/admin/plans`, planDto);
+    return this.http.post<ApiResponse<SubscriptionPlanDto>>(`${this.baseUrl}/SubscriptionPlans`, planDto);
   }
 
   updatePlan(planId: string, planDto: UpdateSubscriptionPlanDto): Observable<ApiResponse<SubscriptionPlanDto>> {
-    return this.http.put<ApiResponse<SubscriptionPlanDto>>(`${this.baseUrl}/subscriptions/admin/plans/${planId}`, planDto);
+    return this.http.put<ApiResponse<SubscriptionPlanDto>>(`${this.baseUrl}/SubscriptionPlans/${planId}`, planDto);
   }
 
   deletePlan(planId: string): Observable<ApiResponse<any>> {
-    return this.http.delete<ApiResponse<any>>(`${this.baseUrl}/subscriptions/admin/plans/${planId}`);
+    return this.http.delete<ApiResponse<any>>(`${this.baseUrl}/SubscriptionPlans/${planId}`);
   }
 
   // User Subscriptions CRUD
@@ -53,16 +57,14 @@ export class SubscriptionService {
     let params = new HttpParams()
       .set('page', page.toString())
       .set('pageSize', pageSize.toString());
-    
-    if (searchTerm) params = params.set('searchTerm', searchTerm);
-    if (status?.length) {
-      status.forEach(s => params = params.append('status', s));
-    }
-    if (planId?.length) {
-      planId.forEach(p => params = params.append('planId', p));
-    }
 
-    return this.http.get<ApiResponse<PaginatedResponse<SubscriptionDto>>>(`${this.baseUrl}/subscriptions/admin/user-subscriptions`, { params });
+    // Backend expects status and planId as single string, not array
+    if (searchTerm) params = params.set('searchTerm', searchTerm);
+    if (status?.length) params = params.set('status', status[0]);
+    if (planId?.length) params = params.set('planId', planId[0]);
+
+    // Endpoint for admin subscription listing
+    return this.http.get<ApiResponse<PaginatedResponse<SubscriptionDto>>>(`${this.baseUrl}/admin/AdminSubscription`, { params });
   }
 
   getSubscriptionById(subscriptionId: string): Observable<ApiResponse<SubscriptionDto>> {
@@ -78,7 +80,7 @@ export class SubscriptionService {
   }
 
   cancelSubscription(subscriptionId: string, reason: string): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.baseUrl}/subscriptions/admin/${subscriptionId}/cancel`, reason);
+    return this.http.post<ApiResponse<any>>(`${this.baseUrl}/subscriptions/admin/${subscriptionId}/cancel`, { reason });
   }
 
   pauseSubscription(subscriptionId: string): Observable<ApiResponse<any>> {
@@ -90,7 +92,7 @@ export class SubscriptionService {
   }
 
   extendSubscription(subscriptionId: string, additionalDays: number): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.baseUrl}/subscriptions/admin/${subscriptionId}/extend`, additionalDays);
+    return this.http.post<ApiResponse<any>>(`${this.baseUrl}/subscriptions/admin/${subscriptionId}/extend`, { additionalDays });
   }
 
   // Categories
@@ -105,5 +107,22 @@ export class SubscriptionService {
     if (endDate) params = params.set('endDate', endDate.toISOString());
 
     return this.http.get<ApiResponse<any>>(`${this.baseUrl}/admin/subscription/analytics`, { params });
+  }
+
+  // Master Data APIs
+  getBillingCycles(): Observable<ApiResponse<MasterBillingCycle[]>> {
+    return this.http.get<ApiResponse<MasterBillingCycle[]>>(`${this.baseUrl}/MasterData/billing-cycles`);
+  }
+
+  getCurrencies(): Observable<ApiResponse<MasterCurrency[]>> {
+    return this.http.get<ApiResponse<MasterCurrency[]>>(`${this.baseUrl}/MasterData/currencies`);
+  }
+
+  getPrivilegeTypes(): Observable<ApiResponse<MasterPrivilegeType[]>> {
+    return this.http.get<ApiResponse<MasterPrivilegeType[]>>(`${this.baseUrl}/MasterData/privilege-types`);
+  }
+
+  getPrivileges(): Observable<ApiResponse<Privilege[]>> {
+    return this.http.get<ApiResponse<Privilege[]>>(`${this.baseUrl}/Privileges`);
   }
 }

@@ -8,7 +8,7 @@ using System.Security.Claims;
 
 namespace SmartTelehealth.API.Hubs;
 
-[Authorize]
+//[Authorize]
 public class MessagingHub : Hub
 {
     private readonly IMessagingService _messagingService;

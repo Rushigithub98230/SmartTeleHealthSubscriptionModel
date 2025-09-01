@@ -9,7 +9,7 @@ namespace SmartTelehealth.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class ProviderOnboardingController : BaseController
 {
     private readonly IProviderOnboardingService _onboardingService;

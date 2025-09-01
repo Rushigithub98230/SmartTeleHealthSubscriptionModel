@@ -10,7 +10,19 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatIconModule } from '@angular/material/icon';
-import { CreateSubscriptionPlanDto, SubscriptionPlanDto } from '../../models/subscription.models';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { 
+  CreateSubscriptionPlanDto, 
+  SubscriptionPlanDto,
+  MasterBillingCycle, 
+  MasterCurrency, 
+  MasterPrivilegeType, 
+  Privilege,
+  ApiResponse 
+} from '../../models/subscription.models';
+import { SubscriptionService } from '../../services/subscription.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
   selector: 'app-subscription-stepper',
@@ -26,10 +38,17 @@ import { CreateSubscriptionPlanDto, SubscriptionPlanDto } from '../../models/sub
     MatCheckboxModule,
     MatDatepickerModule,
     MatNativeDateModule,
-    MatIconModule
+    MatIconModule,
+    MatSnackBarModule,
+    MatProgressSpinnerModule
   ],
   template: `
-    <mat-stepper [linear]="true" #stepper>
+    <div *ngIf="loading" class="loading-container">
+      <mat-spinner></mat-spinner>
+      <p>Loading master data...</p>
+    </div>
+    
+    <mat-stepper [linear]="true" #stepper *ngIf="!loading">
       <!-- Step 1: Basic Information -->
       <mat-step [stepControl]="basicInfoForm" label="Basic Information">
         <form [formGroup]="basicInfoForm">
@@ -61,19 +80,25 @@ import { CreateSubscriptionPlanDto, SubscriptionPlanDto } from '../../models/sub
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Billing Cycle</mat-label>
               <mat-select formControlName="billingCycleId">
-                <mat-option value="monthly">Monthly</mat-option>
-                <mat-option value="quarterly">Quarterly</mat-option>
-                <mat-option value="annual">Annual</mat-option>
+                <mat-option *ngFor="let cycle of billingCycles" [value]="cycle.id">
+                  {{ cycle.name }} ({{ cycle.durationInDays }} days)
+                </mat-option>
               </mat-select>
+              <mat-error *ngIf="basicInfoForm.get('billingCycleId')?.hasError('required')">
+                Billing cycle is required
+              </mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Currency</mat-label>
               <mat-select formControlName="currencyId">
-                <mat-option value="usd">USD</mat-option>
-                <mat-option value="eur">EUR</mat-option>
-                <mat-option value="inr">INR</mat-option>
+                <mat-option *ngFor="let currency of currencies" [value]="currency.id">
+                  {{ currency.code }} - {{ currency.name }}
+                </mat-option>
               </mat-select>
+              <mat-error *ngIf="basicInfoForm.get('currencyId')?.hasError('required')">
+                Currency is required
+              </mat-error>
             </mat-form-field>
           </div>
           <div class="button-row">
@@ -158,7 +183,7 @@ import { CreateSubscriptionPlanDto, SubscriptionPlanDto } from '../../models/sub
             <h4>Basic Information</h4>
             <p><strong>Name:</strong> {{ getFormValue('name') }}</p>
             <p><strong>Description:</strong> {{ getFormValue('description') }}</p>
-            <p><strong>Price:</strong> ${{ getFormValue('price') }}</p>
+            <p><strong>Price:</strong> {{ getFormValue('price') }}</p>
             <p><strong>Billing Cycle:</strong> {{ getFormValue('billingCycleId') }}</p>
             <p><strong>Currency:</strong> {{ getFormValue('currencyId') }}</p>
           </div>
@@ -190,6 +215,19 @@ import { CreateSubscriptionPlanDto, SubscriptionPlanDto } from '../../models/sub
     </mat-stepper>
   `,
   styles: [`
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      text-align: center;
+    }
+    
+    .loading-container mat-spinner {
+      margin-bottom: 16px;
+    }
+    
     .step-content {
       margin: 16px 0;
       min-height: 300px;
@@ -238,10 +276,20 @@ export class SubscriptionStepperComponent {
   @Output() planUpdated = new EventEmitter<{ id: string, plan: CreateSubscriptionPlanDto }>();
 
   private fb = inject(FormBuilder);
+  private subscriptionService = inject(SubscriptionService);
+  private snackBar = inject(MatSnackBar);
 
   basicInfoForm: FormGroup;
   featuresForm: FormGroup;
   displayForm: FormGroup;
+
+  // Master data
+  billingCycles: MasterBillingCycle[] = [];
+  currencies: MasterCurrency[] = [];
+  privilegeTypes: MasterPrivilegeType[] = [];
+  privileges: Privilege[] = [];
+  
+  loading = false;
 
   constructor() {
     this.basicInfoForm = this.fb.group({
@@ -274,8 +322,43 @@ export class SubscriptionStepperComponent {
   }
 
   ngOnInit() {
+    this.loadMasterData();
     if (this.existingPlan) {
       this.populateFormsWithExistingData();
+    }
+  }
+
+  private async loadMasterData() {
+    this.loading = true;
+    try {
+      // Load billing cycles
+      const billingCyclesResponse = await this.subscriptionService.getBillingCycles().toPromise();
+      if (billingCyclesResponse?.data) {
+        this.billingCycles = billingCyclesResponse.data;
+      }
+
+      // Load currencies
+      const currenciesResponse = await this.subscriptionService.getCurrencies().toPromise();
+      if (currenciesResponse?.data) {
+        this.currencies = currenciesResponse.data;
+      }
+
+      // Load privilege types
+      const privilegeTypesResponse = await this.subscriptionService.getPrivilegeTypes().toPromise();
+      if (privilegeTypesResponse?.data) {
+        this.privilegeTypes = privilegeTypesResponse.data;
+      }
+
+      // Load privileges
+      const privilegesResponse = await this.subscriptionService.getPrivileges().toPromise();
+      if (privilegesResponse?.data) {
+        this.privileges = privilegesResponse.data;
+      }
+    } catch (error) {
+      console.error('Error loading master data:', error);
+      this.snackBar.open('Error loading master data', 'Close', { duration: 3000 });
+    } finally {
+      this.loading = false;
     }
   }
 
@@ -314,19 +397,48 @@ export class SubscriptionStepperComponent {
     return this.basicInfoForm.valid && this.featuresForm.valid && this.displayForm.valid;
   }
 
-  onSubmit() {
-    if (!this.isFormValid()) return;
+  async onSubmit() {
+    if (!this.isFormValid()) {
+      this.snackBar.open('Please fill in all required fields', 'Close', { duration: 3000 });
+      return;
+    }
 
-    const planData: CreateSubscriptionPlanDto = {
-      ...this.basicInfoForm.value,
-      ...this.featuresForm.value,
-      ...this.displayForm.value
-    };
+    this.loading = true;
+    try {
+      const planData: CreateSubscriptionPlanDto = {
+        ...this.basicInfoForm.value,
+        ...this.featuresForm.value,
+        ...this.displayForm.value
+      };
 
-    if (this.editMode && this.existingPlan) {
-      this.planUpdated.emit({ id: this.existingPlan.id, plan: planData });
-    } else {
-      this.planSubmitted.emit(planData);
+      if (this.editMode && this.existingPlan) {
+        // Update existing plan
+        const updateData = {
+          id: this.existingPlan.id,
+          ...planData
+        };
+        const response = await this.subscriptionService.updatePlan(this.existingPlan.id, updateData).toPromise();
+        if (response?.statusCode === 200) {
+          this.snackBar.open('Subscription plan updated successfully', 'Close', { duration: 3000 });
+          this.planUpdated.emit({ id: this.existingPlan.id, plan: planData });
+        } else {
+          this.snackBar.open(response?.message || 'Error updating plan', 'Close', { duration: 3000 });
+        }
+      } else {
+        // Create new plan
+        const response = await this.subscriptionService.createPlan(planData).toPromise();
+        if (response?.statusCode === 200) {
+          this.snackBar.open('Subscription plan created successfully', 'Close', { duration: 3000 });
+          this.planSubmitted.emit(planData);
+        } else {
+          this.snackBar.open(response?.message || 'Error creating plan', 'Close', { duration: 3000 });
+        }
+      }
+    } catch (error) {
+      console.error('Error submitting plan:', error);
+      this.snackBar.open('Error submitting plan', 'Close', { duration: 3000 });
+    } finally {
+      this.loading = false;
     }
   }
 }

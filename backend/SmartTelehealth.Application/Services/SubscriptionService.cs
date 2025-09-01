@@ -1525,24 +1525,23 @@ public class SubscriptionService : ISubscriptionService
                 .ToList();
             
             var dtos = _mapper.Map<IEnumerable<SubscriptionDto>>(subscriptions);
-            
+
             // Return with pagination metadata
-            return new JsonModel 
-            { 
-                data = new
+            return new JsonModel
+            {
+
+                data = dtos,
+                meta = new Meta
                 {
-                    data = dtos,
-                    meta = new
-                    {
-                        totalRecords = totalCount,
-                        pageSize = pageSize,
-                        currentPage = page,
-                        totalPages = (int)Math.Ceiling((double)totalCount / pageSize),
-                        defaultPageSize = pageSize
-                    }
+                    TotalRecords = totalCount,
+                    PageSize = pageSize,
+                    CurrentPage = page,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                    DefaultPageSize = pageSize
+
                 },
-                Message = "User subscriptions retrieved successfully", 
-                StatusCode = 200 
+                Message = "User subscriptions retrieved successfully",
+                StatusCode = 200
             };
         }
         catch (Exception ex)

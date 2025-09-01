@@ -10,8 +10,8 @@ public class MappingProfile : Profile
     {
         // User mappings
         CreateMap<User, UserDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
-            .ForMember(dest => dest.UserRoleId, opt => opt.MapFrom(src => src.UserRoleId.ToString()));
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.UserRoleId, opt => opt.MapFrom(src => src.UserRoleId));
         
         CreateMap<UserDto, User>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))

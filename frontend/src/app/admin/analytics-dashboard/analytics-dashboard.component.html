@@ -1,0 +1,29 @@
+<div class="analytics-dashboard-container">
+  <h2>Analytics Dashboard</h2>
+  <div *ngIf="loading">Loading...</div>
+  <div *ngIf="error" class="error">{{ error }}</div>
+  <div *ngIf="summary">
+    <h3>KPIs</h3>
+    <div>Active: {{ summary.active }}</div>
+    <div>Cancelled: {{ summary.cancelled }}</div>
+    <div>Paused: {{ summary.paused }}</div>
+    <div>Expired: {{ summary.expired }}</div>
+  </div>
+  <div *ngIf="revenue">
+    <h3>Revenue</h3>
+    <div>Total: {{ revenue.total }}</div>
+    <div>Monthly: {{ revenue.monthly }}</div>
+  </div>
+  <div *ngIf="churn">
+    <h3>Churn Rate</h3>
+    <div>{{ churn.rate }}%</div>
+  </div>
+  <div *ngIf="planPerformance">
+    <h3>Plan Performance</h3>
+    <div *ngFor="let plan of planPerformance">
+      <div>{{ plan.name }}: {{ plan.count }}</div>
+    </div>
+  </div>
+  <button mat-raised-button color="primary" (click)="exportReport('csv')">Export CSV</button>
+  <button mat-raised-button color="accent" (click)="exportReport('pdf')">Export PDF</button>
+</div>

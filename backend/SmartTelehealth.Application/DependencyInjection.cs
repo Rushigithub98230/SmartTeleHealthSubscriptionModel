@@ -15,14 +15,14 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IProviderService, ProviderService>();
-        services.AddScoped<PrivilegeService>();
+        services.AddScoped<IPrivilegeService, PrivilegeService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>(provider =>
             new SubscriptionService(
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
                 provider.GetRequiredService<AutoMapper.IMapper>(),
                 provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionService>>(),
                 provider.GetRequiredService<IStripeService>(),
-                provider.GetRequiredService<PrivilegeService>(),
+                provider.GetRequiredService<IPrivilegeService>(),
                 provider.GetRequiredService<INotificationService>(),
                 provider.GetRequiredService<IAuditService>(),
                 provider.GetRequiredService<IUserService>(),

@@ -4701,9 +4701,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime?>("CancelledDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -4816,6 +4813,10 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("StripePriceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("StripeSubscriptionId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -4840,9 +4841,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("TrialStartDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")

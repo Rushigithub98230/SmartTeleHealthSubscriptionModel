@@ -107,7 +107,7 @@ export interface UpdateSubscriptionPlanDto {
 }
 
 export interface ApiResponse<T> {
-  data: T;
+  data: any;
   message: string;
   statusCode: number;
 }
@@ -118,4 +118,48 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+// Master Data Models
+export interface MasterBillingCycle {
+  id: string;
+  name: string;
+  description?: string;
+  durationInDays: number;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface MasterCurrency {
+  id: string;
+  code: string;
+  name: string;
+  symbol?: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface MasterPrivilegeType {
+  id: string;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface Privilege {
+  id: string;
+  name: string;
+  description?: string;
+  privilegeTypeId: string;
+  privilegeTypeName?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
 }
