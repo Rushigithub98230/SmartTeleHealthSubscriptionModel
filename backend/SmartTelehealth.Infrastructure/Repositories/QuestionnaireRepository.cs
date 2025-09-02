@@ -98,7 +98,7 @@ namespace SmartTelehealth.Infrastructure.Repositories
             existingTemplate.Description = template.Description;
             existingTemplate.CategoryId = template.CategoryId;
             existingTemplate.IsActive = template.IsActive;
-            existingTemplate.UpdatedAt = DateTime.UtcNow;
+            existingTemplate.UpdatedDate = DateTime.UtcNow;
 
             _context.QuestionnaireTemplates.Update(existingTemplate);
             await _context.SaveChangesAsync();
@@ -110,7 +110,7 @@ namespace SmartTelehealth.Infrastructure.Repositories
             if (template != null)
             {
                 template.IsDeleted = true;
-                template.UpdatedAt = DateTime.UtcNow;
+                template.UpdatedDate = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
             }
         }
@@ -137,7 +137,7 @@ namespace SmartTelehealth.Infrastructure.Repositories
                 .Where(r => r.UserId == userId && r.CategoryId == categoryId && !r.IsDeleted)
                 .Include(r => r.Answers)
                     .ThenInclude(a => a.SelectedOptions)
-                .OrderByDescending(r => r.CreatedAt)
+                .OrderByDescending(r => r.CreatedDate)
                 .ToListAsync();
         }
 

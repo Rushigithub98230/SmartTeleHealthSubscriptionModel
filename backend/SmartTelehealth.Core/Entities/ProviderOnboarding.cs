@@ -90,8 +90,8 @@ public class ProviderOnboarding : BaseEntity
     public virtual User? ReviewedByUser { get; set; }
     
     // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+    public DateTime? CreatedDate { get => CreatedDate; set => CreatedDate = value; }
+    public DateTime? UpdatedDate { get => UpdatedDate; set => UpdatedDate = value; }
 }
 
 public enum OnboardingStatus

@@ -57,8 +57,8 @@ namespace SmartTelehealth.Application.DTOs
         public bool CanCancel { get; set; }
         public bool CanRenew { get; set; }
         public decimal UsagePercentage { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime UpdatedDate { get; set; }
         public Guid BillingCycleId { get; set; }
         public Guid CurrencyId { get; set; }
     }
@@ -107,7 +107,7 @@ namespace SmartTelehealth.Application.DTOs
         public string InvoiceNumber { get; set; } = string.Empty;
         public string? StripeInvoiceId { get; set; }
         public string? StripePaymentIntentId { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class AddPaymentMethodDto
@@ -151,7 +151,7 @@ namespace SmartTelehealth.Application.DTOs
         public int Used { get; set; }
         public int RemainingQuantity { get; set; }
         public bool IsActive { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class PauseSubscriptionDto
@@ -169,7 +169,7 @@ namespace SmartTelehealth.Application.DTOs
         public string ReminderType { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
         public DateTime ScheduledAt { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
         public string Message { get; set; } = string.Empty;
         public bool IsSent { get; set; }
         public DateTime? SentAt { get; set; }
@@ -206,8 +206,8 @@ namespace SmartTelehealth.Application.DTOs
         public string? Metadata { get; set; }
         
         // Backward compatibility properties
-        public DateTime? CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime? CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
     }
     public class SubscriptionPaymentDto
     {
@@ -239,8 +239,8 @@ namespace SmartTelehealth.Application.DTOs
         public bool IsRefunded { get; set; }
         public bool IsOverdue { get; set; }
         public decimal RemainingAmount { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime UpdatedDate { get; set; }
     }
     public class PaymentRefundDto
     {

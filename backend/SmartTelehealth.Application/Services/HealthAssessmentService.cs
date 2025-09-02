@@ -118,8 +118,26 @@ public class HealthAssessmentService : IHealthAssessmentService
     {
         try
         {
-            var result = await _healthAssessmentRepository.DeleteAsync(id);
-            if (!result)
+            var healthAssessment = await _healthAssessmentRepository.GetByIdAsync(id);
+            if (healthAssessment == null)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Health assessment not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Soft delete - set audit properties
+            healthAssessment.IsDeleted = true;
+            healthAssessment.DeletedBy = tokenModel.UserID;
+            healthAssessment.DeletedDate = DateTime.UtcNow;
+            healthAssessment.UpdatedBy = tokenModel.UserID;
+            healthAssessment.UpdatedDate = DateTime.UtcNow;
+            
+            var result = await _healthAssessmentRepository.UpdateAsync(healthAssessment);
+            if (result == null)
                 return new JsonModel { data = new object(), Message = "Health assessment not found", StatusCode = 404 };
             
             return new JsonModel { data = true, Message = "Health assessment deleted successfully", StatusCode = 200 };
@@ -212,9 +230,7 @@ public class HealthAssessmentService : IHealthAssessmentService
                 Name = createDto.Name,
                 Description = createDto.Description,
                 CategoryId = createDto.CategoryId,
-                IsActive = createDto.IsActive,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                IsActive = createDto.IsActive
             };
             
             return new JsonModel { data = template, Message = "Assessment template created successfully", StatusCode = 201 };
@@ -294,7 +310,7 @@ public class HealthAssessmentService : IHealthAssessmentService
                 Id = Guid.NewGuid(),
                 AssessmentId = assessmentId,
                 Status = "Completed",
-                CreatedAt = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow
             };
             
             return new JsonModel { data = report, Message = "Assessment report generated successfully", StatusCode = 200 };

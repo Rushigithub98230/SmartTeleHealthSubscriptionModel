@@ -427,7 +427,7 @@ public class NotificationService : INotificationService
                 Type = createdNotification.Type.ToString(),
                 Status = createdNotification.Status.ToString(),
                 IsRead = createdNotification.IsRead,
-                CreatedAt = createdNotification.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = createdNotification.CreatedDate ?? DateTime.UtcNow,
                 ReadAt = createdNotification.ReadAt,
                 ScheduledAt = createdNotification.ScheduledAt
             };
@@ -465,7 +465,7 @@ public class NotificationService : INotificationService
                 Type = n.Type.ToString(),
                 Status = n.Status.ToString(),
                 IsRead = n.IsRead,
-                CreatedAt = n.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = n.CreatedDate ?? DateTime.UtcNow,
                 ReadAt = n.ReadAt,
                 ScheduledAt = n.ScheduledAt
             });
@@ -884,7 +884,7 @@ public class NotificationService : INotificationService
                 Type = n.Type.ToString(),
                 Status = n.Status.ToString(),
                 IsRead = n.IsRead,
-                CreatedAt = n.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = n.CreatedDate ?? DateTime.UtcNow,
                 ReadAt = n.ReadAt,
                 ScheduledAt = n.ScheduledAt
             });
@@ -928,7 +928,7 @@ public class NotificationService : INotificationService
                 Type = notification.Type.ToString(),
                 Status = notification.Status.ToString(),
                 IsRead = notification.IsRead,
-                CreatedAt = notification.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = notification.CreatedDate ?? DateTime.UtcNow,
                 ReadAt = notification.ReadAt,
                 ScheduledAt = notification.ScheduledAt
             };
@@ -976,7 +976,7 @@ public class NotificationService : INotificationService
                 Type = created.Type.ToString(),
                 Status = created.Status.ToString(),
                 IsRead = created.IsRead,
-                CreatedAt = created.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = created.CreatedDate ?? DateTime.UtcNow,
                 ReadAt = created.ReadAt,
                 ScheduledAt = created.ScheduledAt
             };
@@ -1029,7 +1029,7 @@ public class NotificationService : INotificationService
                 Type = updatedNotification.Type.ToString(),
                 Status = updatedNotification.Status.ToString(),
                 IsRead = updatedNotification.IsRead,
-                CreatedAt = updatedNotification.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = updatedNotification.CreatedDate ?? DateTime.UtcNow,
                 ReadAt = updatedNotification.ReadAt,
                 ScheduledAt = updatedNotification.ScheduledAt
             };
@@ -1119,7 +1119,7 @@ public class NotificationService : INotificationService
                 Type = updatedNotification.Type.ToString(),
                 Status = updatedNotification.Status.ToString(),
                 IsRead = updatedNotification.IsRead,
-                CreatedAt = updatedNotification.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = updatedNotification.CreatedDate ?? DateTime.UtcNow,
                 ReadAt = updatedNotification.ReadAt,
                 ScheduledAt = updatedNotification.ScheduledAt
             };

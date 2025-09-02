@@ -42,8 +42,8 @@ namespace SmartTelehealth.Core.Entities
         public bool HasSelectedOptions => SelectedOptions.Count > 0;
         
         // Alias properties for backward compatibility
-        public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-        public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+        public DateTime? CreatedDate { get => CreatedDate; set => CreatedDate = value; }
+        public DateTime? UpdatedDate { get => UpdatedDate; set => UpdatedDate = value; }
         
         [NotMapped]
         public bool IsAnswered => HasTextAnswer || HasNumericAnswer || HasDateTimeAnswer || HasSelectedOptions;

@@ -19,8 +19,8 @@ public class DocumentDto
     public bool IsEncrypted { get; set; }
     public bool IsPublic { get; set; }
     public int? CreatedById { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? DeletedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? DeletedDate { get; set; }
     public bool IsActive { get; set; }
     public bool IsDeleted { get; set; }
     
@@ -46,7 +46,7 @@ public class DocumentReferenceDto
     public bool IsPublic { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public int CreatedById { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
 }
 
 public class UploadDocumentRequest

@@ -17,7 +17,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "18749"
+          "Value": "18751"
         },
         {
           "Name": "Content-Type",
@@ -25,22 +25,22 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=\""
+          "Value": "\"+3AShzb6vABYL3ZXBvppRBiapJpAKgDq9+LnXRVC9FU=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 29 Aug 2025 10:46:54 GMT"
+          "Value": "Tue, 02 Sep 2025 05:18:36 GMT"
         }
       ],
       "EndpointProperties": [
         {
           "Name": "integrity",
-          "Value": "sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs="
+          "Value": "sha256-+3AShzb6vABYL3ZXBvppRBiapJpAKgDq9+LnXRVC9FU="
         }
       ]
     },
     {
-      "Route": "chat-test.op4s9uc7ak.html",
+      "Route": "chat-test.vnej4r5q9u.html",
       "AssetFile": "chat-test.html",
       "Selectors": [],
       "ResponseHeaders": [
@@ -54,7 +54,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "18749"
+          "Value": "18751"
         },
         {
           "Name": "Content-Type",
@@ -62,70 +62,25 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=\""
+          "Value": "\"+3AShzb6vABYL3ZXBvppRBiapJpAKgDq9+LnXRVC9FU=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 29 Aug 2025 10:46:54 GMT"
+          "Value": "Tue, 02 Sep 2025 05:18:36 GMT"
         }
       ],
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "op4s9uc7ak"
+          "Value": "vnej4r5q9u"
         },
         {
           "Name": "integrity",
-          "Value": "sha256-JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs="
+          "Value": "sha256-+3AShzb6vABYL3ZXBvppRBiapJpAKgDq9+LnXRVC9FU="
         },
         {
           "Name": "label",
           "Value": "chat-test.html"
-        }
-      ]
-    },
-    {
-      "Route": "opentok-video-call-test.a6ix2q87q2.html",
-      "AssetFile": "opentok-video-call-test.html",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "max-age=31536000, immutable"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "29277"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/html"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Fri, 29 Aug 2025 10:46:54 GMT"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "fingerprint",
-          "Value": "a6ix2q87q2"
-        },
-        {
-          "Name": "integrity",
-          "Value": "sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="
-        },
-        {
-          "Name": "label",
-          "Value": "opentok-video-call-test.html"
         }
       ]
     },
@@ -144,7 +99,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "29277"
+          "Value": "29279"
         },
         {
           "Name": "Content-Type",
@@ -152,17 +107,62 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=\""
+          "Value": "\"fvV/+CEBW43DmsN19yKUv+vhM2gteZkAgQJ/OndL3X0=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Fri, 29 Aug 2025 10:46:54 GMT"
+          "Value": "Tue, 02 Sep 2025 05:18:36 GMT"
         }
       ],
       "EndpointProperties": [
         {
           "Name": "integrity",
-          "Value": "sha256-QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88="
+          "Value": "sha256-fvV/+CEBW43DmsN19yKUv+vhM2gteZkAgQJ/OndL3X0="
+        }
+      ]
+    },
+    {
+      "Route": "opentok-video-call-test.icohhdbnwu.html",
+      "AssetFile": "opentok-video-call-test.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "29279"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"fvV/+CEBW43DmsN19yKUv+vhM2gteZkAgQJ/OndL3X0=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 02 Sep 2025 05:18:36 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "icohhdbnwu"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-fvV/+CEBW43DmsN19yKUv+vhM2gteZkAgQJ/OndL3X0="
+        },
+        {
+          "Name": "label",
+          "Value": "opentok-video-call-test.html"
         }
       ]
     },

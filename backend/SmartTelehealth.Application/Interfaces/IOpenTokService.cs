@@ -75,8 +75,8 @@ public class OpenTokStreamDto
     public bool HasVideo { get; set; }
     public bool HasAudio { get; set; }
     public bool IsScreenSharing { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
 }
 
 public enum OpenTokRecordingStatus
@@ -114,7 +114,7 @@ public class OpenTokBroadcastDto
     public string HlsUrl { get; set; } = string.Empty;
     public string RtmpUrl { get; set; } = string.Empty;
     public OpenTokBroadcastStatus Status { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? StoppedAt { get; set; }
 }
@@ -159,7 +159,7 @@ public class OpenTokSessionAnalyticsDto
     public double AverageAudioQuality { get; set; }
     public double AverageVideoQuality { get; set; }
     public double AverageNetworkQuality { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? LastActivity { get; set; }
 }
 

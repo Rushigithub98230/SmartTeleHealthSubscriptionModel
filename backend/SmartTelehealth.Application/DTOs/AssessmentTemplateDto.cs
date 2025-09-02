@@ -9,8 +9,8 @@ public class AssessmentTemplateDto
     public string CategoryName { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public int QuestionCount { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
     public IEnumerable<AssessmentQuestionDto> Questions { get; set; } = new List<AssessmentQuestionDto>();
 }
 
@@ -93,7 +93,7 @@ public class AssessmentReportDto
     public string Status { get; set; } = string.Empty;
     public bool IsEligibleForTreatment { get; set; }
     public string ProviderNotes { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? CompletedAt { get; set; }
     public DateTime? ReviewedAt { get; set; }
     public IEnumerable<AssessmentResponseDto> Responses { get; set; } = new List<AssessmentResponseDto>();

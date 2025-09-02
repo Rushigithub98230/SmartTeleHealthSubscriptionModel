@@ -153,6 +153,7 @@ public class UserService : IUserService
             if (!string.IsNullOrEmpty(updateDto.Country))
                 user.Country = updateDto.Country;
 
+            user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
 
@@ -280,7 +281,14 @@ public class UserService : IUserService
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
-            await _userRepository.DeleteAsync(userId);
+            // Soft delete - set audit properties
+            user.IsDeleted = true;
+            user.DeletedBy = tokenModel.UserID;
+            user.DeletedDate = DateTime.UtcNow;
+            user.UpdatedBy = tokenModel.UserID;
+            user.UpdatedDate = DateTime.UtcNow;
+            
+            await _userRepository.UpdateAsync(user);
             return new JsonModel { data = true, Message = "User deleted successfully", StatusCode = 200 };
         }
         catch (Exception ex)
@@ -349,6 +357,7 @@ public class UserService : IUserService
             var resetToken = Guid.NewGuid().ToString();
             user.PasswordResetToken = resetToken;
             user.ResetTokenExpires = DateTime.UtcNow.AddHours(24);
+            user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
 
@@ -428,6 +437,7 @@ public class UserService : IUserService
             if (!string.IsNullOrEmpty(profileDto.Country))
                 user.Country = profileDto.Country;
 
+            user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
 
@@ -455,6 +465,7 @@ public class UserService : IUserService
                 user.LanguagePreference = preferencesDto.LanguagePreference;
             if (!string.IsNullOrEmpty(preferencesDto.TimeZonePreference))
                 user.TimeZonePreference = preferencesDto.TimeZonePreference;
+            user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
 
@@ -549,7 +560,7 @@ public class UserService : IUserService
                 MedicalHistory = medicalHistoryDto.MedicalHistory,
                 FamilyHistory = medicalHistoryDto.FamilyHistory,
                 Lifestyle = medicalHistoryDto.Lifestyle,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedDate = DateTime.UtcNow
             };
 
             return new JsonModel { data = updatedHistory, Message = "Patient medical history updated successfully", StatusCode = 200 };
@@ -677,6 +688,8 @@ public class UserService : IUserService
                 UserType = "Provider",
                 IsActive = true,
                 IsEmailVerified = false,
+                // Set audit properties for creation
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow
             };
 
@@ -711,6 +724,7 @@ public class UserService : IUserService
             if (!string.IsNullOrEmpty(updateDto.PhoneNumber))
                 provider.Phone = updateDto.PhoneNumber;
 
+            provider.UpdatedBy = tokenModel.UserID;
             provider.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(provider);
 
@@ -735,6 +749,7 @@ public class UserService : IUserService
                 return new JsonModel { data = new object(), Message = "Provider not found", StatusCode = 404 };
 
             provider.IsActive = false;
+            provider.UpdatedBy = tokenModel.UserID;
             provider.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(provider);
 
@@ -757,6 +772,7 @@ public class UserService : IUserService
 
             // In a real implementation, this would involve verification logic
             provider.IsEmailVerified = true;
+            provider.UpdatedBy = tokenModel.UserID;
             provider.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(provider);
 
@@ -863,7 +879,7 @@ public class UserService : IUserService
                     PatientName = "John Doe",
                     Rating = 5,
                     Comment = "Excellent consultation. Very professional and knowledgeable.",
-                    CreatedAt = DateTime.UtcNow.AddDays(-5)
+                    CreatedDate = DateTime.UtcNow.AddDays(-5)
                 },
                 new ReviewDto
                 {
@@ -873,7 +889,7 @@ public class UserService : IUserService
                     PatientName = "Jane Smith",
                     Rating = 4,
                     Comment = "Good experience. Would recommend.",
-                    CreatedAt = DateTime.UtcNow.AddDays(-10)
+                    CreatedDate = DateTime.UtcNow.AddDays(-10)
                 }
             };
 
@@ -898,7 +914,7 @@ public class UserService : IUserService
                 PatientName = "Current User", // Would get from user data
                 Rating = reviewDto.Rating,
                 Comment = reviewDto.Comment,
-                CreatedAt = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow
             };
 
             return new JsonModel { data = review, Message = "Provider review added successfully", StatusCode = 201 };
@@ -926,7 +942,7 @@ public class UserService : IUserService
                     Message = "Your appointment with Dr. Smith is in 1 hour.",
                     Type = "appointment",
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow.AddHours(-1)
+                    CreatedDate = DateTime.UtcNow.AddHours(-1)
                 },
                 new NotificationDto
                 {
@@ -936,7 +952,7 @@ public class UserService : IUserService
                     Message = "Your payment of $75 has been processed successfully.",
                     Type = "payment",
                     IsRead = true,
-                    CreatedAt = DateTime.UtcNow.AddDays(-1)
+                    CreatedDate = DateTime.UtcNow.AddDays(-1)
                 }
             };
 
@@ -1294,6 +1310,7 @@ public class UserService : IUserService
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
             user.IsActive = false;
+            user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
 
@@ -1325,8 +1342,8 @@ public class UserService : IUserService
             IsVerified = user.IsEmailVerified,
             IsEmailVerified = user.IsEmailVerified,
             IsPhoneVerified = user.IsPhoneVerified,
-            CreatedAt = user.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = user.UpdatedDate ?? DateTime.UtcNow,
+            CreatedDate = user.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = user.UpdatedDate ?? DateTime.UtcNow,
             LastLoginAt = user.LastLoginAt,
             ProfilePicture = user.ProfilePicture,
             DateOfBirth = user.DateOfBirth,
@@ -1359,8 +1376,8 @@ public class UserService : IUserService
             IsActive = user.IsActive,
             IsEmailVerified = user.IsEmailVerified,
             IsPhoneVerified = user.IsPhoneVerified,
-            CreatedAt = user.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = user.UpdatedDate ?? DateTime.UtcNow,
+            CreatedDate = user.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = user.UpdatedDate ?? DateTime.UtcNow,
             LastLoginAt = user.LastLoginAt,
             StripeCustomerId = user.StripeCustomerId
         };
@@ -1383,8 +1400,8 @@ public class UserService : IUserService
             IsActive = user.IsActive,
             IsEmailVerified = user.IsEmailVerified,
             IsPhoneVerified = user.IsPhoneVerified,
-            CreatedAt = user.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = user.UpdatedDate ?? DateTime.UtcNow,
+            CreatedDate = user.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = user.UpdatedDate ?? DateTime.UtcNow,
             LastLoginAt = user.LastLoginAt,
             StripeCustomerId = user.StripeCustomerId
         };
@@ -1519,6 +1536,8 @@ public class UserService : IUserService
                 EmergencyContactPhone = createUserDto.EmergencyContactPhone,
                 UserType = createUserDto.UserType ?? "Patient",
                 UserRoleId = userRole.Id, // Set the UserRoleId
+                // Set audit properties for creation
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow,
                 IsActive = true
             };

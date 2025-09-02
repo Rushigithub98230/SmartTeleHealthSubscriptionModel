@@ -162,8 +162,8 @@ export class SubscriptionManagementComponent implements OnInit {
   }
 
   onPlanUpdated(event: { id: string, plan: CreateSubscriptionPlanDto }) {
-    const updateData = { id: event.id, ...event.plan } as any;
-    this.subscriptionService.updatePlan(event.id, updateData).subscribe({
+    const UpdatedDatea = { id: event.id, ...event.plan } as any;
+    this.subscriptionService.updatePlan(event.id, UpdatedDatea).subscribe({
       next: (response) => {
         if (response.statusCode === 200) {
           this.snackBar.open('Plan updated successfully', 'Close', { duration: 3000 });

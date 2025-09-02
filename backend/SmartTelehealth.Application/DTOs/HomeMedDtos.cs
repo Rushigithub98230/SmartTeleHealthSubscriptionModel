@@ -76,7 +76,7 @@ public class MedicationShipmentDto
     public string TrackingNumber { get; set; } = string.Empty;
     public string ShippingAddress { get; set; } = string.Empty;
     public string ShippingMethod { get; set; } = string.Empty; // standard, express, overnight
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? ProcessedAt { get; set; }
     public DateTime? ShippedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }

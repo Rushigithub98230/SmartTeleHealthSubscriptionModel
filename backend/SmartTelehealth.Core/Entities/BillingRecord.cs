@@ -109,9 +109,7 @@ public class BillingRecord : BaseEntity
     // Navigation properties
     public virtual ICollection<BillingAdjustment> Adjustments { get; set; } = new List<BillingAdjustment>();
     
-    // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+    // Alias properties for backward compatibility - removed as they cause infinite recursion
     
     // Computed Properties
     [NotMapped]

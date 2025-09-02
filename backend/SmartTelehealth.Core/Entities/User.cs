@@ -110,9 +110,6 @@ public class User : IdentityUser<int>
     [ForeignKey(nameof(DeletedBy))]
     public virtual User? DeletedByUser { get; set; }
     
-    // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
     
     // Navigation properties
     public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();

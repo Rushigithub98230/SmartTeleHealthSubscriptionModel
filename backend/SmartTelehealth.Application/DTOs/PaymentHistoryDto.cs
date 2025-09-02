@@ -11,7 +11,7 @@ namespace SmartTelehealth.Application.DTOs
         public string Status { get; set; } = string.Empty;
         public string? TransactionId { get; set; }
         public string? ErrorMessage { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
         public DateTime? ProcessedAt { get; set; }
         public DateTime PaymentDate { get; set; }
         public string? Description { get; set; }

@@ -22,8 +22,8 @@ public class ProviderPayoutDto
     public string? ProcessedByUserName { get; set; }
     public string? TransactionId { get; set; }
     public string? PaymentMethodId { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
     public List<PayoutDetailDto> PayoutDetails { get; set; } = new();
 }
 
@@ -38,7 +38,7 @@ public class PayoutDetailDto
     public decimal PlatformCommission { get; set; }
     public decimal ProviderEarnings { get; set; }
     public string ConsultationType { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
 }
 
 public class PayoutPeriodDto
@@ -51,8 +51,8 @@ public class PayoutPeriodDto
     public DateTime? ProcessedAt { get; set; }
     public Guid? ProcessedByUserId { get; set; }
     public string? ProcessedByUserName { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
     public int TotalPayouts { get; set; }
     public decimal TotalAmount { get; set; }
 }

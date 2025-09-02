@@ -102,7 +102,9 @@ namespace SmartTelehealth.Application.Services
                     City = registerDto.City,
                     State = registerDto.State,
                     ZipCode = registerDto.ZipCode,
-                    CreatedAt = DateTime.UtcNow,
+                    // Set audit properties for creation
+                    CreatedBy = 0, // System user for registration
+                    CreatedDate = DateTime.UtcNow,
                     IsActive = true
                 };
 

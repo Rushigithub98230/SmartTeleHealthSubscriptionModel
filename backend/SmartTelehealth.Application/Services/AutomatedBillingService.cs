@@ -309,6 +309,26 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return DateTime.UtcNow;
             }
 
+            // CRITICAL FIX: Sync with Stripe subscription's current_period_end if available
+            if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId))
+            {
+                try
+                {
+                    var stripeSubscription = await _stripeService.GetSubscriptionAsync(subscription.StripeSubscriptionId, tokenModel);
+                    if (stripeSubscription != null && stripeSubscription.CurrentPeriodEnd.HasValue)
+                    {
+                        _logger.LogInformation("Using Stripe subscription period end for subscription {SubscriptionId}: {PeriodEnd}", 
+                            subscriptionId, stripeSubscription.CurrentPeriodEnd.Value);
+                        return stripeSubscription.CurrentPeriodEnd.Value;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to get Stripe subscription period end for {SubscriptionId}, falling back to local calculation", 
+                        subscriptionId);
+                }
+            }
+
             var nextBillingDate = DateTime.UtcNow;
             
             // Calculate next billing date based on billing cycle

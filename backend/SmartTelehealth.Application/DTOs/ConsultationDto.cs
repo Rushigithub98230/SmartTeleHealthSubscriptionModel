@@ -18,8 +18,8 @@ public class ConsultationDto
     public string? ConsultationMode { get; set; }
     public string? Reason { get; set; }
     public string? Symptoms { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
 }
 
 public class CreateConsultationDto

@@ -68,10 +68,41 @@ public class StripeWebhookController : BaseController
             webhookSecret
         );
 
-        // Process webhook with retry logic
-        await ProcessWebhookWithRetryAsync(stripeEvent);
+        // CRITICAL FIX: Implement webhook idempotency
+        try
+        {
+            // Check if this event has already been processed
+            var eventId = stripeEvent.Id;
+            var isProcessed = await _auditService.IsEventProcessedAsync(eventId);
+            if (isProcessed)
+            {
+                _logger.LogInformation("Webhook event {EventId} already processed, skipping", eventId);
+                return new JsonModel { data = new object(), Message = "Event already processed", StatusCode = 200 };
+            }
 
-        return new JsonModel { data = new object(), Message = "Webhook processed successfully", StatusCode = 200 };
+            // Mark event as being processed
+            await _auditService.LogActionAsync("Webhook", "Processing", eventId, 
+                $"Processing Stripe webhook event {stripeEvent.Type}", GetToken(HttpContext));
+
+            // Process webhook with retry logic
+            await ProcessWebhookWithRetryAsync(stripeEvent);
+
+            // Mark event as successfully processed
+            await _auditService.LogActionAsync("Webhook", "Processed", eventId, 
+                $"Successfully processed Stripe webhook event {stripeEvent.Type}", GetToken(HttpContext));
+
+            return new JsonModel { data = new object(), Message = "Webhook processed successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing webhook event {EventId} of type {EventType}", stripeEvent.Id, stripeEvent.Type);
+            
+            // Mark event as failed
+            await _auditService.LogActionAsync("Webhook", "Failed", stripeEvent.Id, 
+                $"Failed to process Stripe webhook event {stripeEvent.Type}: {ex.Message}", GetToken(HttpContext));
+            
+            throw; // Re-throw to trigger retry mechanism
+        }
     }
 
     private async Task ProcessWebhookWithRetryAsync(Event stripeEvent)
@@ -178,6 +209,21 @@ public class StripeWebhookController : BaseController
                 break;
             case "customer.deleted":
                 await HandleCustomerDeleted(stripeEvent);
+                break;
+            case "setup_intent.succeeded":
+                await HandleSetupIntentSucceeded(stripeEvent);
+                break;
+            case "setup_intent.setup_failed":
+                await HandleSetupIntentFailed(stripeEvent);
+                break;
+            case "payment_intent.requires_action":
+                await HandlePaymentIntentRequiresAction(stripeEvent);
+                break;
+            case "invoice.created":
+                await HandleInvoiceCreated(stripeEvent);
+                break;
+            case "invoice.voided":
+                await HandleInvoiceVoided(stripeEvent);
                 break;
             default:
                 // Log unhandled event type
@@ -720,7 +766,7 @@ public class StripeWebhookController : BaseController
             {
                 // Update billing record status to refunded
                 billingRecord.Status = BillingRecord.BillingStatus.Refunded;
-                billingRecord.UpdatedAt = DateTime.UtcNow;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(billingRecord);
 
                 // Create refund record
@@ -766,7 +812,7 @@ public class StripeWebhookController : BaseController
             {
                 // Update billing record to indicate dispute
                 billingRecord.Status = BillingRecord.BillingStatus.Pending; // Reset to pending during dispute
-                billingRecord.UpdatedAt = DateTime.UtcNow;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(billingRecord);
 
                 // Create dispute record
@@ -815,7 +861,7 @@ public class StripeWebhookController : BaseController
                 {
                     // Dispute won by customer - mark as refunded
                     billingRecord.Status = BillingRecord.BillingStatus.Refunded;
-                    billingRecord.UpdatedAt = DateTime.UtcNow;
+                    billingRecord.UpdatedDate = DateTime.UtcNow;
                     await _billingRepository.UpdateAsync(billingRecord);
 
                     _logger.LogInformation("Dispute {DisputeId} closed in favor of customer via Stripe webhook. Billing record {BillingRecordId} marked as refunded.", 
@@ -825,7 +871,7 @@ public class StripeWebhookController : BaseController
                 {
                     // Dispute lost by customer - mark as paid
                     billingRecord.Status = BillingRecord.BillingStatus.Paid;
-                    billingRecord.UpdatedAt = DateTime.UtcNow;
+                    billingRecord.UpdatedDate = DateTime.UtcNow;
                     await _billingRepository.UpdateAsync(billingRecord);
 
                     _logger.LogInformation("Dispute {DisputeId} closed in favor of business via Stripe webhook. Billing record {BillingRecordId} marked as paid.", 
@@ -835,7 +881,7 @@ public class StripeWebhookController : BaseController
                 {
                     // Dispute closed for other reasons (e.g., withdrawn)
                     billingRecord.Status = BillingRecord.BillingStatus.Paid; // Default to paid
-                    billingRecord.UpdatedAt = DateTime.UtcNow;
+                    billingRecord.UpdatedDate = DateTime.UtcNow;
                     await _billingRepository.UpdateAsync(billingRecord);
 
                     _logger.LogInformation("Dispute {DisputeId} closed with status {Status} via Stripe webhook. Billing record {BillingRecordId} updated.", 
@@ -869,21 +915,22 @@ public class StripeWebhookController : BaseController
                 return;
             }
 
-            // Create billing record for finalized invoice
-            await _billingService.CreateBillingRecordAsync(new CreateBillingRecordDto
-            {
-                UserId = userId,
-                Amount = invoice.AmountDue / 100m, // Convert from cents
-                CurrencyId = null, // Will use default currency
-                PaymentMethod = "stripe",
-                StripeInvoiceId = invoice.Id,
-                StripePaymentIntentId = GetPaymentIntentIdFromInvoice(invoice),
-                Status = BillingRecord.BillingStatus.Pending.ToString(),
-                Description = $"Invoice {invoice.Number} finalized - Amount: {invoice.AmountDue / 100m} {invoice.Currency}",
-                BillingDate = DateTime.UtcNow,
-                DueDate = invoice.DueDate ?? DateTime.UtcNow.AddDays(30),
-                Type = BillingRecord.BillingType.Subscription.ToString()
-            }, GetToken(HttpContext));
+                                    // CRITICAL FIX: Create billing record with proper Stripe correlation
+                        await _billingService.CreateBillingRecordAsync(new CreateBillingRecordDto
+                        {
+                            UserId = userId,
+                            Amount = invoice.AmountDue / 100m, // Convert from cents
+                            CurrencyId = null, // Will use default currency
+                            PaymentMethod = "stripe",
+                            StripeInvoiceId = invoice.Id, // Link to Stripe invoice
+                            StripePaymentIntentId = GetPaymentIntentIdFromInvoice(invoice), // Link to payment intent
+                            Status = BillingRecord.BillingStatus.Pending.ToString(),
+                            Description = $"Invoice {invoice.Number} finalized - Amount: {invoice.AmountDue / 100m} {invoice.Currency}",
+                            BillingDate = DateTime.UtcNow,
+                            DueDate = invoice.DueDate ?? DateTime.UtcNow.AddDays(30),
+                            Type = BillingRecord.BillingType.Subscription.ToString(),
+                            InvoiceNumber = invoice.Number // Store invoice number for reference
+                        }, GetToken(HttpContext));
 
             _logger.LogInformation("Invoice {InvoiceId} finalized via Stripe webhook. Billing record created for user {UserId}.", 
                 invoice.Id, userId);
@@ -914,7 +961,7 @@ public class StripeWebhookController : BaseController
             if (billingRecord != null)
             {
                 billingRecord.Status = BillingRecord.BillingStatus.Pending;
-                billingRecord.UpdatedAt = DateTime.UtcNow;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(billingRecord);
 
                 _logger.LogInformation("Invoice {InvoiceId} sent via Stripe webhook. Billing record {BillingRecordId} status updated.", 
@@ -990,7 +1037,7 @@ public class StripeWebhookController : BaseController
             if (billingRecord != null)
             {
                 billingRecord.Status = BillingRecord.BillingStatus.Failed;
-                billingRecord.UpdatedAt = DateTime.UtcNow;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(billingRecord);
 
                 _logger.LogInformation("Invoice {InvoiceId} finalization failed via Stripe webhook. Billing record {BillingRecordId} status updated to failed.", 
@@ -1056,6 +1103,139 @@ public class StripeWebhookController : BaseController
         {
             _logger.LogError(ex, "Error handling trial payment failure for subscription {SubscriptionId}", subscriptionId);
             // Don't re-throw here as this is a secondary operation
+        }
+    }
+
+    // CRITICAL FIX: Additional missing webhook handlers
+    private async Task HandleSetupIntentSucceeded(Event stripeEvent)
+    {
+        var setupIntent = stripeEvent.Data.Object as Stripe.SetupIntent;
+        if (setupIntent == null) return;
+
+        try
+        {
+            _logger.LogInformation("Setup intent {SetupIntentId} succeeded for customer {CustomerId}", 
+                setupIntent.Id, setupIntent.CustomerId);
+
+            // Log successful payment method setup
+            await _auditService.LogActionAsync("PaymentMethod", "SetupSucceeded", setupIntent.Id, 
+                $"Payment method setup succeeded for customer {setupIntent.CustomerId}", GetToken(HttpContext));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling setup intent succeeded webhook for {SetupIntentId}", setupIntent.Id);
+        }
+    }
+
+    private async Task HandleSetupIntentFailed(Event stripeEvent)
+    {
+        var setupIntent = stripeEvent.Data.Object as Stripe.SetupIntent;
+        if (setupIntent == null) return;
+
+        try
+        {
+            _logger.LogWarning("Setup intent {SetupIntentId} failed for customer {CustomerId}: {FailureReason}", 
+                setupIntent.Id, setupIntent.CustomerId, setupIntent.LastSetupError?.Message);
+
+            // Log failed payment method setup
+            await _auditService.LogActionAsync("PaymentMethod", "SetupFailed", setupIntent.Id, 
+                $"Payment method setup failed for customer {setupIntent.CustomerId}: {setupIntent.LastSetupError?.Message}", GetToken(HttpContext));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling setup intent failed webhook for {SetupIntentId}", setupIntent.Id);
+        }
+    }
+
+    private async Task HandlePaymentIntentRequiresAction(Event stripeEvent)
+    {
+        var paymentIntent = stripeEvent.Data.Object as Stripe.PaymentIntent;
+        if (paymentIntent == null) return;
+
+        try
+        {
+            _logger.LogInformation("Payment intent {PaymentIntentId} requires action for customer {CustomerId}", 
+                paymentIntent.Id, paymentIntent.CustomerId);
+
+            // Find the billing record associated with this payment intent
+            var billingRecord = await _billingRepository.GetByStripePaymentIntentIdAsync(paymentIntent.Id);
+            if (billingRecord != null)
+            {
+                // Update billing record status to indicate action required
+                billingRecord.Status = BillingRecord.BillingStatus.Pending;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
+                billingRecord.ErrorMessage = "Payment requires additional authentication";
+                await _billingRepository.UpdateAsync(billingRecord);
+
+                // Send notification to user
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = billingRecord.UserId,
+                    Title = "Payment Action Required",
+                    Message = "Your payment requires additional verification. Please complete the authentication process.",
+                    Type = "PaymentAction",
+                    IsRead = false,
+                    Priority = "High"
+                }, GetToken(HttpContext));
+
+                _logger.LogInformation("Payment action required handled for billing record {BillingRecordId}", billingRecord.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling payment intent requires action webhook for {PaymentIntentId}", paymentIntent.Id);
+        }
+    }
+
+    private async Task HandleInvoiceCreated(Event stripeEvent)
+    {
+        var invoice = stripeEvent.Data.Object as Stripe.Invoice;
+        if (invoice == null) return;
+
+        try
+        {
+            _logger.LogInformation("Invoice {InvoiceId} created for customer {CustomerId}", 
+                invoice.Id, invoice.CustomerId);
+
+            // Log invoice creation
+            await _auditService.LogActionAsync("Invoice", "Created", invoice.Id, 
+                $"Invoice {invoice.Number} created for customer {invoice.CustomerId}", GetToken(HttpContext));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling invoice created webhook for {InvoiceId}", invoice.Id);
+        }
+    }
+
+    private async Task HandleInvoiceVoided(Event stripeEvent)
+    {
+        var invoice = stripeEvent.Data.Object as Stripe.Invoice;
+        if (invoice == null) return;
+
+        try
+        {
+            _logger.LogInformation("Invoice {InvoiceId} voided for customer {CustomerId}", 
+                invoice.Id, invoice.CustomerId);
+
+            // Update billing record status if it exists
+            var billingRecord = await _billingRepository.GetByStripeInvoiceIdAsync(invoice.Id);
+            if (billingRecord != null)
+            {
+                billingRecord.Status = BillingRecord.BillingStatus.Cancelled;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
+                billingRecord.ErrorMessage = "Invoice voided";
+                await _billingRepository.UpdateAsync(billingRecord);
+
+                _logger.LogInformation("Invoice voided handled for billing record {BillingRecordId}", billingRecord.Id);
+            }
+
+            // Log invoice voiding
+            await _auditService.LogActionAsync("Invoice", "Voided", invoice.Id, 
+                $"Invoice {invoice.Number} voided for customer {invoice.CustomerId}", GetToken(HttpContext));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling invoice voided webhook for {InvoiceId}", invoice.Id);
         }
     }
 }

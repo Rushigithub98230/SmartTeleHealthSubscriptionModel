@@ -47,7 +47,7 @@ namespace SmartTelehealth.API.Controllers
         [HttpPost("templates")]
         public async Task<JsonModel> CreateTemplate([FromBody] CreateQuestionnaireTemplateDto dto)
         {
-            return await _questionnaireService.CreateTemplateAsync(dto, new List<IFormFile>());
+            return await _questionnaireService.CreateTemplateAsync(dto, new List<IFormFile>(),  GetToken(HttpContext));
         }
 
         [HttpPost("templates/with-files")]
@@ -62,7 +62,8 @@ namespace SmartTelehealth.API.Controllers
                 if (dto == null)
                     return new JsonModel { data = new object(), Message = "Invalid template JSON", StatusCode = 400 };
 
-                return await _questionnaireService.CreateTemplateAsync(dto, files);
+                var tokenModel = GetToken(HttpContext);
+                return await _questionnaireService.CreateTemplateAsync(dto, files, tokenModel);
             }
             catch (JsonException)
             {
@@ -109,7 +110,8 @@ namespace SmartTelehealth.API.Controllers
             if (dto == null)
                 return new JsonModel { data = new object(), Message = "Invalid request data", StatusCode = 400 };
             
-            return await _questionnaireService.SubmitUserResponseAsync(dto);
+            
+            return await _questionnaireService.SubmitUserResponseAsync(dto, GetToken(HttpContext));
         }
 
         [HttpGet("responses/{id}")]

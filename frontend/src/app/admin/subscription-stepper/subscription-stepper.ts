@@ -413,11 +413,11 @@ export class SubscriptionStepperComponent {
 
       if (this.editMode && this.existingPlan) {
         // Update existing plan
-        const updateData = {
+        const UpdatedDatea = {
           id: this.existingPlan.id,
           ...planData
         };
-        const response = await this.subscriptionService.updatePlan(this.existingPlan.id, updateData).toPromise();
+        const response = await this.subscriptionService.updatePlan(this.existingPlan.id, UpdatedDatea).toPromise();
         if (response?.statusCode === 200) {
           this.snackBar.open('Subscription plan updated successfully', 'Close', { duration: 3000 });
           this.planUpdated.emit({ id: this.existingPlan.id, plan: planData });

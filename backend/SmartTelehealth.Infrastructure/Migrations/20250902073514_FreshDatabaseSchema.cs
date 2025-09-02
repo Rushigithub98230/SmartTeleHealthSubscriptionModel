@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SmartTelehealth.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class FreshDatabaseSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -534,15 +534,13 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     CategoryId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Version = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CategoryId1 = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -623,12 +621,15 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     StripeMonthlyPriceId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     StripeQuarterlyPriceId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     StripeAnnualPriceId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    MessagingCount = table.Column<int>(type: "int", nullable: false),
+                    IncludesMedicationDelivery = table.Column<bool>(type: "bit", nullable: false),
+                    IncludesFollowUpCare = table.Column<bool>(type: "bit", nullable: false),
+                    DeliveryFrequencyDays = table.Column<int>(type: "int", nullable: false),
+                    MaxPauseDurationDays = table.Column<int>(type: "int", nullable: false),
                     Features = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     Terms = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     EffectiveDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ExpirationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CategoryId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     MasterBillingCycleId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     MasterCurrencyId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
@@ -786,8 +787,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -828,14 +827,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     MinValue = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
                     MaxValue = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
                     StepValue = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -935,6 +932,9 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     EffectiveDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ExpirationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DailyLimit = table.Column<int>(type: "int", nullable: true),
+                    WeeklyLimit = table.Column<int>(type: "int", nullable: true),
+                    MonthlyLimit = table.Column<int>(type: "int", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
@@ -1071,8 +1071,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     NewValues = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     ErrorMessage = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
@@ -1194,14 +1192,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     ProposedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ReviewedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ReviewedByUserId = table.Column<int>(type: "int", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -1257,14 +1253,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ReviewedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ReviewedByUserId = table.Column<int>(type: "int", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -1294,14 +1288,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     TemplateId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     CategoryId1 = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -1384,6 +1376,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     CurrentPrice = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     AutoRenew = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
                     Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    SubscriptionStatus = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     PausedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ResumedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CancelledDate = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -1392,10 +1385,15 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     LastBillingDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CancellationReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     PauseReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CancelledAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ExpiredAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RenewedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ExpiryDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     StripeSubscriptionId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     StripeCustomerId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    StripePriceId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     PaymentMethodId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     LastPaymentDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     LastPaymentFailedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -1473,14 +1471,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     AnswerText = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
                     NumericValue = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
                     DateTimeValue = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -1577,14 +1573,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     FollowUpDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsOneTime = table.Column<bool>(type: "bit", nullable: false),
                     CancellationReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -1650,14 +1644,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     AttemptCount = table.Column<int>(type: "int", nullable: false),
                     NextRetryAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     RefundedAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -1690,8 +1682,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     ChangedByUserId = table.Column<int>(type: "int", maxLength: 100, nullable: true),
                     ChangedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Metadata = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
@@ -2190,6 +2180,38 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "PrivilegeUsageHistories",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserSubscriptionPrivilegeUsageId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UsedValue = table.Column<int>(type: "int", nullable: false),
+                    UsedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UsageDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UsageWeek = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    UsageMonth = table.Column<string>(type: "nvarchar(7)", maxLength: 7, nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DeletedBy = table.Column<int>(type: "int", nullable: true),
+                    DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PrivilegeUsageHistories", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PrivilegeUsageHistories_UserSubscriptionPrivilegeUsages_UserSubscriptionPrivilegeUsageId",
+                        column: x => x.UserSubscriptionPrivilegeUsageId,
+                        principalTable: "UserSubscriptionPrivilegeUsages",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AppointmentDocuments",
                 columns: table => new
                 {
@@ -2521,14 +2543,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     EndedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     RecordingUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -2701,8 +2721,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     AccruedAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
                     AccrualStartDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     AccrualEndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
@@ -3644,6 +3662,31 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 column: "PrivilegeTypeId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PrivilegeUsageHistories_UsageDate",
+                table: "PrivilegeUsageHistories",
+                column: "UsageDate");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PrivilegeUsageHistories_UsageMonth",
+                table: "PrivilegeUsageHistories",
+                column: "UsageMonth");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PrivilegeUsageHistories_UsageWeek",
+                table: "PrivilegeUsageHistories",
+                column: "UsageWeek");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PrivilegeUsageHistories_UserSubscriptionPrivilegeUsageId",
+                table: "PrivilegeUsageHistories",
+                column: "UserSubscriptionPrivilegeUsageId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PrivilegeUsageHistories_UserSubscriptionPrivilegeUsageId_UsageDate",
+                table: "PrivilegeUsageHistories",
+                columns: new[] { "UserSubscriptionPrivilegeUsageId", "UsageDate" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProviderCategories_CategoryId",
                 table: "ProviderCategories",
                 column: "CategoryId");
@@ -3897,9 +3940,9 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 column: "OptionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_UserAnswers_CreatedAt",
+                name: "IX_UserAnswers_CreatedDate",
                 table: "UserAnswers",
-                column: "CreatedAt");
+                column: "CreatedDate");
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserAnswers_IsDeleted",
@@ -3937,9 +3980,9 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 column: "CategoryId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_UserResponses_CreatedAt",
+                name: "IX_UserResponses_CreatedDate",
                 table: "UserResponses",
-                column: "CreatedAt");
+                column: "CreatedDate");
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserResponses_IsDeleted",
@@ -4118,6 +4161,9 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 name: "PrescriptionItems");
 
             migrationBuilder.DropTable(
+                name: "PrivilegeUsageHistories");
+
+            migrationBuilder.DropTable(
                 name: "ProviderCategories");
 
             migrationBuilder.DropTable(
@@ -4134,9 +4180,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "UserAnswerOptions");
-
-            migrationBuilder.DropTable(
-                name: "UserSubscriptionPrivilegeUsages");
 
             migrationBuilder.DropTable(
                 name: "VideoCallEvents");
@@ -4187,13 +4230,13 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 name: "Prescriptions");
 
             migrationBuilder.DropTable(
+                name: "UserSubscriptionPrivilegeUsages");
+
+            migrationBuilder.DropTable(
                 name: "QuestionOptions");
 
             migrationBuilder.DropTable(
                 name: "UserAnswers");
-
-            migrationBuilder.DropTable(
-                name: "SubscriptionPlanPrivileges");
 
             migrationBuilder.DropTable(
                 name: "VideoCalls");
@@ -4208,22 +4251,22 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 name: "ChatRooms");
 
             migrationBuilder.DropTable(
+                name: "SubscriptionPlanPrivileges");
+
+            migrationBuilder.DropTable(
                 name: "Questions");
 
             migrationBuilder.DropTable(
                 name: "UserResponses");
 
             migrationBuilder.DropTable(
-                name: "Privileges");
-
-            migrationBuilder.DropTable(
                 name: "Appointments");
 
             migrationBuilder.DropTable(
-                name: "QuestionnaireTemplates");
+                name: "Privileges");
 
             migrationBuilder.DropTable(
-                name: "MasterPrivilegeTypes");
+                name: "QuestionnaireTemplates");
 
             migrationBuilder.DropTable(
                 name: "AppointmentStatuses");
@@ -4239,6 +4282,9 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "PaymentStatuses");
+
+            migrationBuilder.DropTable(
+                name: "MasterPrivilegeTypes");
 
             migrationBuilder.DropTable(
                 name: "Subscriptions");

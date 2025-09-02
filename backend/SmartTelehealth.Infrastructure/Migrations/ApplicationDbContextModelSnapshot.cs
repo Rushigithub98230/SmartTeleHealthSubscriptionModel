@@ -961,9 +961,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -1016,9 +1013,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("Timestamp")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
@@ -1165,9 +1159,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid?>("ConsultationId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -1266,9 +1257,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
@@ -1869,9 +1857,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -1957,9 +1942,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
@@ -3941,9 +3923,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -3986,9 +3965,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
@@ -4023,9 +3999,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<string>("CertificationDocumentUrl")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
@@ -4128,9 +4101,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime?>("SubmittedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
@@ -4159,14 +4129,11 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .IsRequired()
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("DeletedBy")
@@ -4217,9 +4184,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
                     b.Property<int>("Type")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
@@ -4335,14 +4299,11 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("CategoryId1")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .IsRequired()
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("DeletedBy")
@@ -4366,9 +4327,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
@@ -4890,9 +4848,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("BillingPeriodStart")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -4973,9 +4928,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
@@ -5003,9 +4955,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -5020,6 +4969,9 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
                     b.Property<DateTime?>("DeletedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("DeliveryFrequencyDays")
+                        .HasColumnType("int");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
@@ -5043,6 +4995,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<string>("Features")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IncludesFollowUpCare")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IncludesMedicationDelivery")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -5069,6 +5027,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
                     b.Property<Guid?>("MasterCurrencyId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("MaxPauseDurationDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MessagingCount")
+                        .HasColumnType("int");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -5105,9 +5069,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
                     b.Property<int>("TrialDurationInDays")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
@@ -5218,9 +5179,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -5258,9 +5216,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
@@ -5303,9 +5258,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<string>("Country")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
@@ -5443,9 +5395,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
@@ -5492,14 +5441,11 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .IsRequired()
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("DateTimeValue")
@@ -5527,9 +5473,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("ResponseId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
@@ -5538,7 +5481,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
+                    b.HasIndex("CreatedDate");
 
                     b.HasIndex("IsDeleted");
 
@@ -5621,14 +5564,11 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("CategoryId1")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .IsRequired()
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("DeletedBy")
@@ -5649,9 +5589,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("TemplateId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
@@ -5667,7 +5604,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
                     b.HasIndex("CategoryId1");
 
-                    b.HasIndex("CreatedAt");
+                    b.HasIndex("CreatedDate");
 
                     b.HasIndex("IsDeleted");
 
@@ -5821,9 +5758,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -5865,9 +5799,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");

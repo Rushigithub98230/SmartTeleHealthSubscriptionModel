@@ -34,6 +34,6 @@ public class SubscriptionPlanDto
     public decimal EffectivePrice { get; set; }
     public bool HasActiveDiscount { get; set; }
     public bool IsCurrentlyAvailable { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
 } 

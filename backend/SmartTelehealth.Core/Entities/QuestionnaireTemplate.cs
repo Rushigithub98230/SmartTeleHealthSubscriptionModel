@@ -23,8 +23,8 @@ namespace SmartTelehealth.Core.Entities
         public int Version { get; set; } = 1;
         
         // Alias properties for backward compatibility
-        public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-        public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+        public DateTime? CreatedDate { get => CreatedDate; set => CreatedDate = value; }
+        public DateTime? UpdatedDate { get => UpdatedDate; set => UpdatedDate = value; }
         
         // Navigation Properties
         public virtual Category Category { get; set; } = null!;

@@ -75,8 +75,8 @@ public class PayoutPeriod : BaseEntity
     public virtual User? ProcessedByUser { get; set; }
     
     // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+    public DateTime? CreatedDate { get => CreatedDate; set => CreatedDate = value; }
+    public DateTime? UpdatedDate { get => UpdatedDate; set => UpdatedDate = value; }
     
     // Navigation properties
     public virtual ICollection<ProviderPayout> ProviderPayouts { get; set; } = new List<ProviderPayout>();
@@ -110,8 +110,8 @@ public class PayoutDetail : BaseEntity
     public ConsultationType ConsultationType { get; set; }
     
     // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+    public DateTime? CreatedDate { get => CreatedDate; set => CreatedDate = value; }
+    public DateTime? UpdatedDate { get => UpdatedDate; set => UpdatedDate = value; }
     
     // Navigation properties
     public virtual ICollection<PayoutDetail> PayoutDetails { get; set; } = new List<PayoutDetail>();

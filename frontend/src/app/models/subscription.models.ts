@@ -71,8 +71,8 @@ export interface SubscriptionPlanDto {
   effectivePrice: number;
   hasActiveDiscount: boolean;
   isCurrentlyAvailable: boolean;
-  createdAt: Date;
-  updatedAt?: Date;
+  CreatedDate: Date;
+  UpdatedDate?: Date;
 }
 
 export interface CreateSubscriptionPlanDto {
@@ -128,8 +128,8 @@ export interface MasterBillingCycle {
   durationInDays: number;
   sortOrder: number;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt?: Date;
+  CreatedDate: Date;
+  UpdatedDate?: Date;
 }
 
 export interface MasterCurrency {
@@ -139,8 +139,8 @@ export interface MasterCurrency {
   symbol?: string;
   sortOrder: number;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt?: Date;
+  CreatedDate: Date;
+  UpdatedDate?: Date;
 }
 
 export interface MasterPrivilegeType {
@@ -149,8 +149,8 @@ export interface MasterPrivilegeType {
   description?: string;
   sortOrder: number;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt?: Date;
+  CreatedDate: Date;
+  UpdatedDate?: Date;
 }
 
 export interface Privilege {
@@ -160,6 +160,6 @@ export interface Privilege {
   privilegeTypeId: string;
   privilegeTypeName?: string;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt?: Date;
+  CreatedDate: Date;
+  UpdatedDate?: Date;
 }

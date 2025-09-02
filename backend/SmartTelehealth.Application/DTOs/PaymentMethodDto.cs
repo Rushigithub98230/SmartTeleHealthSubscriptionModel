@@ -7,7 +7,7 @@ namespace SmartTelehealth.Application.DTOs
         public string Type { get; set; } = string.Empty;
         public CardDto? Card { get; set; }
         public bool IsDefault { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class CardDto

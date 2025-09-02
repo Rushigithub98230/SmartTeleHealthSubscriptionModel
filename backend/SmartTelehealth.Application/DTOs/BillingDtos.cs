@@ -57,7 +57,7 @@ public class BillingAdjustmentDto
     public string Reason { get; set; } = string.Empty;
     public string? AppliedBy { get; set; }
     public DateTime AppliedAt { get; set; }
-    public DateTime CreatedAt => AppliedAt;
+    public DateTime CreatedDate => AppliedAt;
     public bool IsPercentage { get; set; }
     public string? Notes { get; set; }
 }
@@ -75,7 +75,7 @@ public class InvoiceDto
     public string? Description { get; set; }
     public string? StripeInvoiceId { get; set; }
     public string? StripePaymentIntentId { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
 }
 
 public class CreateInvoiceDto
@@ -196,12 +196,11 @@ public class BillingCycleDto
     public int TotalSubscriptions { get; set; }
     public int ProcessedSubscriptions { get; set; }
     public decimal TotalAmount { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? ProcessedAt { get; set; }
     
     // Added missing properties to fix build errors
     public bool IsActive { get; set; }
-    public DateTime CreatedDate { get; set; }
 }
 
 // Added missing DTO to fix build errors

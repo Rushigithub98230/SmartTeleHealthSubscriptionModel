@@ -173,7 +173,11 @@ public class PrivilegeService : IPrivilegeService
                         AllowedValue = -1,
                         UsagePeriodStart = DateTime.UtcNow,
                         UsagePeriodEnd = DateTime.UtcNow.AddMonths(1),
-                        LastUsedAt = DateTime.UtcNow
+                        LastUsedAt = DateTime.UtcNow,
+                        // Set audit properties for creation
+                        IsActive = true,
+                        CreatedBy = tokenModel.UserID,
+                        CreatedDate = DateTime.UtcNow
                     };
                     await _usageRepo.AddAsync(unlimitedUsage);
                 }
@@ -181,6 +185,8 @@ public class PrivilegeService : IPrivilegeService
                 {
                     unlimitedUsage.UsedValue += amount;
                     unlimitedUsage.LastUsedAt = DateTime.UtcNow;
+                    unlimitedUsage.UpdatedBy = tokenModel.UserID;
+                    unlimitedUsage.UpdatedDate = DateTime.UtcNow;
                     await _usageRepo.UpdateAsync(unlimitedUsage);
                 }
 
@@ -208,7 +214,11 @@ public class PrivilegeService : IPrivilegeService
                     AllowedValue = planPrivilege.Value,
                     UsagePeriodStart = DateTime.UtcNow,
                     UsagePeriodEnd = DateTime.UtcNow.AddMonths(1),
-                    LastUsedAt = DateTime.UtcNow
+                    LastUsedAt = DateTime.UtcNow,
+                    // Set audit properties for creation
+                    IsActive = true,
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow
                 };
                 await _usageRepo.AddAsync(limitedUsage);
             }
@@ -216,6 +226,8 @@ public class PrivilegeService : IPrivilegeService
             {
                 limitedUsage.UsedValue += amount;
                 limitedUsage.LastUsedAt = DateTime.UtcNow;
+                limitedUsage.UpdatedBy = tokenModel.UserID;
+                limitedUsage.UpdatedDate = DateTime.UtcNow;
                 await _usageRepo.UpdateAsync(limitedUsage);
             }
 
@@ -515,7 +527,14 @@ public class PrivilegeService : IPrivilegeService
                 };
             }
 
-            await _privilegeRepo.DeleteAsync(privilegeId);
+            // Soft delete - set audit properties
+            privilege.IsDeleted = true;
+            privilege.DeletedBy = token.UserID;
+            privilege.DeletedDate = DateTime.UtcNow;
+            privilege.UpdatedBy = token.UserID;
+            privilege.UpdatedDate = DateTime.UtcNow;
+            
+            await _privilegeRepo.UpdateAsync(privilege);
 
             return new JsonModel
             {

@@ -22,7 +22,7 @@ namespace SmartTelehealth.Application.Services
             _fileStorageService = fileStorageService;
         }
 
-        public async Task<JsonModel> CreateTemplateAsync(CreateQuestionnaireTemplateDto dto, List<IFormFile> files)
+        public async Task<JsonModel> CreateTemplateAsync(CreateQuestionnaireTemplateDto dto, List<IFormFile> files, TokenModel tokenModel)
         {
             try
             {
@@ -91,7 +91,9 @@ namespace SmartTelehealth.Application.Services
                     CategoryId = dto.CategoryId,
                     IsActive = dto.IsActive,
                     Version = 1,
-                    CreatedAt = DateTime.UtcNow,
+                    // Set audit properties for creation
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow,
                     Questions = dto.Questions.Select(q => new Question
                     {
                         Text = q.Text,
@@ -103,7 +105,9 @@ namespace SmartTelehealth.Application.Services
                         MinValue = q.MinValue,
                         MaxValue = q.MaxValue,
                         StepValue = q.StepValue,
-                        CreatedAt = DateTime.UtcNow,
+                        // Set audit properties for creation
+                        CreatedBy = tokenModel.UserID,
+                        CreatedDate = DateTime.UtcNow,
                         Options = q.Options.Select(o => new QuestionOption
                         {
                             Text = o.Text,
@@ -123,9 +127,9 @@ namespace SmartTelehealth.Application.Services
         }
 
         // Interface overload: No file upload
-        public async Task<Guid> CreateTemplateAsync(CreateQuestionnaireTemplateDto dto)
+        public async Task<Guid> CreateTemplateAsync(CreateQuestionnaireTemplateDto dto, TokenModel tokenModel)
         {
-            var result = await CreateTemplateAsync(dto, new List<IFormFile>());
+            var result = await CreateTemplateAsync(dto, new List<IFormFile>(), tokenModel);
             if (result.StatusCode != 200) throw new Exception(result.Message);
             return (Guid)result.data;
         }
@@ -212,7 +216,7 @@ namespace SmartTelehealth.Application.Services
             return new JsonModel { data = responses.Select(MapToDto).ToList(), Message = "User responses retrieved successfully", StatusCode = 200 };
         }
 
-        public async Task<JsonModel> SubmitUserResponseAsync(CreateUserResponseDto dto)
+        public async Task<JsonModel> SubmitUserResponseAsync(CreateUserResponseDto dto, TokenModel tokenModel)
         {
             if (dto == null)
                 return new JsonModel { data = new object(), Message = "Invalid request data", StatusCode = 400 };
@@ -294,14 +298,18 @@ namespace SmartTelehealth.Application.Services
                 CategoryId = dto.CategoryId,
                 TemplateId = dto.TemplateId,
                 Status = dto.Status,
-                CreatedAt = DateTime.UtcNow,
+                // Set audit properties for creation
+                CreatedBy = tokenModel.UserID,
+                CreatedDate = DateTime.UtcNow,
                 Answers = dto.Answers.Select(a => new UserAnswer
                 {
                     QuestionId = a.QuestionId,
                     AnswerText = a.AnswerText,
                     NumericValue = a.NumericValue,
                     DateTimeValue = a.DateTimeValue,
-                    CreatedAt = DateTime.UtcNow,
+                    // Set audit properties for creation
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow,
                     SelectedOptions = a.SelectedOptionIds.Select(optionId => new UserAnswerOption
                     {
                         OptionId = optionId
@@ -354,7 +362,7 @@ namespace SmartTelehealth.Application.Services
             template.Description = dto.Description;
             template.CategoryId = dto.CategoryId;
             template.IsActive = dto.IsActive;
-            template.UpdatedAt = DateTime.UtcNow;
+            template.UpdatedDate = DateTime.UtcNow;
             
             // For now, we'll skip updating questions to avoid foreign key issues
             // In a production system, you would implement proper question update logic
@@ -474,8 +482,8 @@ namespace SmartTelehealth.Application.Services
                 CategoryId = r.CategoryId,
                 TemplateId = r.TemplateId,
                 Status = r.Status,
-                CreatedAt = r.CreatedDate ?? DateTime.UtcNow,
-                UpdatedAt = r.UpdatedDate ?? DateTime.UtcNow,
+                CreatedDate = r.CreatedDate ?? DateTime.UtcNow,
+                UpdatedDate = r.UpdatedDate ?? DateTime.UtcNow,
                 Answers = r.Answers?.Select(MapToDto).ToList() ?? new()
             };
         }
@@ -489,7 +497,7 @@ namespace SmartTelehealth.Application.Services
                 AnswerText = a.AnswerText,
                 NumericValue = a.NumericValue,
                 DateTimeValue = a.DateTimeValue,
-                CreatedAt = a.CreatedAt ?? DateTime.UtcNow,
+                CreatedDate = a.CreatedDate ?? DateTime.UtcNow,
                 SelectedOptionIds = a.SelectedOptions?.Select(o => o.OptionId).ToList() ?? new()
             };
         }

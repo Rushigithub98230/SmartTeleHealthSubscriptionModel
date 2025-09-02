@@ -219,6 +219,9 @@ public class AppointmentService : IAppointmentService
                 ParticipantStatusId = await _participantRepository.GetStatusIdByNameAsync("Invited"), // Invited status Guid
                 InvitedAt = DateTime.UtcNow,
                 InvitedByUserId = invitedByUserId,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow
             };
             await _participantRepository.CreateAsync(participant);
@@ -255,6 +258,9 @@ public class AppointmentService : IAppointmentService
                 Message = message,
                 InvitationStatusId = await _invitationRepository.GetStatusIdByNameAsync("Pending"), // Pending status Guid
                 ExpiresAt = DateTime.UtcNow.AddHours(24),
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow
             };
             await _invitationRepository.CreateAsync(invitation);
@@ -405,6 +411,9 @@ public class AppointmentService : IAppointmentService
                 RefundStatusId = await _paymentLogRepository.GetStatusIdByNameAsync("None"), // None status Guid
                 Currency = "USD",
                 Description = $"Payment for appointment {appointmentId}",
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow
             };
             await _paymentLogRepository.CreateAsync(paymentLog);
@@ -442,6 +451,7 @@ public class AppointmentService : IAppointmentService
             paymentLog.PaymentStatusId = paymentStatusId;
             paymentLog.FailureReason = failureReason;
             paymentLog.PaymentDate = paymentStatusId == await _paymentLogRepository.GetStatusIdByNameAsync("Completed") ? DateTime.UtcNow : null; // Completed status Guid
+            paymentLog.UpdatedBy = tokenModel.UserID;
             paymentLog.UpdatedDate = DateTime.UtcNow;
             
             await _paymentLogRepository.UpdateAsync(paymentLog);
@@ -485,6 +495,7 @@ public class AppointmentService : IAppointmentService
             latestPayment.RefundId = refundId;
             latestPayment.RefundReason = reason;
             latestPayment.RefundDate = DateTime.UtcNow;
+                            latestPayment.UpdatedBy = tokenModel.UserID;
                             latestPayment.UpdatedDate = DateTime.UtcNow;
             
             if (refundAmount >= latestPayment.Amount)
@@ -539,8 +550,8 @@ public class AppointmentService : IAppointmentService
             LastSeenAt = p.LastSeenAt,
             InvitedByUserId = p.InvitedByUserId?.ToString(),
             InvitedByUserName = p.InvitedByUser?.FirstName + " " + p.InvitedByUser?.LastName,
-            CreatedAt = p.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = p.UpdatedDate ?? DateTime.UtcNow
+            CreatedDate = p.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = p.UpdatedDate ?? DateTime.UtcNow
         };
     }
 
@@ -560,7 +571,7 @@ public class AppointmentService : IAppointmentService
             InvitationStatusName = i.InvitationStatus?.Name ?? "",
             Message = i.Message,
             ExpiresAt = i.ExpiresAt,
-            CreatedAt = i.CreatedDate ?? DateTime.UtcNow,
+            CreatedDate = i.CreatedDate ?? DateTime.UtcNow,
             RespondedAt = i.RespondedAt
         };
     }
@@ -589,8 +600,8 @@ public class AppointmentService : IAppointmentService
             RefundReason = p.RefundReason,
             PaymentDate = p.PaymentDate,
             RefundDate = p.RefundDate,
-            CreatedAt = p.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = p.UpdatedDate ?? DateTime.UtcNow
+            CreatedDate = p.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = p.UpdatedDate ?? DateTime.UtcNow
         };
     }
 
@@ -617,6 +628,9 @@ public class AppointmentService : IAppointmentService
                 IsRecordingEnabled = createDto.IsRecordingEnabled,
                 ExpiresAt = !string.IsNullOrEmpty(createDto.ExpiresAt) ? DateTime.Parse(createDto.ExpiresAt) : DateTime.UtcNow.AddDays(1),
                 AppointmentStatusId = await _appointmentRepository.GetStatusIdByNameAsync("Pending"), // Pending status Guid
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow
             };
 
@@ -790,6 +804,7 @@ public class AppointmentService : IAppointmentService
             if (updateDto.LastReminderSent.HasValue)
                 appointment.LastReminderSent = updateDto.LastReminderSent.Value;
 
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             await _appointmentRepository.UpdateAsync(appointment);
 
@@ -824,7 +839,14 @@ public class AppointmentService : IAppointmentService
                     StatusCode = 404
                 };
 
-            await _appointmentRepository.DeleteAsync(id);
+            // Soft delete - set audit properties
+            appointment.IsDeleted = true;
+            appointment.DeletedBy = tokenModel.UserID;
+            appointment.DeletedDate = DateTime.UtcNow;
+            appointment.UpdatedBy = tokenModel.UserID;
+            appointment.UpdatedDate = DateTime.UtcNow;
+            
+            await _appointmentRepository.UpdateAsync(appointment);
             return new JsonModel
             {
                 data = true,
@@ -912,6 +934,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment payment info
             appointment.StripePaymentIntentId = paymentDto.PaymentIntentId;
             appointment.StripeSessionId = paymentDto.SessionId;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             await _appointmentRepository.UpdateAsync(appointment);
 
@@ -956,6 +979,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment status
             appointment.AppointmentStatusId = Guid.Parse("Approved"); // Approved status Guid
             appointment.IsPaymentCaptured = true;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             await _appointmentRepository.UpdateAsync(appointment);
 
@@ -1021,6 +1045,7 @@ public class AppointmentService : IAppointmentService
             if (!string.IsNullOrEmpty(notes))
                 appointment.ProviderNotes = notes;
 
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             await _appointmentRepository.UpdateAsync(appointment);
 
@@ -1095,8 +1120,8 @@ public class AppointmentService : IAppointmentService
             LastReminderSent = a.LastReminderSent,
             ExpiresAt = a.ExpiresAt,
             AutoCancellationAt = a.AutoCancellationAt,
-            CreatedAt = a.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = a.UpdatedDate ?? DateTime.UtcNow,
+            CreatedDate = a.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = a.UpdatedDate ?? DateTime.UtcNow,
             IsActive = a.IsActive,
             IsCompleted = a.IsCompleted,
             IsCancelled = a.IsCancelled,
@@ -1179,6 +1204,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment status to accepted
             appointment.AppointmentStatusId = await _appointmentRepository.GetStatusIdByNameAsync("Accepted"); // Accepted status Guid
             appointment.ProviderNotes = acceptDto.ProviderNotes;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             appointment.AcceptedAt = DateTime.UtcNow;
 
@@ -1229,6 +1255,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment status to rejected
             appointment.AppointmentStatusId = await _appointmentRepository.GetStatusIdByNameAsync("Rejected"); // Rejected status Guid
             appointment.ProviderNotes = rejectDto.Reason;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             appointment.RejectedAt = DateTime.UtcNow;
 
@@ -1279,6 +1306,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment status to in progress
             appointment.AppointmentStatusId = await _appointmentRepository.GetStatusIdByNameAsync("InMeeting"); // In Progress status Guid
             appointment.StartedAt = DateTime.UtcNow;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
 
             // Create or get video session
@@ -1332,6 +1360,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment status to ended
             appointment.AppointmentStatusId = await _appointmentRepository.GetStatusIdByNameAsync("Ended"); // Ended status Guid
             appointment.EndedAt = DateTime.UtcNow;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
 
             await _appointmentRepository.UpdateAsync(appointment);
@@ -1381,6 +1410,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment status to completed
             appointment.AppointmentStatusId = await _appointmentRepository.GetStatusIdByNameAsync("Completed"); // Completed status Guid
             appointment.CompletedAt = DateTime.UtcNow;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             appointment.ProviderNotes = completeDto.ProviderNotes;
             appointment.Diagnosis = completeDto.Diagnosis;
@@ -1434,6 +1464,7 @@ public class AppointmentService : IAppointmentService
             // Update appointment status to cancelled
             appointment.AppointmentStatusId = await _appointmentRepository.GetStatusIdByNameAsync("Cancelled"); // Cancelled status Guid
             appointment.CancelledAt = DateTime.UtcNow;
+            appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             appointment.CancellationReason = reason;
 
@@ -2236,7 +2267,7 @@ public class AppointmentService : IAppointmentService
                 Status = appointment.Status?.ToString(),
                 StripePaymentIntentId = appointment.StripePaymentIntentId?.ToString(),
                 IsPaymentCaptured = appointment.IsPaymentCaptured,
-                CreatedAt = appointment.CreatedAt
+                CreatedDate = appointment.CreatedDate
             };
 
             return new JsonModel { data = confirmation, Message = "Appointment booked successfully", StatusCode = 200 };

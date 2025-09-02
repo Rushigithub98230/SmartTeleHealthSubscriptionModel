@@ -78,8 +78,8 @@ namespace SmartTelehealth.Application.DTOs
         public Guid TemplateId { get; set; }
         public ResponseStatus Status { get; set; } = ResponseStatus.Completed;
         public List<UserAnswerDto> Answers { get; set; } = new();
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
     }
 
     public class CreateUserResponseDto
@@ -99,7 +99,7 @@ namespace SmartTelehealth.Application.DTOs
         public decimal? NumericValue { get; set; }
         public DateTime? DateTimeValue { get; set; }
         public List<Guid> SelectedOptionIds { get; set; } = new();
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class CreateUserAnswerDto

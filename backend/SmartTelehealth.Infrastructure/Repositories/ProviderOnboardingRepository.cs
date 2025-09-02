@@ -36,7 +36,7 @@ public class ProviderOnboardingRepository : IProviderOnboardingRepository
             .Include(o => o.User)
             .Include(o => o.ReviewedByUser)
             .Where(o => o.IsActive)
-            .OrderByDescending(o => o.CreatedAt)
+            .OrderByDescending(o => o.CreatedDate)
             .ToListAsync();
     }
 
@@ -48,7 +48,7 @@ public class ProviderOnboardingRepository : IProviderOnboardingRepository
                 .Include(o => o.User)
                 .Include(o => o.ReviewedByUser)
                 .Where(o => o.Status == statusEnum && o.IsActive)
-                .OrderByDescending(o => o.CreatedAt)
+                .OrderByDescending(o => o.CreatedDate)
                 .ToListAsync();
         }
         return new List<ProviderOnboarding>();
@@ -60,7 +60,7 @@ public class ProviderOnboardingRepository : IProviderOnboardingRepository
             .Include(o => o.User)
             .Include(o => o.ReviewedByUser)
             .Where(o => o.Status == OnboardingStatus.Pending && o.IsActive)
-            .OrderByDescending(o => o.CreatedAt)
+            .OrderByDescending(o => o.CreatedDate)
             .ToListAsync();
     }
 
@@ -77,7 +77,7 @@ public class ProviderOnboardingRepository : IProviderOnboardingRepository
         }
 
         return await query
-            .OrderByDescending(o => o.CreatedAt)
+            .OrderByDescending(o => o.CreatedDate)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
@@ -104,7 +104,7 @@ public class ProviderOnboardingRepository : IProviderOnboardingRepository
             return false;
 
         onboarding.IsActive = false;
-        onboarding.UpdatedAt = DateTime.UtcNow;
+        onboarding.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
     }

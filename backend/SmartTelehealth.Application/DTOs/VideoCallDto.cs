@@ -13,8 +13,8 @@ namespace SmartTelehealth.Application.DTOs
         public DateTime? EndedAt { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? RecordingUrl { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
         public bool IsDeleted { get; set; }
     }
 
@@ -51,7 +51,7 @@ namespace SmartTelehealth.Application.DTOs
         public DateTime OccurredAt { get; set; }
         public string? Description { get; set; }
         public string? Metadata { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class CreateVideoCallEventDto
@@ -85,8 +85,8 @@ namespace SmartTelehealth.Application.DTOs
         public string? DeviceInfo { get; set; }
         public string? IpAddress { get; set; }
         public string? UserAgent { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
         public bool IsDeleted { get; set; }
     }
 
@@ -167,7 +167,7 @@ namespace SmartTelehealth.Application.DTOs
         public bool HadScreenSharing { get; set; }
         public bool WasEncrypted { get; set; }
         public bool WasHIPAACompliant { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     // Video Call Control DTOs

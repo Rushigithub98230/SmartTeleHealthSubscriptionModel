@@ -38,8 +38,8 @@ public class AppointmentDto
     public bool IsPatientNotified { get; set; }
     public bool IsProviderNotified { get; set; }
     public DateTime? LastReminderSent { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
     
     // Additional properties for service compatibility
     public string Status { get; set; } = string.Empty;
@@ -122,7 +122,7 @@ public class AppointmentParticipantDto
     public DateTime? JoinedAt { get; set; }
     public DateTime? LeftAt { get; set; }
     public string? InvitedByUserId { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     // Added properties
     public string? UserName { get; set; }
     public string? ExternalEmail { get; set; }
@@ -132,7 +132,7 @@ public class AppointmentParticipantDto
     public DateTime? InvitedAt { get; set; }
     public DateTime? LastSeenAt { get; set; }
     public string? InvitedByUserName { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime? UpdatedDate { get; set; }
 }
 
 public class AppointmentInvitationDto
@@ -146,7 +146,7 @@ public class AppointmentInvitationDto
     public string? InvitedByUserId { get; set; }
     public bool IsAccepted { get; set; }
     public DateTime? AcceptedAt { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     // Added properties
     public string? InvitedByUserName { get; set; }
     public string? InvitedUserId { get; set; }
@@ -177,8 +177,8 @@ public class AppointmentPaymentLogDto
     public string? RefundReason { get; set; }
     public DateTime? PaymentDate { get; set; }
     public DateTime? RefundDate { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
     // Added properties
     public string? UserName { get; set; }
     public Guid? RefundStatusId { get; set; }
@@ -338,7 +338,7 @@ public class AppointmentEventDto
     public string EventType { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public Dictionary<string, object>? Metadata { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
 }
 
@@ -418,7 +418,7 @@ public class AppointmentConfirmationDto
     public string AppointmentStatusName { get; set; } = string.Empty;
     public string? StripePaymentIntentId { get; set; }
     public bool IsPaymentCaptured { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public string? Status { get; set; } // For compatibility
 }
 
@@ -468,7 +468,7 @@ public class AppointmentSummaryDto
     public decimal Fee { get; set; }
     public bool IsVideoCallStarted { get; set; }
     public bool IsVideoCallEnded { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
 }
 
 public class AppointmentDashboardDto

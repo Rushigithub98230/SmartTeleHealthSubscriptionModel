@@ -379,4 +379,11 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
         return await _context.MasterBillingCycles
             .FirstOrDefaultAsync(bc => bc.Id == billingCycleId);
     }
+
+    // Currency methods
+    public async Task<MasterCurrency?> GetCurrencyByIdAsync(Guid currencyId)
+    {
+        return await _context.MasterCurrencies
+            .FirstOrDefaultAsync(c => c.Id == currencyId);
+    }
 } 

@@ -256,9 +256,9 @@ public class SubscriptionsController : BaseController
     }
 
     [HttpPost("admin/plans")]
-    public async Task<JsonModel> CreateSubscriptionPlan([FromBody] CreateSubscriptionDto createDto)
+    public async Task<JsonModel> CreateSubscriptionPlan([FromBody] CreateSubscriptionPlanDto createDto)
     {
-        return await _subscriptionService.CreateSubscriptionPlanAsync(createDto, GetToken(HttpContext));
+        return await _subscriptionService.CreatePlanAsync(createDto, GetToken(HttpContext));
     }
 
     [HttpPut("admin/plans/{planId}")]

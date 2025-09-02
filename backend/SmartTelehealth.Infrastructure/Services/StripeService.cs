@@ -89,7 +89,7 @@ public class StripeService : IStripeService
                     Id = customer.Id,
                     Email = customer.Email,
                     Name = customer.Name,
-                    CreatedAt = customer.Created
+                    CreatedDate = customer.Created
                 };
             }
             catch (StripeException ex) when (ex.StripeError?.Type == "invalid_request_error")
@@ -122,7 +122,7 @@ public class StripeService : IStripeService
                     Id = customer.Id,
                     Email = customer.Email,
                     Name = customer.Name,
-                    CreatedAt = customer.Created
+                    CreatedDate = customer.Created
                 });
             }
             catch (StripeException ex)
@@ -204,7 +204,7 @@ public class StripeService : IStripeService
                         Fingerprint = pm.Card?.Fingerprint
                     },
                     IsDefault =  pm.Id.Equals(defaultPaymentMethodId),
-                    CreatedAt = pm.Created
+                    CreatedDate = pm.Created
                 });
             }
             catch (StripeException ex)
@@ -428,7 +428,7 @@ public class StripeService : IStripeService
                     Status = subscription.Status,
                     CurrentPeriodStart = subscription.Created,
                     CurrentPeriodEnd = subscription.Created.AddDays(30), // Default to 30 days from creation
-                    CreatedAt = subscription.Created
+                    CreatedDate = subscription.Created
                 };
             }
             catch (StripeException ex) when (ex.StripeError?.Type == "invalid_request_error")
@@ -483,6 +483,13 @@ public class StripeService : IStripeService
         {
             try
             {
+                // CRITICAL FIX: Validate payment method before processing
+                var isValid = await ValidatePaymentMethodAsync(paymentMethodId, tokenModel);
+                if (!isValid)
+                {
+                    throw new InvalidOperationException("Payment method is invalid or expired");
+                }
+
                 var paymentIntentCreateOptions = new PaymentIntentCreateOptions
                 {
                     Amount = (long)(amount * 100), // Convert to cents

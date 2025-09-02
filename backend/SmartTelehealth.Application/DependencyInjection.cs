@@ -29,7 +29,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanPrivilegeRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
                 provider.GetRequiredService<IBillingService>(),
-                provider.GetRequiredService<ISubscriptionNotificationService>()
+                provider.GetRequiredService<ISubscriptionNotificationService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>()
             )
         );
         services.AddScoped<IConsultationService, ConsultationService>();

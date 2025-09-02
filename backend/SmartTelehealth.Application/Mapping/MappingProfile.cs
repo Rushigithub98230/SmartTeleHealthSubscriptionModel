@@ -85,8 +85,8 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.CanResume, opt => opt.MapFrom(src => src.CanResume))
             .ForMember(dest => dest.CanCancel, opt => opt.MapFrom(src => src.CanCancel))
             .ForMember(dest => dest.CanRenew, opt => opt.MapFrom(src => src.CanRenew))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedDate))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedDate));
+            .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate))
+            .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => src.UpdatedDate));
         CreateMap<SubscriptionStatusHistory, SubscriptionStatusHistoryDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
             .ForMember(dest => dest.SubscriptionId, opt => opt.MapFrom(src => src.SubscriptionId.ToString()))
@@ -96,8 +96,8 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.ChangedByUserId, opt => opt.MapFrom(src => src.ChangedByUserId))
             .ForMember(dest => dest.ChangedAt, opt => opt.MapFrom(src => src.ChangedAt))
             .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.Metadata))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedDate))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedDate));
+            .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate))
+            .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => src.UpdatedDate));
         CreateMap<SubscriptionPayment, SubscriptionPaymentDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
             .ForMember(dest => dest.SubscriptionId, opt => opt.MapFrom(src => src.SubscriptionId.ToString()))
@@ -127,8 +127,8 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.IsRefunded, opt => opt.MapFrom(src => src.IsRefunded))
             .ForMember(dest => dest.IsOverdue, opt => opt.MapFrom(src => src.IsOverdue))
             .ForMember(dest => dest.RemainingAmount, opt => opt.MapFrom(src => src.RemainingAmount))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate))
+            .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => src.UpdatedDate));
         CreateMap<PaymentRefund, PaymentRefundDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
             .ForMember(dest => dest.SubscriptionPaymentId, opt => opt.MapFrom(src => src.SubscriptionPaymentId.ToString()))
@@ -166,8 +166,8 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.EffectivePrice, opt => opt.MapFrom(src => src.EffectivePrice))
             .ForMember(dest => dest.HasActiveDiscount, opt => opt.MapFrom(src => src.HasActiveDiscount))
             .ForMember(dest => dest.IsCurrentlyAvailable, opt => opt.MapFrom(src => src.IsCurrentlyAvailable))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate))
+            .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => src.UpdatedDate));
 
         // Category mappings
         CreateMap<Category, CategoryDto>()
@@ -244,8 +244,8 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.IsRecurring, opt => opt.MapFrom(src => src.IsRecurring))
             .ForMember(dest => dest.PaymentIntentId, opt => opt.MapFrom(src => src.PaymentIntentId))
             .ForMember(dest => dest.AccruedAmount, opt => opt.MapFrom(src => src.AccruedAmount))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate))
+            .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => src.UpdatedDate));
 
         // AuditLog mappings
         CreateMap<CreateAuditLogDto, AuditLog>()
@@ -272,6 +272,6 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.OldValues, opt => opt.MapFrom(src => src.OldValues))
             .ForMember(dest => dest.NewValues, opt => opt.MapFrom(src => src.NewValues))
             .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt));
+            .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate));
     }
 } 

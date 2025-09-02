@@ -133,7 +133,7 @@ public class AdminController : BaseController
     private async Task<IEnumerable<SubscriptionDto>> GetRecentSubscriptions()
     {
         var response = await _subscriptionService.GetActiveSubscriptionsAsync(GetToken(HttpContext));
-        return ((IEnumerable<SubscriptionDto>)response.data)?.OrderByDescending(s => s.CreatedAt).Take(10) ?? new List<SubscriptionDto>();
+        return ((IEnumerable<SubscriptionDto>)response.data)?.OrderByDescending(s => s.CreatedDate).Take(10) ?? new List<SubscriptionDto>();
     }
 
     private async Task<IEnumerable<BillingRecordDto>> GetRecentBillingRecords()

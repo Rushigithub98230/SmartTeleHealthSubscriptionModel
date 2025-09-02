@@ -27,14 +27,14 @@ public class SubscriptionPlanRepository : ISubscriptionPlanRepository
 
     public async Task AddAsync(SubscriptionPlan plan)
     {
-        plan.CreatedAt = DateTime.UtcNow;
+        plan.CreatedDate = DateTime.UtcNow;
         _context.SubscriptionPlans.Add(plan);
         await _context.SaveChangesAsync();
     }
 
     public async Task UpdateAsync(SubscriptionPlan plan)
     {
-        plan.UpdatedAt = DateTime.UtcNow;
+        plan.UpdatedDate = DateTime.UtcNow;
         _context.SubscriptionPlans.Update(plan);
         await _context.SaveChangesAsync();
     }

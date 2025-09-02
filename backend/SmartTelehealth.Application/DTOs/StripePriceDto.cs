@@ -13,7 +13,7 @@ public class StripePriceDto
     public int IntervalCount { get; set; }
     public bool Active { get; set; }
     public string Type { get; set; } = string.Empty; // "one_time" or "recurring"
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public string Nickname { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
 } 

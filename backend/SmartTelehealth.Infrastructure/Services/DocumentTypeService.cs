@@ -1073,9 +1073,9 @@ public class DocumentTypeService : IDocumentTypeService
             UsageCount = documentType.UsageCount,
             LastUsedAt = documentType.LastUsedAt,
                             CreatedById = documentType.CreatedBy,
-                            CreatedAt = documentType.CreatedDate ?? DateTime.UtcNow,
-                            UpdatedAt = documentType.UpdatedDate,
-                            DeletedAt = documentType.DeletedDate,
+                            CreatedDate = documentType.CreatedDate ?? DateTime.UtcNow,
+                            UpdatedDate = documentType.UpdatedDate,
+                            DeletedDate = documentType.DeletedDate,
             DocumentCount = documentCount,
             MaxFileSizeDisplay = documentType.GetMaxFileSizeDisplay(),
             AllowedExtensionsList = documentType.GetAllowedExtensionsList()

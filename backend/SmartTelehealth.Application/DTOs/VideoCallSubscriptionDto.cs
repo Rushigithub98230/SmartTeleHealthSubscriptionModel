@@ -59,7 +59,7 @@ public class VideoCallSessionDto
     public string SessionId { get; set; } = string.Empty;
     public Guid ConsultationId { get; set; }
     public string SessionName { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? EndedAt { get; set; }
     public int DurationMinutes { get; set; }

@@ -301,6 +301,29 @@ namespace SmartTelehealth.API.Tests.Mocks
             _auditLogs.Add(auditLog);
         }
 
+        // Webhook idempotency methods
+        public async Task<bool> IsEventProcessedAsync(string eventId)
+        {
+            await Task.Delay(1); // Simulate async operation
+            return _auditLogs.Any(log => log.EntityId == eventId && log.Action == "Processed");
+        }
+
+        public async Task MarkEventAsProcessedAsync(string eventId, string eventType, string status)
+        {
+            await Task.Delay(1); // Simulate async operation
+            var auditLog = new AuditLogEntry
+            {
+                Id = Guid.NewGuid(),
+                Action = status,
+                EntityType = "Webhook",
+                EntityId = eventId,
+                Details = $"Webhook event {eventType} {status.ToLower()}",
+                UserId = 0, // System user
+                Timestamp = DateTime.UtcNow
+            };
+            _auditLogs.Add(auditLog);
+        }
+
         // Helper methods for testing
         public List<AuditLogEntry> GetAuditLogs() => new List<AuditLogEntry>(_auditLogs);
         public void ClearAuditLogs() => _auditLogs.Clear();

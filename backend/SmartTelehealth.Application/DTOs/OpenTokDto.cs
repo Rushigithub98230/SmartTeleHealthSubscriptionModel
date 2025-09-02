@@ -11,7 +11,7 @@ public class OpenTokSessionDto
     public string Role { get; set; } = string.Empty; // publisher, subscriber
     public string SessionName { get; set; } = string.Empty;
     public bool IsArchived { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? ArchivedAt { get; set; }
     public string Status { get; set; } = string.Empty;
     public int ParticipantCount { get; set; }
@@ -25,7 +25,7 @@ public class OpenTokRecordingDto
     public string Name { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public long Size { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string Status { get; set; } = string.Empty; // started, stopped, available, deleted
     public TimeSpan Duration { get; set; }

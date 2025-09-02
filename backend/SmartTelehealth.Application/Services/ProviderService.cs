@@ -92,8 +92,26 @@ namespace SmartTelehealth.Application.Services
 
         public async Task<JsonModel> DeleteProviderAsync(int id, TokenModel tokenModel)
         {
-            var result = await _providerRepository.DeleteAsync(id);
-            if (!result)
+            var provider = await _providerRepository.GetByIdAsync(id);
+            if (provider == null)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Provider not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Soft delete - set audit properties
+            provider.IsDeleted = true;
+            provider.DeletedBy = tokenModel.UserID;
+            provider.DeletedDate = DateTime.UtcNow;
+            provider.UpdatedBy = tokenModel.UserID;
+            provider.UpdatedDate = DateTime.UtcNow;
+            
+            var result = await _providerRepository.UpdateAsync(provider);
+            if (result == null)
                 return new JsonModel
                 {
                     data = new object(),

@@ -22,7 +22,7 @@ public class TestimonialDto
     public decimal Rating { get; set; }
     public string ProviderName { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
 }
 
 public class FeatureDto

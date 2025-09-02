@@ -416,5 +416,42 @@ namespace SmartTelehealth.Application.Services
                 "[REDACTED]", 
                 RegexOptions.IgnoreCase);
         }
+
+        // CRITICAL FIX: Webhook idempotency methods
+        public async Task<bool> IsEventProcessedAsync(string eventId)
+        {
+            try
+            {
+                // Check if this event has already been processed by looking for existing audit log
+                var existingLog = await _auditLogRepository.GetByEntityIdAsync(eventId);
+                return existingLog != null && existingLog.Action == "Processed";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking if event {EventId} was processed", eventId);
+                return false; // If we can't check, assume not processed to be safe
+            }
+        }
+
+        public async Task MarkEventAsProcessedAsync(string eventId, string eventType, string status)
+        {
+            try
+            {
+                var createDto = new CreateAuditLogDto
+                {
+                    Action = status, // "Processed", "Failed", etc.
+                    EntityType = "Webhook",
+                    EntityId = eventId,
+                    UserId = 0, // System user
+                    Description = $"Webhook event {eventType} {status.ToLower()}"
+                };
+
+                await CreateAuditLogAsync(createDto, new TokenModel { UserID = 0, RoleID = 1 });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking event {EventId} as {Status}", eventId, status);
+            }
+        }
     }
 } 

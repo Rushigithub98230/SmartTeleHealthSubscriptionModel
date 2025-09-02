@@ -87,8 +87,10 @@ namespace SmartTelehealth.Application.Services
                     ProposedFee = createDto.ProposedFee,
                     Status = FeeStatus.Pending,
                     ProviderNotes = createDto.ProviderNotes,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    // Set audit properties for creation
+                    IsActive = true,
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow
                 };
 
                 var createdFee = await _providerFeeRepository.AddAsync(fee);
@@ -271,7 +273,8 @@ namespace SmartTelehealth.Application.Services
 
                 fee.ProposedFee = updateDto.ProposedFee;
                 fee.ProviderNotes = updateDto.ProviderNotes;
-                fee.UpdatedAt = DateTime.UtcNow;
+                fee.UpdatedBy = tokenModel.UserID;
+                fee.UpdatedDate = DateTime.UtcNow;
 
                 var updatedFee = await _providerFeeRepository.UpdateAsync(fee);
                 var feeDto = _mapper.Map<ProviderFeeDto>(updatedFee);
@@ -329,7 +332,8 @@ namespace SmartTelehealth.Application.Services
                 fee.AdminRemarks = reviewDto.AdminRemarks;
                 fee.ReviewedAt = DateTime.UtcNow;
                 fee.ReviewedByUserId = reviewDto.ReviewedByUserId;
-                fee.UpdatedAt = DateTime.UtcNow;
+                fee.UpdatedBy = tokenModel.UserID;
+                fee.UpdatedDate = DateTime.UtcNow;
 
                 var updatedFee = await _providerFeeRepository.UpdateAsync(fee);
                 var feeDto = _mapper.Map<ProviderFeeDto>(updatedFee);
@@ -388,8 +392,15 @@ namespace SmartTelehealth.Application.Services
                     };
                 }
 
-                var result = await _providerFeeRepository.DeleteAsync(id);
-                if (!result)
+                // Soft delete - set audit properties
+                fee.IsDeleted = true;
+                fee.DeletedBy = tokenModel.UserID;
+                fee.DeletedDate = DateTime.UtcNow;
+                fee.UpdatedBy = tokenModel.UserID;
+                fee.UpdatedDate = DateTime.UtcNow;
+                
+                var result = await _providerFeeRepository.UpdateAsync(fee);
+                if (result == null)
                 {
                     return new JsonModel
                     {

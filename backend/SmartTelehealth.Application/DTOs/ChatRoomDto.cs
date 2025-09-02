@@ -9,8 +9,8 @@ namespace SmartTelehealth.Application.DTOs
         public string Status { get; set; } = string.Empty; // "Active", "Archived", "Deleted"
         public string CreatedBy { get; set; } = string.Empty;
         public string CreatedById { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
         public int ParticipantCount { get; set; }
         public int UnreadMessageCount { get; set; }
         public string? LastMessageId { get; set; }

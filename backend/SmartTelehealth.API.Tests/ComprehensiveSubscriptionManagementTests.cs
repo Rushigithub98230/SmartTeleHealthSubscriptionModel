@@ -542,6 +542,7 @@ namespace SmartTelehealth.API.Tests
                 Description = "Enterprise subscription plan for large organizations",
                 Price = 199.99m,
                 BillingCycleId = _annualBillingCycle.Id,
+                CurrencyId = _usdCurrency.Id,
                 IsActive = true,
                 DisplayOrder = 3
             };
@@ -554,7 +555,7 @@ namespace SmartTelehealth.API.Tests
             // Assert
             Assert.NotNull(result);
             Assert.Equal(201, result.StatusCode);
-            Assert.Equal("Plan created", result.Message);
+            Assert.Equal("Plan created successfully with privileges", result.Message);
             Assert.NotNull(result.data);
             
             var planDto = result.data as SubscriptionPlanDto;
@@ -611,7 +612,7 @@ namespace SmartTelehealth.API.Tests
             // Assert
             Assert.NotNull(result);
             Assert.Equal(200, result.StatusCode);
-            Assert.Equal("Plan updated", result.Message);
+            Assert.Equal("Subscription plan updated successfully with Stripe synchronization", result.Message);
             
             var planDto = result.data as SubscriptionPlanDto;
             Assert.NotNull(planDto);

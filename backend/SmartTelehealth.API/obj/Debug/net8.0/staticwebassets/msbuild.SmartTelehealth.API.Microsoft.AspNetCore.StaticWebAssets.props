@@ -12,8 +12,8 @@
       <RelatedAsset></RelatedAsset>
       <AssetTraitName></AssetTraitName>
       <AssetTraitValue></AssetTraitValue>
-      <Fingerprint>op4s9uc7ak</Fingerprint>
-      <Integrity>JJgzEGetWwTyw1vLsNLzFsxdSDZs+PcrJsp0K3lVsHs=</Integrity>
+      <Fingerprint>vnej4r5q9u</Fingerprint>
+      <Integrity>+3AShzb6vABYL3ZXBvppRBiapJpAKgDq9+LnXRVC9FU=</Integrity>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\chat-test.html'))</OriginalItemSpec>
@@ -30,8 +30,8 @@
       <RelatedAsset></RelatedAsset>
       <AssetTraitName></AssetTraitName>
       <AssetTraitValue></AssetTraitValue>
-      <Fingerprint>a6ix2q87q2</Fingerprint>
-      <Integrity>QgSexiOTyGc1orWgjAm5sid7llPsLZM4BH1Shp/dq88=</Integrity>
+      <Fingerprint>icohhdbnwu</Fingerprint>
+      <Integrity>fvV/+CEBW43DmsN19yKUv+vhM2gteZkAgQJ/OndL3X0=</Integrity>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <OriginalItemSpec>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\opentok-video-call-test.html'))</OriginalItemSpec>

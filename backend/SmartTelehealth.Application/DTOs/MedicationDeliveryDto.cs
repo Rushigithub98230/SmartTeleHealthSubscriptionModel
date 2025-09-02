@@ -18,8 +18,8 @@ public class MedicationDeliveryDto
     public DateTime EstimatedDeliveryDate { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public string Notes { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
 }
 
 public class CreateMedicationDeliveryDto

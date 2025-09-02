@@ -217,8 +217,8 @@ POST /webadmin/subscription-management/plans
     "isTrending": false,
     "displayOrder": 1,
     "features": "Unlimited consultations, Priority support, Medication delivery",
-    "createdAt": "2025-01-09T13:30:00Z",
-    "updatedAt": "2025-01-09T13:30:00Z"
+    "CreatedDate": "2025-01-09T13:30:00Z",
+    "UpdatedDate": "2025-01-09T13:30:00Z"
   },
   "message": "Subscription plan created successfully",
   "statusCode": 201

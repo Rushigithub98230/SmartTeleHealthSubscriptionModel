@@ -27,9 +27,9 @@ public class DocumentTypeDto
     
     // Audit fields
     public int? CreatedById { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
-    public DateTime? DeletedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
+    public DateTime? DeletedDate { get; set; }
     
     // Additional metadata
     public int DocumentCount { get; set; } = 0; // Number of documents of this type

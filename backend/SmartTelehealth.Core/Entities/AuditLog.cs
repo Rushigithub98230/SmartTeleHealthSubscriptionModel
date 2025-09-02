@@ -51,9 +51,5 @@ namespace SmartTelehealth.Core.Entities
         public string? ErrorMessage { get; set; }
 
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-        
-        // Alias properties for backward compatibility
-        public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-        public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
     }
 } 

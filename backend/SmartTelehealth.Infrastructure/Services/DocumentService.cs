@@ -166,9 +166,9 @@ public class DocumentService : IDocumentService
                     UsageCount = documentType.UsageCount,
                     LastUsedAt = documentType.LastUsedAt,
                                          CreatedById = documentType.CreatedBy,
-                     CreatedAt = documentType.CreatedDate ?? DateTime.UtcNow,
-                    UpdatedAt = documentType.UpdatedDate,
-                    DeletedAt = documentType.DeletedDate,
+                     CreatedDate = documentType.CreatedDate ?? DateTime.UtcNow,
+                    UpdatedDate = documentType.UpdatedDate,
+                    DeletedDate = documentType.DeletedDate,
                     MaxFileSizeDisplay = documentType.GetMaxFileSizeDisplay(),
                     AllowedExtensionsList = documentType.GetAllowedExtensionsList()
                 },
@@ -176,8 +176,8 @@ public class DocumentService : IDocumentService
                 IsEncrypted = document.IsEncrypted,
                 IsPublic = document.IsPublic,
                 CreatedById = document.CreatedBy,
-                CreatedAt = document.CreatedDate ?? DateTime.UtcNow,
-                DeletedAt = document.DeletedDate,
+                CreatedDate = document.CreatedDate ?? DateTime.UtcNow,
+                DeletedDate = document.DeletedDate,
                 IsActive = document.IsActive,
                 IsDeleted = document.IsDeleted,
                 DownloadUrl = (await _fileStorageService.GetFileUrlAsync(document.FilePath, tokenModel)).data?.ToString() ?? "",
@@ -241,9 +241,9 @@ public class DocumentService : IDocumentService
                 IsActive = documentType.IsActive,
                 IsDeleted = documentType.IsDeleted,
                 CreatedById = documentType.CreatedBy,
-                CreatedAt = documentType.CreatedDate ?? DateTime.UtcNow,
-                UpdatedAt = documentType.UpdatedDate,
-                DeletedAt = documentType.DeletedDate
+                CreatedDate = documentType.CreatedDate ?? DateTime.UtcNow,
+                UpdatedDate = documentType.UpdatedDate,
+                DeletedDate = documentType.DeletedDate
             } : null;
 
             // 4. Get references
@@ -268,8 +268,8 @@ public class DocumentService : IDocumentService
                 IsEncrypted = document.IsEncrypted,
                 IsPublic = document.IsPublic,
                 CreatedById = document.CreatedBy,
-                CreatedAt = document.CreatedDate ?? DateTime.UtcNow,
-                DeletedAt = document.DeletedDate,
+                CreatedDate = document.CreatedDate ?? DateTime.UtcNow,
+                DeletedDate = document.DeletedDate,
                 IsActive = document.IsActive,
                 IsDeleted = document.IsDeleted,
                 References = references.Select(r => new DocumentReferenceDto
@@ -283,7 +283,7 @@ public class DocumentService : IDocumentService
                     IsPublic = r.IsPublic,
                     ExpiresAt = r.ExpiresAt,
                     CreatedById = r.CreatedBy ?? 0,
-                    CreatedAt = r.CreatedDate ?? DateTime.UtcNow
+                    CreatedDate = r.CreatedDate ?? DateTime.UtcNow
                 }).ToList()
             },
             Message = "Document retrieved successfully",
@@ -660,7 +660,7 @@ public class DocumentService : IDocumentService
                     IsPublic = reference.IsPublic,
                     ExpiresAt = reference.ExpiresAt,
                     CreatedById = reference.CreatedBy ?? 0,
-                    CreatedAt = reference.CreatedDate ?? DateTime.UtcNow
+                    CreatedDate = reference.CreatedDate ?? DateTime.UtcNow
                 },
                 Message = "Document reference added successfully",
                 StatusCode = 200
@@ -740,7 +740,7 @@ public class DocumentService : IDocumentService
                 IsPublic = r.IsPublic,
                 ExpiresAt = r.ExpiresAt,
                 CreatedById = r.CreatedBy ?? 0,
-                CreatedAt = r.CreatedDate ?? DateTime.UtcNow
+                CreatedDate = r.CreatedDate ?? DateTime.UtcNow
             }).ToList();
 
             return new JsonModel
@@ -1294,8 +1294,8 @@ public class DocumentService : IDocumentService
             IsEncrypted = document.IsEncrypted,
             IsPublic = document.IsPublic,
             CreatedById = document.CreatedBy ?? 0,
-            CreatedAt = document.CreatedDate ?? DateTime.UtcNow,
-            DeletedAt = document.DeletedDate,
+            CreatedDate = document.CreatedDate ?? DateTime.UtcNow,
+            DeletedDate = document.DeletedDate,
             IsActive = document.IsActive,
             IsDeleted = document.IsDeleted
         };
@@ -1311,7 +1311,7 @@ public class DocumentService : IDocumentService
             EntityId = reference.EntityId,
             ReferenceType = reference.ReferenceType,
             CreatedById = reference.CreatedBy ?? 0,
-            CreatedAt = reference.CreatedDate ?? DateTime.UtcNow,
+            CreatedDate = reference.CreatedDate ?? DateTime.UtcNow,
             ExpiresAt = reference.ExpiresAt
         };
     }

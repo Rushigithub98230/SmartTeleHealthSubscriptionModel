@@ -28,8 +28,8 @@ namespace SmartTelehealth.Core.Entities
         public virtual ICollection<UserAnswer> Answers { get; set; } = new List<UserAnswer>();
         
         // Alias properties for backward compatibility
-        public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-        public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+        public DateTime? CreatedDate { get => CreatedDate; set => CreatedDate = value; }
+        public DateTime? UpdatedDate { get => UpdatedDate; set => UpdatedDate = value; }
         
         // Helper methods
         [NotMapped]

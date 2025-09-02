@@ -20,8 +20,8 @@ namespace SmartTelehealth.Application.DTOs
         public bool IsVerified { get; set; }
         public bool IsEmailVerified { get; set; }
         public bool IsPhoneVerified { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime UpdatedDate { get; set; }
         public DateTime? LastLoginAt { get; set; }
         public string? ProfilePicture { get; set; }
         public DateTime? DateOfBirth { get; set; }
@@ -50,8 +50,8 @@ namespace SmartTelehealth.Application.DTOs
         public bool IsVerified { get; set; }
         public bool IsEmailVerified { get; set; }
         public bool IsPhoneVerified { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime UpdatedDate { get; set; }
         public DateTime? LastLoginAt { get; set; }
         public string? ProfilePicture { get; set; }
         public DateTime? DateOfBirth { get; set; }
@@ -163,7 +163,7 @@ namespace SmartTelehealth.Application.DTOs
         public string PatientName { get; set; } = string.Empty;
         public decimal Rating { get; set; }
         public string Comment { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
         public bool IsVerified { get; set; }
     }
 
@@ -187,7 +187,7 @@ namespace SmartTelehealth.Application.DTOs
         public List<string> Surgeries { get; set; } = new();
         public string? FamilyHistory { get; set; }
         public string? Lifestyle { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime UpdatedDate { get; set; }
     }
 
     public class UpdateMedicalHistoryDto

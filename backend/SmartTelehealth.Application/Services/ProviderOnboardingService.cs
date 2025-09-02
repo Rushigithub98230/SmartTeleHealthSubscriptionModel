@@ -66,8 +66,10 @@ public class ProviderOnboardingService : IProviderOnboardingService
                 CertificationDocumentUrl = createDto.CertificationDocumentUrl,
                 MalpracticeInsuranceUrl = createDto.MalpracticeInsuranceUrl,
                 Status = OnboardingStatus.Pending,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel.UserID,
+                CreatedDate = DateTime.UtcNow
             };
 
             var savedOnboarding = await _onboardingRepository.AddAsync(onboarding);
@@ -218,7 +220,8 @@ public class ProviderOnboardingService : IProviderOnboardingService
             if (!string.IsNullOrEmpty(updateDto.MalpracticeInsuranceUrl))
                 onboarding.MalpracticeInsuranceUrl = updateDto.MalpracticeInsuranceUrl;
 
-            onboarding.UpdatedAt = DateTime.UtcNow;
+            onboarding.UpdatedBy = tokenModel.UserID;
+            onboarding.UpdatedDate = DateTime.UtcNow;
 
             var updatedOnboarding = await _onboardingRepository.UpdateAsync(onboarding);
             var dto = _mapper.Map<ProviderOnboardingDto>(updatedOnboarding);
@@ -272,7 +275,8 @@ public class ProviderOnboardingService : IProviderOnboardingService
 
             onboarding.Status = OnboardingStatus.UnderReview;
             onboarding.SubmittedAt = DateTime.UtcNow;
-            onboarding.UpdatedAt = DateTime.UtcNow;
+            onboarding.UpdatedBy = tokenModel.UserID;
+            onboarding.UpdatedDate = DateTime.UtcNow;
 
             var updatedOnboarding = await _onboardingRepository.UpdateAsync(onboarding);
             var dto = _mapper.Map<ProviderOnboardingDto>(updatedOnboarding);
@@ -336,7 +340,8 @@ public class ProviderOnboardingService : IProviderOnboardingService
             onboarding.Status = Enum.Parse<OnboardingStatus>(reviewDto.Status);
             onboarding.AdminRemarks = reviewDto.AdminRemarks;
             onboarding.ReviewedAt = DateTime.UtcNow;
-            onboarding.UpdatedAt = DateTime.UtcNow;
+            onboarding.UpdatedBy = tokenModel.UserID;
+            onboarding.UpdatedDate = DateTime.UtcNow;
 
             var updatedOnboarding = await _onboardingRepository.UpdateAsync(onboarding);
             var dto = _mapper.Map<ProviderOnboardingDto>(updatedOnboarding);
@@ -465,8 +470,26 @@ public class ProviderOnboardingService : IProviderOnboardingService
     {
         try
         {
-            var result = await _onboardingRepository.DeleteAsync(id);
-            if (!result)
+            var onboarding = await _onboardingRepository.GetByIdAsync(id);
+            if (onboarding == null)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Onboarding application not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Soft delete - set audit properties
+            onboarding.IsDeleted = true;
+            onboarding.DeletedBy = tokenModel.UserID;
+            onboarding.DeletedDate = DateTime.UtcNow;
+            onboarding.UpdatedBy = tokenModel.UserID;
+            onboarding.UpdatedDate = DateTime.UtcNow;
+            
+            var result = await _onboardingRepository.UpdateAsync(onboarding);
+            if (result == null)
             {
                 return new JsonModel
                 {

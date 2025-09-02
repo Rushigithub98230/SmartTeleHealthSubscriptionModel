@@ -279,8 +279,10 @@ namespace SmartTelehealth.Application.Services
                     StartDate = createDto.StartDate,
                     EndDate = createDto.EndDate,
                     Status = PayoutPeriodStatus.Open,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    // Set audit properties for creation
+                    IsActive = true,
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow
                 };
                 var createdPeriod = await _providerPayoutRepository.AddPeriodAsync();
                 var periodDto = _mapper.Map<PayoutPeriodDto>(createdPeriod);

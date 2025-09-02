@@ -254,7 +254,7 @@ public class LocalFileStorageService : IFileStorageService
                 FileName = originalFileName,
                 FilePath = filePath,
                 FileSize = fileInfo.Length,
-                CreatedAt = fileInfo.CreationTimeUtc,
+                CreatedDate = fileInfo.CreationTimeUtc,
                 ModifiedAt = fileInfo.LastWriteTimeUtc,
                 ContentType = GetContentTypeFromExtension(extension),
                 IsDirectory = false

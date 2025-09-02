@@ -1,4 +1,5 @@
 using SmartTelehealth.Application.DTOs;
+using SmartTelehealth.Core.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -12,7 +13,7 @@ namespace SmartTelehealth.Application.Interfaces
         Task<JsonModel> GetAllTemplatesAsync();
         Task<JsonModel> GetTemplateByIdAsync(Guid id);
         Task<JsonModel> GetTemplatesByCategoryAsync(Guid categoryId);
-        Task<JsonModel> CreateTemplateAsync(CreateQuestionnaireTemplateDto dto, List<IFormFile> files);
+        Task<JsonModel> CreateTemplateAsync(CreateQuestionnaireTemplateDto dto, List<IFormFile> files, TokenModel tokenModel);
         Task<JsonModel> UpdateTemplateAsync(Guid id, CreateQuestionnaireTemplateDto dto, List<IFormFile> files);
         Task<JsonModel> DeleteTemplateAsync(Guid id);
 
@@ -20,6 +21,6 @@ namespace SmartTelehealth.Application.Interfaces
         Task<JsonModel> GetUserResponseAsync(int userId, Guid templateId);
         Task<JsonModel> GetUserResponseByIdAsync(Guid id);
         Task<JsonModel> GetUserResponsesByCategoryAsync(int userId, Guid categoryId);
-        Task<JsonModel> SubmitUserResponseAsync(CreateUserResponseDto dto);
+        Task<JsonModel> SubmitUserResponseAsync(CreateUserResponseDto dto, TokenModel tokenModel);
     }
 } 

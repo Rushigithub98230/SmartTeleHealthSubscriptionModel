@@ -62,6 +62,13 @@ public class SubscriptionPlan : BaseEntity
     [MaxLength(100)]
     public string? StripeAnnualPriceId { get; set; }
     
+    // Plan features and limits
+    public int MessagingCount { get; set; } = 10;
+    public bool IncludesMedicationDelivery { get; set; } = true;
+    public bool IncludesFollowUpCare { get; set; } = true;
+    public int DeliveryFrequencyDays { get; set; } = 30;
+    public int MaxPauseDurationDays { get; set; } = 90;
+    
     // Metadata
     [MaxLength(1000)]
     public string? Features { get; set; } // JSON string of features for display
@@ -73,8 +80,7 @@ public class SubscriptionPlan : BaseEntity
     public DateTime? ExpirationDate { get; set; }
     
     // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+   
     
     // Collection Navigation properties
     public virtual ICollection<SubscriptionPlanPrivilege> PlanPrivileges { get; set; } = new List<SubscriptionPlanPrivilege>();

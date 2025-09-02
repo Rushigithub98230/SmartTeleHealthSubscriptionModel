@@ -11,8 +11,8 @@ namespace SmartTelehealth.Application.DTOs
         public string Message { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
         public bool IsRead { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime UpdatedDate { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime? ReadAt { get; set; }
         public DateTime? ScheduledAt { get; set; }

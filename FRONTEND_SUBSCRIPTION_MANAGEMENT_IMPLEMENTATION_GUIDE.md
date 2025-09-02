@@ -1604,8 +1604,8 @@ export interface SubscriptionPlanDto {
   effectivePrice: number;
   hasActiveDiscount: boolean;
   isCurrentlyAvailable: boolean;
-  createdAt: Date;
-  updatedAt?: Date;
+  CreatedDate: Date;
+  UpdatedDate?: Date;
 }
 
 export interface CreateSubscriptionPlanDto {
@@ -1692,8 +1692,8 @@ export interface UserSubscriptionDto {
   canRenew: boolean;
   canUpgrade: boolean;
   usagePercentage: number;
-  createdAt: Date;
-  updatedAt: Date;
+  CreatedDate: Date;
+  UpdatedDate: Date;
   billingCycleId: string;
   currencyId: string;
 }
@@ -1741,7 +1741,7 @@ export interface SubscriptionStatusHistoryDto {
   changedByUserId?: string;
   changedAt: Date;
   metadata?: string;
-  createdAt?: Date;
+  CreatedDate?: Date;
 }
 
 export interface SubscriptionPaymentDto {
@@ -1755,7 +1755,7 @@ export interface SubscriptionPaymentDto {
   paidAt?: Date;
   failedAt?: Date;
   failureReason?: string;
-  createdAt: Date;
+  CreatedDate: Date;
 }
 
 export interface UpdateSubscriptionDto {

@@ -16,7 +16,7 @@ public class ChatRoomInvitationDto
     public string InvitationStatusName { get; set; } = string.Empty;
     public string? Message { get; set; }
     public DateTime ExpiresAt { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     public DateTime? RespondedAt { get; set; }
 }
 

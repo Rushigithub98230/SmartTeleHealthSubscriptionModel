@@ -52,7 +52,7 @@ namespace SmartTelehealth.Application.Services
                     Message = "This is a sample notification",
                     Type = "Info",
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow
                 };
                 return new JsonModel
                 {
@@ -86,7 +86,7 @@ namespace SmartTelehealth.Application.Services
                     Message = createNotificationDto.Message,
                     Type = createNotificationDto.Type,
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow
                 };
                 return new JsonModel
                 {
@@ -120,8 +120,8 @@ namespace SmartTelehealth.Application.Services
                     Message = "Updated message",
                     Type = "Info",
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow.AddDays(-1),
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow.AddDays(-1),
+                    UpdatedDate = DateTime.UtcNow
                 };
                 return new JsonModel
                 {
@@ -831,7 +831,7 @@ namespace SmartTelehealth.Application.Services
                     Message = message,
                     Type = "Info",
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow
                 };
                 return new JsonModel
                 {
@@ -939,7 +939,7 @@ namespace SmartTelehealth.Application.Services
                     Message = message,
                     Type = "InApp",
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow
                 };
                 return new JsonModel
                 {

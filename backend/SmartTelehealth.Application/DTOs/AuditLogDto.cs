@@ -13,7 +13,7 @@ namespace SmartTelehealth.Application.DTOs
         public string? OldValues { get; set; }
         public string? NewValues { get; set; }
         public string? IpAddress { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class CreateAuditLogDto

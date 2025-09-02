@@ -9,8 +9,8 @@ namespace SmartTelehealth.Application.DTOs
         public string Content { get; set; } = string.Empty;
         public string MessageType { get; set; } = string.Empty; // "text", "image", "file", "audio", "video"
         public string Status { get; set; } = string.Empty; // "sent", "delivered", "read", "failed"
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
         public DateTime? ReadAt { get; set; }
         public string? ReplyToMessageId { get; set; }
         public string? ReplyToMessageContent { get; set; }
@@ -19,7 +19,7 @@ namespace SmartTelehealth.Application.DTOs
         public bool IsEdited { get; set; }
         public bool IsDeleted { get; set; }
         public string? DeletedBy { get; set; }
-        public DateTime? DeletedAt { get; set; }
+        public DateTime? DeletedDate { get; set; }
         public string ChatRoomName { get; set; } = string.Empty;
         public string ReceiverName { get; set; } = string.Empty;
         public string ProviderName { get; set; } = string.Empty;
@@ -57,7 +57,7 @@ namespace SmartTelehealth.Application.DTOs
         public string MessageId { get; set; } = string.Empty;
         public int UserId { get; set; }
         public string ReactionType { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class ChatStatisticsDto

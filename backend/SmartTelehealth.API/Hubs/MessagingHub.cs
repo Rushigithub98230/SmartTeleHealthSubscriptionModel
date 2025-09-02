@@ -120,7 +120,7 @@ public class MessagingHub : Hub
                 Message = message,
                 ChatRoomId = chatRoomId,
                 UserId = int.TryParse(targetUserId, out var userId) ? userId : 0,
-                CreatedAt = DateTime.UtcNow,
+                CreatedDate = DateTime.UtcNow,
                 IsRead = false
             };
 
@@ -169,7 +169,7 @@ public class MessagingHub : Hub
                 Message = message,
                 ChatRoomId = chatRoomId,
                 UserId = senderId,
-                CreatedAt = DateTime.UtcNow,
+                CreatedDate = DateTime.UtcNow,
                 IsRead = false
             };
 
@@ -314,7 +314,7 @@ public class MessagingHub : Hub
                 Title = title,
                 Message = message,
                 UserId = !string.IsNullOrEmpty(targetUserId) && int.TryParse(targetUserId, out var userId) ? userId : 0,
-                CreatedAt = DateTime.UtcNow,
+                CreatedDate = DateTime.UtcNow,
                 IsRead = false
             };
 

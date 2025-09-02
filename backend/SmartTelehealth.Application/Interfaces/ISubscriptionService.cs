@@ -53,7 +53,7 @@ namespace SmartTelehealth.Application.Interfaces
         
         // Category management
         Task<JsonModel> GetAllCategoriesAsync(int page, int pageSize, string? searchTerm, bool? isActive, TokenModel tokenModel);
-        Task<JsonModel> CreateSubscriptionPlanAsync(CreateSubscriptionDto createDto, TokenModel tokenModel);
+
         
         // Export and enhanced analytics methods
         Task<JsonModel> ExportSubscriptionPlansAsync(TokenModel tokenModel, string? searchTerm = null, string? categoryId = null, bool? isActive = null, string format = "csv");
@@ -68,5 +68,11 @@ namespace SmartTelehealth.Application.Interfaces
         Task<JsonModel> CanUsePrivilegeAsync(string subscriptionId, string privilegeName, TokenModel tokenModel);
         Task<JsonModel> DeactivatePlanAsync(string planId, string adminUserId, TokenModel tokenModel);
         Task<JsonModel> HandlePaymentProviderWebhookAsync(string eventType, string subscriptionId, string? errorMessage, TokenModel tokenModel);
+        
+        // Privilege Management Methods
+        Task<JsonModel> AssignPrivilegesToPlanAsync(Guid planId, List<PlanPrivilegeDto> privileges, TokenModel tokenModel);
+        Task<JsonModel> RemovePrivilegeFromPlanAsync(Guid planId, Guid privilegeId, TokenModel tokenModel);
+        Task<JsonModel> UpdatePlanPrivilegeAsync(Guid planId, Guid privilegeId, PlanPrivilegeDto privilegeDto, TokenModel tokenModel);
+        Task<JsonModel> GetPlanPrivilegesAsync(Guid planId, TokenModel tokenModel);
     }
 } 

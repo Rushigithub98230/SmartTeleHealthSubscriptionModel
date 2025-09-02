@@ -48,6 +48,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -58,7 +59,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Active",
                 Reason = reason ?? "Subscription activated",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -102,6 +107,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Paused";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -112,7 +118,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Paused",
                 Reason = reason ?? "Subscription paused",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -156,6 +166,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -166,7 +177,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Active",
                 Reason = reason ?? "Subscription resumed",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -210,6 +225,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Cancelled";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.CancelledAt = DateTime.UtcNow;
 
@@ -221,7 +237,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Cancelled",
                 Reason = reason ?? "Subscription cancelled",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -265,6 +285,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Suspended";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -275,7 +296,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Suspended",
                 Reason = reason ?? "Subscription suspended",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -319,6 +344,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.RenewedAt = DateTime.UtcNow;
 
@@ -330,7 +356,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Active",
                 Reason = reason ?? "Subscription renewed",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -374,6 +404,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Expired";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.ExpiredAt = DateTime.UtcNow;
 
@@ -385,7 +416,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Expired",
                 Reason = reason ?? "Subscription expired",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -429,6 +464,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "PaymentFailed";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -439,7 +475,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "PaymentFailed",
                 Reason = reason ?? "Payment failed",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -483,6 +523,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = "Active";
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -493,7 +534,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = "Active",
                 Reason = reason ?? "Payment succeeded",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -538,6 +583,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             var oldStatus = subscription.Status;
             subscription.Status = newStatus;
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -548,7 +594,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = newStatus,
                 Reason = reason ?? $"Status updated to {newStatus}",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID
+                ChangedByUserId = tokenModel?.UserID,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = tokenModel?.UserID,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -691,6 +741,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             // Update subscription status
             subscription.Status = newStatus;
+            subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Update status-specific properties
@@ -704,7 +755,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = newStatus,
                 Reason = reason,
                 ChangedByUserId = !string.IsNullOrEmpty(changedByUserId) ? int.Parse(changedByUserId) : null,
-                ChangedAt = DateTime.UtcNow
+                ChangedAt = DateTime.UtcNow,
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = !string.IsNullOrEmpty(changedByUserId) ? int.Parse(changedByUserId) : null,
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
@@ -833,6 +888,12 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 subscription.ResumedDate = DateTime.UtcNow;
                 subscription.PauseReason = null;
                 subscription.CancellationReason = null;
+                
+                // If converting from trial, set the real price from the plan
+                if (subscription.CurrentPrice == 0 && subscription.SubscriptionPlan != null)
+                {
+                    subscription.CurrentPrice = subscription.SubscriptionPlan.Price;
+                }
                 break;
 
             case Subscription.SubscriptionStatuses.Paused:
@@ -1124,6 +1185,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             
             // Update trial end date
             subscription.TrialEndDate = newTrialEndDate;
+            subscription.UpdatedBy = null; // System action
             subscription.UpdatedDate = DateTime.UtcNow;
 
             // Add status history
@@ -1134,7 +1196,12 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ToStatus = subscription.Status, // Same status, but trial extended
                 Reason = $"Trial extended by {additionalDays} days. {reason}",
                 ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = null // System action
+
+                ChangedByUserId = null, // System action
+                // Set audit properties for creation
+                IsActive = true,
+                CreatedBy = null, // System action
+                CreatedDate = DateTime.UtcNow
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);

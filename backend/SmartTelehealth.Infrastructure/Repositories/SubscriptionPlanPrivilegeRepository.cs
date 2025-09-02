@@ -18,8 +18,6 @@ public class SubscriptionPlanPrivilegeRepository : ISubscriptionPlanPrivilegeRep
 
     public async Task<IEnumerable<SubscriptionPlanPrivilege>> GetByPlanIdAsync(Guid planId)
         => await _context.SubscriptionPlanPrivileges
-            .Include(x => x.Privilege)
-            .Include(x => x.UsagePeriod)
             .Where(x => x.SubscriptionPlanId == planId)
             .ToListAsync();
 

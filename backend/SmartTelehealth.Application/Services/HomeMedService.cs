@@ -353,7 +353,6 @@ public class HomeMedService : IHomeMedService
                 Status = "pending",
                 ShippingAddress = createDto.ShippingAddress,
                 ShippingMethod = createDto.ShippingMethod,
-                CreatedAt = DateTime.UtcNow,
                 EstimatedDelivery = createDto.EstimatedDelivery ?? DateTime.UtcNow.AddDays(7),
                 Notes = createDto.Notes
             };
@@ -386,7 +385,7 @@ public class HomeMedService : IHomeMedService
             {
                 Id = id,
                 Status = "pending",
-                CreatedAt = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow
             };
 
             return new JsonModel

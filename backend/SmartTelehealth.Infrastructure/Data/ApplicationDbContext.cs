@@ -1269,7 +1269,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.CategoryId).IsRequired();
             entity.Property(e => e.IsActive).IsRequired();
             entity.Property(e => e.Version).IsRequired();
-            entity.Property(e => e.CreatedAt).IsRequired();
+            entity.Property(e => e.CreatedDate).IsRequired();
             entity.Property(e => e.UpdatedBy).IsRequired(false);
             entity.Property(e => e.IsDeleted).IsRequired();
             
@@ -1312,7 +1312,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.MinValue).HasPrecision(18, 2);
             entity.Property(e => e.MaxValue).HasPrecision(18, 2);
             entity.Property(e => e.StepValue).HasPrecision(18, 2);
-            entity.Property(e => e.CreatedAt).IsRequired();
+            entity.Property(e => e.CreatedDate).IsRequired();
             entity.Property(e => e.UpdatedBy).IsRequired(false);
             entity.Property(e => e.IsDeleted).IsRequired();
             
@@ -1395,7 +1395,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.CategoryId).IsRequired();
             entity.Property(e => e.TemplateId).IsRequired();
             entity.Property(e => e.Status).IsRequired().HasConversion<int>();
-            entity.Property(e => e.CreatedAt).IsRequired();
+            entity.Property(e => e.CreatedDate).IsRequired();
             entity.Property(e => e.UpdatedBy).IsRequired(false);
             entity.Property(e => e.IsDeleted).IsRequired();
             
@@ -1420,7 +1420,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.HasIndex(e => e.CategoryId);
             entity.HasIndex(e => e.TemplateId);
             entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.CreatedDate);
             entity.HasIndex(e => e.IsDeleted);
             entity.HasIndex(e => new { e.UserId, e.TemplateId });
             entity.HasIndex(e => new { e.UserId, e.Status, e.IsDeleted });
@@ -1441,7 +1441,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.AnswerText).HasMaxLength(4000);
             entity.Property(e => e.NumericValue).HasPrecision(18, 2);
             entity.Property(e => e.DateTimeValue).IsRequired(false);
-            entity.Property(e => e.CreatedAt).IsRequired();
+            entity.Property(e => e.CreatedDate).IsRequired();
             entity.Property(e => e.UpdatedBy).IsRequired(false);
             entity.Property(e => e.IsDeleted).IsRequired();
             
@@ -1464,7 +1464,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             // Indexes
             entity.HasIndex(e => e.ResponseId);
             entity.HasIndex(e => e.QuestionId);
-            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.CreatedDate);
             entity.HasIndex(e => e.IsDeleted);
             entity.HasIndex(e => new { e.ResponseId, e.QuestionId });
             entity.HasIndex(e => new { e.ResponseId, e.IsDeleted });

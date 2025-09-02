@@ -130,6 +130,8 @@ public class CategoryService : ICategoryService
         try
         {
             var category = _mapper.Map<Category>(createDto);
+            // Set audit properties for creation
+            category.CreatedBy = tokenModel.UserID;
             category.CreatedDate = DateTime.UtcNow;
             category.IsActive = true;
             
@@ -155,6 +157,8 @@ public class CategoryService : ICategoryService
                 return new JsonModel { data = new object(), Message = "Category not found", StatusCode = 404 };
             
             _mapper.Map(updateDto, existingCategory);
+            // Set audit properties for update
+            existingCategory.UpdatedBy = tokenModel.UserID;
             existingCategory.UpdatedDate = DateTime.UtcNow;
             
             var updatedCategory = await _categoryRepository.UpdateAsync(existingCategory);
@@ -185,8 +189,12 @@ public class CategoryService : ICategoryService
                 return new JsonModel { data = new object(), Message = "Cannot delete category as it is being used by subscriptions", StatusCode = 400 };
             }
             
-            existingCategory.IsActive = false;
+            // Soft delete - set audit properties
+            existingCategory.IsDeleted = true;
+            existingCategory.DeletedBy = tokenModel.UserID;
             existingCategory.DeletedDate = DateTime.UtcNow;
+            existingCategory.UpdatedBy = tokenModel.UserID;
+            existingCategory.UpdatedDate = DateTime.UtcNow;
             
             await _categoryRepository.UpdateAsync(existingCategory);
             

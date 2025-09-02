@@ -27,7 +27,7 @@ public class BillingHistoryDto
     public string? Description { get; set; }
     public string? InvoiceNumber { get; set; }
     public string? ReceiptUrl { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
     // Added properties
     public string? SubscriptionId { get; set; }
     public DateTime? BillingDate { get; set; }

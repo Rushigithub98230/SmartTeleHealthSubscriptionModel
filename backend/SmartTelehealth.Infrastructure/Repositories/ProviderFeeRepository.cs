@@ -39,7 +39,7 @@ public class ProviderFeeRepository : IProviderFeeRepository
             .Include(f => f.Category)
             .Include(f => f.ReviewedByUser)
             .Where(f => f.ProviderId == providerId && f.IsActive)
-            .OrderByDescending(f => f.CreatedAt)
+            .OrderByDescending(f => f.CreatedDate)
             .ToListAsync();
     }
 
@@ -50,7 +50,7 @@ public class ProviderFeeRepository : IProviderFeeRepository
             .Include(f => f.Category)
             .Include(f => f.ReviewedByUser)
             .Where(f => f.CategoryId == categoryId && f.IsActive)
-            .OrderByDescending(f => f.CreatedAt)
+            .OrderByDescending(f => f.CreatedDate)
             .ToListAsync();
     }
 
@@ -61,7 +61,7 @@ public class ProviderFeeRepository : IProviderFeeRepository
             .Include(f => f.Category)
             .Include(f => f.ReviewedByUser)
             .Where(f => f.IsActive)
-            .OrderByDescending(f => f.CreatedAt)
+            .OrderByDescending(f => f.CreatedDate)
             .ToListAsync();
     }
 
@@ -74,7 +74,7 @@ public class ProviderFeeRepository : IProviderFeeRepository
                 .Include(f => f.Category)
                 .Include(f => f.ReviewedByUser)
                 .Where(f => f.Status == statusEnum && f.IsActive)
-                .OrderByDescending(f => f.CreatedAt)
+                .OrderByDescending(f => f.CreatedDate)
                 .ToListAsync();
         }
         return new List<ProviderFee>();
@@ -87,7 +87,7 @@ public class ProviderFeeRepository : IProviderFeeRepository
             .Include(f => f.Category)
             .Include(f => f.ReviewedByUser)
             .Where(f => f.Status == FeeStatus.Pending && f.IsActive)
-            .OrderByDescending(f => f.CreatedAt)
+            .OrderByDescending(f => f.CreatedDate)
             .ToListAsync();
     }
 
@@ -105,7 +105,7 @@ public class ProviderFeeRepository : IProviderFeeRepository
         }
 
         return await query
-            .OrderByDescending(f => f.CreatedAt)
+            .OrderByDescending(f => f.CreatedDate)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

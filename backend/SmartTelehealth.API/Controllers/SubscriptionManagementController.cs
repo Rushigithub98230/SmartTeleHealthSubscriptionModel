@@ -259,6 +259,46 @@ public class SubscriptionManagementController : BaseController
     }
 
     #endregion
+
+    #region Plan Privilege Management
+
+    /// <summary>
+    /// Assign privileges to a subscription plan
+    /// </summary>
+    [HttpPost("plans/{planId}/privileges")]
+    public async Task<JsonModel> AssignPrivilegesToPlan(string planId, [FromBody] List<PlanPrivilegeDto> privileges)
+    {
+        return await _subscriptionService.AssignPrivilegesToPlanAsync(Guid.Parse(planId), privileges, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Remove a privilege from a subscription plan
+    /// </summary>
+    [HttpDelete("plans/{planId}/privileges/{privilegeId}")]
+    public async Task<JsonModel> RemovePrivilegeFromPlan(string planId, string privilegeId)
+    {
+        return await _subscriptionService.RemovePrivilegeFromPlanAsync(Guid.Parse(planId), Guid.Parse(privilegeId), GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Update a privilege configuration for a subscription plan
+    /// </summary>
+    [HttpPut("plans/{planId}/privileges/{privilegeId}")]
+    public async Task<JsonModel> UpdatePlanPrivilege(string planId, string privilegeId, [FromBody] PlanPrivilegeDto privilegeDto)
+    {
+        return await _subscriptionService.UpdatePlanPrivilegeAsync(Guid.Parse(planId), Guid.Parse(privilegeId), privilegeDto, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get all privileges for a subscription plan
+    /// </summary>
+    [HttpGet("plans/{planId}/privileges")]
+    public async Task<JsonModel> GetPlanPrivileges(string planId)
+    {
+        return await _subscriptionService.GetPlanPrivilegesAsync(Guid.Parse(planId), GetToken(HttpContext));
+    }
+
+    #endregion
 }
 
 #region DTOs for Admin Subscription Management

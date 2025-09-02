@@ -21,5 +21,9 @@ namespace SmartTelehealth.Application.Interfaces
         Task LogSubscriptionEventAsync(int userId, string action, string? subscriptionId, string? status, TokenModel tokenModel);
         Task LogConsultationEventAsync(int userId, string action, string? consultationId, string? status, TokenModel tokenModel);
         Task LogActionAsync(string entity, string action, string entityId, string description, TokenModel tokenModel);
+        
+        // Webhook idempotency methods
+        Task<bool> IsEventProcessedAsync(string eventId);
+        Task MarkEventAsProcessedAsync(string eventId, string eventType, string status);
     }
 } 

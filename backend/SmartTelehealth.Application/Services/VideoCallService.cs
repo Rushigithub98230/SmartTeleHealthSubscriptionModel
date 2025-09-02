@@ -164,7 +164,25 @@ public class VideoCallService : IVideoCallService
     {
         try
         {
-            var result = await _videoCallRepository.DeleteAsync(id);
+            var videoCall = await _videoCallRepository.GetByIdAsync(id);
+            if (videoCall == null)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Video call not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Soft delete - set audit properties
+            videoCall.IsDeleted = true;
+            videoCall.DeletedBy = tokenModel.UserID;
+            videoCall.DeletedDate = DateTime.UtcNow;
+            videoCall.UpdatedBy = tokenModel.UserID;
+            videoCall.UpdatedDate = DateTime.UtcNow;
+            
+            var result = await _videoCallRepository.UpdateAsync(videoCall);
             return new JsonModel
             {
                 data = result,
@@ -644,8 +662,8 @@ public class VideoCallService : IVideoCallService
             EndedAt = videoCall.EndedAt,
             Status = videoCall.Status,
             RecordingUrl = videoCall.RecordingUrl,
-            CreatedAt = videoCall.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = videoCall.UpdatedDate,
+            CreatedDate = videoCall.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = videoCall.UpdatedDate,
             IsDeleted = videoCall.IsDeleted
         };
     }

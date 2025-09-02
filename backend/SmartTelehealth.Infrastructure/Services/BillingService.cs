@@ -120,6 +120,15 @@ public class BillingService : IBillingService
                     StatusCode = 400
                 };
             
+            // CRITICAL FIX: Enhanced retry logic with exponential backoff
+            if (attempt > 0)
+            {
+                var delay = TimeSpan.FromMinutes(Math.Pow(2, attempt - 1)); // Exponential backoff: 1, 2, 4, 8 minutes
+                _logger.LogInformation("Retrying payment for billing record {BillingRecordId} (attempt {Attempt}) after {Delay} delay", 
+                    billingRecordId, attempt + 1, delay);
+                await Task.Delay(delay);
+            }
+            
             // Get user's default payment method
             var user = await _userRepository.GetByIdAsync(billingRecord.UserId);
             if (user == null)
@@ -138,7 +147,7 @@ public class BillingService : IBillingService
                 // Create a failed billing record
                 billingRecord.Status = BillingRecord.BillingStatus.Failed;
                 billingRecord.FailureReason = "No default payment method found";
-                billingRecord.UpdatedAt = DateTime.UtcNow;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(billingRecord);
                 
                 await SendPaymentNotificationsAsync(MapToDto(billingRecord), false, tokenModel);
@@ -162,12 +171,15 @@ public class BillingService : IBillingService
 
             if (paymentResult.Status == "succeeded")
             {
-                // Update billing record as paid
+                // CRITICAL FIX: Update billing record with Stripe correlation data
                 billingRecord.Status = BillingRecord.BillingStatus.Paid;
-                billingRecord.PaymentIntentId = paymentResult.PaymentIntentId;
                 billingRecord.PaidAt = DateTime.UtcNow;
-                billingRecord.UpdatedAt = DateTime.UtcNow;
+                billingRecord.ProcessedAt = DateTime.UtcNow;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
+                billingRecord.StripePaymentIntentId = paymentResult.PaymentIntentId; // Link to Stripe payment intent
+                billingRecord.TransactionId = paymentResult.PaymentIntentId; // Use as transaction ID
                 billingRecord.FailureReason = null;
+                await _billingRepository.UpdateAsync(billingRecord);
 
                 var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
                 var billingRecordDto = MapToDto(updatedRecord);
@@ -204,11 +216,15 @@ public class BillingService : IBillingService
             
             if (attempt < _maxRetryAttempts)
             {
-                // Wait before retry with exponential backoff
-                var delay = TimeSpan.FromMinutes(Math.Pow(2, attempt)) + _retryDelay;
+                // CRITICAL FIX: Enhanced exponential backoff with jitter
+                var baseDelay = TimeSpan.FromMinutes(Math.Pow(2, attempt));
+                var jitter = TimeSpan.FromSeconds(new Random().Next(0, 30)); // Add up to 30 seconds jitter
+                var delay = baseDelay + jitter;
+                
+                _logger.LogInformation("Retrying payment for billing record {BillingRecordId} (attempt {Attempt}) after {Delay} delay", 
+                    billingRecordId, attempt + 2, delay);
                 await Task.Delay(delay);
                 
-                _logger.LogInformation("Retrying payment for billing record {BillingRecordId} (attempt {Attempt})", billingRecordId, attempt + 2);
                 return await ProcessPaymentWithRetryAsync(billingRecordId, attempt + 1, tokenModel);
             }
             
@@ -220,7 +236,7 @@ public class BillingService : IBillingService
                 {
                     billingRecord.Status = BillingRecord.BillingStatus.Failed;
                     billingRecord.FailureReason = ex.Message;
-                    billingRecord.UpdatedAt = DateTime.UtcNow;
+                    billingRecord.UpdatedDate = DateTime.UtcNow;
                     await _billingRepository.UpdateAsync(billingRecord);
                     
                     var billingRecordDto = MapToDto(billingRecord);
@@ -256,7 +272,7 @@ public class BillingService : IBillingService
         billingRecord.Status = BillingRecord.BillingStatus.Failed;
         billingRecord.PaymentIntentId = paymentResult.PaymentIntentId;
         billingRecord.FailureReason = paymentResult.ErrorMessage ?? "Unknown payment error";
-        billingRecord.UpdatedAt = DateTime.UtcNow;
+        billingRecord.UpdatedDate = DateTime.UtcNow;
 
         var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
         var billingRecordDto = MapToDto(updatedRecord);
@@ -350,7 +366,7 @@ public class BillingService : IBillingService
             // Reset status to pending for retry
             billingRecord.Status = BillingRecord.BillingStatus.Pending;
             billingRecord.FailureReason = null;
-            billingRecord.UpdatedAt = DateTime.UtcNow;
+            billingRecord.UpdatedDate = DateTime.UtcNow;
             await _billingRepository.UpdateAsync(billingRecord);
 
             // Process payment with retry
@@ -438,14 +454,14 @@ public class BillingService : IBillingService
                     Type = BillingRecord.BillingType.Refund,
                     BillingDate = DateTime.UtcNow,
                     PaidAt = DateTime.UtcNow,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedDate = DateTime.UtcNow
                 };
 
                 await _billingRepository.CreateAsync(refundRecord);
 
                 // Update original billing record
                 billingRecord.Status = BillingRecord.BillingStatus.Refunded;
-                billingRecord.UpdatedAt = DateTime.UtcNow;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(billingRecord);
 
                 // Send refund notification
@@ -736,8 +752,8 @@ public class BillingService : IBillingService
             PaidAt = billingRecord.PaidAt,
             PaymentIntentId = billingRecord.PaymentIntentId,
             FailureReason = billingRecord.FailureReason,
-            CreatedAt = billingRecord.CreatedDate ?? DateTime.UtcNow,
-            UpdatedAt = billingRecord.UpdatedDate ?? DateTime.UtcNow
+            CreatedDate = billingRecord.CreatedDate ?? DateTime.UtcNow,
+            UpdatedDate = billingRecord.UpdatedDate ?? DateTime.UtcNow
         };
     }
 
@@ -900,7 +916,7 @@ public class BillingService : IBillingService
                 StatusCode = 404
             };
         billingRecord.Amount += adjustmentDto.Amount;
-        billingRecord.UpdatedAt = DateTime.UtcNow;
+        billingRecord.UpdatedDate = DateTime.UtcNow;
         await _billingRepository.UpdateAsync(billingRecord);
         var billingRecordDto = MapToDto(billingRecord);
         await _auditService.LogPaymentEventAsync(billingRecord.UserId, "BillingAdjustmentApplied", billingRecord.Id.ToString(), "Success", null, tokenModel);
@@ -1685,7 +1701,7 @@ public class BillingService : IBillingService
                 Status = r.Status.ToString(),
                 TransactionId = r.StripePaymentIntentId,
                 ErrorMessage = r.FailureReason,
-                CreatedAt = r.CreatedDate ?? DateTime.UtcNow,
+                CreatedDate = r.CreatedDate ?? DateTime.UtcNow,
                 ProcessedAt = r.ProcessedAt,
                 PaymentDate = r.ProcessedAt ?? r.CreatedDate ?? DateTime.UtcNow,
                 Description = r.Description,
@@ -1804,7 +1820,7 @@ public class BillingService : IBillingService
                 BillingDate = billingRecord.BillingDate,
                 DueDate = billingRecord.DueDate,
                 Description = billingRecord.Description,
-                CreatedAt = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow
             };
 
             return new JsonModel { data = invoiceDto, Message = "Invoice generated successfully", StatusCode = 200 };

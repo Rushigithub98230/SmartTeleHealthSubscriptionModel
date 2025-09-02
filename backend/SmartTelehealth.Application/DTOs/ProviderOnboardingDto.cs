@@ -73,8 +73,8 @@ public class ProviderOnboardingDto
     public DateTime? SubmittedAt { get; set; }
     public DateTime? ReviewedAt { get; set; }
     public int? ReviewedByUserId { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
 }
 
 public class ReviewProviderOnboardingDto

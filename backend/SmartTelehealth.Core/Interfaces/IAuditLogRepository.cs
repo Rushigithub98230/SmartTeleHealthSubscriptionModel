@@ -15,5 +15,6 @@ namespace SmartTelehealth.Core.Interfaces
         Task<IEnumerable<AuditLog>> SearchAsync(string searchTerm);
         Task<IEnumerable<AuditLog>> GetWithFiltersAsync(string? action, int? userId, DateTime? startDate, DateTime? endDate, int page, int pageSize);
         Task<AuditLog?> GetByIdAsync(Guid id);
+        Task<AuditLog?> GetByEntityIdAsync(string entityId);
     }
 } 

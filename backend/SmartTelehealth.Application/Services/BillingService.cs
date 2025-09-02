@@ -32,8 +32,11 @@ namespace SmartTelehealth.Application.Services
             try
             {
                 var billingRecord = _mapper.Map<BillingRecord>(createDto);
-                billingRecord.CreatedDate = DateTime.UtcNow;
                 billingRecord.Status = BillingRecord.BillingStatus.Pending;
+                // Set audit properties for creation
+                billingRecord.IsActive = true;
+                billingRecord.CreatedBy = tokenModel.UserID;
+                billingRecord.CreatedDate = DateTime.UtcNow;
 
                 // Note: AddAsync method doesn't exist, using CreateAsync instead
                 var createdRecord = await _billingRepository.CreateAsync(billingRecord);
@@ -269,6 +272,7 @@ namespace SmartTelehealth.Application.Services
 
                 // Note: RefundAmount and RefundedAt properties don't exist in BillingRecord entity
                 billingRecord.Status = BillingRecord.BillingStatus.Refunded;
+                billingRecord.UpdatedBy = tokenModel.UserID;
                 billingRecord.UpdatedDate = DateTime.UtcNow;
 
                 var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
@@ -534,6 +538,7 @@ namespace SmartTelehealth.Application.Services
                 }
 
                 billingRecord.Status = BillingRecord.BillingStatus.Pending;
+                billingRecord.UpdatedBy = tokenModel.UserID;
                 billingRecord.UpdatedDate = DateTime.UtcNow;
                 var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
                 var billingRecordDto = _mapper.Map<BillingRecordDto>(updatedRecord);
@@ -558,6 +563,7 @@ namespace SmartTelehealth.Application.Services
                 }
 
                 // TODO: Implement partial payment logic
+                billingRecord.UpdatedBy = tokenModel.UserID;
                 billingRecord.UpdatedDate = DateTime.UtcNow;
                 var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
                 var billingRecordDto = _mapper.Map<BillingRecordDto>(updatedRecord);
@@ -586,6 +592,9 @@ namespace SmartTelehealth.Application.Services
                     Status = BillingRecord.BillingStatus.Pending,
                     Type = BillingRecord.BillingType.Subscription, // No Invoice type, use Subscription
                     InvoiceNumber = createDto.InvoiceNumber,
+                    // Set audit properties for creation
+                    IsActive = true,
+                    CreatedBy = tokenModel.UserID,
                     CreatedDate = DateTime.UtcNow
                 };
 
@@ -723,6 +732,7 @@ namespace SmartTelehealth.Application.Services
                 }
 
                 billingRecord.PaymentMethod = paymentMethodId;
+                billingRecord.UpdatedBy = tokenModel.UserID;
                 billingRecord.UpdatedDate = DateTime.UtcNow;
                 var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
                 var billingRecordDto = _mapper.Map<BillingRecordDto>(updatedRecord);
@@ -850,7 +860,7 @@ namespace SmartTelehealth.Application.Services
                     Status = br.Status.ToString(),
                     TransactionId = br.TransactionId,
                     ErrorMessage = br.ErrorMessage,
-                    CreatedAt = br.CreatedDate ?? DateTime.UtcNow,
+                    CreatedDate = br.CreatedDate ?? DateTime.UtcNow,
                     ProcessedAt = br.ProcessedAt
                 });
 
@@ -1110,11 +1120,11 @@ namespace SmartTelehealth.Application.Services
         private string GenerateBillingRecordsCsv(IEnumerable<BillingRecordDto> billingRecords)
         {
             var csv = new System.Text.StringBuilder();
-            csv.AppendLine("Id,UserId,SubscriptionId,Amount,Currency,Status,Type,Description,CreatedAt,PaidAt,PaymentMethod,PaymentIntentId");
+            csv.AppendLine("Id,UserId,SubscriptionId,Amount,Currency,Status,Type,Description,CreatedDate,PaidAt,PaymentMethod,PaymentIntentId");
             
             foreach (var record in billingRecords)
             {
-                csv.AppendLine($"\"{record.Id}\",\"{record.UserId}\",\"{record.SubscriptionId}\",{record.Amount},{record.Currency},{record.Status},{record.Type},\"{record.Description}\",{record.CreatedAt:yyyy-MM-dd},{record.PaidAt?.ToString("yyyy-MM-dd") ?? ""},\"{record.PaymentMethod}\",\"{record.PaymentIntentId}\"");
+                csv.AppendLine($"\"{record.Id}\",\"{record.UserId}\",\"{record.SubscriptionId}\",{record.Amount},{record.Currency},{record.Status},{record.Type},\"{record.Description}\",{record.CreatedDate:yyyy-MM-dd},{record.PaidAt?.ToString("yyyy-MM-dd") ?? ""},\"{record.PaymentMethod}\",\"{record.PaymentIntentId}\"");
             }
             
             return csv.ToString();
@@ -1159,7 +1169,7 @@ namespace SmartTelehealth.Application.Services
                     Description = billingRecord.Description,
                     StripeInvoiceId = billingRecord.StripeInvoiceId,
                     StripePaymentIntentId = billingRecord.StripePaymentIntentId,
-                    CreatedAt = billingRecord.CreatedDate ?? DateTime.UtcNow
+                    CreatedDate = billingRecord.CreatedDate ?? DateTime.UtcNow
                 };
 
                 return new JsonModel { data = invoiceDto, Message = "Invoice generated successfully", StatusCode = 200 };
@@ -1205,6 +1215,7 @@ namespace SmartTelehealth.Application.Services
                 if (Enum.TryParse<BillingRecord.BillingStatus>(newStatus, out var status))
                 {
                     billingRecord.Status = status;
+                    billingRecord.UpdatedBy = tokenModel.UserID;
                     billingRecord.UpdatedDate = DateTime.UtcNow;
                     
                     if (status == BillingRecord.BillingStatus.Paid)
@@ -1271,9 +1282,12 @@ namespace SmartTelehealth.Application.Services
             try
             {
                 var billingRecord = _mapper.Map<BillingRecord>(createDto);
-                billingRecord.CreatedDate = DateTime.UtcNow;
                 billingRecord.Status = BillingRecord.BillingStatus.Pending;
                 billingRecord.IsRecurring = true;
+                // Set audit properties for creation
+                billingRecord.IsActive = true;
+                billingRecord.CreatedBy = tokenModel.UserID;
+                billingRecord.CreatedDate = DateTime.UtcNow;
                 // For now, use a default 30-day billing cycle since BillingCycleId doesn't contain days
                 billingRecord.NextBillingDate = CalculateNextBillingDate(DateTime.UtcNow, 30);
 
@@ -1314,7 +1328,11 @@ namespace SmartTelehealth.Application.Services
                     BillingDate = DateTime.UtcNow,
                     DueDate = subscription.NextBillingDate,
                     IsRecurring = true,
-                    NextBillingDate = CalculateNextBillingDate(subscription.NextBillingDate, 30) // Default to monthly
+                    NextBillingDate = CalculateNextBillingDate(subscription.NextBillingDate, 30), // Default to monthly
+                    // Set audit properties for creation
+                    IsActive = true,
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow
                 };
 
                 var createdRecord = await _billingRepository.CreateAsync(billingRecord);

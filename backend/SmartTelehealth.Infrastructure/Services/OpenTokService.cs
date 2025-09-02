@@ -44,7 +44,7 @@ public class OpenTokService : IOpenTokService
                 ApiKey = _configuration["OpenTokSettings:ApiKey"]!,
                 SessionName = sessionName,
                 IsArchived = isArchived,
-                CreatedAt = DateTime.UtcNow,
+                CreatedDate = DateTime.UtcNow,
                 Status = "created",
                 ParticipantCount = 0,
                 StreamCount = 0
@@ -81,7 +81,7 @@ public class OpenTokService : IOpenTokService
                 SessionId = sessionId,
                 ApiKey = _configuration["OpenTokSettings:ApiKey"]!,
                 Status = "active",
-                CreatedAt = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow
             };
 
             return new JsonModel
@@ -300,7 +300,7 @@ public class OpenTokService : IOpenTokService
                 SessionId = sessionId,
                 Name = options.Name,
                 Status = "started",
-                CreatedAt = DateTime.UtcNow,
+                CreatedDate = DateTime.UtcNow,
                 CompletedAt = null,
                 Url = string.Empty,
                 Size = 0,
@@ -367,7 +367,7 @@ public class OpenTokService : IOpenTokService
                 Url = "N/A", // Placeholder
                 Size = 0, // Placeholder
                 Status = "N/A", // Placeholder
-                CreatedAt = DateTime.UtcNow, // Placeholder
+                CreatedDate = DateTime.UtcNow, // Placeholder
                 CompletedAt = DateTime.UtcNow, // Placeholder
                 Duration = TimeSpan.Zero // Placeholder
             };
@@ -459,7 +459,7 @@ public class OpenTokService : IOpenTokService
                 HlsUrl = options.HlsUrl,
                 RtmpUrl = options.RtmpUrl ?? string.Empty,
                 Status = OpenTokBroadcastStatus.Started,
-                CreatedAt = DateTime.UtcNow,
+                CreatedDate = DateTime.UtcNow,
                 StartedAt = DateTime.UtcNow
             };
 
@@ -523,7 +523,7 @@ public class OpenTokService : IOpenTokService
                 HlsUrl = "N/A", // Placeholder
                 RtmpUrl = "N/A", // Placeholder
                 Status = OpenTokBroadcastStatus.Stopped, // Placeholder
-                CreatedAt = DateTime.UtcNow, // Placeholder
+                CreatedDate = DateTime.UtcNow, // Placeholder
                 StartedAt = DateTime.UtcNow, // Placeholder
                 StoppedAt = DateTime.UtcNow // Placeholder
             };
@@ -641,7 +641,7 @@ public class OpenTokService : IOpenTokService
                 AverageAudioQuality = 0.0,
                 AverageVideoQuality = 0.0,
                 AverageNetworkQuality = 0.0,
-                CreatedAt = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow
             };
 
             return new JsonModel

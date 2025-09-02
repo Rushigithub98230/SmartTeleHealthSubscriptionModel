@@ -23,8 +23,8 @@ namespace SmartTelehealth.Application.DTOs
         public decimal Rating { get; set; }
         public int ReviewCount { get; set; }
         public bool IsVerified { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime? UpdatedDate { get; set; }
         public string? StripeAccountId { get; set; }
         public string? StripeCustomerId { get; set; }
         public string FullName { get; set; } = string.Empty;

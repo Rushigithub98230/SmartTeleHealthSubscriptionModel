@@ -30,8 +30,8 @@ public class ProviderFeeDto
     public DateTime? ReviewedAt { get; set; }
     public int? ReviewedByUserId { get; set; }
     public string? ReviewedByUserName { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
 }
 
 public class ReviewProviderFeeDto
@@ -52,8 +52,8 @@ public class CategoryFeeRangeDto
     public decimal PlatformCommission { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
 }
 
 public class CreateCategoryFeeRangeDto

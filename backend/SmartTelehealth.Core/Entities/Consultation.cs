@@ -98,8 +98,8 @@ public class Consultation : BaseEntity
     public bool IsNoShow => Status == ConsultationStatus.NoShow;
     
     // Alias properties for backward compatibility
-    public DateTime? CreatedAt { get => CreatedDate; set => CreatedDate = value; }
-    public DateTime? UpdatedAt { get => UpdatedDate; set => UpdatedDate = value; }
+    public DateTime? CreatedDate { get => CreatedDate; set => CreatedDate = value; }
+    public DateTime? UpdatedDate { get => UpdatedDate; set => UpdatedDate = value; }
     
     [NotMapped]
     public TimeSpan? ActualDuration => StartedAt.HasValue && EndedAt.HasValue 

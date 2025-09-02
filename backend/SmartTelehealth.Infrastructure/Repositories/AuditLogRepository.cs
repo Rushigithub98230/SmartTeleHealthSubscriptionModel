@@ -91,6 +91,11 @@ namespace SmartTelehealth.Infrastructure.Repositories
             return await _context.AuditLogs.FirstOrDefaultAsync(a => a.Id == id);
         }
 
+        public async Task<AuditLog?> GetByEntityIdAsync(string entityId)
+        {
+            return await _context.AuditLogs.FirstOrDefaultAsync(a => a.EntityId == entityId);
+        }
+
         public async Task<IEnumerable<AuditLog>> GetWithFiltersAsync(string? action, int? userId, DateTime? startDate, DateTime? endDate, int page, int pageSize)
         {
             var query = _context.AuditLogs.AsQueryable();

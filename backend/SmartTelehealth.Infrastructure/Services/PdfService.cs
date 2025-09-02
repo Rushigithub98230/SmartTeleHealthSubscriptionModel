@@ -262,9 +262,9 @@ public class PdfService : IPdfService
                 });
 
                 // Content
-                foreach (var record in billingRecords.OrderByDescending(r => r.CreatedAt))
+                foreach (var record in billingRecords.OrderByDescending(r => r.CreatedDate))
                 {
-                    table.Cell().Text(record.CreatedAt.ToString("MMM dd, yyyy"));
+                    table.Cell().Text(record.CreatedDate.ToString("MMM dd, yyyy"));
                     table.Cell().AlignRight().Text($"${record.Amount:F2}");
                     table.Cell().AlignRight().Text(record.BillingStatusName);
                     table.Cell().AlignRight().Text("Subscription"); // Use default type since BillingRecordDto doesn't have Type

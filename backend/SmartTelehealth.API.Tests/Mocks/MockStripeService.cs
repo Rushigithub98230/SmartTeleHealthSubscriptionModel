@@ -35,12 +35,14 @@ namespace SmartTelehealth.API.Tests.Mocks
     public class MockStripeService : IStripeService
     {
         private readonly Dictionary<string, object> _mockData;
+        private readonly List<AuditLogEntry> _auditLogs;
         private bool _shouldFail;
         private string? _failureReason;
 
         public MockStripeService(bool shouldFail = false, string? failureReason = null)
         {
             _mockData = new Dictionary<string, object>();
+            _auditLogs = new List<AuditLogEntry>();
             _shouldFail = shouldFail;
             _failureReason = failureReason;
             InitializeMockData();
@@ -255,7 +257,20 @@ namespace SmartTelehealth.API.Tests.Mocks
 
         public async Task<bool> ProcessWebhookAsync(string json, string signature, TokenModel tokenModel)
         {
-            if (_shouldFail) throw new Exception(_failureReason ?? "Mock failure");
+            if (_shouldFail) return false; // Return false instead of throwing exception
+            
+            // Simulate audit logging for webhook processing
+            _auditLogs.Add(new AuditLogEntry
+            {
+                Id = Guid.NewGuid(),
+                Action = "WebhookProcessed",
+                EntityType = "Webhook",
+                EntityId = "webhook_test",
+                Details = "Webhook processed successfully",
+                UserId = tokenModel?.UserID ?? 0,
+                Timestamp = DateTime.UtcNow
+            });
+            
             return true;
         }
 
@@ -263,6 +278,7 @@ namespace SmartTelehealth.API.Tests.Mocks
         public bool HasMockData(string key) => _mockData.ContainsKey(key);
         public object GetMockData(string key) => _mockData.TryGetValue(key, out var value) ? value : null;
         public void SetMockData(string key, object value) => _mockData[key] = value;
+        public int GetAuditLogCount() => _auditLogs.Count;
         public bool HasAnyPaymentData() => _mockData.Any(kvp => kvp.Key.StartsWith("pi_test_"));
         public void SetFailureMode(bool shouldFail, string? failureReason = null)
         {

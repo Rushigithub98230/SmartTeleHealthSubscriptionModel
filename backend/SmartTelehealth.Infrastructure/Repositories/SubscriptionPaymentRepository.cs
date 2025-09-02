@@ -26,7 +26,7 @@ public class SubscriptionPaymentRepository : ISubscriptionPaymentRepository
         return await _context.SubscriptionPayments
             .Include(sp => sp.Subscription)
             .Where(sp => sp.SubscriptionId == subscriptionId)
-            .OrderByDescending(sp => sp.CreatedAt)
+            .OrderByDescending(sp => sp.CreatedDate)
             .ToListAsync();
     }
 
@@ -35,7 +35,7 @@ public class SubscriptionPaymentRepository : ISubscriptionPaymentRepository
         return await _context.SubscriptionPayments
             .Include(sp => sp.Subscription)
             .Where(sp => sp.Subscription.UserId == userId)
-            .OrderByDescending(sp => sp.CreatedAt)
+            .OrderByDescending(sp => sp.CreatedDate)
             .ToListAsync();
     }
 
@@ -44,14 +44,14 @@ public class SubscriptionPaymentRepository : ISubscriptionPaymentRepository
         return await _context.SubscriptionPayments
             .Include(sp => sp.Subscription)
             .Where(sp => sp.Status == status)
-            .OrderByDescending(sp => sp.CreatedAt)
+            .OrderByDescending(sp => sp.CreatedDate)
             .ToListAsync();
     }
 
     public async Task<SubscriptionPayment> CreateAsync(SubscriptionPayment payment)
     {
-        payment.CreatedAt = DateTime.UtcNow;
-        payment.UpdatedAt = DateTime.UtcNow;
+        payment.CreatedDate = DateTime.UtcNow;
+        payment.UpdatedDate = DateTime.UtcNow;
         
         _context.SubscriptionPayments.Add(payment);
         await _context.SaveChangesAsync();
@@ -60,7 +60,7 @@ public class SubscriptionPaymentRepository : ISubscriptionPaymentRepository
 
     public async Task<SubscriptionPayment> UpdateAsync(SubscriptionPayment payment)
     {
-        payment.UpdatedAt = DateTime.UtcNow;
+        payment.UpdatedDate = DateTime.UtcNow;
         
         _context.SubscriptionPayments.Update(payment);
         await _context.SaveChangesAsync();
@@ -88,7 +88,7 @@ public class SubscriptionPaymentRepository : ISubscriptionPaymentRepository
         return await _context.SubscriptionPayments
             .Include(sp => sp.Subscription)
             .Where(sp => sp.Status == SubscriptionPayment.PaymentStatus.Pending)
-            .OrderBy(sp => sp.CreatedAt)
+            .OrderBy(sp => sp.CreatedDate)
             .ToListAsync();
     }
 
@@ -97,7 +97,7 @@ public class SubscriptionPaymentRepository : ISubscriptionPaymentRepository
         return await _context.SubscriptionPayments
             .Include(sp => sp.Subscription)
             .Where(sp => sp.Status == SubscriptionPayment.PaymentStatus.Failed)
-            .OrderByDescending(sp => sp.CreatedAt)
+            .OrderByDescending(sp => sp.CreatedDate)
             .ToListAsync();
     }
 

@@ -11,8 +11,8 @@ public class PatientDto
     public bool IsVerified { get; set; }
     public bool IsEmailVerified { get; set; }
     public bool IsPhoneVerified { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public DateTime UpdatedDate { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public string? ProfilePicture { get; set; }
     public DateTime? DateOfBirth { get; set; }
