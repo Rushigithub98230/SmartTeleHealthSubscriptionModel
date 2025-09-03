@@ -14,20 +14,20 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IBillingRepository _billingRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IAuditService _auditService;
+      
     private readonly ILogger<SubscriptionAnalyticsService> _logger;
 
     public SubscriptionAnalyticsService(
         ISubscriptionRepository subscriptionRepository,
         IBillingRepository billingRepository,
         IUserRepository userRepository,
-        IAuditService auditService,
+          
         ILogger<SubscriptionAnalyticsService> logger)
     {
         _subscriptionRepository = subscriptionRepository;
         _billingRepository = billingRepository;
         _userRepository = userRepository;
-        _auditService = auditService;
+          
         _logger = logger;
     }
 

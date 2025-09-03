@@ -56,7 +56,7 @@ public class AutomatedBillingService : BackgroundService
         var subscriptionRepository = scope.ServiceProvider.GetRequiredService<ISubscriptionRepository>();
         var billingService = scope.ServiceProvider.GetRequiredService<IBillingService>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
-        var auditService = scope.ServiceProvider.GetRequiredService<IAuditService>();
+
         var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
 
         try
@@ -64,13 +64,13 @@ public class AutomatedBillingService : BackgroundService
             _logger.LogInformation("Starting automated billing cycle at {Time}", DateTime.UtcNow);
 
             // 1. Process subscriptions due for billing
-            await ProcessDueSubscriptionsAsync(subscriptionRepository, billingService, notificationService, auditService, userService);
+            await ProcessDueSubscriptionsAsync(subscriptionRepository, billingService, notificationService, userService);
 
             // 2. Process failed payment retries
-            await ProcessFailedPaymentRetriesAsync(subscriptionRepository, billingService, notificationService, auditService, userService);
+            await ProcessFailedPaymentRetriesAsync(subscriptionRepository, billingService, notificationService, userService);
 
             // 3. Reset usage counters for new billing cycles
-            await ResetUsageCountersAsync(subscriptionRepository, auditService);
+            await ResetUsageCountersAsync(subscriptionRepository);
 
             _logger.LogInformation("Completed automated billing cycle at {Time}", DateTime.UtcNow);
         }
@@ -85,7 +85,7 @@ public class AutomatedBillingService : BackgroundService
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         INotificationService notificationService,
-        IAuditService auditService,
+          
         IUserService userService)
     {
         try
@@ -104,19 +104,12 @@ public class AutomatedBillingService : BackgroundService
             {
                 try
                 {
-                    await ProcessSubscriptionBillingAsync(subscription, subscriptionRepository, billingService, notificationService, auditService, userService);
+                    await ProcessSubscriptionBillingAsync(subscription, subscriptionRepository, billingService, notificationService, userService);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error processing billing for subscription {SubscriptionId}", subscription.Id);
-                    await auditService.LogPaymentEventAsync(
-                        subscription.UserId,
-                        "BillingError",
-                        subscription.Id.ToString(),
-                        "Error",
-                        ex.Message,
-                        systemToken
-                    );
+
                 }
             }
         }
@@ -132,7 +125,7 @@ public class AutomatedBillingService : BackgroundService
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         INotificationService notificationService,
-        IAuditService auditService,
+          
         IUserService userService)
     {
         try
@@ -168,7 +161,7 @@ public class AutomatedBillingService : BackgroundService
                 _logger.LogError("Invalid billing result data for subscription {SubscriptionId}", subscription.Id);
                 return;
             }
-            var paymentResult = await ProcessPaymentWithRetryAsync(Guid.Parse(billingData2.Id.ToString()), billingService, auditService);
+            var paymentResult = await ProcessPaymentWithRetryAsync(Guid.Parse(billingData2.Id.ToString()), billingService);
 
             if (paymentResult.StatusCode == 200)
             {
@@ -196,14 +189,7 @@ public class AutomatedBillingService : BackgroundService
                     }
                 }
 
-                await auditService.LogPaymentEventAsync(
-                    subscription.UserId,
-                    "PaymentSuccess",
-                    subscription.Id.ToString(),
-                    "Success",
-                    null,
-                    systemToken
-                );
+
 
                 _logger.LogInformation("Successfully processed billing for subscription {SubscriptionId}", subscription.Id);
             }
@@ -211,7 +197,7 @@ public class AutomatedBillingService : BackgroundService
             {
                 // Handle failed payment with immediate suspension
                 var errorMessage = paymentResult.Message?.ToString() ?? "Unknown payment error";
-                await HandleFailedPaymentAsync(subscription, errorMessage, subscriptionRepository, billingService, notificationService, auditService, userService);
+                await HandleFailedPaymentAsync(subscription, errorMessage, subscriptionRepository, billingService, notificationService, userService);
             }
         }
         catch (Exception ex)
@@ -223,8 +209,7 @@ public class AutomatedBillingService : BackgroundService
 
     private async Task<JsonModel> ProcessPaymentWithRetryAsync(
         Guid billingRecordId,
-        IBillingService billingService,
-        IAuditService auditService)
+        IBillingService billingService)
     {
         // Create system-level token for background service operations
         var systemToken = new TokenModel
@@ -284,7 +269,7 @@ public class AutomatedBillingService : BackgroundService
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         INotificationService notificationService,
-        IAuditService auditService,
+          
         IUserService userService)
     {
         try
@@ -347,7 +332,7 @@ public class AutomatedBillingService : BackgroundService
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         INotificationService notificationService,
-        IAuditService auditService,
+          
         IUserService userService)
     {
         try
@@ -408,7 +393,7 @@ public class AutomatedBillingService : BackgroundService
                     {
                         continue;
                     }
-                    var paymentResult = await ProcessPaymentWithRetryAsync(Guid.Parse(billingData.Id.ToString()), billingService, auditService);
+                    var paymentResult = await ProcessPaymentWithRetryAsync(Guid.Parse(billingData.Id.ToString()), billingService);
 
                     if (paymentResult.StatusCode == 200)
                     {
@@ -434,14 +419,7 @@ public class AutomatedBillingService : BackgroundService
                             _logger.LogInformation("Subscription reactivated notification sent to user {UserId}", userId);
                         }
 
-                        await auditService.LogPaymentEventAsync(
-                            userIdInt,
-                            "PaymentRetrySuccess",
-                            subscriptionId,
-                            "Success",
-                            null,
-                            systemToken
-                        );
+
 
                         _logger.LogInformation("Successfully retried payment and reactivated subscription");
                     }
@@ -454,14 +432,7 @@ public class AutomatedBillingService : BackgroundService
                         await subscriptionRepository.UpdateAsync(subscription);
 
                         var errorMessage = paymentResult.Message?.ToString() ?? "Unknown error";
-                        await auditService.LogPaymentEventAsync(
-                            userIdInt,
-                            "PaymentRetryFailed",
-                            subscriptionId,
-                            "Failed",
-                            errorMessage,
-                            systemToken
-                        );
+
 
                         _logger.LogWarning("Payment retry failed for suspended subscription");
                     }
@@ -479,7 +450,7 @@ public class AutomatedBillingService : BackgroundService
         }
     }
 
-    private async Task ResetUsageCountersAsync(ISubscriptionRepository subscriptionRepository, IAuditService auditService)
+    private async Task ResetUsageCountersAsync(ISubscriptionRepository subscriptionRepository)
     {
         try
         {
@@ -500,14 +471,7 @@ public class AutomatedBillingService : BackgroundService
                     // Reset usage counters for new billing cycle
                     await subscriptionRepository.ResetUsageCountersAsync();
 
-                    await auditService.LogUserActionAsync(
-                        subscription.UserId,
-                        "UsageReset",
-                        "Subscription",
-                        subscription.Id.ToString(),
-                        "Usage counters reset for new billing cycle",
-                        systemToken
-                    );
+
 
                     _logger.LogInformation("Reset usage counters for subscription {SubscriptionId}", subscription.Id);
                 }

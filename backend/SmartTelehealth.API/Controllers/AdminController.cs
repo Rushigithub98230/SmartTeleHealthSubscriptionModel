@@ -80,7 +80,10 @@ public class AdminController : BaseController
         {
             parsedUserId = parsedId;
         }
-        return await _auditService.GetAuditLogsAsync(action, parsedUserId, startDate, endDate, page, pageSize, GetToken(HttpContext));
+        
+        var tokenModel = GetToken(HttpContext);
+        var response = await _auditService.GetAuditLogsByDateRangeAsync(startDate ?? DateTime.MinValue, endDate ?? DateTime.MaxValue, tokenModel);
+        return response;
     }
 
     /// <summary>

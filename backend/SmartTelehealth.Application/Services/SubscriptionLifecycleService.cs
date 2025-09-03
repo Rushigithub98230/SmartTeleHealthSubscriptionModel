@@ -11,18 +11,18 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly ISubscriptionStatusHistoryRepository _statusHistoryRepository;
-    private readonly IAuditService _auditService;
+      
     private readonly ILogger<SubscriptionLifecycleService> _logger;
 
     public SubscriptionLifecycleService(
         ISubscriptionRepository subscriptionRepository,
         ISubscriptionStatusHistoryRepository statusHistoryRepository,
-        IAuditService auditService,
+          
         ILogger<SubscriptionLifecycleService> logger)
     {
         _subscriptionRepository = subscriptionRepository;
         _statusHistoryRepository = statusHistoryRepository;
-        _auditService = auditService;
+          
         _logger = logger;
     }
 
@@ -68,12 +68,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "Activate", subscriptionId.ToString(), 
-                    $"Subscription activated from {oldStatus} to Active. Reason: {reason}", tokenModel);
-            }
+            
             
             _logger.LogInformation("Successfully activated subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -127,12 +122,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "Pause", subscriptionId.ToString(), 
-                    $"Subscription paused from {oldStatus} to Paused. Reason: {reason}", tokenModel);
-            }
+            
             
             _logger.LogInformation("Successfully paused subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -186,12 +176,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "Resume", subscriptionId.ToString(), 
-                    $"Subscription resumed from {oldStatus} to Active. Reason: {reason}", tokenModel);
-            }
+            
             
             _logger.LogInformation("Successfully resumed subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -246,12 +231,6 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "Cancel", subscriptionId.ToString(), 
-                    $"Subscription cancelled from {oldStatus} to Cancelled. Reason: {reason}", tokenModel);
-            }
             
             _logger.LogInformation("Successfully cancelled subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -305,12 +284,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "Suspend", subscriptionId.ToString(), 
-                    $"Subscription suspended from {oldStatus} to Suspended. Reason: {reason}", tokenModel);
-            }
+           
             
             _logger.LogInformation("Successfully suspended subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -365,12 +339,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "Renew", subscriptionId.ToString(), 
-                    $"Subscription renewed from {oldStatus} to Active. Reason: {reason}", tokenModel);
-            }
+            
             
             _logger.LogInformation("Successfully renewed subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -425,13 +394,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "Expire", subscriptionId.ToString(), 
-                    $"Subscription expired from {oldStatus} to Expired. Reason: {reason}", tokenModel);
-            }
-            
+           
             _logger.LogInformation("Successfully expired subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
         }
@@ -483,13 +446,6 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             });
 
             await _subscriptionRepository.UpdateAsync(subscription);
-            
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "PaymentFailed", subscriptionId.ToString(), 
-                    $"Subscription payment failed from {oldStatus} to PaymentFailed. Reason: {reason}", tokenModel);
-            }
             
             _logger.LogInformation("Successfully marked payment failed for subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -543,12 +499,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "PaymentSucceeded", subscriptionId.ToString(), 
-                    $"Subscription payment succeeded from {oldStatus} to Active. Reason: {reason}", tokenModel);
-            }
+            
             
             _logger.LogInformation("Successfully marked payment succeeded for subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
@@ -603,12 +554,6 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "StatusUpdate", subscriptionId.ToString(), 
-                    $"Subscription status updated from {oldStatus} to {newStatus}. Reason: {reason}", tokenModel);
-            }
             
             _logger.LogInformation("Successfully updated subscription {SubscriptionId} status to {NewStatus} by user {UserId}", 
                 subscriptionId, newStatus, tokenModel?.UserID ?? 0);
@@ -764,15 +709,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 
             await _subscriptionRepository.UpdateAsync(subscription);
 
-            // Audit log
-            await _auditService.LogUserActionAsync(
-                !string.IsNullOrEmpty(changedByUserId) ? int.Parse(changedByUserId) : 0,
-                "SubscriptionStateChange",
-                "Subscription",
-                subscriptionId,
-                $"Status changed from {oldStatus} to {newStatus}: {reason}",
-                tokenModel
-            );
+           
 
             _logger.LogInformation("Subscription {SubscriptionId} state changed from {OldStatus} to {NewStatus}", 
                 subscriptionId, oldStatus, newStatus);
@@ -1207,8 +1144,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             await _subscriptionRepository.UpdateAsync(subscription);
 
             // Log audit trail
-            await _auditService.LogActionAsync("Subscription", "TrialExtended", subscriptionId, 
-                $"Trial extended by {additionalDays} days. New end date: {newTrialEndDate:MMM dd, yyyy}. Reason: {reason}", null);
+           
 
             _logger.LogInformation("Trial extended for subscription {SubscriptionId} by {AdditionalDays} days", subscriptionId, additionalDays);
 

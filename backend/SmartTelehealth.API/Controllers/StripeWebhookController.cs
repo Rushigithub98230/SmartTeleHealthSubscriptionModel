@@ -19,7 +19,7 @@ public class StripeWebhookController : BaseController
     private readonly IBillingService _billingService;
     private readonly IBillingRepository _billingRepository;
     private readonly INotificationService _notificationService;
-    private readonly IAuditService _auditService;
+      
     private readonly IStripeService _stripeService;
     private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
     private readonly ILogger<StripeWebhookController> _logger;
@@ -32,7 +32,7 @@ public class StripeWebhookController : BaseController
         IBillingService billingService,
         IBillingRepository billingRepository,
         INotificationService notificationService,
-        IAuditService auditService,
+          
         IStripeService stripeService,
         ISubscriptionLifecycleService subscriptionLifecycleService,
         ILogger<StripeWebhookController> logger,
@@ -42,7 +42,7 @@ public class StripeWebhookController : BaseController
         _billingService = billingService;
         _billingRepository = billingRepository;
         _notificationService = notificationService;
-        _auditService = auditService;
+          
         _stripeService = stripeService;
         _subscriptionLifecycleService = subscriptionLifecycleService;
         _logger = logger;
@@ -73,23 +73,14 @@ public class StripeWebhookController : BaseController
         {
             // Check if this event has already been processed
             var eventId = stripeEvent.Id;
-            var isProcessed = await _auditService.IsEventProcessedAsync(eventId);
-            if (isProcessed)
-            {
-                _logger.LogInformation("Webhook event {EventId} already processed, skipping", eventId);
-                return new JsonModel { data = new object(), Message = "Event already processed", StatusCode = 200 };
-            }
-
-            // Mark event as being processed
-            await _auditService.LogActionAsync("Webhook", "Processing", eventId, 
-                $"Processing Stripe webhook event {stripeEvent.Type}", GetToken(HttpContext));
+                
+           
 
             // Process webhook with retry logic
             await ProcessWebhookWithRetryAsync(stripeEvent);
 
             // Mark event as successfully processed
-            await _auditService.LogActionAsync("Webhook", "Processed", eventId, 
-                $"Successfully processed Stripe webhook event {stripeEvent.Type}", GetToken(HttpContext));
+            
 
             return new JsonModel { data = new object(), Message = "Webhook processed successfully", StatusCode = 200 };
         }
@@ -98,8 +89,7 @@ public class StripeWebhookController : BaseController
             _logger.LogError(ex, "Error processing webhook event {EventId} of type {EventType}", stripeEvent.Id, stripeEvent.Type);
             
             // Mark event as failed
-            await _auditService.LogActionAsync("Webhook", "Failed", stripeEvent.Id, 
-                $"Failed to process Stripe webhook event {stripeEvent.Type}: {ex.Message}", GetToken(HttpContext));
+            
             
             throw; // Re-throw to trigger retry mechanism
         }
@@ -336,10 +326,7 @@ public class StripeWebhookController : BaseController
                         }, GetToken(HttpContext));
 
                         // Log payment success
-                        await _auditService.LogActionAsync("Subscription", "PaymentSucceeded", 
-                            subscriptionData.Id?.ToString(), 
-                            $"Payment succeeded for subscription {subscriptionId}. Invoice: {invoice.Number}", 
-                            GetToken(HttpContext));
+                        
 
                         _logger.LogInformation("Payment success handled for subscription {SubscriptionId}, invoice {InvoiceNumber}", 
                             subscriptionId, invoice.Number);
@@ -393,10 +380,7 @@ public class StripeWebhookController : BaseController
                         }, GetToken(HttpContext));
 
                         // Log payment failure
-                        await _auditService.LogActionAsync("Subscription", "PaymentFailed", 
-                            subscriptionData.Id?.ToString(), 
-                            $"Payment failed for subscription {subscriptionId}. Invoice: {invoice.Number}", 
-                            GetToken(HttpContext));
+                        
 
                         // Check if this is a trial subscription that needs special handling
                         if (subscriptionData.Status == "TrialActive")
@@ -460,11 +444,7 @@ public class StripeWebhookController : BaseController
                         Priority = "High"
                     }, GetToken(HttpContext));
 
-                    // Log trial ending event
-                    await _auditService.LogActionAsync("Subscription", "TrialEnding", 
-                        subscriptionData.Id?.ToString(), 
-                        $"Trial ending for subscription {subscription.Id} on {subscription.TrialEnd}", 
-                        GetToken(HttpContext));
+                    
 
                     _logger.LogInformation("Trial ending notification sent for subscription {SubscriptionId}", subscription.Id);
                 }
@@ -1089,11 +1069,8 @@ public class StripeWebhookController : BaseController
                         Priority = "High"
                     }, GetToken(HttpContext));
 
-                    // Log trial expiration
-                    await _auditService.LogActionAsync("Subscription", "TrialExpired", 
-                        subscriptionId, 
-                        $"Trial expired for subscription {subscriptionId} due to payment failure. Invoice: {invoiceNumber}", 
-                        GetToken(HttpContext));
+                   
+                   
 
                     _logger.LogInformation("Trial payment failure handled for subscription {SubscriptionId}", subscriptionId);
                 }
@@ -1118,8 +1095,7 @@ public class StripeWebhookController : BaseController
                 setupIntent.Id, setupIntent.CustomerId);
 
             // Log successful payment method setup
-            await _auditService.LogActionAsync("PaymentMethod", "SetupSucceeded", setupIntent.Id, 
-                $"Payment method setup succeeded for customer {setupIntent.CustomerId}", GetToken(HttpContext));
+           
         }
         catch (Exception ex)
         {
@@ -1137,9 +1113,8 @@ public class StripeWebhookController : BaseController
             _logger.LogWarning("Setup intent {SetupIntentId} failed for customer {CustomerId}: {FailureReason}", 
                 setupIntent.Id, setupIntent.CustomerId, setupIntent.LastSetupError?.Message);
 
-            // Log failed payment method setup
-            await _auditService.LogActionAsync("PaymentMethod", "SetupFailed", setupIntent.Id, 
-                $"Payment method setup failed for customer {setupIntent.CustomerId}: {setupIntent.LastSetupError?.Message}", GetToken(HttpContext));
+            
+            
         }
         catch (Exception ex)
         {
@@ -1197,9 +1172,7 @@ public class StripeWebhookController : BaseController
             _logger.LogInformation("Invoice {InvoiceId} created for customer {CustomerId}", 
                 invoice.Id, invoice.CustomerId);
 
-            // Log invoice creation
-            await _auditService.LogActionAsync("Invoice", "Created", invoice.Id, 
-                $"Invoice {invoice.Number} created for customer {invoice.CustomerId}", GetToken(HttpContext));
+           
         }
         catch (Exception ex)
         {
@@ -1229,9 +1202,7 @@ public class StripeWebhookController : BaseController
                 _logger.LogInformation("Invoice voided handled for billing record {BillingRecordId}", billingRecord.Id);
             }
 
-            // Log invoice voiding
-            await _auditService.LogActionAsync("Invoice", "Voided", invoice.Id, 
-                $"Invoice {invoice.Number} voided for customer {invoice.CustomerId}", GetToken(HttpContext));
+            
         }
         catch (Exception ex)
         {

@@ -12,20 +12,20 @@ public class AutomatedBillingService : IAutomatedBillingService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IBillingService _billingService;
     private readonly IStripeService _stripeService;
-    private readonly IAuditService _auditService;
+      
     private readonly ILogger<AutomatedBillingService> _logger;
 
     public AutomatedBillingService(
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         IStripeService stripeService,
-        IAuditService auditService,
+          
         ILogger<AutomatedBillingService> logger)
     {
         _subscriptionRepository = subscriptionRepository;
         _billingService = billingService;
         _stripeService = stripeService;
-        _auditService = auditService;
+          
         _logger = logger;
     }
 
@@ -149,12 +149,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             
             await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Log audit trail
-            if (tokenModel != null)
-            {
-                await _auditService.LogActionAsync("Subscription", "PlanChange", subscriptionId.ToString(), 
-                    $"Plan changed to {newPlanId} with prorated amount {proratedAmount}", tokenModel);
-            }
+            
             
             _logger.LogInformation("Successfully processed plan change for subscription {SubscriptionId} by user {UserId}", 
                 subscriptionId, tokenModel?.UserID ?? 0);
@@ -236,8 +231,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 // Log audit trail
                 if (tokenModel != null)
                 {
-                    await _auditService.LogActionAsync("Subscription", "PaymentSucceeded", subscriptionId.ToString(), 
-                        $"Payment processed successfully: {amount} {subscription.Currency}", tokenModel);
+                   
                 }
             }
             else
@@ -245,8 +239,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 // Log failed payment
                 if (tokenModel != null)
                 {
-                    await _auditService.LogActionAsync("Subscription", "PaymentFailed", subscriptionId.ToString(), 
-                        $"Payment failed: {paymentResult.ErrorMessage}", tokenModel);
+                    
                 }
             }
             

@@ -17,7 +17,7 @@ public class SubscriptionService : ISubscriptionService
     private readonly IStripeService _stripeService;
     private readonly IPrivilegeService _privilegeService;
     private readonly INotificationService _notificationService;
-    private readonly IAuditService _auditService;
+      
     private readonly IUserService _userService;
     private readonly ISubscriptionPlanPrivilegeRepository _planPrivilegeRepo;
     private readonly IUserSubscriptionPrivilegeUsageRepository _usageRepo;
@@ -32,7 +32,7 @@ public class SubscriptionService : ISubscriptionService
         IStripeService stripeService,
         IPrivilegeService privilegeService,
         INotificationService notificationService,
-        IAuditService auditService,
+          
         IUserService userService,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepo,
         IUserSubscriptionPrivilegeUsageRepository usageRepo,
@@ -46,7 +46,7 @@ public class SubscriptionService : ISubscriptionService
         _stripeService = stripeService ?? throw new ArgumentNullException(nameof(stripeService));
         _privilegeService = privilegeService ?? throw new ArgumentNullException(nameof(privilegeService));
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-        _auditService = auditService ?? throw new ArgumentNullException(nameof(auditService));
+      
         _userService = userService ?? throw new ArgumentNullException(nameof(userService));
         _planPrivilegeRepo = planPrivilegeRepo ?? throw new ArgumentNullException(nameof(planPrivilegeRepo));
         _usageRepo = usageRepo ?? throw new ArgumentNullException(nameof(usageRepo));
@@ -316,8 +316,7 @@ public class SubscriptionService : ISubscriptionService
                 _logger.LogInformation("Subscription confirmation, welcome emails, and created notification sent to {Email}", user.Email);
             }
             
-            // Audit log
-            await _auditService.LogUserActionAsync(createDto.UserId, "CreateSubscription", "Subscription", created.Id.ToString(), "Subscription created successfully with Stripe integration", tokenModel);
+
             
             _logger.LogInformation("Successfully created subscription {SubscriptionId} for user {UserId} with Stripe subscription {StripeSubscriptionId}", 
                 created.Id, createDto.UserId, stripeSubscriptionId);
@@ -549,8 +548,7 @@ public class SubscriptionService : ISubscriptionService
                 _logger.LogInformation("Subscription cancellation email sent to {Email}", ((UserDto)userResult.data).Email);
             }
             
-            // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "CancelSubscription", "Subscription", subscriptionId, $"Subscription cancelled with Stripe synchronization: {reason ?? "No reason provided"}", tokenModel);
+
             
             return new JsonModel { data = dto, Message = "Subscription cancelled successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -646,8 +644,7 @@ public class SubscriptionService : ISubscriptionService
                 _logger.LogInformation("Subscription pause notification email sent to {Email}", ((UserDto)userResult.data).Email);
             }
             
-            // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "PauseSubscription", "Subscription", subscriptionId, "Subscription paused with Stripe synchronization", tokenModel);
+
             
             return new JsonModel { data = dto, Message = "Subscription paused successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -740,8 +737,7 @@ public class SubscriptionService : ISubscriptionService
                 _logger.LogInformation("Subscription resume email sent to {Email}", ((UserDto)userResult.data).Email);
             }
             
-            // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "ResumeSubscription", "Subscription", subscriptionId, "Subscription resumed with Stripe synchronization", tokenModel);
+
             
             return new JsonModel { data = dto, Message = "Subscription resumed successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -827,8 +823,7 @@ public class SubscriptionService : ISubscriptionService
             
             var updated = await _subscriptionRepository.UpdateAsync(entity);
             
-            // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "UpgradeSubscription", "Subscription", subscriptionId, $"Upgraded from plan {oldPlanId} to {newPlanId} with Stripe synchronization", tokenModel);
+
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription upgraded successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -926,8 +921,7 @@ public class SubscriptionService : ISubscriptionService
                 ChangedAt = DateTime.UtcNow
             });
             
-            // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "ReactivateSubscription", "Subscription", subscriptionId, "Subscription reactivated with Stripe synchronization", tokenModel);
+
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -1158,8 +1152,7 @@ public class SubscriptionService : ISubscriptionService
             
             var updatedSubscription = await _subscriptionRepository.UpdateAsync(subscription);
             
-            // Audit log
-                            await _auditService.LogUserActionAsync(subscription.UserId, "UpdateSubscription", "Subscription", subscriptionId, "Subscription updated", tokenModel);
+
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updatedSubscription), Message = "Subscription updated successfully", StatusCode = 200 };
         }
@@ -1470,8 +1463,7 @@ public class SubscriptionService : ISubscriptionService
                 }
             }
 
-            // Audit log
-            await _auditService.LogUserActionAsync(tokenModel?.UserID ?? 0, "CreateSubscriptionPlan", "SubscriptionPlan", created.Id.ToString(), $"Created subscription plan '{created.Name}' with {createPlanDto.Privileges?.Count ?? 0} privileges", tokenModel);
+
 
             return new JsonModel { data = _mapper.Map<SubscriptionPlanDto>(created), Message = "Plan created successfully with privileges", StatusCode = 201 };
         }
@@ -1546,21 +1538,7 @@ public class SubscriptionService : ISubscriptionService
             plan.IsActive = false;
             await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
 
-            // Create audit log for plan deactivation
-            try
-            {
-                await _auditService.LogActionAsync(
-                    "SubscriptionPlan",
-                    "DeactivatePlan",
-                    planId,
-                    $"Plan '{plan.Name}' deactivated by admin user {tokenModel.UserID}",
-                    tokenModel
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to create audit log for plan deactivation {PlanId}", planId);
-            }
+           
 
             // Send notifications to all active subscribers of this plan
             var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
@@ -1770,7 +1748,6 @@ public class SubscriptionService : ISubscriptionService
             await _subscriptionRepository.UpdateAsync(subscription);
             
             // Create audit log
-            await _auditService.LogUserActionAsync(tokenModel?.UserID ?? 0, "CancelSubscription", "Subscription", subscriptionId, $"Subscription cancelled by admin: {reason ?? "No reason provided"}", tokenModel);
             
             return new JsonModel { data = true, Message = "Subscription cancelled successfully", StatusCode = 200 };
         }
@@ -1803,7 +1780,6 @@ public class SubscriptionService : ISubscriptionService
             await _subscriptionRepository.UpdateAsync(subscription);
             
             // Create audit log
-            await _auditService.LogUserActionAsync(tokenModel?.UserID ?? 0, "PauseSubscription", "Subscription", subscriptionId, "Subscription paused by admin", tokenModel);
             
             return new JsonModel { data = true, Message = "Subscription paused successfully", StatusCode = 200 };
         }
@@ -1895,7 +1871,6 @@ public class SubscriptionService : ISubscriptionService
             await _subscriptionRepository.UpdateAsync(subscription);
             
             // Audit log
-            await _auditService.LogUserActionAsync(subscription.UserId, "ExtendSubscription", "Subscription", subscriptionId, $"Subscription extended by {additionalDays} days with Stripe synchronization", tokenModel);
             
             return new JsonModel { data = true, Message = "Subscription extended successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -2259,13 +2234,7 @@ public class SubscriptionService : ISubscriptionService
             var updatedPlan = await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
             var dto = _mapper.Map<SubscriptionPlanDto>(updatedPlan);
 
-            await _auditService.LogActionAsync(
-                "SubscriptionPlan",
-                "SubscriptionPlanUpdated",
-                planId,
-                $"Updated plan: {updatedPlan.Name} with Stripe synchronization",
-                tokenModel
-            );
+           
 
             return new JsonModel { data = dto, Message = "Subscription plan updated successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -2332,13 +2301,7 @@ public class SubscriptionService : ISubscriptionService
             if (!result)
                 return new JsonModel { data = new object(), Message = "Failed to delete subscription plan", StatusCode = 500 };
 
-            await _auditService.LogActionAsync(
-                "SubscriptionPlan",
-                "SubscriptionPlanDeleted",
-                planId,
-                $"Deleted plan: {plan.Name} with Stripe cleanup",
-                tokenModel
-            );
+            
 
             return new JsonModel { data = true, Message = "Subscription plan deleted successfully", StatusCode = 200 };
         }
@@ -2446,7 +2409,6 @@ public class SubscriptionService : ISubscriptionService
             }
 
             // Audit log
-            await _auditService.LogPaymentEventAsync(entity.UserId, "PaymentFailed", subscriptionId, "Failed", reason, tokenModel);
 
             return new JsonModel { data = new object(), Message = $"Payment failed with Stripe synchronization: {reason}", StatusCode = 400 };
         }
@@ -2526,8 +2488,7 @@ public class SubscriptionService : ISubscriptionService
             
             await _subscriptionRepository.UpdateAsync(entity);
             
-            // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "RetryPayment", "Subscription", subscriptionId, "Payment retried and subscription reactivated with Stripe synchronization", tokenModel);
+           
             
             return new JsonModel { data = paymentResult, Message = "Payment retried and subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -2610,7 +2571,6 @@ public class SubscriptionService : ISubscriptionService
             await _subscriptionRepository.UpdateAsync(entity);
             
             // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "AutoRenewSubscription", "Subscription", subscriptionId, "Subscription auto-renewed with Stripe synchronization", tokenModel);
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(entity), Message = "Subscription auto-renewed successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -2707,7 +2667,6 @@ public class SubscriptionService : ISubscriptionService
             await _subscriptionRepository.UpdateAsync(entity);
             
             // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "ProrateUpgrade", "Subscription", subscriptionId, $"Subscription upgraded with proration from plan {entity.SubscriptionPlanId} to {newPlan.Id} with Stripe synchronization", tokenModel);
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(entity), Message = "Subscription upgraded with proration and Stripe synchronization", StatusCode = 200 };
         }
@@ -2857,7 +2816,6 @@ public class SubscriptionService : ISubscriptionService
                     await _notificationService.SendSubscriptionCancellationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, _mapper.Map<SubscriptionDto>(sub), tokenModel);
                     _logger.LogInformation("Subscription cancellation email sent to {Email}", ((UserDto)userResult.data).Email);
                 }
-                await _auditService.LogUserActionAsync(int.Parse(adminUserId), "BulkCancelSubscription", "Subscription", id, "Cancelled by admin", tokenModel);
                 cancelled++;
             }
         }
@@ -2884,7 +2842,6 @@ public class SubscriptionService : ISubscriptionService
                     await _notificationService.SendSubscriptionConfirmationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, _mapper.Map<SubscriptionDto>(sub), tokenModel);
                     _logger.LogInformation("Subscription confirmation email sent to {Email}", ((UserDto)userResult.data).Email);
                 }
-                await _auditService.LogUserActionAsync(int.Parse(adminUserId), "BulkUpgradeSubscription", "Subscription", id, $"Upgraded to plan {newPlanId}", tokenModel);
                 upgraded++;
             }
         }
@@ -2922,7 +2879,6 @@ public class SubscriptionService : ISubscriptionService
                         await _notificationService.SendPaymentSuccessEmailAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, billingRecord, tokenModel);
                         _logger.LogInformation("Payment success email sent to {Email}", ((UserDto)userResult.data).Email);
                     }
-                    await _auditService.LogPaymentEventAsync(sub.UserId, "PaymentSucceeded", subscriptionId, "Succeeded", null, tokenModel);
                 }
                 return new JsonModel { data = true, Message = "Payment success handled", StatusCode = 200 };
             }
@@ -3248,7 +3204,6 @@ public class SubscriptionService : ISubscriptionService
             var updated = await _subscriptionRepository.UpdateAsync(entity);
             
             // Audit log
-            await _auditService.LogUserActionAsync(entity.UserId, "ChangeBillingCycle", "Subscription", subscriptionId, $"Billing cycle changed from {oldBillingCycleId} to {newBillingCycleId} with Stripe synchronization", tokenModel);
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Billing cycle changed successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -3336,7 +3291,6 @@ public class SubscriptionService : ISubscriptionService
             }
 
             // Audit log
-            await _auditService.LogUserActionAsync(tokenModel?.UserID ?? 0, "AssignPrivilegesToPlan", "SubscriptionPlan", planId.ToString(), $"Assigned {assignedCount} privileges to plan", tokenModel);
 
             return new JsonModel { data = new object(), Message = $"Successfully assigned {assignedCount} privileges to plan", StatusCode = 200 };
         }
@@ -3379,7 +3333,6 @@ public class SubscriptionService : ISubscriptionService
             await _planPrivilegeRepo.UpdateAsync(planPrivilege);
 
             // Audit log
-            await _auditService.LogUserActionAsync(tokenModel?.UserID ?? 0, "RemovePrivilegeFromPlan", "SubscriptionPlan", planId.ToString(), $"Removed privilege {privilegeId} from plan", tokenModel);
 
             return new JsonModel { data = true, Message = "Privilege removed from plan successfully", StatusCode = 200 };
         }
@@ -3423,7 +3376,6 @@ public class SubscriptionService : ISubscriptionService
             await _planPrivilegeRepo.UpdateAsync(planPrivilege);
 
             // Audit log
-            await _auditService.LogUserActionAsync(tokenModel?.UserID ?? 0, "UpdatePlanPrivilege", "SubscriptionPlan", planId.ToString(), $"Updated privilege {privilegeId} in plan", tokenModel);
 
             return new JsonModel { data = true, Message = "Plan privilege updated successfully", StatusCode = 200 };
         }

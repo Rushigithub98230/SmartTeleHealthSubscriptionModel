@@ -13,7 +13,7 @@ namespace SmartTelehealth.Infrastructure.Services
     {
         private readonly IMemoryCache _cache;
         private readonly ILogger<PaymentSecurityService> _logger;
-        private readonly IAuditService _auditService;
+          
         private readonly Dictionary<string, int> _paymentAttempts = new();
         private readonly object _lockObject = new object();
 
@@ -24,7 +24,7 @@ namespace SmartTelehealth.Infrastructure.Services
         {
             _cache = cache;
             _logger = logger;
-            _auditService = auditService;
+              
         }
 
         public async Task<bool> ValidatePaymentRequestAsync(string userId, string ipAddress, decimal amount, TokenModel tokenModel)
@@ -37,8 +37,7 @@ namespace SmartTelehealth.Infrastructure.Services
                 // Check rate limiting
                 if (!await CheckRateLimitAsync(userId, ipAddress, tokenModel))
                 {
-                    await _auditService.LogSecurityEventAsync(int.Parse(userId), "PaymentRateLimitExceeded", 
-                        $"Rate limit exceeded for user {userId} from IP {ipAddress}", null, tokenModel);
+                    
                     _logger.LogWarning("Rate limit exceeded for user {UserId} by user {TokenUserId}", userId, tokenModel.UserID);
                     return false;
                 }
@@ -46,8 +45,7 @@ namespace SmartTelehealth.Infrastructure.Services
                 // Check for suspicious activity
                 if (await DetectSuspiciousActivityAsync(userId, ipAddress, amount, tokenModel))
                 {
-                    await _auditService.LogSecurityEventAsync(int.Parse(userId), "SuspiciousPaymentDetected", 
-                        $"Suspicious payment activity detected for user {userId} from IP {ipAddress}", null, tokenModel);
+                   
                     _logger.LogWarning("Suspicious payment activity detected for user {UserId} by user {TokenUserId}", userId, tokenModel.UserID);
                     return false;
                 }
@@ -55,15 +53,12 @@ namespace SmartTelehealth.Infrastructure.Services
                 // Check amount limits
                 if (!await ValidateAmountLimitsAsync(userId, amount, tokenModel))
                 {
-                    await _auditService.LogSecurityEventAsync(int.Parse(userId), "PaymentAmountLimitExceeded", 
-                        $"Amount limit exceeded for user {userId}: {amount}", null, tokenModel);
+                   
                     _logger.LogWarning("Amount limit exceeded for user {UserId} by user {TokenUserId}: {Amount}", userId, tokenModel.UserID, amount);
                     return false;
                 }
 
-                // Log successful validation
-                await _auditService.LogSecurityEventAsync(int.Parse(userId), "PaymentRequestValidated", 
-                    $"Payment request validated for user {userId}", null, tokenModel);
+               
 
                 _logger.LogInformation("Payment request validated successfully for user {UserId} by user {TokenUserId}", userId, tokenModel.UserID);
                 return true;
@@ -219,16 +214,7 @@ namespace SmartTelehealth.Infrastructure.Services
                 var attempts = await GetAttemptsAsync(cacheKey);
                 _cache.Set(cacheKey, attempts + 1, TimeSpan.FromHours(1));
 
-                // Log to audit service
-                if (tokenModel != null)
-                {
-                    var action = success ? "PaymentAttemptSuccess" : "PaymentAttemptFailed";
-                    var description = success ? 
-                        $"Payment attempt successful: {amount}" : 
-                        $"Payment attempt failed: {amount} - {errorMessage}";
-                    
-                    await _auditService.LogPaymentEventAsync(int.Parse(userId), action, null, success ? "success" : "failed", errorMessage, tokenModel);
-                }
+                
 
                 _logger.LogInformation("Payment attempt logged successfully for user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
             }

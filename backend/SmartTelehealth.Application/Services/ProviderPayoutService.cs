@@ -16,21 +16,21 @@ namespace SmartTelehealth.Application.Services
     {
         private readonly IProviderPayoutRepository _providerPayoutRepository;
         private readonly IProviderRepository _providerRepository;
-        private readonly IAuditService _auditService;
+          
         private readonly INotificationService _notificationService;
         private readonly IMapper _mapper;
         private readonly ILogger<ProviderPayoutService> _logger;
         public ProviderPayoutService(
             IProviderPayoutRepository providerPayoutRepository,
             IProviderRepository providerRepository,
-            IAuditService auditService,
+              
             INotificationService notificationService,
             IMapper mapper,
             ILogger<ProviderPayoutService> logger)
         {
             _providerPayoutRepository = providerPayoutRepository;
             _providerRepository = providerRepository;
-            _auditService = auditService;
+              
             _notificationService = notificationService;
             _mapper = mapper;
             _logger = logger;
@@ -249,7 +249,6 @@ namespace SmartTelehealth.Application.Services
                         _logger.LogError(ex, $"Error processing payout {payout.Id}");
                     }
                 }
-                await _auditService.LogActionAsync("ProviderPayout", "ProcessAll", "System", $"Processed {processedCount} pending payouts", tokenModel);
                 return new JsonModel
                 {
                     data = true,
@@ -286,7 +285,6 @@ namespace SmartTelehealth.Application.Services
                 };
                 var createdPeriod = await _providerPayoutRepository.AddPeriodAsync();
                 var periodDto = _mapper.Map<PayoutPeriodDto>(createdPeriod);
-                await _auditService.LogActionAsync("PayoutPeriod", "Create", "System", $"Created payout period {createDto.Name}", tokenModel);
                 return new JsonModel
                 {
                     data = periodDto,

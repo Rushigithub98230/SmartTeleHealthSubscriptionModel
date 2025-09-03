@@ -247,31 +247,6 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate))
             .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => src.UpdatedDate));
 
-        // AuditLog mappings
-        CreateMap<CreateAuditLogDto, AuditLog>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.NewGuid()))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.UserId))
-            .ForMember(dest => dest.Action, opt => opt.MapFrom(src => src.Action))
-            .ForMember(dest => dest.EntityType, opt => opt.MapFrom(src => src.EntityType))
-            .ForMember(dest => dest.EntityId, opt => opt.MapFrom(src => src.EntityId))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ForMember(dest => dest.OldValues, opt => opt.MapFrom(src => src.OldValues))
-            .ForMember(dest => dest.NewValues, opt => opt.MapFrom(src => src.NewValues))
-            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status))
-            .ForMember(dest => dest.ErrorMessage, opt => opt.MapFrom(src => src.ErrorMessage))
-            .ForMember(dest => dest.Timestamp, opt => opt.MapFrom(src => DateTime.UtcNow));
 
-        CreateMap<AuditLog, AuditLogDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.UserId))
-            .ForMember(dest => dest.Action, opt => opt.MapFrom(src => src.Action))
-            .ForMember(dest => dest.EntityType, opt => opt.MapFrom(src => src.EntityType))
-            .ForMember(dest => dest.EntityId, opt => opt.MapFrom(src => src.EntityId))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
-            .ForMember(dest => dest.OldValues, opt => opt.MapFrom(src => src.OldValues))
-            .ForMember(dest => dest.NewValues, opt => opt.MapFrom(src => src.NewValues))
-            .ForMember(dest => dest.IpAddress, opt => opt.MapFrom(src => src.IpAddress))
-            .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate));
     }
 } 

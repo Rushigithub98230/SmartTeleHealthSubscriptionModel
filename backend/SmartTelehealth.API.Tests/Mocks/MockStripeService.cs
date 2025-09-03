@@ -35,14 +35,14 @@ namespace SmartTelehealth.API.Tests.Mocks
     public class MockStripeService : IStripeService
     {
         private readonly Dictionary<string, object> _mockData;
-        private readonly List<AuditLogEntry> _auditLogs;
+        private readonly List<AuditLogDto> _auditLogs;
         private bool _shouldFail;
         private string? _failureReason;
 
         public MockStripeService(bool shouldFail = false, string? failureReason = null)
         {
             _mockData = new Dictionary<string, object>();
-            _auditLogs = new List<AuditLogEntry>();
+            _auditLogs = new List<AuditLogDto>();
             _shouldFail = shouldFail;
             _failureReason = failureReason;
             InitializeMockData();
@@ -260,15 +260,18 @@ namespace SmartTelehealth.API.Tests.Mocks
             if (_shouldFail) return false; // Return false instead of throwing exception
             
             // Simulate audit logging for webhook processing
-            _auditLogs.Add(new AuditLogEntry
+            _auditLogs.Add(new AuditLogDto
             {
-                Id = Guid.NewGuid(),
-                Action = "WebhookProcessed",
-                EntityType = "Webhook",
-                EntityId = "webhook_test",
-                Details = "Webhook processed successfully",
+                Id = 1,
                 UserId = tokenModel?.UserID ?? 0,
-                Timestamp = DateTime.UtcNow
+                Type = "WebhookProcessed",
+                TableName = "Webhook",
+                DateTime = DateTime.UtcNow,
+                OldValues = null,
+                NewValues = "Webhook processed successfully",
+                AffectedColumns = null,
+                PrimaryKey = "webhook_test",
+                OrganizationId = null
             });
             
             return true;

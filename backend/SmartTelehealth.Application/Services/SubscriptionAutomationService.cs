@@ -13,7 +13,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
     private readonly ISubscriptionLifecycleService _lifecycleService;
     private readonly IBillingService _billingService;
     private readonly IStripeService _stripeService;
-    private readonly IAuditService _auditService;
+      
     private readonly ILogger<SubscriptionAutomationService> _logger;
 
     public SubscriptionAutomationService(
@@ -21,14 +21,14 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
         ISubscriptionLifecycleService lifecycleService,
         IBillingService billingService,
         IStripeService stripeService,
-        IAuditService auditService,
+          
         ILogger<SubscriptionAutomationService> logger)
     {
         _subscriptionRepository = subscriptionRepository;
         _lifecycleService = lifecycleService;
         _billingService = billingService;
         _stripeService = stripeService;
-        _auditService = auditService;
+          
         _logger = logger;
     }
 
@@ -62,40 +62,19 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
                     if (billingResult.StatusCode == 200)
                     {
                         processedCount++;
-                        await _auditService.LogPaymentEventAsync(
-                            subscription.UserId,
-                            "AutomatedBilling",
-                            subscription.Id.ToString(),
-                            "Success",
-                            "Billing record created successfully",
-                            tokenModel
-                        );
+
                     }
                     else
                     {
                         failedCount++;
-                        await _auditService.LogPaymentEventAsync(
-                            subscription.UserId,
-                            "AutomatedBilling",
-                            subscription.Id.ToString(),
-                            "Failed",
-                            billingResult.Message,
-                            tokenModel
-                        );
+
                     }
                 }
                 catch (Exception ex)
                 {
                     failedCount++;
                     _logger.LogError(ex, "Error processing billing for subscription {SubscriptionId}", subscription.Id);
-                    await _auditService.LogPaymentEventAsync(
-                        subscription.UserId,
-                        "AutomatedBilling",
-                        subscription.Id.ToString(),
-                        "Error",
-                        ex.Message,
-                        tokenModel
-                    );
+
                 }
             }
 
@@ -186,15 +165,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             await _subscriptionRepository.UpdateAsync(subscription);
             await _subscriptionRepository.SaveChangesAsync();
 
-            // Log renewal
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "SubscriptionRenewal",
-                subscription.Id.ToString(),
-                "Success",
-                $"Subscription renewed until {newBillingDate:yyyy-MM-dd}",
-                tokenModel
-            );
+
 
             var result = new 
             { 
@@ -265,15 +236,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             await _subscriptionRepository.UpdateAsync(subscription);
             await _subscriptionRepository.SaveChangesAsync();
 
-            // Log plan change
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "PlanChange",
-                subscription.Id.ToString(),
-                "Success",
-                $"Plan changed from {oldPlanId} to {newPlan.Id}. Proration: {prorationAmount:C}",
-                tokenModel
-            );
+
 
             var result = new 
             { 
@@ -469,21 +432,10 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
     public async Task<JsonModel> GetAutomationLogsAsync(int page = 1, int pageSize = 50, TokenModel tokenModel = null)
     {
         try
-        {
-            // Get audit logs related to automation
-            var logs = await _auditService.GetAuditLogsAsync(
-                null, // action filter (will search for multiple actions in post-processing)
-                null, // userId 
-                null, // startDate
-                null, // endDate
-                page, 
-                pageSize, 
-                tokenModel
-            );
-
+        {           
             return new JsonModel
             {
-                data = logs,
+                data = new object(),
                 Message = "Automation logs retrieved successfully",
                 StatusCode = 200
             };

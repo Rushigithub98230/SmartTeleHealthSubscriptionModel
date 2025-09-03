@@ -13,20 +13,20 @@ public class InvoiceService : IInvoiceService
     private readonly IBillingRepository _billingRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IAuditService _auditService;
+      
     private readonly ILogger<InvoiceService> _logger;
 
     public InvoiceService(
         IBillingRepository billingRepository,
         ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
-        IAuditService auditService,
+          
         ILogger<InvoiceService> logger)
     {
         _billingRepository = billingRepository;
         _subscriptionRepository = subscriptionRepository;
         _userRepository = userRepository;
-        _auditService = auditService;
+          
         _logger = logger;
     }
 
@@ -67,15 +67,7 @@ public class InvoiceService : IInvoiceService
             await _billingRepository.UpdateAsync(billingRecord);
             await _billingRepository.SaveChangesAsync();
 
-            // Log invoice generation
-            await _auditService.LogPaymentEventAsync(
-                billingRecord.UserId,
-                "InvoiceGenerated",
-                billingRecord.Id.ToString(),
-                "Success",
-                $"Invoice {invoiceNumber} generated successfully",
-                tokenModel
-            );
+            
 
             var result = new
             {
@@ -276,15 +268,7 @@ public class InvoiceService : IInvoiceService
                 FileSize = fileContent.Length
             };
 
-            // Log download
-            await _auditService.LogPaymentEventAsync(
-                billingRecord.UserId,
-                "InvoiceDownloaded",
-                billingRecord.Id.ToString(),
-                "Success",
-                $"Invoice {invoiceNumber} downloaded in {format} format",
-                tokenModel
-            );
+            
 
             return new JsonModel
             {
@@ -338,16 +322,7 @@ public class InvoiceService : IInvoiceService
             // Generate PDF for email
             var pdfContent = await GeneratePdfInvoiceAsync(invoiceContent);
             
-            // TODO: Implement email service to send invoice
-            // For now, just log the action
-            await _auditService.LogPaymentEventAsync(
-                billingRecord.UserId,
-                "InvoiceSent",
-                billingRecord.Id.ToString(),
-                "Success",
-                $"Invoice {invoiceNumber} sent to {email}",
-                tokenModel
-            );
+           
 
             var result = new
             {

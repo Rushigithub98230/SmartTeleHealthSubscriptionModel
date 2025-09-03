@@ -15,7 +15,7 @@ public class BillingService : IBillingService
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepository;
     private readonly ILogger<BillingService> _logger;
-    private readonly IAuditService _auditService;
+      
     
     // Retry configuration
     private readonly int _maxRetryAttempts = 3;
@@ -36,7 +36,7 @@ public class BillingService : IBillingService
         _notificationService = notificationService;
         _userRepository = userRepository;
         _logger = logger;
-        _auditService = auditService;
+          
     }
     
     public async Task<JsonModel> CreateBillingRecordAsync(CreateBillingRecordDto createDto, TokenModel tokenModel)
@@ -58,15 +58,7 @@ public class BillingService : IBillingService
             var createdRecord = await _billingRepository.CreateAsync(billingRecord);
             var billingRecordDto = MapToDto(createdRecord);
             
-            await _auditService.LogPaymentEventAsync(
-                createDto.UserId,
-                "BillingRecordCreated",
-                createdRecord.Id.ToString(),
-                "Success",
-                null,
-                tokenModel
-            );
-            
+         
             return new JsonModel
             {
                 data = billingRecordDto,
@@ -77,14 +69,7 @@ public class BillingService : IBillingService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating billing record for user {UserId}", createDto.UserId);
-            await _auditService.LogPaymentEventAsync(
-                createDto.UserId,
-                "BillingRecordCreationFailed",
-                "N/A",
-                "Failed",
-                ex.Message,
-                tokenModel
-            );
+           
             return new JsonModel
             {
                 data = new object(),
@@ -151,7 +136,6 @@ public class BillingService : IBillingService
                 await _billingRepository.UpdateAsync(billingRecord);
                 
                 await SendPaymentNotificationsAsync(MapToDto(billingRecord), false, tokenModel);
-                await _auditService.LogPaymentEventAsync(billingRecord.UserId, "PaymentFailed", billingRecord.Id.ToString(), "Failed", "No default payment method", tokenModel);
                 
                 return new JsonModel
                 {
@@ -187,15 +171,7 @@ public class BillingService : IBillingService
                 // Send success notifications
                 await SendPaymentNotificationsAsync(billingRecordDto, true, tokenModel);
 
-                // AUDIT LOG: Payment success
-                await _auditService.LogPaymentEventAsync(
-                    billingRecord.UserId,
-                    "PaymentSuccess",
-                    billingRecord.Id.ToString(),
-                    "Success",
-                    null,
-                    tokenModel
-                );
+               
 
                 return new JsonModel
                 {
@@ -242,14 +218,7 @@ public class BillingService : IBillingService
                     var billingRecordDto = MapToDto(billingRecord);
                     await SendPaymentNotificationsAsync(billingRecordDto, false, tokenModel);
                     
-                    await _auditService.LogPaymentEventAsync(
-                        billingRecord.UserId,
-                        "PaymentFailed",
-                        billingRecord.Id.ToString(),
-                        "Failed",
-                        ex.Message,
-                        tokenModel
-                    );
+                    
                 }
             }
             catch (Exception updateEx)
@@ -280,15 +249,7 @@ public class BillingService : IBillingService
         // Send failure notifications
         await SendPaymentNotificationsAsync(billingRecordDto, false, tokenModel);
 
-        // AUDIT LOG: Payment failure
-        await _auditService.LogPaymentEventAsync(
-            billingRecord.UserId,
-            "PaymentFailed",
-            billingRecord.Id.ToString(),
-            "Failed",
-            paymentResult.ErrorMessage,
-            tokenModel
-        );
+        
 
         // Check if we should retry
         if (attempt < _maxRetryAttempts)
@@ -467,15 +428,7 @@ public class BillingService : IBillingService
                 // Send refund notification
                 await SendRefundNotificationAsync(billingRecord, amount, reason, tokenModel);
 
-                // Audit log
-                await _auditService.LogPaymentEventAsync(
-                    billingRecord.UserId,
-                    "RefundProcessed",
-                    billingRecord.Id.ToString(),
-                    "Success",
-                    reason,
-                    tokenModel
-                );
+               
 
                 return new JsonModel
                 {
@@ -821,7 +774,6 @@ public class BillingService : IBillingService
         };
         var createdRecord = await _billingRepository.CreateAsync(billingRecord);
         var billingRecordDto = MapToDto(createdRecord);
-        await _auditService.LogPaymentEventAsync(createDto.UserId, "RecurringBillingCreated", createdRecord.Id.ToString(), "Success", null, tokenModel);
         return new JsonModel
         {
             data = billingRecordDto,
@@ -873,7 +825,7 @@ public class BillingService : IBillingService
         };
         var createdRecord = await _billingRepository.CreateAsync(billingRecord);
         var billingRecordDto = MapToDto(createdRecord);
-        await _auditService.LogPaymentEventAsync(createDto.UserId, "UpfrontPaymentCreated", createdRecord.Id.ToString(), "Success", null, tokenModel);
+       
         return new JsonModel
         {
             data = billingRecordDto,
@@ -896,7 +848,6 @@ public class BillingService : IBillingService
         };
         var createdRecord = await _billingRepository.CreateAsync(billingRecord);
         var billingRecordDto = MapToDto(createdRecord);
-        await _auditService.LogPaymentEventAsync(createDto.UserId, "BundlePaymentProcessed", createdRecord.Id.ToString(), "Success", null, tokenModel);
         return new JsonModel
         {
             data = billingRecordDto,
@@ -919,7 +870,6 @@ public class BillingService : IBillingService
         billingRecord.UpdatedDate = DateTime.UtcNow;
         await _billingRepository.UpdateAsync(billingRecord);
         var billingRecordDto = MapToDto(billingRecord);
-        await _auditService.LogPaymentEventAsync(billingRecord.UserId, "BillingAdjustmentApplied", billingRecord.Id.ToString(), "Success", null, tokenModel);
         return new JsonModel
         {
             data = billingRecordDto,
@@ -991,7 +941,6 @@ public class BillingService : IBillingService
         billingRecord.UpdatedDate = DateTime.UtcNow;
         await _billingRepository.UpdateAsync(billingRecord);
         var billingRecordDto = MapToDto(billingRecord);
-        await _auditService.LogPaymentEventAsync(billingRecord.UserId, "PartialPaymentProcessed", billingRecord.Id.ToString(), "Success", null, tokenModel);
         return new JsonModel
         {
             data = billingRecordDto,
@@ -1012,7 +961,6 @@ public class BillingService : IBillingService
         };
         var createdRecord = await _billingRepository.CreateAsync(billingRecord);
         var billingRecordDto = MapToDto(createdRecord);
-        await _auditService.LogPaymentEventAsync(createDto.UserId, "InvoiceCreated", createdRecord.Id.ToString(), "Success", null, tokenModel);
         return new JsonModel
         {
             data = billingRecordDto,
@@ -1119,7 +1067,6 @@ public class BillingService : IBillingService
         };
         var createdRecord = await _billingRepository.CreateAsync(billingRecord);
         var billingRecordDto = MapToDto(createdRecord);
-        await _auditService.LogPaymentEventAsync(userId, "BillingCycleCreated", createdRecord.Id.ToString(), "Success", null, tokenModel);
         return new JsonModel
         {
             data = billingRecordDto,
@@ -1411,14 +1358,7 @@ public class BillingService : IBillingService
                 billingRecord.Status = BillingRecord.BillingStatus.Refunded;
                 var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
 
-                await _auditService.LogPaymentEventAsync(
-                    billingRecord.UserId,
-                    "RefundProcessed",
-                    billingRecordId.ToString(),
-                    "Success",
-                    null,
-                    tokenModel
-                );
+                
 
                 return new JsonModel
                 {

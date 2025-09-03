@@ -14,7 +14,7 @@ public class SubscriptionManagementController : BaseController
     private readonly ISubscriptionService _subscriptionService;
     private readonly ICategoryService _categoryService;
     private readonly IAnalyticsService _analyticsService;
-    private readonly IAuditService _auditService;
+      
 
     public SubscriptionManagementController(
         ISubscriptionService subscriptionService,
@@ -25,7 +25,7 @@ public class SubscriptionManagementController : BaseController
         _subscriptionService = subscriptionService;
         _categoryService = categoryService;
         _analyticsService = analyticsService;
-        _auditService = auditService;
+          
     }
 
     #region Subscription Plans Management

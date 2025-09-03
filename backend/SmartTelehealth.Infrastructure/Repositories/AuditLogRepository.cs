@@ -21,102 +21,99 @@ namespace SmartTelehealth.Infrastructure.Repositories
             return auditLog;
         }
 
-        public async Task<IEnumerable<AuditLog>> GetByUserIdAsync(int userId)
+        public async Task<AuditLog?> GetByIdAsync(int id)
         {
-            return await _context.AuditLogs
-                .Where(a => a.UserId == userId)
-                .OrderByDescending(a => a.Timestamp)
-                .ToListAsync();
-        }
-
-        public async Task<IEnumerable<AuditLog>> GetByEntityTypeAsync(string entityType)
-        {
-            return await _context.AuditLogs
-                .Where(a => a.EntityType == entityType)
-                .OrderByDescending(a => a.Timestamp)
-                .ToListAsync();
+            return await _context.AuditLogs.FirstOrDefaultAsync(a => a.Id == id);
         }
 
         public async Task<IEnumerable<AuditLog>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)
         {
             return await _context.AuditLogs
-                .Where(a => a.Timestamp >= startDate && a.Timestamp <= endDate)
-                .OrderByDescending(a => a.Timestamp)
+                .Where(a => a.DateTime >= startDate && a.DateTime <= endDate)
+                .OrderByDescending(a => a.DateTime)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<AuditLog>> GetByActionAsync(string action)
+        public async Task<IEnumerable<AuditLog>> GetDatabaseAuditTrailAsync(string tableName, string? entityId = null)
         {
-            return await _context.AuditLogs
-                .Where(a => a.Action == action)
-                .OrderByDescending(a => a.Timestamp)
+            var query = _context.AuditLogs
+                .Where(a => a.TableName == tableName);
+
+            if (!string.IsNullOrEmpty(entityId))
+            {
+                query = query.Where(a => a.PrimaryKey.Contains(entityId));
+            }
+
+            return await query
+                .OrderByDescending(a => a.DateTime)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<AuditLog>> GetByStatusAsync(string status)
+        public async Task<IEnumerable<AuditLog>> GetUserDatabaseAuditTrailAsync(int userId, DateTime? fromDate = null, DateTime? toDate = null)
         {
-            return await _context.AuditLogs
-                .Where(a => a.Status == status)
-                .OrderByDescending(a => a.Timestamp)
+            var query = _context.AuditLogs
+                .Where(a => a.UserId == userId);
+
+            if (fromDate.HasValue)
+                query = query.Where(a => a.DateTime >= fromDate.Value);
+
+            if (toDate.HasValue)
+                query = query.Where(a => a.DateTime <= toDate.Value);
+
+            return await query
+                .OrderByDescending(a => a.DateTime)
                 .ToListAsync();
         }
 
-        public async Task<int> GetCountByUserIdAsync(int userId)
+        public async Task<IEnumerable<AuditLog>> GetEntityChangeHistoryAsync(string tableName, string entityId)
         {
             return await _context.AuditLogs
-                .CountAsync(a => a.UserId == userId);
-        }
-
-        public async Task<IEnumerable<AuditLog>> GetRecentAsync(int count = 100)
-        {
-            return await _context.AuditLogs
-                .OrderByDescending(a => a.Timestamp)
-                .Take(count)
+                .Where(a => a.TableName == tableName && 
+                           a.PrimaryKey.Contains(entityId))
+                .OrderByDescending(a => a.DateTime)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<AuditLog>> SearchAsync(string searchTerm)
-        {
-            return await _context.AuditLogs
-                .Where(a => a.Action.Contains(searchTerm) || 
-                           a.EntityType.Contains(searchTerm) || 
-                           a.Description.Contains(searchTerm) ||
-                           a.UserEmail.Contains(searchTerm))
-                .OrderByDescending(a => a.Timestamp)
-                .ToListAsync();
-        }
-
-        public async Task<AuditLog?> GetByIdAsync(Guid id)
-        {
-            return await _context.AuditLogs.FirstOrDefaultAsync(a => a.Id == id);
-        }
-
-        public async Task<AuditLog?> GetByEntityIdAsync(string entityId)
-        {
-            return await _context.AuditLogs.FirstOrDefaultAsync(a => a.EntityId == entityId);
-        }
-
-        public async Task<IEnumerable<AuditLog>> GetWithFiltersAsync(string? action, int? userId, DateTime? startDate, DateTime? endDate, int page, int pageSize)
+        public async Task<object> GetAuditStatisticsAsync(DateTime? fromDate = null, DateTime? toDate = null)
         {
             var query = _context.AuditLogs.AsQueryable();
 
-            if (!string.IsNullOrEmpty(action))
-                query = query.Where(a => a.Action == action);
+            if (fromDate.HasValue)
+                query = query.Where(a => a.DateTime >= fromDate.Value);
 
-            if (userId.HasValue)
-                query = query.Where(a => a.UserId == userId.Value);
+            if (toDate.HasValue)
+                query = query.Where(a => a.DateTime <= toDate.Value);
 
-            if (startDate.HasValue)
-                query = query.Where(a => a.Timestamp >= startDate.Value);
+            var statistics = new
+            {
+                TotalChanges = await query.CountAsync(),
+                CreateCount = await query.CountAsync(a => a.Type == "Create"),
+                UpdateCount = await query.CountAsync(a => a.Type == "Update"),
+                DeleteCount = await query.CountAsync(a => a.Type == "Delete"),
+                MostChangedTables = await query
+                    .GroupBy(a => a.TableName)
+                    .Select(g => new { TableName = g.Key, Count = g.Count() })
+                    .OrderByDescending(x => x.Count)
+                    .Take(10)
+                    .ToListAsync(),
+                MostActiveUsers = await query
+                    .Where(a => a.UserId.HasValue)
+                    .GroupBy(a => a.UserId)
+                    .Select(g => new { UserId = g.Key, Count = g.Count() })
+                    .OrderByDescending(x => x.Count)
+                    .Take(10)
+                    .ToListAsync()
+            };
 
-            if (endDate.HasValue)
-                query = query.Where(a => a.Timestamp <= endDate.Value);
+            return statistics;
+        }
 
-            return await query
-                .OrderByDescending(a => a.Timestamp)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+        public async Task<IEnumerable<AuditLog>> GetRecentDatabaseChangesAsync(int count = 50)
+        {
+            return await _context.AuditLogs
+                .OrderByDescending(a => a.DateTime)
+                .Take(count)
                 .ToListAsync();
         }
     }
-} 
+}

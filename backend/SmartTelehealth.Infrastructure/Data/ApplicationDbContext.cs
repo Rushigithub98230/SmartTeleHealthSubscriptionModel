@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using SmartTelehealth.Core.Entities;
+using SmartTelehealth.Core.Enums;
+using SmartTelehealth.Infrastructure.Entities;
 
 namespace SmartTelehealth.Infrastructure.Data;
 
@@ -9,6 +12,9 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
     }
+    
+    // Current User ID for audit tracking
+    public int? CurrentUserId { get; set; }
     
     // Master Tables DbSets
     public DbSet<MasterBillingCycle> MasterBillingCycles { get; set; }
@@ -796,20 +802,13 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<AuditLog>(entity =>
         {
             entity.ToTable("AuditLogs");
-            entity.Property(e => e.Action).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.EntityType).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.EntityId).HasMaxLength(50);
-            entity.Property(e => e.UserId).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.UserEmail).HasMaxLength(100);
-            entity.Property(e => e.UserRole).HasMaxLength(50);
-            entity.Property(e => e.Description).HasMaxLength(500);
-            entity.Property(e => e.IpAddress).HasMaxLength(50);
-            entity.Property(e => e.UserAgent).HasMaxLength(500);
-            entity.Property(e => e.Status).HasMaxLength(50);
-            entity.Property(e => e.OldValues).HasMaxLength(1000);
-            entity.Property(e => e.NewValues).HasMaxLength(1000);
-            entity.Property(e => e.ErrorMessage).HasMaxLength(500);
-            entity.Property(e => e.Timestamp).IsRequired();
+            entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.TableName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.DateTime).IsRequired();
+            entity.Property(e => e.OldValues);
+            entity.Property(e => e.NewValues);
+            entity.Property(e => e.AffectedColumns).HasMaxLength(500);
+            entity.Property(e => e.PrimaryKey).HasMaxLength(50);
         });
     }
 
@@ -1632,4 +1631,144 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.HasIndex(e => new { e.UserSubscriptionPrivilegeUsageId, e.UsageDate });
         });
     }
+
+    #region Audit Functionality
+
+    public override int SaveChanges()
+    {
+        var auditEntries = new List<AuditEntry>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.Entity is AuditLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
+                continue;
+
+            var auditEntry = new AuditEntry(entry)
+            {
+                UserId = this.CurrentUserId,
+                TableName = entry.Metadata.GetTableName(),
+                AuditType = entry.State switch
+                {
+                    EntityState.Added => AuditType.Create,
+                    EntityState.Modified => AuditType.Update,
+                    EntityState.Deleted => AuditType.Delete,
+                    _ => AuditType.None
+                }
+            };
+
+            foreach (var property in entry.Properties)
+            {
+                string propertyName = property.Metadata.Name;
+                if (property.Metadata.IsPrimaryKey())
+                {
+                    auditEntry.KeyValues[propertyName] = property.CurrentValue;
+                    continue;
+                }
+
+                switch (entry.State)
+                {
+                    case EntityState.Added:
+                        auditEntry.NewValues[propertyName] = property.CurrentValue;
+                        auditEntry.ChangedColumns.Add(propertyName);
+                        break;
+                    case EntityState.Deleted:
+                        auditEntry.OldValues[propertyName] = property.OriginalValue;
+                        auditEntry.ChangedColumns.Add(propertyName);
+                        break;
+                    case EntityState.Modified:
+                        if (!Equals(property.OriginalValue, property.CurrentValue))
+                        {
+                            auditEntry.OldValues[propertyName] = property.OriginalValue;
+                            auditEntry.NewValues[propertyName] = property.CurrentValue;
+                            auditEntry.ChangedColumns.Add(propertyName);
+                        }
+                        break;
+                }
+            }
+
+            auditEntries.Add(auditEntry);
+        }
+
+        // Save changes to the main entities
+        int result = base.SaveChanges();
+
+        // Save audit logs
+        if (auditEntries.Count > 0)
+        {
+            AuditLogs.AddRange(auditEntries.Select(ae => ae.ToAudit()));
+            base.SaveChanges();
+        }
+
+        return result;
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var auditEntries = new List<AuditEntry>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.Entity is AuditLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
+                continue;
+
+            var auditEntry = new AuditEntry(entry)
+            {
+                UserId = this.CurrentUserId,
+                TableName = entry.Metadata.GetTableName(),
+                AuditType = entry.State switch
+                {
+                    EntityState.Added => AuditType.Create,
+                    EntityState.Modified => AuditType.Update,
+                    EntityState.Deleted => AuditType.Delete,
+                    _ => AuditType.None
+                }
+            };
+
+            foreach (var property in entry.Properties)
+            {
+                string propertyName = property.Metadata.Name;
+                if (property.Metadata.IsPrimaryKey())
+                {
+                    auditEntry.KeyValues[propertyName] = property.CurrentValue;
+                    continue;
+                }
+
+                switch (entry.State)
+                {
+                    case EntityState.Added:
+                        auditEntry.NewValues[propertyName] = property.CurrentValue;
+                        auditEntry.ChangedColumns.Add(propertyName);
+                        break;
+                    case EntityState.Deleted:
+                        auditEntry.OldValues[propertyName] = property.OriginalValue;
+                        auditEntry.ChangedColumns.Add(propertyName);
+                        break;
+                    case EntityState.Modified:
+                        if (!Equals(property.OriginalValue, property.CurrentValue))
+                        {
+                            auditEntry.OldValues[propertyName] = property.OriginalValue;
+                            auditEntry.NewValues[propertyName] = property.CurrentValue;
+                            auditEntry.ChangedColumns.Add(propertyName);
+                        }
+                        break;
+                }
+            }
+
+            auditEntries.Add(auditEntry);
+        }
+
+        // Save changes to the main entities
+        int result = await base.SaveChangesAsync(cancellationToken);
+
+        // Save audit logs
+        if (auditEntries.Count > 0)
+        {
+            AuditLogs.AddRange(auditEntries.Select(ae => ae.ToAudit()));
+            await base.SaveChangesAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
+    #endregion
 } 

@@ -227,6 +227,44 @@ public static class SeedData
             context.EventTypes.AddRange(eventTypes);
         }
 
+        // Seed Master Billing Cycles
+        if (!context.MasterBillingCycles.Any())
+        {
+            var billingCycles = new List<MasterBillingCycle>
+            {
+                new MasterBillingCycle { Id = Guid.NewGuid(), Name = "Monthly", Description = "Monthly billing cycle", DurationInDays = 30, SortOrder = 1, IsActive = true },
+                new MasterBillingCycle { Id = Guid.NewGuid(), Name = "Quarterly", Description = "Quarterly billing cycle", DurationInDays = 90, SortOrder = 2, IsActive = true },
+                new MasterBillingCycle { Id = Guid.NewGuid(), Name = "Annual", Description = "Annual billing cycle", DurationInDays = 365, SortOrder = 3, IsActive = true }
+            };
+            context.MasterBillingCycles.AddRange(billingCycles);
+        }
+
+        // Seed Master Currencies
+        if (!context.MasterCurrencies.Any())
+        {
+            var currencies = new List<MasterCurrency>
+            {
+                new MasterCurrency { Id = Guid.NewGuid(), Code = "USD", Name = "US Dollar", Symbol = "$", SortOrder = 1, IsActive = true },
+                new MasterCurrency { Id = Guid.NewGuid(), Code = "EUR", Name = "Euro", Symbol = "€", SortOrder = 2, IsActive = true },
+                new MasterCurrency { Id = Guid.NewGuid(), Code = "GBP", Name = "British Pound", Symbol = "£", SortOrder = 3, IsActive = true },
+                new MasterCurrency { Id = Guid.NewGuid(), Code = "INR", Name = "Indian Rupee", Symbol = "₹", SortOrder = 4, IsActive = true }
+            };
+            context.MasterCurrencies.AddRange(currencies);
+        }
+
+        // Seed Master Privilege Types
+        if (!context.MasterPrivilegeTypes.Any())
+        {
+            var privilegeTypes = new List<MasterPrivilegeType>
+            {
+                new MasterPrivilegeType { Id = Guid.NewGuid(), Name = "Consultation", Description = "Consultation privileges", SortOrder = 1, IsActive = true },
+                new MasterPrivilegeType { Id = Guid.NewGuid(), Name = "Medication", Description = "Medication-related privileges", SortOrder = 2, IsActive = true },
+                new MasterPrivilegeType { Id = Guid.NewGuid(), Name = "Messaging", Description = "Messaging privileges", SortOrder = 3, IsActive = true },
+                new MasterPrivilegeType { Id = Guid.NewGuid(), Name = "Document", Description = "Document access privileges", SortOrder = 4, IsActive = true }
+            };
+            context.MasterPrivilegeTypes.AddRange(privilegeTypes);
+        }
+
         context.SaveChanges();
     }
 
@@ -236,6 +274,9 @@ public static class SeedData
         var clientRole = context.UserRoles.FirstOrDefault(r => r.Name == "Client");
         var providerRole = context.UserRoles.FirstOrDefault(r => r.Name == "Provider");
         var adminRole = context.UserRoles.FirstOrDefault(r => r.Name == "Admin");
+
+        // Get system user ID for seeding
+        var systemUserId = context.Users.FirstOrDefault()?.Id ?? 1;
 
         if (clientRole == null || providerRole == null || adminRole == null)
         {
@@ -350,6 +391,85 @@ public static class SeedData
             context.Categories.AddRange(testCategories);
             context.SaveChanges();
         }
+
+        // Seed Privileges
+        if (!context.Privileges.Any())
+        {
+            var consultationType = context.MasterPrivilegeTypes.FirstOrDefault(pt => pt.Name == "Consultation");
+            var medicationType = context.MasterPrivilegeTypes.FirstOrDefault(pt => pt.Name == "Medication");
+            var messagingType = context.MasterPrivilegeTypes.FirstOrDefault(pt => pt.Name == "Messaging");
+            var documentType = context.MasterPrivilegeTypes.FirstOrDefault(pt => pt.Name == "Document");
+
+            if (consultationType != null && medicationType != null && messagingType != null && documentType != null)
+            {
+                var privileges = new List<Privilege>
+                {
+                    new Privilege
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "TeleConsultation",
+                        Description = "Video consultation with healthcare providers",
+                        PrivilegeTypeId = consultationType.Id,
+                        IsActive = true,
+                        CreatedDate = DateTime.UtcNow,
+                        CreatedBy = systemUserId
+                    },
+                    new Privilege
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "Medication",
+                        Description = "Access to medication prescriptions and delivery",
+                        PrivilegeTypeId = medicationType.Id,
+                        IsActive = true,
+                        CreatedDate = DateTime.UtcNow,
+                        CreatedBy = systemUserId
+                    },
+                    new Privilege
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "Unlimited Messaging",
+                        Description = "Unlimited messaging with healthcare providers",
+                        PrivilegeTypeId = messagingType.Id,
+                        IsActive = true,
+                        CreatedDate = DateTime.UtcNow,
+                        CreatedBy = systemUserId
+                    },
+                    new Privilege
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "Document Access",
+                        Description = "Access to medical documents and reports",
+                        PrivilegeTypeId = documentType.Id,
+                        IsActive = true,
+                        CreatedDate = DateTime.UtcNow,
+                        CreatedBy = systemUserId
+                    },
+                    new Privilege
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "Priority Support",
+                        Description = "Priority customer support access",
+                        PrivilegeTypeId = consultationType.Id,
+                        IsActive = true,
+                        CreatedDate = DateTime.UtcNow,
+                        CreatedBy = systemUserId
+                    },
+                    new Privilege
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = "Lab Test Access",
+                        Description = "Access to lab test results and recommendations",
+                        PrivilegeTypeId = documentType.Id,
+                        IsActive = true,
+                        CreatedDate = DateTime.UtcNow,
+                        CreatedBy = systemUserId
+                    }
+                };
+
+                context.Privileges.AddRange(privileges);
+                context.SaveChanges();
+            }
+        }
     }
 
     public static async Task SeedAsync(ApplicationDbContext context, UserManager<User> userManager, RoleManager<Role> roleManager)
@@ -357,6 +477,9 @@ public static class SeedData
         // Enable seeding to create default admin user
         // Seed master tables
         SeedMasterTables(context);
+        
+        // Seed test data including privileges
+        SeedTestData(context);
         
         // Create Identity roles if they don't exist
         var adminRoleName = "Admin";

@@ -14,7 +14,7 @@ public class ProviderOnboardingService : IProviderOnboardingService
 {
     private readonly IProviderOnboardingRepository _onboardingRepository;
     private readonly IUserService _userService;
-    private readonly IAuditService _auditService;
+      
     private readonly INotificationService _notificationService;
     private readonly IMapper _mapper;
     private readonly ILogger<ProviderOnboardingService> _logger;
@@ -22,14 +22,14 @@ public class ProviderOnboardingService : IProviderOnboardingService
     public ProviderOnboardingService(
         IProviderOnboardingRepository onboardingRepository,
         IUserService userService,
-        IAuditService auditService,
+          
         INotificationService notificationService,
         IMapper mapper,
         ILogger<ProviderOnboardingService> logger)
     {
         _onboardingRepository = onboardingRepository;
         _userService = userService;
-        _auditService = auditService;
+          
         _notificationService = notificationService;
         _mapper = mapper;
         _logger = logger;
@@ -76,7 +76,6 @@ public class ProviderOnboardingService : IProviderOnboardingService
             var dto = _mapper.Map<ProviderOnboardingDto>(savedOnboarding);
 
             // TODO: Implement audit logging
-            // await _auditService.LogActionAsync("ProviderOnboarding", "Create", savedOnboarding.Id.ToString(), "Onboarding application created");
 
             return new JsonModel
             {
@@ -227,7 +226,6 @@ public class ProviderOnboardingService : IProviderOnboardingService
             var dto = _mapper.Map<ProviderOnboardingDto>(updatedOnboarding);
 
             // TODO: Implement audit logging
-            // await _auditService.LogActionAsync("ProviderOnboarding", "Update", id.ToString(), "Onboarding application updated");
 
             return new JsonModel
             {
@@ -283,7 +281,6 @@ public class ProviderOnboardingService : IProviderOnboardingService
 
             // Log audit
             // TODO: Implement audit logging
-            // await _auditService.LogActionAsync("ProviderOnboarding", "Submit", id.ToString(), "Onboarding application submitted for review");
 
             // TODO: Implement notification service
             // await _notificationService.SendNotificationAsync(
@@ -348,7 +345,6 @@ public class ProviderOnboardingService : IProviderOnboardingService
 
             // Log audit
             // TODO: Implement audit logging
-            // await _auditService.LogActionAsync("ProviderOnboarding", "Review", id.ToString(), $"Onboarding application reviewed: {reviewDto.Status}");
 
             // Send notification to provider
             var notificationMessage = reviewDto.Status == "Approved" 
@@ -501,7 +497,6 @@ public class ProviderOnboardingService : IProviderOnboardingService
 
             // Log audit
             // TODO: Implement audit logging
-            // await _auditService.LogActionAsync("ProviderOnboarding", "Delete", id.ToString(), "Onboarding application deleted");
 
             return new JsonModel
             {

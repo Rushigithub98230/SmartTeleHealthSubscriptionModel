@@ -18,7 +18,7 @@ namespace SmartTelehealth.Application.Services
         private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
-        private readonly IAuditService _auditService;
+          
 
         public AuthService(
             UserManager<User> userManager,
@@ -35,7 +35,7 @@ namespace SmartTelehealth.Application.Services
             _userRepository = userRepository;
             _mapper = mapper;
             _configuration = configuration;
-            _auditService = auditService;
+              
         }
 
         public async Task<JsonModel> LoginAsync(LoginDto loginDto)
@@ -45,20 +45,20 @@ namespace SmartTelehealth.Application.Services
                 var user = await _userManager.FindByEmailAsync(loginDto.Email);
                 if (user == null)
                 {
-                    await _auditService.LogSecurityEventAsync(0, "LoginFailed", $"Login failed for email {loginDto.Email}", null, null);
+                 
                     return new JsonModel { data = new object(), Message = "Invalid email or password", StatusCode = 400 };
                 }
 
                 var result = await _signInManager.CheckPasswordSignInAsync(user, loginDto.Password, false);
                 if (!result.Succeeded)
                 {
-                    await _auditService.LogSecurityEventAsync(user.Id, "LoginFailed", $"Login failed for user {user.Email}", null, null);
+                  
                     return new JsonModel { data = new object(), Message = "Invalid email or password", StatusCode = 400 };
                 }
 
                 var token = _jwtService.GenerateToken(user);
                 var refreshToken = await GenerateRefreshTokenAsync(user);
-                await _auditService.LogSecurityEventAsync(user.Id, "LoginSuccess", $"User {user.Email} logged in successfully", null, null);
+                
 
                 var loginResponse = new LoginResponseDto
                 {
@@ -73,7 +73,7 @@ namespace SmartTelehealth.Application.Services
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "LoginError", $"Login error: {ex.Message}", null, null);
+               
                 return new JsonModel { data = new object(), Message = "An error occurred during login", StatusCode = 500 };
             }
         }
@@ -85,7 +85,7 @@ namespace SmartTelehealth.Application.Services
                 var existingUser = await _userManager.FindByEmailAsync(registerDto.Email);
                 if (existingUser != null)
                 {
-                    await _auditService.LogSecurityEventAsync(0, "RegisterFailed", $"Registration failed for email {registerDto.Email}: already exists", null, null);
+                  
                     return new JsonModel { data = new object(), Message = "User with this email already exists", StatusCode = 400 };
                 }
 
@@ -112,7 +112,7 @@ namespace SmartTelehealth.Application.Services
                 if (!result.Succeeded)
                 {
                     var errors = result.Errors.Select(e => e.Description).ToList();
-                    await _auditService.LogSecurityEventAsync(0, "RegisterFailed", $"Registration failed for email {registerDto.Email}: {string.Join(", ", errors)}", null, null);
+                   
                     return new JsonModel { data = new object(), Message = "Registration failed", StatusCode = 400 };
                 }
 
@@ -120,7 +120,6 @@ namespace SmartTelehealth.Application.Services
                 await _userManager.AddToRoleAsync(user, "Patient");
                 var token = _jwtService.GenerateToken(user);
                 var refreshToken = await GenerateRefreshTokenAsync(user);
-                await _auditService.LogSecurityEventAsync(user.Id, "RegisterSuccess", $"User {user.Email} registered successfully", null, null);
 
                 var loginResponse = new LoginResponseDto
                 {
@@ -135,7 +134,6 @@ namespace SmartTelehealth.Application.Services
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "RegisterError", $"Registration error: {ex.Message}", null, null);
                 return new JsonModel { data = new object(), Message = "An error occurred during registration", StatusCode = 500 };
             }
         }
@@ -166,7 +164,7 @@ namespace SmartTelehealth.Application.Services
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "RefreshTokenError", $"Refresh token error: {ex.Message}", null, null);
+               
                 return new JsonModel { data = new object(), Message = "An error occurred while refreshing token", StatusCode = 500 };
             }
         }
@@ -191,12 +189,12 @@ namespace SmartTelehealth.Application.Services
                     return new JsonModel { data = new object(), Message = "Failed to change password", StatusCode = 400 };
                 }
 
-                await _auditService.LogSecurityEventAsync(int.Parse(userId), "PasswordChanged", "Password changed successfully", null, null);
+               
                 return new JsonModel { data = true, Message = "Password changed successfully", StatusCode = 200 };
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "ChangePasswordError", $"Change password error: {ex.Message}", null, null);
+               
                 return new JsonModel { data = new object(), Message = "An error occurred while changing password", StatusCode = 500 };
             }
         }
@@ -213,14 +211,13 @@ namespace SmartTelehealth.Application.Services
                 }
 
                 var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-                // TODO: Send email with reset token
-                await _auditService.LogSecurityEventAsync(user.Id, "ForgotPassword", "Password reset requested", null, null);
                 
+               
                 return new JsonModel { data = true, Message = "Password reset email sent", StatusCode = 200 };
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "ForgotPasswordError", $"Forgot password error: {ex.Message}", null, null);
+               
                 return new JsonModel { data = new object(), Message = "An error occurred while processing the request", StatusCode = 500 };
             }
         }
@@ -242,12 +239,12 @@ namespace SmartTelehealth.Application.Services
                     return new JsonModel { data = new object(), Message = "Failed to reset password", StatusCode = 400 };
                 }
 
-                await _auditService.LogSecurityEventAsync(user.Id, "PasswordReset", "Password reset successfully", null, null);
+            
                 return new JsonModel { data = true, Message = "Password reset successfully", StatusCode = 200 };
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "ResetPasswordError", $"Reset password error: {ex.Message}", null, null);
+               
                 return new JsonModel { data = new object(), Message = "An error occurred while resetting password", StatusCode = 500 };
             }
         }
@@ -262,7 +259,7 @@ namespace SmartTelehealth.Application.Services
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "LogoutError", $"Logout error: {ex.Message}", null, null);
+              
                 return new JsonModel { data = new object(), Message = "An error occurred during logout", StatusCode = 500 };
             }
         }
@@ -277,7 +274,7 @@ namespace SmartTelehealth.Application.Services
             }
             catch (Exception ex)
             {
-                await _auditService.LogSecurityEventAsync(0, "ValidateTokenError", $"Token validation error: {ex.Message}", null, null);
+                
                 return new JsonModel { data = new object(), Message = "Invalid token", StatusCode = 400 };
             }
         }

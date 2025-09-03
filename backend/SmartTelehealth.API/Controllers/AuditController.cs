@@ -33,15 +33,55 @@ public class AuditController : BaseController
         {
             parsedUserId = parsedId;
         }
-        var response = await _auditService.GetAuditLogsAsync(action, parsedUserId, startDate, endDate, page, pageSize, tokenModel);
+        var response = await _auditService.GetAuditLogsByDateRangeAsync(startDate ?? DateTime.MinValue, endDate ?? DateTime.MaxValue, tokenModel);
         return response;
     }
 
     [HttpGet("{id}")]
-    public async Task<JsonModel> GetAuditLog(Guid id)
+    public async Task<JsonModel> GetAuditLog(int id)
     {
         var tokenModel = GetToken(HttpContext);
         var response = await _auditService.GetAuditLogByIdAsync(id, tokenModel);
+        return response;
+    }
+
+    [HttpGet("database/{tableName}")]
+    public async Task<JsonModel> GetDatabaseAuditTrail(string tableName, [FromQuery] string? entityId = null)
+    {
+        var tokenModel = GetToken(HttpContext);
+        var response = await _auditService.GetDatabaseAuditTrailAsync(tableName, entityId, tokenModel);
+        return response;
+    }
+
+    [HttpGet("user/{userId}")]
+    public async Task<JsonModel> GetUserAuditTrail(int userId, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
+    {
+        var tokenModel = GetToken(HttpContext);
+        var response = await _auditService.GetUserDatabaseAuditTrailAsync(userId, fromDate, toDate, tokenModel);
+        return response;
+    }
+
+    [HttpGet("entity/{tableName}/{entityId}")]
+    public async Task<JsonModel> GetEntityChangeHistory(string tableName, string entityId)
+    {
+        var tokenModel = GetToken(HttpContext);
+        var response = await _auditService.GetEntityChangeHistoryAsync(tableName, entityId, tokenModel);
+        return response;
+    }
+
+    [HttpGet("statistics")]
+    public async Task<JsonModel> GetAuditStatistics([FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
+    {
+        var tokenModel = GetToken(HttpContext);
+        var response = await _auditService.GetAuditStatisticsAsync(fromDate, toDate, tokenModel);
+        return response;
+    }
+
+    [HttpGet("recent")]
+    public async Task<JsonModel> GetRecentChanges([FromQuery] int count = 50)
+    {
+        var tokenModel = GetToken(HttpContext);
+        var response = await _auditService.GetRecentDatabaseChangesAsync(count, tokenModel);
         return response;
     }
 } 

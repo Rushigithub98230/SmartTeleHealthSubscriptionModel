@@ -17,7 +17,7 @@ namespace SmartTelehealth.Application.Services
         private readonly IProviderFeeRepository _providerFeeRepository;
         private readonly IUserRepository _userRepository;
         private readonly ICategoryRepository _categoryRepository;
-        private readonly IAuditService _auditService;
+          
         private readonly INotificationService _notificationService;
         private readonly IMapper _mapper;
         private readonly ILogger<ProviderFeeService> _logger;
@@ -26,7 +26,7 @@ namespace SmartTelehealth.Application.Services
             IProviderFeeRepository providerFeeRepository,
             IUserRepository userRepository,
             ICategoryRepository categoryRepository,
-            IAuditService auditService,
+              
             INotificationService notificationService,
             IMapper mapper,
             ILogger<ProviderFeeService> logger)
@@ -34,7 +34,7 @@ namespace SmartTelehealth.Application.Services
             _providerFeeRepository = providerFeeRepository;
             _userRepository = userRepository;
             _categoryRepository = categoryRepository;
-            _auditService = auditService;
+              
             _notificationService = notificationService;
             _mapper = mapper;
             _logger = logger;
@@ -96,8 +96,7 @@ namespace SmartTelehealth.Application.Services
                 var createdFee = await _providerFeeRepository.AddAsync(fee);
                 var feeDto = _mapper.Map<ProviderFeeDto>(createdFee);
 
-                // Log audit
-                await _auditService.LogActionAsync("ProviderFee", "Create", createDto.ProviderId.ToString(), $"Created fee proposal for category {category.Name}", tokenModel);
+                
 
                 // EMAIL FUNCTIONALITY DISABLED - Commented out for now
                 // await _notificationService.SendNotificationAsync("Admin", "New Fee Proposal",
@@ -280,7 +279,6 @@ namespace SmartTelehealth.Application.Services
                 var feeDto = _mapper.Map<ProviderFeeDto>(updatedFee);
 
                 // Log audit
-                await _auditService.LogActionAsync("ProviderFee", "Update", fee.ProviderId.ToString(), $"Updated fee proposal {id}", tokenModel);
 
                 return new JsonModel
                 {
@@ -338,8 +336,7 @@ namespace SmartTelehealth.Application.Services
                 var updatedFee = await _providerFeeRepository.UpdateAsync(fee);
                 var feeDto = _mapper.Map<ProviderFeeDto>(updatedFee);
 
-                // Log audit
-                await _auditService.LogActionAsync("ProviderFee", "Review", fee.ProviderId.ToString(), $"Reviewed fee proposal {id} with status {reviewDto.Status}", tokenModel);
+               
 
                 // Send notification to provider
                 // EMAIL FUNCTIONALITY DISABLED - Commented out for now
@@ -411,7 +408,6 @@ namespace SmartTelehealth.Application.Services
                 }
 
                 // Log audit
-                await _auditService.LogActionAsync("ProviderFee", "Delete", fee.ProviderId.ToString(), $"Deleted fee proposal {id}", tokenModel);
 
                 return new JsonModel
                 {

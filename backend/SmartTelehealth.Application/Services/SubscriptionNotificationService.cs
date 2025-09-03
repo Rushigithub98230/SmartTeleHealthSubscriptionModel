@@ -13,7 +13,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
     private readonly ICommunicationService _communicationService;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IAuditService _auditService;
+      
     private readonly ILogger<SubscriptionNotificationService> _logger;
 
     public SubscriptionNotificationService(
@@ -21,14 +21,14 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
         ICommunicationService communicationService,
         ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
-        IAuditService auditService,
+          
         ILogger<SubscriptionNotificationService> logger)
     {
         _notificationService = notificationService;
         _communicationService = communicationService;
         _subscriptionRepository = subscriptionRepository;
         _userRepository = userRepository;
-        _auditService = auditService;
+      
         _logger = logger;
     }
 
@@ -83,15 +83,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "TrialEndingNotification",
-                subscription.Id.ToString(),
-                "Success",
-                $"Trial ending notification sent via email and SMS. Days remaining: {daysRemaining}",
-                tokenModel
-            );
+            
 
             return new JsonModel
             {
@@ -163,15 +155,6 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "PaymentFailedNotification",
-                subscription.Id.ToString(),
-                "Success",
-                $"Payment failed notification sent via email and SMS. Error: {errorMessage}",
-                tokenModel
-            );
 
             return new JsonModel
             {
@@ -243,15 +226,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "SubscriptionExpiredNotification",
-                subscription.Id.ToString(),
-                "Success",
-                "Subscription expired notification sent via email and SMS",
-                tokenModel
-            );
+            
 
             return new JsonModel
             {
@@ -323,15 +298,6 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "SubscriptionRenewedNotification",
-                subscription.Id.ToString(),
-                "Success",
-                $"Subscription renewed notification sent via email and SMS. New end date: {newEndDate:yyyy-MM-dd}",
-                tokenModel
-            );
 
             return new JsonModel
             {
@@ -403,15 +369,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "PlanChangeNotification",
-                subscription.Id.ToString(),
-                "Success",
-                $"Plan change notification sent via email and SMS. Old plan: {oldPlanName}, New plan: {newPlanName}",
-                tokenModel
-            );
+          
 
             return new JsonModel
             {
@@ -834,15 +792,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "SubscriptionCreatedNotification",
-                subscription.Id.ToString(),
-                "Success",
-                "Subscription created notification sent via email and SMS",
-                tokenModel
-            );
+          
 
             return new JsonModel
             {
@@ -914,15 +864,6 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "SubscriptionUpgradedNotification",
-                subscription.Id.ToString(),
-                "Success",
-                $"Subscription upgraded notification sent via email and SMS. Old plan: {oldPlanName}, New plan: {newPlanName}",
-                tokenModel
-            );
 
             return new JsonModel
             {
@@ -994,15 +935,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "SubscriptionDowngradedNotification",
-                subscription.Id.ToString(),
-                "Success",
-                $"Subscription downgraded notification sent via email and SMS. Old plan: {oldPlanName}, New plan: {newPlanName}",
-                tokenModel
-            );
+          
 
             return new JsonModel
             {
@@ -1074,15 +1007,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
                 await _communicationService.SendSmsAsync(user.PhoneNumber, smsMessage, tokenModel);
             }
 
-            // Log the notification
-            await _auditService.LogPaymentEventAsync(
-                subscription.UserId,
-                "BillingReminderNotification",
-                subscription.Id.ToString(),
-                "Success",
-                $"Billing reminder notification sent via email and SMS. Due date: {dueDate:MM/dd/yyyy}, Amount: ${amount}",
-                tokenModel
-            );
+          
 
             return new JsonModel
             {

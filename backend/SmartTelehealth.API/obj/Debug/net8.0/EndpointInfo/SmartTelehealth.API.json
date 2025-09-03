@@ -3048,8 +3048,204 @@
             "required": true,
             "style": "simple",
             "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Audit/database/{tableName}": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "tableName",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Audit/user/{userId}": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
               "type": "string",
-              "format": "uuid"
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Audit/entity/{tableName}/{entityId}": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "tableName",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Audit/statistics": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "fromDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Audit/recent": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "count",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
             }
           }
         ],
@@ -17539,6 +17735,187 @@
         }
       }
     },
+    "/webadmin/subscription-management/plans/{planId}/privileges": {
+      "post": {
+        "tags": [
+          "SubscriptionManagement"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "SubscriptionManagement"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webadmin/subscription-management/plans/{planId}/privileges/{privilegeId}": {
+      "delete": {
+        "tags": [
+          "SubscriptionManagement"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "privilegeId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "SubscriptionManagement"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "privilegeId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/SubscriptionPlanPrivileges/time-based-limits": {
       "put": {
         "tags": [
@@ -19088,17 +19465,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionDto"
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionDto"
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionDto"
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto"
               }
             }
           }
@@ -23058,11 +23435,11 @@
           "userEmail": {
             "type": "string"
           },
-          "createdAt": {
+          "createdDate": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updatedDate": {
             "type": "string",
             "format": "date-time",
             "nullable": true
@@ -23371,11 +23748,11 @@
             "type": "string",
             "nullable": true
           },
-          "createdAt": {
+          "createdDate": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updatedDate": {
             "type": "string",
             "format": "date-time",
             "nullable": true
@@ -24437,7 +24814,10 @@
       },
       "SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto": {
         "required": [
-          "name"
+          "billingCycleId",
+          "currencyId",
+          "name",
+          "price"
         ],
         "type": "object",
         "properties": {
@@ -24451,9 +24831,25 @@
             "type": "string",
             "nullable": true
           },
+          "shortDescription": {
+            "maxLength": 200,
+            "type": "string",
+            "nullable": true
+          },
           "price": {
+            "minimum": 0.01,
             "type": "number",
             "format": "double"
+          },
+          "discountedPrice": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "discountValidUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "billingCycleId": {
             "type": "string",
@@ -24463,25 +24859,16 @@
             "type": "string",
             "format": "uuid"
           },
-          "messagingCount": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "includesMedicationDelivery": {
+          "isTrialAllowed": {
             "type": "boolean"
           },
-          "includesFollowUpCare": {
-            "type": "boolean"
-          },
-          "deliveryFrequencyDays": {
+          "trialDurationInDays": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "type": "integer",
             "format": "int32"
           },
-          "maxPauseDurationDays": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "isActive": {
+          "isFeatured": {
             "type": "boolean"
           },
           "isMostPopular": {
@@ -24494,10 +24881,70 @@
             "type": "integer",
             "format": "int32"
           },
+          "messagingCount": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "includesMedicationDelivery": {
+            "type": "boolean"
+          },
+          "includesFollowUpCare": {
+            "type": "boolean"
+          },
+          "deliveryFrequencyDays": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxPauseDurationDays": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxConcurrentUsers": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "gracePeriodDays": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
           "features": {
             "maxLength": 1000,
             "type": "string",
             "nullable": true
+          },
+          "terms": {
+            "maxLength": 500,
+            "type": "string",
+            "nullable": true
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expirationDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "privileges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+            }
           }
         },
         "additionalProperties": false
@@ -25087,11 +25534,11 @@
           "notes": {
             "type": "string"
           },
-          "createdAt": {
+          "createdDate": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updatedDate": {
             "type": "string",
             "format": "date-time"
           }
@@ -25171,6 +25618,71 @@
           },
           "currency": {
             "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SmartTelehealth.Application.DTOs.PlanPrivilegeDto": {
+        "required": [
+          "privilegeId",
+          "usagePeriodId",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "privilegeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "value": {
+            "maximum": 2147483647,
+            "minimum": -1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "usagePeriodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "durationMonths": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string",
+            "nullable": true
+          },
+          "effectiveDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expirationDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dailyLimit": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "weeklyLimit": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "monthlyLimit": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           }
         },
@@ -25726,11 +26238,11 @@
             "type": "number",
             "format": "double"
           },
-          "createdAt": {
+          "createdDate": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updatedDate": {
             "type": "string",
             "format": "date-time"
           },
@@ -25856,11 +26368,11 @@
             "type": "number",
             "format": "double"
           },
-          "createdAt": {
+          "createdDate": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updatedDate": {
             "type": "string",
             "format": "date-time"
           }
@@ -25898,12 +26410,12 @@
             "type": "string",
             "nullable": true
           },
-          "createdAt": {
+          "createdDate": {
             "type": "string",
             "format": "date-time",
             "nullable": true
           },
-          "updatedAt": {
+          "updatedDate": {
             "type": "string",
             "format": "date-time",
             "nullable": true
