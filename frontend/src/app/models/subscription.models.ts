@@ -71,14 +71,30 @@ export interface SubscriptionPlanDto {
   effectivePrice: number;
   hasActiveDiscount: boolean;
   isCurrentlyAvailable: boolean;
-  CreatedDate: Date;
-  UpdatedDate?: Date;
+  createdDate: Date;
+  updatedDate?: Date;
+  // Additional fields for plan configuration
+  messagingCount?: number;
+  includesMedicationDelivery?: boolean;
+  includesFollowUpCare?: boolean;
+  deliveryFrequencyDays?: number;
+  maxPauseDurationDays?: number;
+  maxConcurrentUsers?: number;
+  gracePeriodDays?: number;
+  // Stripe integration fields
+  stripeProductId?: string;
+  stripeMonthlyPriceId?: string;
+  stripeQuarterlyPriceId?: string;
+  stripeAnnualPriceId?: string;
 }
 
 export interface CreateSubscriptionPlanDto {
   name: string;
   description?: string;
+  shortDescription?: string;
   price: number;
+  discountedPrice?: number;
+  discountValidUntil?: Date;
   billingCycleId: string;
   currencyId: string;
   messagingCount: number;
@@ -86,24 +102,54 @@ export interface CreateSubscriptionPlanDto {
   includesFollowUpCare: boolean;
   deliveryFrequencyDays: number;
   maxPauseDurationDays: number;
+  maxConcurrentUsers: number;
+  gracePeriodDays: number;
   isActive: boolean;
+  isFeatured: boolean;
+  isTrialAllowed: boolean;
+  trialDurationInDays: number;
   isMostPopular: boolean;
   isTrending: boolean;
   displayOrder: number;
   features?: string;
+  terms?: string;
+  effectiveDate?: Date;
+  expirationDate?: Date;
+  // Stripe integration fields
+  stripeProductId?: string;
+  stripeMonthlyPriceId?: string;
+  stripeQuarterlyPriceId?: string;
+  stripeAnnualPriceId?: string;
+  // Privilege configuration
+  privileges?: PlanPrivilegeDto[];
 }
 
 export interface UpdateSubscriptionPlanDto {
   id: string;
   name: string;
   description?: string;
+  shortDescription?: string;
   price: number;
+  discountedPrice?: number;
+  discountValidUntil?: Date;
   billingCycleId: string;
   currencyId: string;
   isActive: boolean;
+  isFeatured: boolean;
+  isTrialAllowed: boolean;
+  trialDurationInDays: number;
   isMostPopular: boolean;
   isTrending: boolean;
   displayOrder?: number;
+  features?: string;
+  terms?: string;
+  effectiveDate?: Date;
+  expirationDate?: Date;
+  // Stripe integration fields
+  stripeProductId?: string;
+  stripeMonthlyPriceId?: string;
+  stripeQuarterlyPriceId?: string;
+  stripeAnnualPriceId?: string;
 }
 
 export interface ApiResponse<T> {
@@ -128,8 +174,13 @@ export interface MasterBillingCycle {
   durationInDays: number;
   sortOrder: number;
   isActive: boolean;
-  CreatedDate: Date;
-  UpdatedDate?: Date;
+  isDeleted: boolean;
+  createdBy?: number;
+  createdDate?: Date;
+  updatedBy?: number;
+  updatedDate?: Date;
+  deletedBy?: number;
+  deletedDate?: Date;
 }
 
 export interface MasterCurrency {
@@ -139,8 +190,13 @@ export interface MasterCurrency {
   symbol?: string;
   sortOrder: number;
   isActive: boolean;
-  CreatedDate: Date;
-  UpdatedDate?: Date;
+  isDeleted: boolean;
+  createdBy?: number;
+  createdDate?: Date;
+  updatedBy?: number;
+  updatedDate?: Date;
+  deletedBy?: number;
+  deletedDate?: Date;
 }
 
 export interface MasterPrivilegeType {
@@ -149,8 +205,13 @@ export interface MasterPrivilegeType {
   description?: string;
   sortOrder: number;
   isActive: boolean;
-  CreatedDate: Date;
-  UpdatedDate?: Date;
+  isDeleted: boolean;
+  createdBy?: number;
+  createdDate?: Date;
+  updatedBy?: number;
+  updatedDate?: Date;
+  deletedBy?: number;
+  deletedDate?: Date;
 }
 
 export interface Privilege {
@@ -160,6 +221,25 @@ export interface Privilege {
   privilegeTypeId: string;
   privilegeTypeName?: string;
   isActive: boolean;
-  CreatedDate: Date;
-  UpdatedDate?: Date;
+  isDeleted: boolean;
+  createdBy?: number;
+  createdDate?: Date;
+  updatedBy?: number;
+  updatedDate?: Date;
+  deletedBy?: number;
+  deletedDate?: Date;
+}
+
+export interface PlanPrivilegeDto {
+  privilegeId: string;
+  value: number; // -1 for unlimited, 0 for disabled, >0 for limited
+  usagePeriodId: string;
+  durationMonths: number;
+  description?: string;
+  effectiveDate?: Date;
+  expirationDate?: Date;
+  // Time-based limits
+  dailyLimit?: number;
+  weeklyLimit?: number;
+  monthlyLimit?: number;
 }

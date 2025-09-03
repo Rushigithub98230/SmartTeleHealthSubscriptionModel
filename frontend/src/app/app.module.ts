@@ -3,7 +3,6 @@ import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
-import { AdminModule } from './admin/admin.module';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { AuthInterceptor } from './admin/auth/auth.interceptor';
@@ -16,7 +15,6 @@ import { AuthInterceptor } from './admin/auth/auth.interceptor';
     BrowserModule,
     FormsModule,
     HttpClientModule,
-    AdminModule,
     AppRoutingModule,
     AppComponent
   ],

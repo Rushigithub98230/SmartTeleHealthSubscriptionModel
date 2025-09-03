@@ -15,7 +15,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { SubscriptionService } from '../../services/subscription.service';
-import { SubscriptionStepperComponent } from '../subscription-stepper/subscription-stepper';
+import { PlanStepperComponent } from './plan-stepper.component';
 import { 
   SubscriptionDto, 
   SubscriptionPlanDto, 
@@ -43,7 +43,7 @@ import {
     MatChipsModule,
     MatMenuModule,
     MatSnackBarModule,
-    SubscriptionStepperComponent
+    PlanStepperComponent
   ],
   templateUrl: './subscription-management.html',
   styleUrls: ['./subscription-management.scss']
@@ -51,6 +51,7 @@ import {
 export class SubscriptionManagementComponent implements OnInit {
   private subscriptionService = inject(SubscriptionService);
   private snackBar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
 
   // Plans data
   plans: SubscriptionPlanDto[] = [];
@@ -71,8 +72,6 @@ export class SubscriptionManagementComponent implements OnInit {
 
   // UI state
   selectedTab = 0;
-  showCreateDialog = false;
-  editingPlan?: SubscriptionPlanDto;
   loading = false;
 
   ngOnInit() {
@@ -90,8 +89,8 @@ export class SubscriptionManagementComponent implements OnInit {
     ).subscribe({
       next: (response) => {
         if (response.statusCode === 200 && response.data) {
-          this.plans = response.data.items;
-          this.planTotalCount = response.data.totalCount;
+          this.plans = response.data;
+          this.planTotalCount = response.meta?.totalRecords || this.plans.length;
         }
         this.loading = false;
       },
@@ -115,13 +114,63 @@ export class SubscriptionManagementComponent implements OnInit {
   }
 
   openCreatePlanDialog() {
-    this.editingPlan = undefined;
-    this.showCreateDialog = true;
+    const dialogRef = this.dialog.open(PlanStepperComponent, {
+      width: '90vw',
+      maxWidth: '1200px',
+      height: '90vh',
+      data: { editingPlan: null }
+    });
+
+    dialogRef.componentInstance.planCreated.subscribe((planData: CreateSubscriptionPlanDto) => {
+      this.subscriptionService.createPlan(planData).subscribe({
+        next: (response) => {
+          if (response.statusCode === 200) {
+            this.snackBar.open('Plan created successfully', 'Close', { duration: 3000 });
+            this.loadPlans();
+            dialogRef.close();
+          } else {
+            this.snackBar.open(response.message || 'Failed to create plan', 'Close', { duration: 5000 });
+          }
+        },
+        error: (err: any) => {
+          this.snackBar.open(err.message || 'Failed to create plan', 'Close', { duration: 5000 });
+        }
+      });
+    });
+
+    dialogRef.componentInstance.cancelled.subscribe(() => {
+      dialogRef.close();
+    });
   }
 
   editPlan(plan: SubscriptionPlanDto) {
-    this.editingPlan = plan;
-    this.showCreateDialog = true;
+    const dialogRef = this.dialog.open(PlanStepperComponent, {
+      width: '90vw',
+      maxWidth: '1200px',
+      height: '90vh',
+      data: { editingPlan: plan }
+    });
+
+    dialogRef.componentInstance.planUpdated.subscribe((planData: any) => {
+      this.subscriptionService.updatePlan(plan.id, planData).subscribe({
+        next: (response) => {
+          if (response.statusCode === 200) {
+            this.snackBar.open('Plan updated successfully', 'Close', { duration: 3000 });
+            this.loadPlans();
+            dialogRef.close();
+          } else {
+            this.snackBar.open(response.message || 'Failed to update plan', 'Close', { duration: 5000 });
+          }
+        },
+        error: (err: any) => {
+          this.snackBar.open(err.message || 'Failed to update plan', 'Close', { duration: 5000 });
+        }
+      });
+    });
+
+    dialogRef.componentInstance.cancelled.subscribe(() => {
+      dialogRef.close();
+    });
   }
 
   viewPlan(plan: SubscriptionPlanDto) {
@@ -145,43 +194,7 @@ export class SubscriptionManagementComponent implements OnInit {
     }
   }
 
-  onPlanCreated(planData: CreateSubscriptionPlanDto) {
-    this.subscriptionService.createPlan(planData).subscribe({
-      next: (response) => {
-        if (response.statusCode === 200) {
-          this.snackBar.open('Plan created successfully', 'Close', { duration: 3000 });
-          this.loadPlans();
-          this.closeCreateDialog();
-        }
-      },
-      error: (error) => {
-        console.error('Error creating plan:', error);
-        this.snackBar.open('Error creating plan', 'Close', { duration: 3000 });
-      }
-    });
-  }
 
-  onPlanUpdated(event: { id: string, plan: CreateSubscriptionPlanDto }) {
-    const UpdatedDatea = { id: event.id, ...event.plan } as any;
-    this.subscriptionService.updatePlan(event.id, UpdatedDatea).subscribe({
-      next: (response) => {
-        if (response.statusCode === 200) {
-          this.snackBar.open('Plan updated successfully', 'Close', { duration: 3000 });
-          this.loadPlans();
-          this.closeCreateDialog();
-        }
-      },
-      error: (error) => {
-        console.error('Error updating plan:', error);
-        this.snackBar.open('Error updating plan', 'Close', { duration: 3000 });
-      }
-    });
-  }
-
-  closeCreateDialog() {
-    this.showCreateDialog = false;
-    this.editingPlan = undefined;
-  }
 
   // Subscriptions management
   loadSubscriptions() {
@@ -197,7 +210,7 @@ export class SubscriptionManagementComponent implements OnInit {
       next: (response) => {
         if (response.statusCode === 200 && response.data) {
           this.subscriptions = response.data;
-          this.subscriptionTotalCount = 20;
+          this.subscriptionTotalCount = response.meta?.totalRecords || this.subscriptions.length;
         }
         this.loading = false;
       },

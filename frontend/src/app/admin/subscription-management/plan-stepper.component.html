@@ -1,0 +1,379 @@
+<div class="plan-stepper-container">
+  <mat-stepper #stepper [linear]="true">
+    
+    <!-- Step 1: Basic Information -->
+    <mat-step [stepControl]="basicInfoForm" label="Basic Information">
+      <form [formGroup]="basicInfoForm">
+        <div class="step-content">
+          <h3>Plan Basic Information</h3>
+          
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Plan Name *</mat-label>
+            <input matInput formControlName="name" placeholder="Enter plan name">
+            <mat-error *ngIf="basicInfoForm.get('name')?.hasError('required')">
+              Plan name is required
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Short Description</mat-label>
+            <input matInput formControlName="shortDescription" placeholder="Brief description">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Description</mat-label>
+            <textarea matInput formControlName="description" rows="3" placeholder="Detailed description"></textarea>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Features</mat-label>
+            <textarea matInput formControlName="features" rows="4" placeholder="List of features (one per line)"></textarea>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Terms & Conditions</mat-label>
+            <textarea matInput formControlName="terms" rows="4" placeholder="Terms and conditions"></textarea>
+          </mat-form-field>
+
+          <mat-checkbox formControlName="isActive">Active Plan</mat-checkbox>
+        </div>
+      </form>
+      
+      <div class="step-actions">
+        <button mat-button matStepperNext>Next</button>
+        <button mat-button (click)="onCancel()">Cancel</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 2: Pricing -->
+    <mat-step [stepControl]="pricingForm" label="Pricing">
+      <form [formGroup]="pricingForm">
+        <div class="step-content">
+          <h3>Plan Pricing</h3>
+          
+          <div class="pricing-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Price *</mat-label>
+              <input matInput type="number" formControlName="price" placeholder="0.00">
+              <mat-error *ngIf="pricingForm.get('price')?.hasError('required')">
+                Price is required
+              </mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Discounted Price</mat-label>
+              <input matInput type="number" formControlName="discountedPrice" placeholder="0.00">
+            </mat-form-field>
+          </div>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Discount Valid Until</mat-label>
+            <input matInput type="date" formControlName="discountValidUntil">
+          </mat-form-field>
+
+          <div class="pricing-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Billing Cycle *</mat-label>
+              <mat-select formControlName="billingCycleId">
+                <mat-option *ngFor="let cycle of billingCycles" [value]="cycle.id">
+                  {{ cycle.name }}
+                </mat-option>
+              </mat-select>
+              <mat-error *ngIf="pricingForm.get('billingCycleId')?.hasError('required')">
+                Billing cycle is required
+              </mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Currency *</mat-label>
+              <mat-select formControlName="currencyId">
+                <mat-option *ngFor="let currency of currencies" [value]="currency.id">
+                  {{ currency.name }} ({{ currency.code }})
+                </mat-option>
+              </mat-select>
+              <mat-error *ngIf="pricingForm.get('currencyId')?.hasError('required')">
+                Currency is required
+              </mat-error>
+            </mat-form-field>
+          </div>
+        </div>
+      </form>
+      
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-button matStepperNext>Next</button>
+        <button mat-button (click)="onCancel()">Cancel</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 3: Features & Limits -->
+    <mat-step [stepControl]="featuresForm" label="Features & Limits">
+      <form [formGroup]="featuresForm">
+        <div class="step-content">
+          <h3>Plan Features & Limits</h3>
+          
+          <div class="features-grid">
+            <mat-form-field appearance="outline">
+              <mat-label>Messaging Count *</mat-label>
+              <input matInput type="number" formControlName="messagingCount" placeholder="10">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Delivery Frequency (Days) *</mat-label>
+              <input matInput type="number" formControlName="deliveryFrequencyDays" placeholder="30">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Max Pause Duration (Days) *</mat-label>
+              <input matInput type="number" formControlName="maxPauseDurationDays" placeholder="90">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Max Concurrent Users *</mat-label>
+              <input matInput type="number" formControlName="maxConcurrentUsers" placeholder="1">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Grace Period (Days) *</mat-label>
+              <input matInput type="number" formControlName="gracePeriodDays" placeholder="0">
+            </mat-form-field>
+          </div>
+
+          <div class="checkbox-group">
+            <mat-checkbox formControlName="includesMedicationDelivery">
+              Includes Medication Delivery
+            </mat-checkbox>
+            <mat-checkbox formControlName="includesFollowUpCare">
+              Includes Follow-up Care
+            </mat-checkbox>
+          </div>
+        </div>
+      </form>
+      
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-button matStepperNext>Next</button>
+        <button mat-button (click)="onCancel()">Cancel</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 4: Trial & Marketing -->
+    <mat-step [stepControl]="trialMarketingForm" label="Trial & Marketing">
+      <form [formGroup]="trialMarketingForm">
+        <div class="step-content">
+          <h3>Trial & Marketing Settings</h3>
+          
+          <div class="trial-section">
+            <mat-checkbox formControlName="isTrialAllowed">Allow Trial</mat-checkbox>
+            
+            <mat-form-field appearance="outline" *ngIf="trialMarketingForm.get('isTrialAllowed')?.value">
+              <mat-label>Trial Duration (Days) *</mat-label>
+              <input matInput type="number" formControlName="trialDurationInDays" placeholder="7">
+            </mat-form-field>
+          </div>
+
+          <div class="marketing-section">
+            <h4>Marketing Flags</h4>
+            <div class="checkbox-group">
+              <mat-checkbox formControlName="isFeatured">Featured Plan</mat-checkbox>
+              <mat-checkbox formControlName="isMostPopular">Most Popular</mat-checkbox>
+              <mat-checkbox formControlName="isTrending">Trending Plan</mat-checkbox>
+            </div>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Display Order *</mat-label>
+              <input matInput type="number" formControlName="displayOrder" placeholder="0">
+            </mat-form-field>
+          </div>
+
+          <div class="date-section">
+            <mat-form-field appearance="outline">
+              <mat-label>Effective Date</mat-label>
+              <input matInput type="date" formControlName="effectiveDate">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Expiration Date</mat-label>
+              <input matInput type="date" formControlName="expirationDate">
+            </mat-form-field>
+          </div>
+        </div>
+      </form>
+      
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-button matStepperNext>Next</button>
+        <button mat-button (click)="onCancel()">Cancel</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 5: Stripe Integration -->
+    <mat-step [stepControl]="stripeForm" label="Stripe Integration">
+      <form [formGroup]="stripeForm">
+        <div class="step-content">
+          <h3>Stripe Integration</h3>
+          <p class="step-description">Configure Stripe product and price IDs for payment processing</p>
+          
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Stripe Product ID</mat-label>
+            <input matInput formControlName="stripeProductId" placeholder="prod_xxxxxxxxxxxxx">
+          </mat-form-field>
+
+          <div class="stripe-prices">
+            <mat-form-field appearance="outline">
+              <mat-label>Monthly Price ID</mat-label>
+              <input matInput formControlName="stripeMonthlyPriceId" placeholder="price_xxxxxxxxxxxxx">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Quarterly Price ID</mat-label>
+              <input matInput formControlName="stripeQuarterlyPriceId" placeholder="price_xxxxxxxxxxxxx">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Annual Price ID</mat-label>
+              <input matInput formControlName="stripeAnnualPriceId" placeholder="price_xxxxxxxxxxxxx">
+            </mat-form-field>
+          </div>
+        </div>
+      </form>
+      
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-button matStepperNext>Next</button>
+        <button mat-button (click)="onCancel()">Cancel</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 6: Privileges -->
+    <mat-step label="Privileges">
+      <div class="step-content">
+        <h3>Plan Privileges</h3>
+        <p class="step-description">Configure what privileges users get with this plan</p>
+        
+        <div class="privileges-section">
+          <div class="privileges-info" *ngIf="privileges.length === 0">
+            <mat-card class="info-card">
+              <mat-card-content>
+                <div class="info-content">
+                  <mat-icon color="warn">info</mat-icon>
+                  <div class="info-text">
+                    <h4>No Privileges Available</h4>
+                    <p>There are no privileges configured in the system. Please create privileges first before adding them to plans.</p>
+                    <button mat-raised-button color="primary" (click)="navigateToPrivileges()">
+                      <mat-icon>settings</mat-icon>
+                      Manage Privileges
+                    </button>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+
+          <div *ngIf="privileges.length > 0">
+            <button mat-raised-button color="primary" (click)="addPrivilege()">
+              <mat-icon>add</mat-icon>
+              Add Privilege
+            </button>
+          </div>
+
+          <div class="privileges-list" *ngIf="selectedPrivileges.length > 0">
+            <mat-card *ngFor="let privilege of selectedPrivileges; let i = index" class="privilege-card">
+              <mat-card-content>
+                <div class="privilege-header">
+                  <h4>Privilege {{ i + 1 }}</h4>
+                  <button mat-icon-button color="warn" (click)="removePrivilege(i)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+
+                <div class="privilege-fields">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Privilege</mat-label>
+                    <mat-select [(ngModel)]="privilege.privilegeId" [ngModelOptions]="{standalone: true}">
+                      <mat-option *ngFor="let priv of privileges" [value]="priv.id">
+                        {{ priv.name }}
+                      </mat-option>
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Value</mat-label>
+                    <input matInput type="number" [(ngModel)]="privilege.value" [ngModelOptions]="{standalone: true}">
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Usage Period</mat-label>
+                    <mat-select [(ngModel)]="privilege.usagePeriodId" [ngModelOptions]="{standalone: true}">
+                      <mat-option *ngFor="let period of privilegeTypes" [value]="period.id">
+                        {{ period.name }}
+                      </mat-option>
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Duration (Months)</mat-label>
+                    <input matInput type="number" [(ngModel)]="privilege.durationMonths" [ngModelOptions]="{standalone: true}">
+                  </mat-form-field>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+      </div>
+      
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-button matStepperNext>Next</button>
+        <button mat-button (click)="onCancel()">Cancel</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 7: Review -->
+    <mat-step label="Review">
+      <div class="step-content">
+        <h3>Review Plan Details</h3>
+        <p class="step-description">Review all plan details before creating</p>
+        
+        <div class="review-section">
+          <mat-card>
+            <mat-card-header>
+              <mat-card-title>Plan Summary</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="review-grid">
+                <div class="review-item">
+                  <strong>Name:</strong> {{ basicInfoForm.get('name')?.value }}
+                </div>
+                <div class="review-item">
+                  <strong>Price:</strong> ${{ pricingForm.get('price')?.value }}
+                </div>
+                <div class="review-item">
+                  <strong>Billing Cycle:</strong> {{ getBillingCycleName(pricingForm.get('billingCycleId')?.value) }}
+                </div>
+                <div class="review-item">
+                  <strong>Currency:</strong> {{ getCurrencyName(pricingForm.get('currencyId')?.value) }}
+                </div>
+                <div class="review-item">
+                  <strong>Messaging Count:</strong> {{ featuresForm.get('messagingCount')?.value }}
+                </div>
+                <div class="review-item">
+                  <strong>Privileges:</strong> {{ selectedPrivileges.length }} configured
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+      
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-raised-button color="primary" (click)="onSubmit(stepper)">
+          {{ editingPlan ? 'Update Plan' : 'Create Plan' }}
+        </button>
+        <button mat-button (click)="onCancel()">Cancel</button>
+      </div>
+    </mat-step>
+
+  </mat-stepper>
+</div>

@@ -190,20 +190,4 @@
 	</mat-card>
 </div>
 
-<!-- Create/Edit Plan Dialog -->
-<div *ngIf="showCreateDialog" class="dialog-overlay" (click)="closeCreateDialog()">
-	<div class="dialog-content" (click)="$event.stopPropagation()">
-		<div class="dialog-header">
-			<h2>{{ editingPlan ? 'Edit Plan' : 'Create New Plan' }}</h2>
-			<button mat-icon-button (click)="closeCreateDialog()">
-				<mat-icon>close</mat-icon>
-			</button>
-		</div>
-		<app-subscription-stepper 
-			[editMode]="!!editingPlan"
-			[existingPlan]="editingPlan"
-			(planSubmitted)="onPlanCreated($event)"
-			(planUpdated)="onPlanUpdated($event)">
-		</app-subscription-stepper>
-	</div>
-</div>
+

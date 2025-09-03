@@ -30,14 +30,6 @@ export const routes: Routes = [
         loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
       },
       { 
-        path: 'plans', 
-        loadComponent: () => import('./admin/plan-management/plan-management.component').then(m => m.PlanManagementComponent) 
-      },
-      { 
-        path: 'users', 
-        loadComponent: () => import('./admin/user-subscriptions/user-subscriptions.component').then(m => m.UserSubscriptionsComponent) 
-      },
-      { 
         path: 'analytics', 
         loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
       },
