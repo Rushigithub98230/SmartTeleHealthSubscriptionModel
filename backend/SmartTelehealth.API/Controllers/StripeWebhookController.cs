@@ -11,6 +11,12 @@ using Microsoft.Extensions.Logging;
 
 namespace SmartTelehealth.API.Controllers
 {
+/// <summary>
+/// Controller responsible for handling Stripe webhook events and maintaining synchronization
+/// between Stripe and the local database. This controller processes various Stripe events
+/// including subscription lifecycle events, payment events, and customer management events.
+/// It ensures data consistency and provides real-time updates to the local system.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class StripeWebhookController : BaseController
@@ -27,6 +33,17 @@ public class StripeWebhookController : BaseController
     private readonly int _maxRetries;
     private readonly int _retryDelaySeconds;
 
+    /// <summary>
+    /// Initializes a new instance of the StripeWebhookController with required services.
+    /// </summary>
+    /// <param name="subscriptionService">Service for subscription management operations</param>
+    /// <param name="billingService">Service for billing and payment operations</param>
+    /// <param name="billingRepository">Repository for billing data access</param>
+    /// <param name="notificationService">Service for notification management</param>
+    /// <param name="stripeService">Service for Stripe integration operations</param>
+    /// <param name="subscriptionLifecycleService">Service for subscription lifecycle management</param>
+    /// <param name="logger">Logger for webhook event tracking and debugging</param>
+    /// <param name="configuration">Configuration for webhook settings and retry logic</param>
     public StripeWebhookController(
         ISubscriptionService subscriptionService,
         IBillingService billingService,
@@ -51,6 +68,25 @@ public class StripeWebhookController : BaseController
         _retryDelaySeconds = configuration.GetValue<int>("Stripe:WebhookRetryDelaySeconds", 5);
     }
 
+    /// <summary>
+    /// Handles incoming Stripe webhook events and processes them with comprehensive error handling and retry logic.
+    /// This endpoint receives webhook events from Stripe, validates them, and processes them to maintain
+    /// synchronization between Stripe and the local database.
+    /// </summary>
+    /// <returns>JsonModel containing the webhook processing result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates webhook signature using Stripe webhook secret
+    /// - Processes various Stripe events including subscription, payment, and customer events
+    /// - Implements idempotency to prevent duplicate processing
+    /// - Includes comprehensive retry logic with exponential backoff
+    /// - Logs all webhook events for audit and debugging purposes
+    /// - Handles webhook failures gracefully with proper error responses
+    /// - Maintains data consistency between Stripe and local database
+    /// - Sends notifications to users for important events
+    /// - Updates subscription and billing records based on Stripe events
+    /// - Supports all major Stripe webhook event types
+    /// </remarks>
     [HttpPost]
     public async Task<JsonModel> HandleWebhook()
     {

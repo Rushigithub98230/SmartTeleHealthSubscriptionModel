@@ -31,6 +31,18 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Category *</mat-label>
+            <mat-select formControlName="categoryId">
+              <mat-option *ngFor="let category of categories" [value]="category.id">
+                {{ category.name }}
+              </mat-option>
+            </mat-select>
+            <mat-error *ngIf="basicInfoForm.get('categoryId')?.hasError('required')">
+              Category is required
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
             <mat-label>Terms & Conditions</mat-label>
             <textarea matInput formControlName="terms" rows="4" placeholder="Terms and conditions"></textarea>
           </mat-form-field>
@@ -289,8 +301,11 @@
 
                 <div class="privilege-fields">
                   <mat-form-field appearance="outline">
-                    <mat-label>Privilege</mat-label>
-                    <mat-select [(ngModel)]="privilege.privilegeId" [ngModelOptions]="{standalone: true}">
+                    <mat-label>Privilege *</mat-label>
+                    <mat-select [(ngModel)]="privilege.privilegeId" 
+                               [ngModelOptions]="{standalone: true}"
+                               (selectionChange)="onPrivilegeChange(privilege, $event.value)">
+                      <mat-option value="">Select a privilege</mat-option>
                       <mat-option *ngFor="let priv of privileges" [value]="priv.id">
                         {{ priv.name }}
                       </mat-option>
@@ -298,13 +313,21 @@
                   </mat-form-field>
 
                   <mat-form-field appearance="outline">
-                    <mat-label>Value</mat-label>
-                    <input matInput type="number" [(ngModel)]="privilege.value" [ngModelOptions]="{standalone: true}">
+                    <mat-label>Value *</mat-label>
+                    <input matInput type="number" 
+                           [(ngModel)]="privilege.value" 
+                           [ngModelOptions]="{standalone: true}"
+                           min="-1"
+                           placeholder="-1 for unlimited, 0 to disable, >0 for limit">
+                    <mat-hint>-1 = Unlimited, 0 = Disabled, >0 = Limited usage</mat-hint>
                   </mat-form-field>
 
                   <mat-form-field appearance="outline">
-                    <mat-label>Usage Period</mat-label>
-                    <mat-select [(ngModel)]="privilege.usagePeriodId" [ngModelOptions]="{standalone: true}">
+                    <mat-label>Usage Period *</mat-label>
+                    <mat-select [(ngModel)]="privilege.usagePeriodId" 
+                               [ngModelOptions]="{standalone: true}"
+                               (selectionChange)="onUsagePeriodChange(privilege, $event.value)">
+                      <mat-option value="">Select period</mat-option>
                       <mat-option *ngFor="let period of privilegeTypes" [value]="period.id">
                         {{ period.name }}
                       </mat-option>
@@ -312,9 +335,72 @@
                   </mat-form-field>
 
                   <mat-form-field appearance="outline">
-                    <mat-label>Duration (Months)</mat-label>
-                    <input matInput type="number" [(ngModel)]="privilege.durationMonths" [ngModelOptions]="{standalone: true}">
+                    <mat-label>Duration (Months) *</mat-label>
+                    <input matInput type="number" 
+                           [(ngModel)]="privilege.durationMonths" 
+                           [ngModelOptions]="{standalone: true}"
+                           min="1"
+                           placeholder="1">
                   </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Description</mat-label>
+                    <textarea matInput 
+                             [(ngModel)]="privilege.description" 
+                             [ngModelOptions]="{standalone: true}"
+                             rows="2"
+                             placeholder="Optional description for this privilege"></textarea>
+                  </mat-form-field>
+
+                  <div class="privilege-limits">
+                    <h5>Optional Limits</h5>
+                    <div class="limits-grid">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Daily Limit</mat-label>
+                        <input matInput type="number" 
+                               [(ngModel)]="privilege.dailyLimit" 
+                               [ngModelOptions]="{standalone: true}"
+                               min="0">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Weekly Limit</mat-label>
+                        <input matInput type="number" 
+                               [(ngModel)]="privilege.weeklyLimit" 
+                               [ngModelOptions]="{standalone: true}"
+                               min="0">
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline">
+                        <mat-label>Monthly Limit</mat-label>
+                        <input matInput type="number" 
+                               [(ngModel)]="privilege.monthlyLimit" 
+                               [ngModelOptions]="{standalone: true}"
+                               min="0">
+                      </mat-form-field>
+                    </div>
+                  </div>
+
+                  <div class="privilege-dates">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Effective Date</mat-label>
+                      <input matInput type="date" 
+                             [(ngModel)]="privilege.effectiveDate" 
+                             [ngModelOptions]="{standalone: true}">
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                      <mat-label>Expiration Date</mat-label>
+                      <input matInput type="date" 
+                             [(ngModel)]="privilege.expirationDate" 
+                             [ngModelOptions]="{standalone: true}">
+                    </mat-form-field>
+                  </div>
+
+                  <div class="privilege-validation" *ngIf="!isPrivilegeFormValid(privilege)">
+                    <mat-icon color="warn">warning</mat-icon>
+                    <span>Please fill in all required fields for this privilege</span>
+                  </div>
                 </div>
               </mat-card-content>
             </mat-card>

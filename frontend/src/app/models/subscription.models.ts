@@ -56,7 +56,11 @@ export interface SubscriptionPlanDto {
   discountedPrice?: number;
   discountValidUntil?: Date;
   billingCycleId: string;
+  billingCycleName?: string;
   currencyId: string;
+  currencyName?: string;
+  categoryId: string;
+  categoryName?: string;
   isActive: boolean;
   isFeatured: boolean;
   isTrialAllowed: boolean;
@@ -74,18 +78,21 @@ export interface SubscriptionPlanDto {
   createdDate: Date;
   updatedDate?: Date;
   // Additional fields for plan configuration
-  messagingCount?: number;
-  includesMedicationDelivery?: boolean;
-  includesFollowUpCare?: boolean;
-  deliveryFrequencyDays?: number;
-  maxPauseDurationDays?: number;
-  maxConcurrentUsers?: number;
-  gracePeriodDays?: number;
+  messagingCount: number;
+  includesMedicationDelivery: boolean;
+  includesFollowUpCare: boolean;
+  deliveryFrequencyDays: number;
+  maxPauseDurationDays: number;
+  maxConcurrentUsers: number;
+  gracePeriodDays: number;
   // Stripe integration fields
   stripeProductId?: string;
   stripeMonthlyPriceId?: string;
   stripeQuarterlyPriceId?: string;
   stripeAnnualPriceId?: string;
+  // Privilege information
+  privileges?: PlanPrivilegeDto[];
+  totalActiveSubscriptions?: number;
 }
 
 export interface CreateSubscriptionPlanDto {
@@ -97,6 +104,7 @@ export interface CreateSubscriptionPlanDto {
   discountValidUntil?: Date;
   billingCycleId: string;
   currencyId: string;
+  categoryId: string;
   messagingCount: number;
   includesMedicationDelivery: boolean;
   includesFollowUpCare: boolean;
@@ -134,6 +142,14 @@ export interface UpdateSubscriptionPlanDto {
   discountValidUntil?: Date;
   billingCycleId: string;
   currencyId: string;
+  categoryId: string;
+  messagingCount: number;
+  includesMedicationDelivery: boolean;
+  includesFollowUpCare: boolean;
+  deliveryFrequencyDays: number;
+  maxPauseDurationDays: number;
+  maxConcurrentUsers: number;
+  gracePeriodDays: number;
   isActive: boolean;
   isFeatured: boolean;
   isTrialAllowed: boolean;
@@ -150,6 +166,8 @@ export interface UpdateSubscriptionPlanDto {
   stripeMonthlyPriceId?: string;
   stripeQuarterlyPriceId?: string;
   stripeAnnualPriceId?: string;
+  // Privilege configuration
+  privileges?: PlanPrivilegeDto[];
 }
 
 export interface ApiResponse<T> {
@@ -232,8 +250,10 @@ export interface Privilege {
 
 export interface PlanPrivilegeDto {
   privilegeId: string;
+  privilegeName?: string;
   value: number; // -1 for unlimited, 0 for disabled, >0 for limited
   usagePeriodId: string;
+  usagePeriodName?: string;
   durationMonths: number;
   description?: string;
   effectiveDate?: Date;
@@ -242,4 +262,100 @@ export interface PlanPrivilegeDto {
   dailyLimit?: number;
   weeklyLimit?: number;
   monthlyLimit?: number;
+}
+
+// Additional interfaces for comprehensive subscription management
+export interface SubscriptionStatusHistoryDto {
+  id: string;
+  subscriptionId: string;
+  fromStatus: string;
+  toStatus: string;
+  reason?: string;
+  changedBy?: number;
+  changedDate: Date;
+  notes?: string;
+}
+
+export interface BillingRecordDto {
+  id: string;
+  subscriptionId: string;
+  amount: number;
+  currency: string;
+  billingDate: Date;
+  dueDate: Date;
+  paidDate?: Date;
+  status: string;
+  paymentMethodId?: string;
+  stripeInvoiceId?: string;
+  notes?: string;
+}
+
+export interface SubscriptionPaymentDto {
+  id: string;
+  subscriptionId: string;
+  amount: number;
+  currency: string;
+  paymentDate: Date;
+  paymentMethod: string;
+  transactionId?: string;
+  stripePaymentIntentId?: string;
+  status: string;
+  failureReason?: string;
+}
+
+export interface UserSubscriptionPrivilegeUsageDto {
+  id: string;
+  subscriptionId: string;
+  privilegeId: string;
+  privilegeName: string;
+  usedCount: number;
+  allowedCount: number;
+  resetDate: Date;
+  lastUsedDate?: Date;
+}
+
+export interface CategoryDto {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdDate: Date;
+}
+
+export interface SubscriptionAnalyticsDto {
+  totalSubscriptions: number;
+  activeSubscriptions: number;
+  pausedSubscriptions: number;
+  cancelledSubscriptions: number;
+  trialSubscriptions: number;
+  monthlyRevenue: number;
+  yearlyRevenue: number;
+  averageRevenuePerUser: number;
+  churnRate: number;
+  conversionRate: number;
+  popularPlans: Array<{
+    planId: string;
+    planName: string;
+    subscriptionCount: number;
+    revenue: number;
+  }>;
+  revenueByPlan: Array<{
+    planId: string;
+    planName: string;
+    revenue: number;
+    subscriptionCount: number;
+  }>;
+  subscriptionsByStatus: Array<{
+    status: string;
+    count: number;
+  }>;
+}
+
+export interface SubscriptionDetailsDto extends SubscriptionDto {
+  planDetails: SubscriptionPlanDto;
+  billingHistory: BillingRecordDto[];
+  paymentHistory: SubscriptionPaymentDto[];
+  statusHistory: SubscriptionStatusHistoryDto[];
+  privilegeUsage: UserSubscriptionPrivilegeUsageDto[];
 }

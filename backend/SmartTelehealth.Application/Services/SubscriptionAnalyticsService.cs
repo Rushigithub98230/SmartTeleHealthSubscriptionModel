@@ -9,6 +9,25 @@ using System.Text;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Service responsible for providing comprehensive analytics and reporting for subscription management.
+/// This service handles subscription analytics, revenue analytics, churn analysis, usage analytics,
+/// and data export capabilities. It provides detailed insights into subscription performance,
+/// customer behavior, revenue trends, and business metrics to support data-driven decision making.
+/// 
+/// Key Features:
+/// - Comprehensive subscription metrics and KPIs
+/// - Revenue analytics including MRR, ARR, and growth rates
+/// - Churn analysis and retention metrics
+/// - Usage analytics and user behavior insights
+/// - Plan distribution and geographic analysis
+/// - Customer lifetime value calculations
+/// - Payment success rate monitoring
+/// - Data export capabilities (CSV, JSON)
+/// - Time-series analysis and trend reporting
+/// - Performance benchmarking and comparisons
+/// - Integration with billing and subscription repositories
+/// </summary>
 public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;

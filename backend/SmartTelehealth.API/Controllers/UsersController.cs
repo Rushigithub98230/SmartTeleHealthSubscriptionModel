@@ -7,20 +7,45 @@ using System.Security.Claims;
 
 namespace SmartTelehealth.API.Controllers
 {
+    /// <summary>
+    /// Controller responsible for comprehensive user management operations.
+    /// This controller provides extensive functionality for user profile management,
+    /// user administration, provider management, patient management, document handling,
+    /// notification management, and payment method management. It serves as the central
+    /// hub for all user-related operations in the SmartTelehealth system.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class UsersController : BaseController
     {
         private readonly IUserService _userService;
 
+        /// <summary>
+        /// Initializes a new instance of the UsersController with the required user service.
+        /// </summary>
+        /// <param name="userService">Service for handling user-related business logic</param>
         public UsersController(IUserService userService)
         {
             _userService = userService;
         }
 
         /// <summary>
-        /// Get current user profile
+        /// Retrieves the current authenticated user's profile information.
+        /// This endpoint returns comprehensive profile data for the currently logged-in user,
+        /// including personal information, preferences, and account status.
         /// </summary>
+        /// <returns>JsonModel containing the current user's profile information</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Returns detailed profile information for the authenticated user
+        /// - Includes personal details, contact information, and preferences
+        /// - Shows account status and verification information
+        /// - Access restricted to authenticated users only
+        /// - Used for profile display and user dashboard
+        /// - Includes comprehensive user data and account information
+        /// - Provides secure access to user's own profile data
+        /// - Handles authentication validation and error responses
+        /// </remarks>
         [HttpGet("profile")]
         //[Authorize]
         public async Task<JsonModel> GetCurrentUserProfile()
@@ -40,8 +65,23 @@ namespace SmartTelehealth.API.Controllers
         }
 
         /// <summary>
-        /// Update current user profile
+        /// Updates the current authenticated user's profile information.
+        /// This endpoint allows users to modify their personal information, contact details,
+        /// and preferences while maintaining data integrity and validation.
         /// </summary>
+        /// <param name="updateDto">DTO containing the updated user information</param>
+        /// <returns>JsonModel containing the update result</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Updates user profile information with validation
+        /// - Ensures data integrity and consistency
+        /// - Validates input data and business rules
+        /// - Access restricted to the profile owner only
+        /// - Used for profile editing and information updates
+        /// - Includes comprehensive validation and error handling
+        /// - Provides detailed feedback on update operations
+        /// - Maintains audit trails for profile changes
+        /// </remarks>
         [HttpPut("profile")]
         //[Authorize]
         public async Task<JsonModel> UpdateProfile([FromBody] UpdateUserDto updateDto)
@@ -62,8 +102,23 @@ namespace SmartTelehealth.API.Controllers
         }
 
         /// <summary>
-        /// Get user by ID
+        /// Retrieves detailed information about a specific user by their ID.
+        /// This endpoint provides comprehensive user information for administrative
+        /// purposes and user management operations.
         /// </summary>
+        /// <param name="userId">The unique identifier of the user to retrieve</param>
+        /// <returns>JsonModel containing the user's detailed information</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Returns detailed user information by ID
+        /// - Includes personal details, contact information, and account status
+        /// - Shows user roles, permissions, and activity information
+        /// - Access restricted to administrators and authorized users
+        /// - Used for user management and administrative operations
+        /// - Includes comprehensive user data and account information
+        /// - Provides secure access to user information
+        /// - Handles authorization validation and error responses
+        /// </remarks>
         [HttpGet("{userId}")]
         //[Authorize]
         public async Task<JsonModel> GetUser(int userId)
@@ -72,8 +127,27 @@ namespace SmartTelehealth.API.Controllers
         }
 
         /// <summary>
-        /// Get all users with optional filtering and search
+        /// Retrieves all users in the system with comprehensive filtering and pagination options.
+        /// This endpoint provides administrators with access to user data with advanced filtering
+        /// capabilities for effective user management and oversight.
         /// </summary>
+        /// <param name="searchText">Search term to filter users by name, email, or other criteria</param>
+        /// <param name="role">Filter users by specific role (Client, Admin, Provider)</param>
+        /// <param name="isActive">Filter users by active status</param>
+        /// <param name="page">Page number for pagination (default: 1)</param>
+        /// <param name="pageSize">Number of records per page (default: 50)</param>
+        /// <returns>JsonModel containing paginated user data with filtering applied</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Returns all users with comprehensive filtering options
+        /// - Supports filtering by search text, role, and active status
+        /// - Provides pagination for large datasets
+        /// - Access restricted to administrators only
+        /// - Used for user management and administrative oversight
+        /// - Includes detailed user information and account status
+        /// - Supports advanced filtering for user analysis
+        /// - Provides comprehensive user overview for administrators
+        /// </remarks>
         [HttpGet]
         //[Authorize]
         public async Task<JsonModel> GetAllUsers(

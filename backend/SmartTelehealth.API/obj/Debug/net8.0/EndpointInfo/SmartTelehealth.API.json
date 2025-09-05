@@ -24815,6 +24815,7 @@
       "SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto": {
         "required": [
           "billingCycleId",
+          "categoryId",
           "currencyId",
           "name",
           "price"
@@ -24856,6 +24857,10 @@
             "format": "uuid"
           },
           "currencyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
             "type": "string",
             "format": "uuid"
           },
@@ -27309,6 +27314,10 @@
             "format": "uuid"
           },
           "currencyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
             "type": "string",
             "format": "uuid"
           },

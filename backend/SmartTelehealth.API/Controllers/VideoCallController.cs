@@ -6,6 +6,12 @@ using System.Security.Claims;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive video call management and OpenTok integration.
+/// This controller provides extensive functionality for video call sessions, OpenTok integration,
+/// video call lifecycle management, participant management, and video call quality monitoring.
+/// It handles the complete video call workflow from session creation to call completion.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class VideoCallController : BaseController
@@ -14,6 +20,12 @@ public class VideoCallController : BaseController
     private readonly IConsultationService _consultationService;
     private readonly IVideoCallService _videoCallService;
 
+    /// <summary>
+    /// Initializes a new instance of the VideoCallController with required services.
+    /// </summary>
+    /// <param name="openTokService">Service for OpenTok video conferencing integration</param>
+    /// <param name="consultationService">Service for consultation-related operations</param>
+    /// <param name="videoCallService">Service for video call management operations</param>
     public VideoCallController(
         IOpenTokService openTokService,
         IConsultationService consultationService,
@@ -25,8 +37,23 @@ public class VideoCallController : BaseController
     }
 
     /// <summary>
-    /// Create a new video call session
+    /// Creates a new OpenTok video call session for video conferencing.
+    /// This endpoint creates a new video session with OpenTok integration including
+    /// session configuration, archiving settings, and session metadata setup.
     /// </summary>
+    /// <param name="createDto">DTO containing video session creation details</param>
+    /// <returns>JsonModel containing the created session information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates new OpenTok video session with configuration
+    /// - Sets up session archiving and metadata
+    /// - Configures session for video conferencing
+    /// - Access restricted to authenticated users
+    /// - Used for video call session creation and setup
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on session creation
+    /// - Maintains session audit trails and creation history
+    /// </remarks>
     [HttpPost("sessions")]
     public async Task<JsonModel> CreateSession([FromBody] CreateVideoSessionDto createDto)
     {
@@ -34,8 +61,24 @@ public class VideoCallController : BaseController
     }
 
     /// <summary>
-    /// Generate a token for joining a video session
+    /// Generates an OpenTok token for joining a video session.
+    /// This endpoint creates a secure token that allows users to join a specific
+    /// video session with appropriate permissions and role-based access control.
     /// </summary>
+    /// <param name="sessionId">The unique identifier of the video session</param>
+    /// <param name="generateDto">DTO containing token generation details and role</param>
+    /// <returns>JsonModel containing the generated token information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Generates secure OpenTok token for session access
+    /// - Sets up role-based permissions and access control
+    /// - Configures token expiration and user identification
+    /// - Access restricted to authenticated users
+    /// - Used for video session access and participant management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides secure token generation and access control
+    /// - Maintains token audit trails and access history
+    /// </remarks>
     [HttpPost("sessions/{sessionId}/token")]
     public async Task<JsonModel> GenerateToken(
         string sessionId, 
@@ -54,8 +97,23 @@ public class VideoCallController : BaseController
     }
 
     /// <summary>
-    /// Get session information
+    /// Retrieves detailed information about a specific video session.
+    /// This endpoint provides comprehensive session details including session status,
+    /// participant information, session configuration, and session metadata.
     /// </summary>
+    /// <param name="sessionId">The unique identifier of the video session</param>
+    /// <returns>JsonModel containing the session information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed video session information
+    /// - Includes session status, participants, and configuration
+    /// - Shows session metadata and OpenTok session details
+    /// - Access restricted to session participants and authorized users
+    /// - Used for session information retrieval and management
+    /// - Includes comprehensive session information and metadata
+    /// - Provides secure access to session information
+    /// - Handles authorization validation and error responses
+    /// </remarks>
     [HttpGet("sessions/{sessionId}")]
     public async Task<JsonModel> GetSession(string sessionId)
     {
@@ -63,8 +121,23 @@ public class VideoCallController : BaseController
     }
 
     /// <summary>
-    /// Archive a video session
+    /// Archives a video session for later retrieval and analysis.
+    /// This endpoint archives the video session recording and metadata for
+    /// compliance, quality assurance, and session review purposes.
     /// </summary>
+    /// <param name="sessionId">The unique identifier of the video session to archive</param>
+    /// <returns>JsonModel containing the archive operation result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Archives video session with recording and metadata
+    /// - Stores session data for compliance and review
+    /// - Updates session status and archive information
+    /// - Access restricted to session participants and administrators
+    /// - Used for session archiving and compliance management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on archive operations
+    /// - Maintains session audit trails and archive history
+    /// </remarks>
     [HttpPost("sessions/{sessionId}/archive")]
     public async Task<JsonModel> ArchiveSession(string sessionId)
     {
@@ -72,8 +145,23 @@ public class VideoCallController : BaseController
     }
 
     /// <summary>
-    /// Delete a video session
+    /// Deletes a video session and all associated data.
+    /// This endpoint permanently removes the video session including recordings,
+    /// metadata, and all associated session data from the system.
     /// </summary>
+    /// <param name="sessionId">The unique identifier of the video session to delete</param>
+    /// <returns>JsonModel containing the deletion result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Deletes video session with all associated data
+    /// - Removes session recordings and metadata
+    /// - Cleans up session resources and storage
+    /// - Access restricted to session owners and administrators
+    /// - Used for session cleanup and data management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on deletion operations
+    /// - Maintains session audit trails and deletion history
+    /// </remarks>
     [HttpDelete("sessions/{sessionId}")]
     public async Task<JsonModel> DeleteSession(string sessionId)
     {

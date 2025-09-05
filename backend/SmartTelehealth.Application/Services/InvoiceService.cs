@@ -8,6 +8,25 @@ using System.Text;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Service responsible for invoice generation, management, and delivery operations.
+/// This service handles invoice creation from billing records, invoice retrieval,
+/// user invoice management, invoice downloads in multiple formats, and invoice
+/// delivery via email. It provides comprehensive invoice functionality with
+/// proper access control, audit trails, and multiple output formats.
+/// 
+/// Key Features:
+/// - Invoice generation from billing records
+/// - Invoice retrieval and access control
+/// - User invoice management with pagination
+/// - Multi-format invoice downloads (PDF, CSV)
+/// - Invoice delivery via email
+/// - Invoice number generation and tracking
+/// - Comprehensive invoice content formatting
+/// - Access permission validation
+/// - Audit logging and error handling
+/// - Integration with billing and user repositories
+/// </summary>
 public class InvoiceService : IInvoiceService
 {
     private readonly IBillingRepository _billingRepository;
@@ -16,6 +35,13 @@ public class InvoiceService : IInvoiceService
       
     private readonly ILogger<InvoiceService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the InvoiceService
+    /// </summary>
+    /// <param name="billingRepository">Repository for billing record data access operations</param>
+    /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
+    /// <param name="userRepository">Repository for user data access operations</param>
+    /// <param name="logger">Logger instance for recording service operations and errors</param>
     public InvoiceService(
         IBillingRepository billingRepository,
         ISubscriptionRepository subscriptionRepository,
@@ -175,21 +201,19 @@ public class InvoiceService : IInvoiceService
             var invoices = await _billingRepository.GetInvoicesByUserIdAsync(userId, page, pageSize);
             var totalCount = await _billingRepository.GetInvoiceCountByUserIdAsync(userId);
 
-            var result = new
+            var paginationMeta = new Meta
             {
-                Invoices = invoices,
-                Meta = new
-                {
-                    TotalRecords = totalCount,
-                    PageSize = pageSize,
-                    CurrentPage = page,
-                    TotalPages = Math.Ceiling((double)totalCount / pageSize)
-                }
+                TotalRecords = totalCount,
+                PageSize = pageSize,
+                CurrentPage = page,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                DefaultPageSize = pageSize
             };
 
             return new JsonModel
             {
-                data = result,
+                data = invoices,
+                meta = paginationMeta,
                 Message = "User invoices retrieved successfully",
                 StatusCode = 200
             };

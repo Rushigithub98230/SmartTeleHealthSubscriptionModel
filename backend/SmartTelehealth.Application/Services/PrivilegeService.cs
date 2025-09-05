@@ -7,6 +7,16 @@ using SmartTelehealth.Core.DTOs;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Privilege management service that handles all privilege-related operations including:
+/// - Privilege usage validation and enforcement
+/// - Time-based limit checking (daily, weekly, monthly)
+/// - Usage tracking and increment operations
+/// - Remaining privilege calculation
+/// - Privilege history and audit trails
+/// - Subscription plan privilege management
+/// - Access control based on subscription status
+/// </summary>
 public class PrivilegeService : IPrivilegeService
 {
     private readonly IPrivilegeRepository _privilegeRepo;
@@ -16,6 +26,15 @@ public class PrivilegeService : IPrivilegeService
     private readonly ISubscriptionRepository _subscriptionRepo;
     private readonly ILogger<PrivilegeService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the PrivilegeService with all required dependencies
+    /// </summary>
+    /// <param name="privilegeRepo">Repository for privilege data access operations</param>
+    /// <param name="planPrivilegeRepo">Repository for subscription plan privilege data access</param>
+    /// <param name="usageRepo">Repository for user subscription privilege usage tracking</param>
+    /// <param name="usageHistoryRepo">Repository for privilege usage history data access</param>
+    /// <param name="subscriptionRepo">Repository for subscription data access operations</param>
+    /// <param name="logger">Logger instance for logging operations and errors</param>
     public PrivilegeService(
         IPrivilegeRepository privilegeRepo,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepo,
@@ -32,29 +51,63 @@ public class PrivilegeService : IPrivilegeService
         _logger = logger;
     }
 
-    // Helper to get SubscriptionPlanPrivilege by subscription and privilege name
+    #region Private Helper Methods
+
+    /// <summary>
+    /// Helper method to get SubscriptionPlanPrivilege by subscription ID and privilege name
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID to get privileges for</param>
+    /// <param name="privilegeName">The name of the privilege to retrieve</param>
+    /// <returns>SubscriptionPlanPrivilege if found and subscription is active, null otherwise</returns>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves the subscription to get the plan ID
+    /// - Validates that the subscription is active and not deleted
+    /// - Checks that the subscription status allows privilege usage (Active or Trial)
+    /// - Retrieves plan privileges and finds the matching privilege by name
+    /// </remarks>
     private async Task<SubscriptionPlanPrivilege?> GetPlanPrivilegeAsync(Guid subscriptionId, string privilegeName)
     {
         // Fetch the subscription to get the planId
         var subscription = await _subscriptionRepo.GetByIdAsync(subscriptionId);
         if (subscription == null) return null;
         
-        // Check if subscription is active
+        // Check if subscription is active and allows privilege usage
         if (!subscription.IsActive || subscription.IsDeleted || 
             subscription.Status != "Active" && subscription.Status != "Trial")
         {
             return null;
         }
         
+        // Get plan privileges and find the matching privilege by name
         var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(subscription.SubscriptionPlanId);
         return planPrivileges.FirstOrDefault(pp => pp.Privilege.Name == privilegeName);
     }
+    #endregion
 
-    // Check if a user has a privilege and how much is left
+    #region Public Methods
+
+    /// <summary>
+    /// Gets the remaining usage count for a specific privilege in a subscription
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID to check privileges for</param>
+    /// <param name="privilegeName">The name of the privilege to check</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>The remaining usage count for the privilege (0 if disabled, int.MaxValue if unlimited)</returns>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves the plan privilege configuration
+    /// - Returns 0 if privilege is disabled or subscription is inactive
+    /// - Returns int.MaxValue if privilege is unlimited (-1)
+    /// - Calculates remaining usage by subtracting used amount from allowed amount
+    /// - Logs the remaining count for audit purposes
+    /// - Returns 0 on any error for safety
+    /// </remarks>
     public async Task<int> GetRemainingPrivilegeAsync(Guid subscriptionId, string privilegeName, TokenModel tokenModel)
     {
         try
         {
+            // Get the plan privilege configuration
             var planPrivilege = await GetPlanPrivilegeAsync(subscriptionId, privilegeName);
             if (planPrivilege == null) return 0;
             
@@ -64,6 +117,7 @@ public class PrivilegeService : IPrivilegeService
             // Check if privilege is unlimited
             if (planPrivilege.Value == -1) return int.MaxValue;
             
+            // Get current usage and calculate remaining
             var usage = (await _usageRepo.GetBySubscriptionIdAsync(subscriptionId))
                 .FirstOrDefault(u => u.SubscriptionPlanPrivilegeId == planPrivilege.Id);
             var used = usage?.UsedValue ?? 0;
@@ -137,27 +191,53 @@ public class PrivilegeService : IPrivilegeService
         }
     }
 
-    // Use a privilege (e.g., book a consult)
+    /// <summary>
+    /// Uses a privilege by incrementing the usage count with comprehensive validation
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID to use the privilege for</param>
+    /// <param name="privilegeName">The name of the privilege to use</param>
+    /// <param name="amount">The amount of privilege usage to consume</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>True if privilege usage was successful, false otherwise</returns>
+    /// <remarks>
+    /// This method performs comprehensive validation and usage tracking:
+    /// 1. Validates input parameters (amount must be positive)
+    /// 2. Retrieves and validates the plan privilege configuration
+    /// 3. Checks if privilege is disabled (returns false if so)
+    /// 4. Validates time-based limits (daily, weekly, monthly)
+    /// 5. Handles unlimited privileges (-1) by allowing usage without limit checks
+    /// 6. For limited privileges, checks remaining usage before allowing
+    /// 7. Creates or updates usage records with audit information
+    /// 8. Records usage history for detailed tracking
+    /// 9. Logs all operations for audit purposes
+    /// 
+    /// Business Rules:
+    /// - Only active subscriptions can use privileges
+    /// - Time-based limits are enforced before quantity limits
+    /// - Usage is tracked with timestamps and user information
+    /// - Failed operations are logged but don't throw exceptions
+    /// </remarks>
     public async Task<bool> UsePrivilegeAsync(Guid subscriptionId, string privilegeName, int amount, TokenModel tokenModel)
     {
         try
         {
-            // Validate input parameters
+            // Validate input parameters - amount must be positive
             if (amount <= 0) return false;
             
+            // Get the plan privilege configuration
             var planPrivilege = await GetPlanPrivilegeAsync(subscriptionId, privilegeName);
             if (planPrivilege == null) return false;
             
             // Check if privilege is disabled
             if (planPrivilege.Value == 0) return false;
             
-            // Check time-based limits first
+            // Check time-based limits first (daily, weekly, monthly)
             if (!await CheckTimeBasedLimitsAsync(subscriptionId, planPrivilege, amount))
             {
                 return false;
             }
             
-            // Check if privilege is unlimited
+            // Handle unlimited privileges
             if (planPrivilege.Value == -1)
             {
                 // For unlimited privileges, we can always use them
@@ -284,11 +364,29 @@ public class PrivilegeService : IPrivilegeService
     }
 
     // Get all privileges for a plan
+    /// <summary>
+    /// Retrieves all privileges associated with a specific subscription plan
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan to get privileges for</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>Collection of Privilege entities associated with the plan</returns>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves subscription plan privileges from the repository
+    /// - Extracts the privilege entities from plan privilege relationships
+    /// - Returns all privileges available in the specified plan
+    /// - Used for plan privilege management and display
+    /// - Logs successful operations and errors
+    /// - Returns empty collection on error for safety
+    /// </remarks>
     public async Task<IEnumerable<Privilege>> GetPrivilegesForPlanAsync(Guid planId, TokenModel tokenModel)
     {
         try
         {
+            // Retrieve plan privileges from repository
             var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(planId);
+            
+            // Extract privilege entities from plan privilege relationships
             var privileges = planPrivileges.Select(pp => pp.Privilege);
             
             _logger.LogInformation("Privileges retrieved for plan {PlanId} by user {UserId}: {PrivilegeCount} privileges", 
@@ -302,25 +400,49 @@ public class PrivilegeService : IPrivilegeService
         }
     }
 
-    // Get all privileges with pagination and filtering
+    /// <summary>
+    /// Retrieves all privileges with advanced filtering, searching, and pagination
+    /// </summary>
+    /// <param name="page">Page number for pagination (1-based)</param>
+    /// <param name="pageSize">Number of items per page</param>
+    /// <param name="search">Search term to filter privileges by name or description</param>
+    /// <param name="category">Category filter (currently not implemented)</param>
+    /// <param name="status">Status filter (active/inactive)</param>
+    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
+    /// <returns>JsonModel containing paginated and filtered privileges or error information</returns>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves all privileges from the repository
+    /// - Applies search filter on name and description (case-insensitive)
+    /// - Applies status filter if specified
+    /// - Implements pagination for large result sets
+    /// - Maps entities to DTOs for response
+    /// - Used for administrative privilege management with advanced filtering
+    /// - Logs errors for troubleshooting
+    /// 
+    /// Note: Category filtering is currently not implemented
+    /// </remarks>
     public async Task<JsonModel> GetAllPrivilegesAsync(int page, int pageSize, string? search, string? category, string? status, TokenModel tokenModel)
     {
         try
         {
+            // Retrieve all privileges from repository
             var privileges = await _privilegeRepo.GetAllAsync();
             
-            // Apply filters
+            // Apply search filter (name and description)
             if (!string.IsNullOrEmpty(search))
             {
                 privileges = privileges.Where(p => p.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                                                  p.Description?.Contains(search, StringComparison.OrdinalIgnoreCase) == true);
             }
 
+            // Apply category filter (currently not implemented)
             if (!string.IsNullOrEmpty(category))
             {
                 // Filter by category logic would go here
             }
 
+            // Apply status filter (active/inactive)
             if (!string.IsNullOrEmpty(status))
             {
                 if (bool.TryParse(status, out var isActive))
@@ -336,20 +458,20 @@ public class PrivilegeService : IPrivilegeService
                 .Take(pageSize)
                 .ToList();
 
-            var result = new
+            var paginationMeta = new Meta
             {
-                Privileges = pagedPrivileges,
-                TotalCount = totalCount,
-                Page = page,
+                TotalRecords = totalCount,
+                CurrentPage = page,
                 PageSize = pageSize,
                 TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
             };
             
             _logger.LogInformation("Privileges retrieved by user {UserId}: {PrivilegeCount} privileges (page {Page} of {TotalPages})", 
-                tokenModel.UserID, pagedPrivileges.Count, page, result.TotalPages);
+                tokenModel.UserID, pagedPrivileges.Count, page, paginationMeta.TotalPages);
             return new JsonModel 
             { 
-                data = result, 
+                data = pagedPrivileges, 
+                meta = paginationMeta,
                 Message = "Privileges retrieved successfully", 
                 StatusCode = 200 
             };
@@ -367,10 +489,27 @@ public class PrivilegeService : IPrivilegeService
     }
 
     // Get privilege by ID
+    /// <summary>
+    /// Retrieves a specific privilege by its ID
+    /// </summary>
+    /// <param name="id">The unique identifier of the privilege to retrieve</param>
+    /// <param name="token">Token containing user authentication and authorization information</param>
+    /// <returns>JsonModel containing the privilege data or error information</returns>
+    /// <remarks>
+    /// This method:
+    /// - Validates the privilege ID format (must be valid GUID)
+    /// - Retrieves the privilege from the repository
+    /// - Maps entity to DTO for response
+    /// - Returns 400 Bad Request for invalid ID format
+    /// - Returns 404 Not Found if privilege doesn't exist
+    /// - Used for detailed privilege information display
+    /// - Logs errors for troubleshooting
+    /// </remarks>
     public async Task<JsonModel> GetPrivilegeByIdAsync(string id, TokenModel token)
     {
         try
         {
+            // Validate privilege ID format
             if (!Guid.TryParse(id, out var privilegeId))
             {
                 return new JsonModel
@@ -381,6 +520,7 @@ public class PrivilegeService : IPrivilegeService
                 };
             }
 
+            // Retrieve privilege from repository
             var privilege = await _privilegeRepo.GetByIdAsync(privilegeId);
             if (privilege == null)
             {
@@ -412,10 +552,31 @@ public class PrivilegeService : IPrivilegeService
     }
 
     // Create new privilege
+    /// <summary>
+    /// Creates a new privilege with proper validation and audit trail
+    /// </summary>
+    /// <param name="createDto">DTO containing privilege creation details</param>
+    /// <param name="token">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing the created privilege data or error information</returns>
+    /// <remarks>
+    /// This method:
+    /// - Creates a new Privilege entity from the DTO
+    /// - Sets audit properties (CreatedBy, CreatedDate)
+    /// - Adds the privilege to the repository
+    /// - Maps the created entity to DTO for response
+    /// - Used for privilege management and administration
+    /// - Logs errors for troubleshooting
+    /// 
+    /// Business Rules:
+    /// - All privileges are created with audit fields
+    /// - Created privileges are immediately available for use
+    /// - Privilege type must be valid and exist
+    /// </remarks>
     public async Task<JsonModel> CreatePrivilegeAsync(CreatePrivilegeDto createDto, TokenModel token)
     {
         try
         {
+            // Create new privilege entity with audit fields
             var privilege = new Privilege
             {
                 Name = createDto.Name,
@@ -426,6 +587,7 @@ public class PrivilegeService : IPrivilegeService
                 CreatedDate = DateTime.UtcNow
             };
 
+            // Add privilege to repository
             await _privilegeRepo.AddAsync(privilege);
 
             return new JsonModel
@@ -784,4 +946,5 @@ public class PrivilegeService : IPrivilegeService
             };
         }
     }
+    #endregion
 } 

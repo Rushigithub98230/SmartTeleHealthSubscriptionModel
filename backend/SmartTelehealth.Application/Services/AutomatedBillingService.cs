@@ -7,6 +7,25 @@ using SmartTelehealth.Core.Interfaces;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Service responsible for automated billing operations and payment processing.
+/// This service handles recurring billing, subscription renewals, failed payment retries,
+/// plan changes, manual billing, and payment validation. It provides comprehensive billing
+/// automation with Stripe integration, proration calculations, and billing cycle management.
+/// 
+/// Key Features:
+/// - Automated recurring billing processing
+/// - Subscription renewal automation
+/// - Failed payment retry mechanisms
+/// - Plan change processing with proration
+/// - Manual billing capabilities
+/// - Payment processing through Stripe
+/// - Billing cycle validation
+/// - Next billing date calculations
+/// - Prorated amount calculations
+/// - Comprehensive error handling and logging
+/// - Integration with subscription and billing services
+/// </summary>
 public class AutomatedBillingService : IAutomatedBillingService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;
@@ -15,6 +34,13 @@ public class AutomatedBillingService : IAutomatedBillingService
       
     private readonly ILogger<AutomatedBillingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the AutomatedBillingService
+    /// </summary>
+    /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
+    /// <param name="billingService">Service for billing record management and processing</param>
+    /// <param name="stripeService">Service for Stripe payment processing integration</param>
+    /// <param name="logger">Logger instance for recording service operations and errors</param>
     public AutomatedBillingService(
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,

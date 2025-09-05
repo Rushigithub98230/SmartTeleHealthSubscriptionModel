@@ -30,6 +30,9 @@ public class CreateSubscriptionPlanDto
     [Required]
     public Guid CurrencyId { get; set; }
     
+    [Required]
+    public Guid CategoryId { get; set; }
+    
     // Trial configuration
     public bool IsTrialAllowed { get; set; } = false;
     

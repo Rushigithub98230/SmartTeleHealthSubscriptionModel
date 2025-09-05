@@ -5,6 +5,12 @@ using SmartTelehealth.Application.Interfaces;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive appointment management and healthcare scheduling.
+/// This controller provides extensive functionality for appointment booking, management,
+/// video call integration, payment processing, participant management, and appointment
+/// lifecycle operations. It integrates with OpenTok for video conferencing and Stripe for payments.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
@@ -13,6 +19,11 @@ public class AppointmentsController : BaseController
     private readonly IAppointmentService _appointmentService;
     private readonly IOpenTokService _openTokService;
 
+    /// <summary>
+    /// Initializes a new instance of the AppointmentsController with required services.
+    /// </summary>
+    /// <param name="appointmentService">Service for handling appointment-related business logic</param>
+    /// <param name="openTokService">Service for OpenTok video conferencing integration</param>
     public AppointmentsController(
         IAppointmentService appointmentService,
         IOpenTokService openTokService)
@@ -21,7 +32,23 @@ public class AppointmentsController : BaseController
         _openTokService = openTokService;
     }
 
-    // Homepage endpoints
+    /// <summary>
+    /// Retrieves homepage data for the appointment system including categories, providers, and statistics.
+    /// This endpoint provides comprehensive data for the application homepage including featured providers,
+    /// available categories, and system statistics for public display.
+    /// </summary>
+    /// <returns>JsonModel containing homepage data including categories, providers, and statistics</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns homepage data including categories and featured providers
+    /// - Includes system statistics and public information
+    /// - Provides data for public homepage display
+    /// - Access is anonymous (no authentication required)
+    /// - Used for homepage data loading and public information display
+    /// - Includes comprehensive homepage information and statistics
+    /// - Provides data for public access and homepage rendering
+    /// - Handles public data retrieval and error responses
+    /// </remarks>
     [HttpGet("homepage")]
     [AllowAnonymous]
     public async Task<JsonModel> GetHomepageData()
@@ -29,31 +56,120 @@ public class AppointmentsController : BaseController
         return await _appointmentService.GetHomepageDataAsync(GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves all available appointment categories with their associated subscription information.
+    /// This endpoint provides comprehensive category data including subscription details,
+    /// pricing information, and category-specific features for appointment booking.
+    /// </summary>
+    /// <returns>JsonModel containing categories with subscription information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all appointment categories with subscription details
+    /// - Includes pricing information and category features
+    /// - Shows subscription requirements and category-specific information
+    /// - Access restricted to authenticated users
+    /// - Used for appointment category selection and booking
+    /// - Includes comprehensive category information and subscription details
+    /// - Provides data for appointment booking and category management
+    /// - Handles category data retrieval and error responses
+    /// </remarks>
     [HttpGet("categories")]
     public async Task<JsonModel> GetCategories()
     {
         return await _appointmentService.GetCategoriesWithSubscriptionsAsync(GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves featured healthcare providers for appointment booking.
+    /// This endpoint provides a curated list of featured providers including their profiles,
+    /// specialties, ratings, and availability information for appointment booking.
+    /// </summary>
+    /// <returns>JsonModel containing featured providers information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns featured healthcare providers with detailed information
+    /// - Includes provider profiles, specialties, and ratings
+    /// - Shows provider availability and appointment information
+    /// - Access restricted to authenticated users
+    /// - Used for provider selection and appointment booking
+    /// - Includes comprehensive provider information and availability
+    /// - Provides data for provider selection and appointment scheduling
+    /// - Handles provider data retrieval and error responses
+    /// </remarks>
     [HttpGet("providers/featured")]
     public async Task<JsonModel> GetFeaturedProviders()
     {
         return await _appointmentService.GetFeaturedProvidersAsync(GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves comprehensive home data for the appointment system.
+    /// This endpoint provides detailed home page data including categories, providers,
+    /// statistics, and system information for the appointment booking interface.
+    /// </summary>
+    /// <returns>JsonModel containing comprehensive home data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns comprehensive home data including categories and providers
+    /// - Includes system statistics and appointment information
+    /// - Shows available services and booking options
+    /// - Access restricted to authenticated users
+    /// - Used for home page data loading and appointment interface
+    /// - Includes comprehensive home information and booking data
+    /// - Provides data for appointment interface and home page rendering
+    /// - Handles home data retrieval and error responses
+    /// </remarks>
     [HttpGet("home-data")]
     public async Task<JsonModel> GetHomeData()
     {
         return await _appointmentService.GetHomeDataAsync(GetToken(HttpContext));
     }
 
-    // Appointment booking flow
+    /// <summary>
+    /// Books a new appointment with a healthcare provider.
+    /// This endpoint handles the complete appointment booking process including provider validation,
+    /// availability checking, scheduling, and initial appointment setup.
+    /// </summary>
+    /// <param name="bookingDto">DTO containing appointment booking details</param>
+    /// <returns>JsonModel containing the booking result and appointment information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Books new appointment with provider validation
+    /// - Checks provider availability and scheduling conflicts
+    /// - Handles appointment scheduling and setup
+    /// - Validates booking requirements and participant information
+    /// - Access restricted to authenticated users
+    /// - Used for appointment booking and scheduling
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on booking operations
+    /// - Maintains appointment audit trails and booking history
+    /// </remarks>
     [HttpPost("book")]
     public async Task<JsonModel> BookAppointment([FromBody] AppointmentBookingDto bookingDto)
     {
         return await _appointmentService.BookAppointmentAsync(bookingDto, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Processes payment for a specific appointment.
+    /// This endpoint handles payment processing for appointments including payment validation,
+    /// Stripe integration, and payment confirmation for appointment booking.
+    /// </summary>
+    /// <param name="appointmentId">The unique identifier of the appointment</param>
+    /// <param name="request">DTO containing payment processing details</param>
+    /// <returns>JsonModel containing the payment processing result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Processes payment for appointment booking
+    /// - Integrates with Stripe for payment processing
+    /// - Validates payment information and appointment details
+    /// - Confirms payment and updates appointment status
+    /// - Access restricted to appointment participants
+    /// - Used for appointment payment processing
+    /// - Includes comprehensive payment validation and error handling
+    /// - Provides detailed feedback on payment operations
+    /// - Maintains payment audit trails and transaction history
+    /// </remarks>
     [HttpPost("{appointmentId}/payment")]
     public async Task<JsonModel> ProcessPayment(Guid appointmentId, [FromBody] ProcessPaymentDto request)
     {

@@ -18,6 +18,17 @@ using System.Text;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// User management service that handles all user-related operations including:
+/// - User authentication and authorization
+/// - User registration and profile management
+/// - Password management and security operations
+/// - User role and permission management
+/// - Stripe customer integration
+/// - Document and file management
+/// - User subscription and billing integration
+/// - User data validation and audit trails
+/// </summary>
 public class UserService : IUserService
 {
     private readonly IUserRepository _userRepository;
@@ -31,6 +42,19 @@ public class UserService : IUserService
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly ISubscriptionRepository _subscriptionRepository; // Added for DeleteUserAsync
 
+    /// <summary>
+    /// Initializes a new instance of the UserService with all required dependencies
+    /// </summary>
+    /// <param name="userRepository">Repository for user data access operations</param>
+    /// <param name="notificationService">Service for sending notifications to users</param>
+    /// <param name="stripeService">Stripe service for payment and customer management</param>
+    /// <param name="logger">Logger instance for logging operations and errors</param>
+    /// <param name="userManager">ASP.NET Identity UserManager for user operations</param>
+    /// <param name="mapper">AutoMapper instance for entity-DTO mapping</param>
+    /// <param name="documentService">Service for document and file management</param>
+    /// <param name="documentTypeService">Service for document type management</param>
+    /// <param name="userRoleRepository">Repository for user role data access</param>
+    /// <param name="subscriptionRepository">Repository for subscription data access (used for user deletion)</param>
     public UserService(
         IUserRepository userRepository,
         INotificationService notificationService,
@@ -41,7 +65,7 @@ public class UserService : IUserService
         IDocumentService documentService,
         IDocumentTypeService documentTypeService,
         IUserRoleRepository userRoleRepository,
-        ISubscriptionRepository subscriptionRepository) // Added for DeleteUserAsync
+        ISubscriptionRepository subscriptionRepository)
     {
         _userRepository = userRepository;
         _notificationService = notificationService;
@@ -52,10 +76,31 @@ public class UserService : IUserService
         _documentService = documentService;
         _documentTypeService = documentTypeService;
         _userRoleRepository = userRoleRepository;
-        _subscriptionRepository = subscriptionRepository; // Added for DeleteUserAsync
+        _subscriptionRepository = subscriptionRepository;
     }
 
-    // --- AUTHENTICATION METHODS ---
+    #region Authentication Methods
+
+    /// <summary>
+    /// Authenticates a user with email and password using ASP.NET Identity
+    /// </summary>
+    /// <param name="email">User's email address</param>
+    /// <param name="password">User's password</param>
+    /// <param name="tokenModel">Token containing user authentication information (not used in this method)</param>
+    /// <returns>JsonModel containing the authenticated user data or error information</returns>
+    /// <remarks>
+    /// This method:
+    /// - Uses ASP.NET Identity UserManager to find user by email
+    /// - Validates password using Identity's built-in password verification (BCrypt)
+    /// - Returns generic error message for security (doesn't reveal if email exists)
+    /// - Maps user entity to DTO for response
+    /// - Logs authentication attempts and errors
+    /// 
+    /// Security Features:
+    /// - Password verification uses secure hashing (BCrypt)
+    /// - Generic error messages prevent email enumeration
+    /// - All authentication attempts are logged
+    /// </remarks>
     public async Task<JsonModel> AuthenticateUserAsync(string email, string password, TokenModel tokenModel)
     {
         try
@@ -70,6 +115,7 @@ public class UserService : IUserService
             if (!isValidPassword)
                 return new JsonModel { data = new object(), Message = "Invalid email or password", StatusCode = 401 };
 
+            // Map user entity to DTO and return success response
             var userDto = MapToUserDto(user);
             return new JsonModel { data = userDto, Message = "Authentication successful", StatusCode = 200 };
         }
@@ -1476,19 +1522,19 @@ public class UserService : IUserService
 
             _logger.LogInformation("Retrieved {UserCount} users (filtered from {TotalCount}) by user {TokenUserId}", pagedUsers.Count, totalCount, tokenModel?.UserID ?? 0);
             
+            var paginationMeta = new Meta
+            {
+                TotalRecords = totalCount,
+                PageSize = pageSize,
+                CurrentPage = page,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                DefaultPageSize = pageSize
+            };
+
             return new JsonModel 
             { 
-                data = new
-                {
-                    users = pagedUsers,
-                    pagination = new
-                    {
-                        totalCount,
-                        page,
-                        pageSize,
-                        totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-                    }
-                },
+                data = pagedUsers,
+                meta = paginationMeta,
                 Message = "Users retrieved successfully", 
                 StatusCode = 200 
             };
@@ -1775,4 +1821,5 @@ public class UserService : IUserService
         var dynamicData = documentData as dynamic;
         return dynamicData?.DocumentTypeId ?? Guid.Empty;
     }
+    #endregion
 } 

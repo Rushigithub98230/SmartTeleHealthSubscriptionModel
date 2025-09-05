@@ -7,6 +7,26 @@ using SmartTelehealth.Core.Interfaces;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Service responsible for managing subscription-related notifications and communications.
+/// This service handles all subscription lifecycle notifications including trial endings, payment failures,
+/// subscription expirations, renewals, plan changes, and other subscription events. It provides comprehensive
+/// notification delivery through multiple channels including in-app notifications, email, and SMS.
+/// 
+/// Key Features:
+/// - Trial ending notifications with upgrade prompts
+/// - Payment failure notifications with resolution guidance
+/// - Subscription expiration and renewal notifications
+/// - Plan change notifications (upgrades/downgrades)
+/// - Bulk notification capabilities
+/// - Multi-channel delivery (in-app, email, SMS)
+/// - Rich HTML email templates
+/// - Comprehensive notification tracking
+/// - Error handling and retry logic
+/// - Integration with communication and notification services
+/// - Automated notification scheduling
+/// - User preference handling
+/// </summary>
 public class SubscriptionNotificationService : ISubscriptionNotificationService
 {
     private readonly INotificationService _notificationService;

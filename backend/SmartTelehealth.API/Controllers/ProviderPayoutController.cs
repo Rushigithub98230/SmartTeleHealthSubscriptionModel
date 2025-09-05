@@ -6,6 +6,12 @@ using SmartTelehealth.Application.Interfaces;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive provider payout management and processing.
+/// This controller provides extensive functionality for managing provider payouts, payout periods,
+/// earnings calculation, payout processing, and financial reporting. It handles the complete
+/// payout lifecycle from earnings calculation to payment processing and financial reconciliation.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class ProviderPayoutController : BaseController
@@ -13,6 +19,11 @@ public class ProviderPayoutController : BaseController
     private readonly IProviderPayoutService _providerPayoutService;
     private readonly IPayoutPeriodService _periodService;
 
+    /// <summary>
+    /// Initializes a new instance of the ProviderPayoutController with required services.
+    /// </summary>
+    /// <param name="providerPayoutService">Service for handling provider payout-related business logic</param>
+    /// <param name="periodService">Service for handling payout period operations</param>
     public ProviderPayoutController(
         IProviderPayoutService providerPayoutService,
         IPayoutPeriodService periodService)

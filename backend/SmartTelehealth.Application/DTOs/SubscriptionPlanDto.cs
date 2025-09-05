@@ -13,6 +13,7 @@ public class SubscriptionPlanDto
     public DateTime? DiscountValidUntil { get; set; }
     public Guid BillingCycleId { get; set; }
     public Guid CurrencyId { get; set; }
+    public Guid CategoryId { get; set; }
     public bool IsActive { get; set; }
     public bool IsFeatured { get; set; }
     public bool IsTrialAllowed { get; set; }

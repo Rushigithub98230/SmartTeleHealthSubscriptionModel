@@ -24,6 +24,7 @@ import {
   PlanPrivilegeDto
 } from '../../models/subscription.models';
 import { MasterDataService } from '../../services/master-data.service';
+import { SubscriptionService } from '../../services/subscription.service';
 
 @Component({
   selector: 'app-plan-stepper',
@@ -65,6 +66,7 @@ export class PlanStepperComponent implements OnInit {
   currencies: MasterCurrency[] = [];
   privilegeTypes: MasterPrivilegeType[] = [];
   privileges: Privilege[] = [];
+  categories: any[] = [];
 
   // Privilege management
   selectedPrivileges: PlanPrivilegeDto[] = [];
@@ -72,6 +74,7 @@ export class PlanStepperComponent implements OnInit {
   // Services
   private fb = inject(FormBuilder);
   private masterDataService = inject(MasterDataService);
+  private subscriptionService = inject(SubscriptionService);
   private snackBar = inject(MatSnackBar);
 
   ngOnInit() {
@@ -90,12 +93,13 @@ export class PlanStepperComponent implements OnInit {
       description: ['', Validators.maxLength(500)],
       shortDescription: ['', Validators.maxLength(200)],
       features: [''],
-      terms: ['']
+      terms: [''],
+      categoryId: ['', Validators.required]
     });
 
     // Step 2: Pricing
     this.pricingForm = this.fb.group({
-      price: [0, [Validators.required, Validators.min(0)]],
+      price: [0, [Validators.required, Validators.min(0.01)]],
       discountedPrice: [null, Validators.min(0)],
       discountValidUntil: [null],
       billingCycleId: ['', Validators.required],
@@ -167,6 +171,55 @@ export class PlanStepperComponent implements OnInit {
       }
     });
 
+    // Load categories
+    this.subscriptionService.getCategories().subscribe({
+      next: (response) => {
+        console.log('=== CATEGORIES API RESPONSE DEBUG ===');
+        console.log('Full response:', response);
+        console.log('Response data type:', typeof response.data);
+        console.log('Response data:', response.data);
+        console.log('Response data keys:', response.data ? Object.keys(response.data) : 'No data');
+        console.log('Response data JSON:', JSON.stringify(response.data, null, 2));
+        console.log('Response data is array:', Array.isArray(response.data));
+        console.log('Response data length:', response.data ? (Array.isArray(response.data) ? response.data.length : 'Not an array') : 'No data');
+        console.log('=== END DEBUG ===');
+        
+        if (response.statusCode === 200) {
+          // Handle the new response structure where categories are directly in data
+          if (Array.isArray(response.data)) {
+            this.categories = response.data;
+            console.log('Using direct array categories:', this.categories);
+          } else if (response.data && (response.data as any).categories) {
+            // Fallback for old paginated response structure
+            this.categories = (response.data as any).categories;
+            console.log('Using old paginated categories structure:', this.categories);
+          } else if (response.data && (response.data as any).Categories) {
+            // Fallback for uppercase Categories
+            this.categories = (response.data as any).Categories;
+            console.log('Using uppercase Categories:', this.categories);
+          } else if (response.data && typeof response.data === 'object' && Object.keys(response.data).length === 0) {
+            // Handle empty object response - likely no categories in database
+            this.categories = [];
+            console.log('Empty object response - no categories found in database');
+            this.snackBar.open('No categories found in database. Please contact administrator to add categories.', 'Close', { duration: 5000 });
+          } else {
+            this.categories = [];
+            console.log('No categories found, using empty array');
+            console.log('Response data structure:', JSON.stringify(response.data, null, 2));
+          }
+          console.log('Final categories array:', this.categories);
+        } else {
+          console.error('Categories API returned error status:', response.statusCode);
+          this.categories = [];
+        }
+      },
+      error: (err) => {
+        console.error('Error loading categories:', err);
+        this.snackBar.open('Failed to load categories', 'Close', { duration: 3000 });
+        this.categories = [];
+      }
+    });
+
     // Load privilege types
     this.masterDataService.getPrivilegeTypes().subscribe({
       next: (response) => {
@@ -211,6 +264,7 @@ export class PlanStepperComponent implements OnInit {
       shortDescription: this.editingPlan.shortDescription,
       features: this.editingPlan.features,
       terms: this.editingPlan.terms,
+      categoryId: this.editingPlan.categoryId,
       isActive: this.editingPlan.isActive
     });
 
@@ -259,13 +313,20 @@ export class PlanStepperComponent implements OnInit {
   }
 
   addPrivilege() {
+    if (this.privileges.length === 0) {
+      this.snackBar.open('No privileges available. Please create privileges first.', 'Close', { duration: 5000 });
+      return;
+    }
+
     const newPrivilege: PlanPrivilegeDto = {
       privilegeId: '',
-      value: 0,
+      privilegeName: '',
+      value: 1,
       usagePeriodId: '',
+      usagePeriodName: '',
       durationMonths: 1,
       description: '',
-      effectiveDate: undefined,
+      effectiveDate: new Date(),
       expirationDate: undefined,
       dailyLimit: undefined,
       weeklyLimit: undefined,
@@ -293,6 +354,41 @@ export class PlanStepperComponent implements OnInit {
     return currency ? currency.name : 'Unknown Currency';
   }
 
+  getCategoryName(categoryId: string): string {
+    if (!this.categories || !Array.isArray(this.categories)) {
+      return 'Unknown Category';
+    }
+    const category = this.categories.find(c => c.id === categoryId);
+    return category ? category.name : 'Unknown Category';
+  }
+
+  onPrivilegeChange(privilege: PlanPrivilegeDto, privilegeId: string) {
+    const selectedPrivilege = this.privileges.find(p => p.id === privilegeId);
+    if (selectedPrivilege) {
+      privilege.privilegeName = selectedPrivilege.name;
+      privilege.privilegeId = privilegeId;
+    }
+  }
+
+  onUsagePeriodChange(privilege: PlanPrivilegeDto, usagePeriodId: string) {
+    const selectedPeriod = this.privilegeTypes.find(p => p.id === usagePeriodId);
+    if (selectedPeriod) {
+      privilege.usagePeriodName = selectedPeriod.name;
+      privilege.usagePeriodId = usagePeriodId;
+    }
+  }
+
+  isPrivilegeFormValid(privilege: PlanPrivilegeDto): boolean {
+    return !!(privilege.privilegeId && 
+              privilege.value >= 0 && 
+              privilege.usagePeriodId && 
+              privilege.durationMonths > 0);
+  }
+
+  areAllPrivilegesValid(): boolean {
+    return this.selectedPrivileges.every(p => this.isPrivilegeFormValid(p));
+  }
+
   onSubmit(stepper: MatStepper) {
     if (this.isFormValid()) {
       const planData = this.buildPlanData();
@@ -312,7 +408,8 @@ export class PlanStepperComponent implements OnInit {
            this.pricingForm.valid && 
            this.featuresForm.valid && 
            this.trialMarketingForm.valid && 
-           this.stripeForm.valid;
+           this.stripeForm.valid &&
+           this.areAllPrivilegesValid();
   }
 
   private buildPlanData(): CreateSubscriptionPlanDto | UpdateSubscriptionPlanDto {

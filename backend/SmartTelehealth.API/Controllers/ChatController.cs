@@ -6,6 +6,13 @@ using SmartTelehealth.Application.Services;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive chat and messaging functionality.
+/// This controller provides extensive functionality for real-time messaging, chat room management,
+/// message handling, file attachments, encryption, notifications, and participant management.
+/// It supports both individual and group messaging with advanced features like reactions, typing indicators,
+/// and message search capabilities.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
@@ -15,6 +22,12 @@ public class ChatController : BaseController
     private readonly ChatService _chatService;
     private readonly ChatRoomService _chatRoomService;
 
+    /// <summary>
+    /// Initializes a new instance of the ChatController with required services.
+    /// </summary>
+    /// <param name="messagingService">Service for handling messaging operations</param>
+    /// <param name="chatService">Service for chat-specific operations</param>
+    /// <param name="chatRoomService">Service for chat room management</param>
     public ChatController(
         IMessagingService messagingService,
         ChatService chatService,
@@ -25,6 +38,24 @@ public class ChatController : BaseController
         _chatRoomService = chatRoomService;
     }
 
+    /// <summary>
+    /// Sends a new message to a chat room or user.
+    /// This endpoint handles message creation and delivery including content validation,
+    /// recipient verification, and message persistence in the chat system.
+    /// </summary>
+    /// <param name="createDto">DTO containing message creation details</param>
+    /// <returns>JsonModel containing the sent message information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates and sends a new message to specified recipients
+    /// - Validates message content and recipient information
+    /// - Handles message delivery and persistence
+    /// - Access restricted to authenticated users
+    /// - Used for real-time messaging and communication
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on message delivery
+    /// - Maintains message audit trails and delivery status
+    /// </remarks>
     [HttpPost("messages")]
     public async Task<JsonModel> SendMessage([FromBody] CreateMessageDto createDto)
     {
@@ -32,6 +63,24 @@ public class ChatController : BaseController
         return await _messagingService.SendMessageAsync(createDto, userId, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Sends a message with push notification to recipients.
+    /// This endpoint sends a message and triggers push notifications to ensure
+    /// recipients are notified of the new message even when not actively using the application.
+    /// </summary>
+    /// <param name="createDto">DTO containing message creation details</param>
+    /// <returns>JsonModel containing the sent message information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Sends message with push notification to recipients
+    /// - Triggers real-time notifications for message delivery
+    /// - Ensures message visibility through notification system
+    /// - Access restricted to authenticated users
+    /// - Used for important messages requiring immediate attention
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on message and notification delivery
+    /// - Maintains notification audit trails and delivery status
+    /// </remarks>
     [HttpPost("messages/with-notification")]
     public async Task<JsonModel> SendMessageWithNotification([FromBody] CreateMessageDto createDto)
     {
@@ -39,12 +88,50 @@ public class ChatController : BaseController
         return await _messagingService.SendMessageAsync(createDto, userId, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves a specific message by its unique identifier.
+    /// This endpoint provides detailed message information including content, metadata,
+    /// sender information, and delivery status for authorized users.
+    /// </summary>
+    /// <param name="messageId">The unique identifier of the message to retrieve</param>
+    /// <returns>JsonModel containing the message details</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed message information by ID
+    /// - Includes message content, metadata, and sender information
+    /// - Shows message delivery status and read receipts
+    /// - Access restricted to message participants and authorized users
+    /// - Used for message details and message management
+    /// - Includes comprehensive message information and metadata
+    /// - Provides secure access to message information
+    /// - Handles authorization validation and error responses
+    /// </remarks>
     [HttpGet("messages/{messageId}")]
     public async Task<JsonModel> GetMessage(Guid messageId)
     {
         return await _messagingService.GetMessageAsync(messageId.ToString(), GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves messages from a specific chat room with pagination support.
+    /// This endpoint provides a paginated list of messages from a chat room,
+    /// allowing efficient retrieval of chat history with skip and take parameters.
+    /// </summary>
+    /// <param name="chatRoomId">The unique identifier of the chat room</param>
+    /// <param name="skip">Number of messages to skip for pagination (default: 0)</param>
+    /// <param name="take">Number of messages to retrieve (default: 50)</param>
+    /// <returns>JsonModel containing the paginated list of messages</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns paginated messages from the specified chat room
+    /// - Supports efficient pagination with skip and take parameters
+    /// - Includes message content, metadata, and participant information
+    /// - Access restricted to chat room participants
+    /// - Used for chat history and message retrieval
+    /// - Includes comprehensive message information and pagination
+    /// - Provides secure access to chat room messages
+    /// - Handles authorization validation and error responses
+    /// </remarks>
     [HttpGet("rooms/{chatRoomId}/messages")]
     public async Task<JsonModel> GetChatRoomMessages(
         Guid chatRoomId, 

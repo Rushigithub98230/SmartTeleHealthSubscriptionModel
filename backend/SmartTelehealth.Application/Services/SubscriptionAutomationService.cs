@@ -7,6 +7,24 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Service responsible for automating subscription management tasks and operations.
+/// This service handles automated billing, renewals, plan changes, expiration processing,
+/// and other subscription lifecycle automation tasks. It provides scheduled and on-demand
+/// automation capabilities to ensure subscriptions are properly managed without manual intervention.
+/// 
+/// Key Features:
+/// - Automated billing processing for due subscriptions
+/// - Subscription renewal automation
+/// - Plan change automation with proration
+/// - Expired subscription processing
+/// - Automation status monitoring
+/// - Automation logs and reporting
+/// - Proration calculations for plan changes
+/// - Bulk operations support
+/// - Error handling and retry logic
+/// - Integration with lifecycle and billing services
+/// </summary>
 public class SubscriptionAutomationService : ISubscriptionAutomationService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;

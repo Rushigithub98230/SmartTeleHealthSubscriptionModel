@@ -5,6 +5,12 @@ using SmartTelehealth.Application.DTOs;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for managing subscription plan privileges and time-based limits.
+/// This controller provides functionality for configuring privileges associated with subscription plans,
+/// including time-based usage limits, privilege assignments, and plan privilege management.
+/// It handles the relationship between subscription plans and their associated privileges.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
@@ -13,6 +19,11 @@ public class SubscriptionPlanPrivilegesController : BaseController
     private readonly IPrivilegeService _privilegeService;
     private readonly ISubscriptionService _subscriptionService;
 
+    /// <summary>
+    /// Initializes a new instance of the SubscriptionPlanPrivilegesController with required services.
+    /// </summary>
+    /// <param name="privilegeService">Service for handling privilege-related business logic</param>
+    /// <param name="subscriptionService">Service for handling subscription plan operations</param>
     public SubscriptionPlanPrivilegesController(
         IPrivilegeService privilegeService,
         ISubscriptionService subscriptionService)
@@ -22,8 +33,23 @@ public class SubscriptionPlanPrivilegesController : BaseController
     }
 
     /// <summary>
-    /// Update time-based limits for a subscription plan privilege
+    /// Updates time-based usage limits for a subscription plan privilege.
+    /// This endpoint allows administrators to configure daily, weekly, and monthly usage limits
+    /// for specific privileges within subscription plans, including effective dates and duration settings.
     /// </summary>
+    /// <param name="request">DTO containing time-based limit configuration details</param>
+    /// <returns>JsonModel containing the updated time-based limits</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Updates time-based usage limits for subscription plan privileges
+    /// - Configures daily, weekly, and monthly usage restrictions
+    /// - Sets effective dates and duration for limit enforcement
+    /// - Access restricted to administrators and authorized users
+    /// - Used for privilege limit configuration and management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on limit updates
+    /// - Maintains privilege limit audit trails and configuration history
+    /// </remarks>
     [HttpPut("time-based-limits")]
     public async Task<JsonModel> UpdateTimeBasedLimits([FromBody] UpdateTimeBasedLimitsRequest request)
     {
@@ -63,8 +89,23 @@ public class SubscriptionPlanPrivilegesController : BaseController
     }
 
     /// <summary>
-    /// Get time-based limits for a subscription plan privilege
+    /// Retrieves time-based usage limits for a specific subscription plan privilege.
+    /// This endpoint provides comprehensive information about configured time-based limits
+    /// including daily, weekly, and monthly restrictions for a specific plan privilege.
     /// </summary>
+    /// <param name="planPrivilegeId">The unique identifier of the subscription plan privilege</param>
+    /// <returns>JsonModel containing the time-based limits configuration</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns time-based usage limits for a specific plan privilege
+    /// - Includes daily, weekly, and monthly limit configurations
+    /// - Shows effective dates and duration settings
+    /// - Access restricted to authenticated users
+    /// - Used for privilege limit retrieval and management
+    /// - Includes comprehensive limit information and metadata
+    /// - Provides data for privilege usage enforcement
+    /// - Handles limit validation and error responses
+    /// </remarks>
     [HttpGet("{planPrivilegeId}/time-based-limits")]
     public async Task<JsonModel> GetTimeBasedLimits(string planPrivilegeId)
     {

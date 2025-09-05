@@ -12,11 +12,13 @@ public class CategoryDto
     public string? Features { get; set; }
     public string? ConsultationDescription { get; set; }
     public decimal BasePrice { get; set; }
+    public decimal ConsultationFee { get; set; }
     public int ConsultationDurationMinutes { get; set; }
     public bool RequiresHealthAssessment { get; set; }
     public bool AllowsMedicationDelivery { get; set; }
     public bool AllowsFollowUpMessaging { get; set; }
     public bool AllowsOneTimeConsultation { get; set; }
+    public decimal OneTimeConsultationFee { get; set; }
     public int OneTimeConsultationDurationMinutes { get; set; }
     
     // Marketing and display properties

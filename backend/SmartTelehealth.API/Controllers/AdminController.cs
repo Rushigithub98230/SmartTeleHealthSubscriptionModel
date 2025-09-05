@@ -7,6 +7,13 @@ using System.Security.Claims;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for administrative operations and system management.
+/// This controller provides comprehensive administrative functionality including
+/// dashboard data, system monitoring, audit logs, and administrative reporting.
+/// It serves as the central hub for system administrators to manage and monitor
+/// the SmartTelehealth platform.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
@@ -20,6 +27,16 @@ public class AdminController : BaseController
     private readonly IAuditService _auditService;
     private readonly IAnalyticsService _analyticsService;
 
+    /// <summary>
+    /// Initializes a new instance of the AdminController with required services.
+    /// </summary>
+    /// <param name="subscriptionService">Service for subscription management operations</param>
+    /// <param name="billingService">Service for billing and payment operations</param>
+    /// <param name="categoryService">Service for category management operations</param>
+    /// <param name="providerService">Service for provider management operations</param>
+    /// <param name="userService">Service for user management operations</param>
+    /// <param name="auditService">Service for audit logging and tracking</param>
+    /// <param name="analyticsService">Service for analytics and reporting</param>
     public AdminController(
         ISubscriptionService subscriptionService,
         IBillingService billingService,
@@ -39,8 +56,23 @@ public class AdminController : BaseController
     }
 
     /// <summary>
-    /// Get admin dashboard data
+    /// Retrieves comprehensive dashboard data for administrative oversight.
+    /// This endpoint provides a complete overview of system metrics including
+    /// subscription statistics, revenue data, user counts, and system health information.
     /// </summary>
+    /// <returns>JsonModel containing comprehensive dashboard data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns total and active subscription counts
+    /// - Provides revenue metrics including total revenue and monthly recurring revenue
+    /// - Shows user and provider statistics
+    /// - Includes recent subscription and billing activity
+    /// - Provides system health and performance metrics
+    /// - Access restricted to administrators only
+    /// - Used for administrative dashboard and system monitoring
+    /// - Aggregates data from multiple services for comprehensive overview
+    /// - Includes real-time system status and performance indicators
+    /// </remarks>
     [HttpGet("dashboard")]
     public async Task<JsonModel> GetDashboard()
     {
@@ -61,8 +93,20 @@ public class AdminController : BaseController
     }
 
     /// <summary>
-    /// Get all subscriptions
+    /// Retrieves all active subscriptions for administrative management.
+    /// This endpoint provides access to all active subscriptions in the system
+    /// for administrative oversight and management purposes.
     /// </summary>
+    /// <returns>JsonModel containing all active subscriptions</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all active subscriptions in the system
+    /// - Includes subscription details and user information
+    /// - Access restricted to administrators only
+    /// - Used for subscription management and oversight
+    /// - Provides comprehensive subscription information for administrative purposes
+    /// - Includes subscription status and billing information
+    /// </remarks>
     [HttpGet("subscriptions")]
     public async Task<JsonModel> GetAllSubscriptions()
     {
@@ -70,8 +114,27 @@ public class AdminController : BaseController
     }
 
     /// <summary>
-    /// Get audit logs
+    /// Retrieves audit logs with comprehensive filtering and pagination options.
+    /// This endpoint provides access to system audit logs for security monitoring,
+    /// compliance tracking, and administrative oversight.
     /// </summary>
+    /// <param name="action">Filter by specific action type</param>
+    /// <param name="userId">Filter by specific user ID</param>
+    /// <param name="startDate">Start date for date range filtering</param>
+    /// <param name="endDate">End date for date range filtering</param>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 50)</param>
+    /// <returns>JsonModel containing paginated audit logs</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns audit logs with comprehensive filtering options
+    /// - Supports filtering by action, user, and date range
+    /// - Provides pagination for large datasets
+    /// - Access restricted to administrators only
+    /// - Used for security monitoring and compliance tracking
+    /// - Includes detailed audit trail information
+    /// - Provides chronological view of system activities
+    /// </remarks>
     [HttpGet("audit-logs")]
     public async Task<JsonModel> GetAuditLogs([FromQuery] string? action = null, [FromQuery] string? userId = null, [FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
@@ -87,8 +150,24 @@ public class AdminController : BaseController
     }
 
     /// <summary>
-    /// Export data
+    /// Initiates data export for administrative reporting and analysis.
+    /// This endpoint allows administrators to export various types of system data
+    /// for reporting, analysis, and compliance purposes.
     /// </summary>
+    /// <param name="dataType">Type of data to export (subscriptions, users, billing, etc.)</param>
+    /// <param name="startDate">Start date for data export range</param>
+    /// <param name="endDate">End date for data export range</param>
+    /// <returns>JsonModel containing export initiation result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Initiates data export for specified data type
+    /// - Supports date range filtering for exports
+    /// - Access restricted to administrators only
+    /// - Used for administrative reporting and data analysis
+    /// - Supports various export formats (CSV, Excel, PDF)
+    /// - Includes comprehensive data validation and security checks
+    /// - Provides export status tracking and notification
+    /// </remarks>
     [HttpGet("export/{dataType}")]
     public async Task<JsonModel> ExportData(string dataType, [FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null)
     {

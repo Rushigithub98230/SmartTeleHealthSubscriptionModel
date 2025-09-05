@@ -6,6 +6,12 @@ using SmartTelehealth.Infrastructure.Services;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive file storage and management functionality.
+/// This controller provides extensive functionality for file upload, download, storage management,
+/// file encryption, secure access, and file lifecycle operations. It handles the complete
+/// file management workflow from upload to secure access and cleanup.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
@@ -13,14 +19,33 @@ public class FileStorageController : BaseController
 {
     private readonly IFileStorageService _fileStorageService;
 
+    /// <summary>
+    /// Initializes a new instance of the FileStorageController with the required file storage service.
+    /// </summary>
+    /// <param name="fileStorageService">Service for handling file storage-related business logic</param>
     public FileStorageController(IFileStorageService fileStorageService)
     {
         _fileStorageService = fileStorageService;
     }
 
     /// <summary>
-    /// Upload a single file
+    /// Uploads a single file to the file storage system.
+    /// This endpoint handles file upload including validation, storage, and metadata management
+    /// for secure file storage and access control in the SmartTelehealth system.
     /// </summary>
+    /// <param name="file">The file to upload</param>
+    /// <returns>JsonModel containing the upload result and file information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Uploads a single file to the file storage system
+    /// - Validates file content, size, and format
+    /// - Stores file with metadata and access control
+    /// - Access restricted to authenticated users
+    /// - Used for file upload and storage management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on upload operations
+    /// - Maintains file upload audit trails and storage history
+    /// </remarks>
     [HttpPost("upload")]
     public async Task<JsonModel> UploadFile(IFormFile file)
     {
@@ -44,8 +69,23 @@ public class FileStorageController : BaseController
     }
 
     /// <summary>
-    /// Upload multiple files
+    /// Uploads multiple files to the file storage system.
+    /// This endpoint handles batch file upload including validation, storage, and metadata management
+    /// for efficient multiple file storage and access control in the SmartTelehealth system.
     /// </summary>
+    /// <param name="files">The collection of files to upload</param>
+    /// <returns>JsonModel containing the upload results and file information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Uploads multiple files to the file storage system
+    /// - Validates file content, size, and format for each file
+    /// - Stores files with metadata and access control
+    /// - Access restricted to authenticated users
+    /// - Used for batch file upload and storage management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on upload operations
+    /// - Maintains file upload audit trails and storage history
+    /// </remarks>
     [HttpPost("upload-multiple")]
     public async Task<JsonModel> UploadMultipleFiles(IFormFileCollection files)
     {
@@ -83,8 +123,23 @@ public class FileStorageController : BaseController
     }
 
     /// <summary>
-    /// Download a file
+    /// Downloads a file from the file storage system.
+    /// This endpoint handles secure file download including access validation, file retrieval,
+    /// and download management for authorized file access in the SmartTelehealth system.
     /// </summary>
+    /// <param name="filePath">The path of the file to download</param>
+    /// <returns>JsonModel containing the file data and download information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Downloads a file from the file storage system
+    /// - Validates file access permissions and authorization
+    /// - Retrieves file content and metadata
+    /// - Access restricted to authenticated users with file access
+    /// - Used for file download and access management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides secure file download functionality
+    /// - Maintains file access audit trails and download history
+    /// </remarks>
     [HttpGet("download/{filePath}")]
     public async Task<JsonModel> DownloadFile(string filePath)
     {

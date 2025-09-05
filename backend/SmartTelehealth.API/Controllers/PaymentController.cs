@@ -6,6 +6,12 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for managing payment methods, processing payments, and handling payment-related operations.
+/// This controller provides comprehensive payment functionality including payment method management,
+/// payment processing, refunds, and payment security features. It integrates with Stripe for
+/// secure payment processing and includes advanced security measures for payment validation.
+/// </summary>
 [ApiController]
 [Route("api/payments")]
 //[Authorize]
@@ -17,6 +23,14 @@ public class PaymentController : BaseController
     private readonly IAuditService _auditService;
     private readonly IPaymentSecurityService _paymentSecurityService;
 
+    /// <summary>
+    /// Initializes a new instance of the PaymentController with required services.
+    /// </summary>
+    /// <param name="stripeService">Service for Stripe payment gateway integration</param>
+    /// <param name="billingService">Service for billing-related operations</param>
+    /// <param name="subscriptionService">Service for subscription management</param>
+    /// <param name="auditService">Service for audit logging and tracking</param>
+    /// <param name="paymentSecurityService">Service for payment security and validation</param>
     public PaymentController(
         IStripeService stripeService,
         IBillingService billingService,
@@ -31,6 +45,19 @@ public class PaymentController : BaseController
         _paymentSecurityService = paymentSecurityService;
     }
 
+    /// <summary>
+    /// Retrieves all payments for the current user (public endpoint for testing).
+    /// This endpoint provides access to payment history and is primarily used for
+    /// testing and development purposes.
+    /// </summary>
+    /// <returns>JsonModel containing all payments for the current user</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns payment history for the current user
+    /// - No authentication required (for testing purposes)
+    /// - Used primarily for development and testing
+    /// - Provides access to payment information and history
+    /// </remarks>
     [HttpGet]
     [AllowAnonymous]
     public async Task<JsonModel> GetAllPayments()
@@ -40,8 +67,20 @@ public class PaymentController : BaseController
     }
 
     /// <summary>
-    /// Get all payment methods for the current user
+    /// Retrieves all payment methods associated with the current user.
+    /// This endpoint returns a list of all payment methods (credit cards, bank accounts, etc.)
+    /// that the user has added to their account for payment processing.
     /// </summary>
+    /// <returns>JsonModel containing the list of payment methods or error information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all payment methods associated with the current user
+    /// - Includes payment method details (masked card numbers, expiry dates)
+    /// - Shows which payment method is set as default
+    /// - Access restricted to the authenticated user
+    /// - Used for payment method management in the frontend
+    /// - Provides secure access to payment method information
+    /// </remarks>
     [HttpGet("payment-methods")]
     public async Task<JsonModel> GetPaymentMethods()
     {
@@ -51,8 +90,22 @@ public class PaymentController : BaseController
     }
 
     /// <summary>
-    /// Add a new payment method for the current user
+    /// Adds a new payment method to the current user's account.
+    /// This endpoint allows users to add additional payment methods (credit cards, bank accounts)
+    /// to their account for payment processing and subscription billing.
     /// </summary>
+    /// <param name="request">DTO containing the payment method ID to add</param>
+    /// <returns>JsonModel containing the result of adding the payment method</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates the payment method with Stripe
+    /// - Associates the payment method with the user's account
+    /// - Sets up the payment method for future billing
+    /// - Access restricted to the authenticated user
+    /// - Used when users want to add backup payment methods
+    /// - Includes comprehensive validation and security checks
+    /// - Logs the action for audit purposes
+    /// </remarks>
     [HttpPost("payment-methods")]
     public async Task<JsonModel> AddPaymentMethod([FromBody] AddPaymentMethodDto request)
     {
@@ -83,8 +136,21 @@ public class PaymentController : BaseController
     }
 
     /// <summary>
-    /// Set a payment method as default for the current user
+    /// Sets a payment method as the default for the current user.
+    /// This endpoint allows users to designate one of their payment methods as the default
+    /// for automatic billing and subscription payments.
     /// </summary>
+    /// <param name="paymentMethodId">The unique identifier of the payment method to set as default</param>
+    /// <returns>JsonModel containing the result of setting the default payment method</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Sets the specified payment method as the user's default
+    /// - Updates the default payment method in Stripe
+    /// - Access restricted to the authenticated user
+    /// - Used for payment method management and preference setting
+    /// - Ensures the payment method belongs to the user
+    /// - Updates subscription billing to use the new default method
+    /// </remarks>
     [HttpPut("payment-methods/{paymentMethodId}/default")]
     public async Task<JsonModel> SetDefaultPaymentMethod(string paymentMethodId)
     {
@@ -100,8 +166,21 @@ public class PaymentController : BaseController
     }
 
     /// <summary>
-    /// Remove a payment method for the current user
+    /// Removes a payment method from the current user's account.
+    /// This endpoint allows users to delete payment methods they no longer want to use
+    /// for billing and subscription payments.
     /// </summary>
+    /// <param name="paymentMethodId">The unique identifier of the payment method to remove</param>
+    /// <returns>JsonModel containing the result of removing the payment method</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Removes the specified payment method from the user's account
+    /// - Deletes the payment method from Stripe
+    /// - Access restricted to the authenticated user
+    /// - Used for payment method management and cleanup
+    /// - Ensures the payment method belongs to the user
+    /// - Handles cases where the payment method is currently set as default
+    /// </remarks>
     [HttpDelete("payment-methods/{paymentMethodId}")]
     public async Task<JsonModel> RemovePaymentMethod(string paymentMethodId)
     {
@@ -117,8 +196,23 @@ public class PaymentController : BaseController
     }
 
     /// <summary>
-    /// Process a payment for a billing record
+    /// Processes a payment for a specific billing record with advanced security validation.
+    /// This endpoint handles payment processing through Stripe with comprehensive security checks,
+    /// including IP validation, amount verification, and fraud detection.
     /// </summary>
+    /// <param name="request">DTO containing the billing record ID and payment details</param>
+    /// <returns>JsonModel containing the payment processing result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates the billing record exists and belongs to the user
+    /// - Performs security validation including IP address and amount checks
+    /// - Processes payment through Stripe payment gateway
+    /// - Logs payment attempts for security and audit purposes
+    /// - Access restricted to the billing record owner
+    /// - Used for manual payment processing and payment retries
+    /// - Includes comprehensive fraud detection and security measures
+    /// - Handles payment failures and provides detailed error information
+    /// </remarks>
     [HttpPost("process-payment")]
     public async Task<JsonModel> ProcessPayment([FromBody] ProcessPaymentRequestDto request)
     {

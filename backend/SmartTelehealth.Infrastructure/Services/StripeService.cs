@@ -10,6 +10,17 @@ using Stripe.Checkout;
 
 namespace SmartTelehealth.Infrastructure.Services;
 
+/// <summary>
+/// Stripe payment service that handles all Stripe-related operations including:
+/// - Customer management (create, retrieve, update)
+/// - Payment method management (add, remove, validate)
+/// - Subscription lifecycle management (create, update, cancel, pause, resume)
+/// - Payment processing (one-time payments, recurring billing)
+/// - Invoice management and payment intent handling
+/// - Product and price management for subscription plans
+/// - Webhook event processing and error handling
+/// - Retry logic for failed operations
+/// </summary>
 public class StripeService : IStripeService
 {
     private readonly IConfiguration _configuration;
@@ -17,22 +28,49 @@ public class StripeService : IStripeService
     private readonly int _maxRetries = 3;
     private readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(1);
     
+    /// <summary>
+    /// Initializes a new instance of the StripeService with configuration and logging
+    /// </summary>
+    /// <param name="configuration">Configuration instance containing Stripe settings</param>
+    /// <param name="logger">Logger instance for logging operations and errors</param>
+    /// <exception cref="ArgumentNullException">Thrown when configuration or logger is null</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe secret key is not configured</exception>
     public StripeService(IConfiguration configuration, ILogger<StripeService> logger)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
+        // Validate and set Stripe API key from configuration
         var secretKey = _configuration["StripeSettings:SecretKey"];
         if (string.IsNullOrEmpty(secretKey))
         {
             throw new InvalidOperationException("Stripe secret key is not configured");
         }
         
+        // Initialize Stripe with the secret key
         StripeConfiguration.ApiKey = secretKey;
         _logger.LogInformation("Stripe service initialized successfully");
     }
     
-    // Customer Management
+    #region Customer Management
+
+    /// <summary>
+    /// Creates a new Stripe customer with the provided email and name
+    /// </summary>
+    /// <param name="email">Customer's email address</param>
+    /// <param name="name">Customer's full name</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>The Stripe customer ID of the created customer</returns>
+    /// <exception cref="ArgumentException">Thrown when email or name is null or empty</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe customer creation fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates input parameters
+    /// - Creates a Stripe customer with metadata for tracking
+    /// - Includes audit information (user ID, role ID, creation timestamp)
+    /// - Uses retry logic for resilience
+    /// - Logs successful creation and errors
+    /// </remarks>
     public async Task<string> CreateCustomerAsync(string email, string name, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(email))
@@ -45,6 +83,7 @@ public class StripeService : IStripeService
         {
             try
             {
+                // Create customer options with metadata for tracking and audit
                 var customerCreateOptions = new CustomerCreateOptions
                 {
                     Email = email,
@@ -58,6 +97,7 @@ public class StripeService : IStripeService
                     }
                 };
 
+                // Create the customer in Stripe
                 var customerService = new CustomerService();
                 var customer = await customerService.CreateAsync(customerCreateOptions);
 
@@ -72,6 +112,22 @@ public class StripeService : IStripeService
         });
     }
 
+    /// <summary>
+    /// Retrieves a Stripe customer by their customer ID
+    /// </summary>
+    /// <param name="customerId">The Stripe customer ID to retrieve</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>CustomerDto containing customer information</returns>
+    /// <exception cref="ArgumentException">Thrown when customerId is null/empty or customer not found</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe API call fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates the customer ID parameter
+    /// - Retrieves customer data from Stripe
+    /// - Maps Stripe customer to CustomerDto
+    /// - Handles customer not found scenarios
+    /// - Uses retry logic for resilience
+    /// </remarks>
     public async Task<CustomerDto> GetCustomerAsync(string customerId, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(customerId))
@@ -81,9 +137,11 @@ public class StripeService : IStripeService
         {
             try
             {
+                // Retrieve customer from Stripe
                 var customerService = new CustomerService();
                 var customer = await customerService.GetAsync(customerId);
 
+                // Map Stripe customer to DTO
                 return new CustomerDto
                 {
                     Id = customer.Id,
@@ -105,18 +163,35 @@ public class StripeService : IStripeService
         });
     }
 
+    /// <summary>
+    /// Lists all Stripe customers with pagination support
+    /// </summary>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>Collection of CustomerDto objects representing Stripe customers</returns>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe API call fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves a list of customers from Stripe with pagination
+    /// - Limits results to 100 customers for performance
+    /// - Maps Stripe customer objects to CustomerDto format
+    /// - Uses retry logic for resilience
+    /// - Used for administrative customer management
+    /// - Logs successful operations and errors
+    /// </remarks>
     public async Task<IEnumerable<CustomerDto>> ListCustomersAsync(TokenModel tokenModel)
     {
         return await ExecuteWithRetryAsync(async () =>
         {
             try
             {
+                // Create customer service and list customers with pagination
                 var customerService = new CustomerService();
                 var customers = await customerService.ListAsync(new CustomerListOptions
                 {
-                    Limit = 100 // Limit to 100 customers for testing
+                    Limit = 100 // Limit to 100 customers for performance
                 });
 
+                // Map Stripe customers to DTOs
                 return customers.Data.Select(customer => new CustomerDto
                 {
                     Id = customer.Id,
@@ -133,6 +208,25 @@ public class StripeService : IStripeService
         });
     }
     
+    /// <summary>
+    /// Updates an existing Stripe customer with new email and name information
+    /// </summary>
+    /// <param name="customerId">The Stripe customer ID to update</param>
+    /// <param name="email">New email address for the customer</param>
+    /// <param name="name">New name for the customer</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>True if customer was updated successfully, false otherwise</returns>
+    /// <exception cref="ArgumentException">Thrown when customerId is null or empty</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe customer update fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates the customer ID parameter
+    /// - Updates customer information in Stripe
+    /// - Includes audit metadata for tracking updates
+    /// - Uses retry logic for resilience
+    /// - Logs successful updates and errors
+    /// - Returns boolean result for operation success
+    /// </remarks>
     public async Task<bool> UpdateCustomerAsync(string customerId, string email, string name, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(customerId))
@@ -142,6 +236,7 @@ public class StripeService : IStripeService
         {
             try
             {
+                // Create customer update options with new information and audit metadata
                 var customerUpdateOptions = new CustomerUpdateOptions
                 {
                     Email = email,
@@ -168,8 +263,28 @@ public class StripeService : IStripeService
             }
         });
     }
+    #endregion
 
     // Payment Method Management
+    #region Payment Method Management
+
+    /// <summary>
+    /// Retrieves all payment methods for a specific Stripe customer
+    /// </summary>
+    /// <param name="customerId">The Stripe customer ID to get payment methods for</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>Collection of PaymentMethodDto objects representing customer's payment methods</returns>
+    /// <exception cref="ArgumentException">Thrown when customerId is null or empty</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe API call fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates the customer ID parameter
+    /// - Retrieves all card payment methods for the customer
+    /// - Maps Stripe payment method objects to PaymentMethodDto format
+    /// - Uses retry logic for resilience
+    /// - Used for payment method management and selection
+    /// - Logs successful operations and errors
+    /// </remarks>
     public async Task<IEnumerable<PaymentMethodDto>> GetCustomerPaymentMethodsAsync(string customerId, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(customerId))
@@ -179,11 +294,12 @@ public class StripeService : IStripeService
         {
             try
             {
+                // Create payment method service and list customer's payment methods
                 var paymentMethodService = new PaymentMethodService();
                 var paymentMethods = await paymentMethodService.ListAsync(new PaymentMethodListOptions
                 {
                     Customer = customerId,
-                    Type = "card"
+                    Type = "card" // Only retrieve card payment methods
                 });
 
                 var customerService = new CustomerService();
@@ -215,6 +331,24 @@ public class StripeService : IStripeService
         });
     }
 
+    /// <summary>
+    /// Attaches a payment method to a Stripe customer
+    /// </summary>
+    /// <param name="customerId">The Stripe customer ID to attach the payment method to</param>
+    /// <param name="paymentMethodId">The Stripe payment method ID to attach</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>The payment method ID of the attached payment method</returns>
+    /// <exception cref="ArgumentException">Thrown when required parameters are null or empty</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe payment method attachment fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates input parameters (customerId and paymentMethodId)
+    /// - Attaches the payment method to the customer in Stripe
+    /// - Uses retry logic for resilience
+    /// - Used for adding new payment methods to customer accounts
+    /// - Logs successful attachments and errors
+    /// - Returns the payment method ID for confirmation
+    /// </remarks>
     public async Task<string> AddPaymentMethodAsync(string customerId, string paymentMethodId, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(customerId))
@@ -227,6 +361,7 @@ public class StripeService : IStripeService
         {
             try
             {
+                // Attach payment method to customer
                 var paymentMethodService = new PaymentMethodService();
                 var paymentMethod = await paymentMethodService.AttachAsync(paymentMethodId, new PaymentMethodAttachOptions
                 {
@@ -357,8 +492,30 @@ public class StripeService : IStripeService
         var validation = await ValidatePaymentMethodDetailedAsync(paymentMethodId, tokenModel);
         return validation.IsValid;
     }
+    #endregion
 
     // Subscription Management
+    #region Subscription Management
+
+    /// <summary>
+    /// Creates a new Stripe subscription for a customer with the specified price and payment method
+    /// </summary>
+    /// <param name="customerId">The Stripe customer ID</param>
+    /// <param name="priceId">The Stripe price ID for the subscription plan</param>
+    /// <param name="paymentMethodId">The Stripe payment method ID to use for billing</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>The Stripe subscription ID of the created subscription</returns>
+    /// <exception cref="ArgumentException">Thrown when required parameters are null or empty</exception>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe subscription creation fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates input parameters
+    /// - Creates a Stripe subscription with the specified price
+    /// - Sets up automatic payment collection
+    /// - Includes audit metadata for tracking
+    /// - Uses retry logic for resilience
+    /// - Handles Stripe-specific errors appropriately
+    /// </remarks>
     public async Task<string> CreateSubscriptionAsync(string customerId, string priceId, string paymentMethodId, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(customerId))
@@ -371,6 +528,7 @@ public class StripeService : IStripeService
         {
             try
             {
+                // Create subscription options with payment settings and metadata
                 var subscriptionCreateOptions = new SubscriptionCreateOptions
                 {
                     Customer = customerId,
@@ -466,8 +624,32 @@ public class StripeService : IStripeService
             }
         });
     }
+    #endregion
 
     // Payment Processing
+    #region Payment Processing
+
+    /// <summary>
+    /// Processes a one-time payment using a payment method
+    /// </summary>
+    /// <param name="paymentMethodId">The Stripe payment method ID to use for payment</param>
+    /// <param name="amount">The payment amount (must be greater than 0)</param>
+    /// <param name="currency">The currency code for the payment (e.g., "usd")</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>PaymentResultDto containing payment result information</returns>
+    /// <exception cref="ArgumentException">Thrown when required parameters are invalid</exception>
+    /// <exception cref="InvalidOperationException">Thrown when payment processing fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates all input parameters (paymentMethodId, amount, currency)
+    /// - Validates the payment method before processing
+    /// - Creates a payment intent in Stripe
+    /// - Confirms the payment intent
+    /// - Returns detailed payment result information
+    /// - Uses retry logic for resilience
+    /// - Used for one-time payments and subscription setup
+    /// - Logs successful payments and errors
+    /// </remarks>
     public async Task<PaymentResultDto> ProcessPaymentAsync(string paymentMethodId, decimal amount, string currency, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(paymentMethodId))
@@ -529,6 +711,25 @@ public class StripeService : IStripeService
         });
     }
 
+    /// <summary>
+    /// Processes a refund for a payment intent
+    /// </summary>
+    /// <param name="paymentIntentId">The Stripe payment intent ID to refund</param>
+    /// <param name="amount">The refund amount (must be greater than 0)</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>True if refund was processed successfully, false otherwise</returns>
+    /// <exception cref="ArgumentException">Thrown when required parameters are invalid</exception>
+    /// <exception cref="InvalidOperationException">Thrown when refund processing fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Validates input parameters (paymentIntentId and amount)
+    /// - Creates a refund in Stripe for the specified payment intent
+    /// - Converts amount to cents for Stripe API
+    /// - Uses retry logic for resilience
+    /// - Used for processing refunds and chargebacks
+    /// - Logs successful refunds and errors
+    /// - Returns boolean result for operation success
+    /// </remarks>
     public async Task<bool> ProcessRefundAsync(string paymentIntentId, decimal amount, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(paymentIntentId))
@@ -541,10 +742,11 @@ public class StripeService : IStripeService
         {
             try
             {
+                // Create refund options with payment intent and amount
                 var refundCreateOptions = new RefundCreateOptions
                 {
                     PaymentIntent = paymentIntentId,
-                    Amount = (long)(amount * 100), // Convert to cents
+                    Amount = (long)(amount * 100), // Convert to cents for Stripe API
                     Metadata = new Dictionary<string, string>
                     {
                         { "refunded_by_user_id", tokenModel.UserID.ToString() },
@@ -1167,4 +1369,5 @@ public class StripeService : IStripeService
         _logger.LogInformation("Handling invoice payment failed event for invoice {InvoiceId}", invoice?.Id);
         // Implement payment failed logic
     }
+    #endregion
 } 

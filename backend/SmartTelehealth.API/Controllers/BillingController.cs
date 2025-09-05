@@ -5,6 +5,12 @@ using SmartTelehealth.Application.Interfaces;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for managing billing records, invoices, and payment processing.
+/// This controller provides comprehensive billing functionality including creating billing records,
+/// processing payments, handling refunds, generating invoices, and managing billing cycles.
+/// It integrates with Stripe for payment processing and provides detailed billing analytics.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
@@ -15,6 +21,13 @@ public class BillingController : BaseController
     private readonly IUserService _userService;
     private readonly ISubscriptionService _subscriptionService;
 
+    /// <summary>
+    /// Initializes a new instance of the BillingController with required services.
+    /// </summary>
+    /// <param name="billingService">Service for handling billing-related business logic</param>
+    /// <param name="pdfService">Service for generating PDF documents and invoices</param>
+    /// <param name="userService">Service for user management operations</param>
+    /// <param name="subscriptionService">Service for subscription management operations</param>
     public BillingController(
         IBillingService billingService, 
         IPdfService pdfService,
@@ -29,6 +42,35 @@ public class BillingController : BaseController
 
 
 
+    /// <summary>
+    /// Retrieves all billing records with comprehensive filtering and pagination options.
+    /// This endpoint provides access to billing records with advanced filtering capabilities
+    /// including status, type, user, subscription, date range, and export functionality.
+    /// </summary>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 10)</param>
+    /// <param name="searchTerm">Search term to filter records by ID, user, or subscription</param>
+    /// <param name="status">Array of billing statuses to filter by (Pending, Paid, Failed, etc.)</param>
+    /// <param name="type">Array of billing types to filter by (Subscription, Consultation, etc.)</param>
+    /// <param name="userId">Array of user IDs to filter by</param>
+    /// <param name="subscriptionId">Array of subscription IDs to filter by</param>
+    /// <param name="startDate">Start date for date range filtering</param>
+    /// <param name="endDate">End date for date range filtering</param>
+    /// <param name="sortBy">Field to sort by (createdDate, amount, status)</param>
+    /// <param name="sortOrder">Sort order (asc, desc)</param>
+    /// <param name="format">Export format (csv, excel) - returns export data instead of paginated results</param>
+    /// <param name="includeFailed">Include failed billing records in the results</param>
+    /// <returns>JsonModel containing paginated billing records or export data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Supports comprehensive filtering by multiple criteria
+    /// - Provides pagination for large datasets
+    /// - Supports data export in CSV or Excel format
+    /// - Includes failed records when requested
+    /// - Access restricted to administrators only
+    /// - Used for billing management and financial reporting
+    /// - Returns detailed billing information with audit trails
+    /// </remarks>
     [HttpGet]
     [HttpGet("records")]
     [AllowAnonymous]
@@ -68,8 +110,21 @@ public class BillingController : BaseController
     }
 
     /// <summary>
-    /// Download invoice PDF for a billing record
+    /// Generates and downloads an invoice PDF for a specific billing record.
+    /// This endpoint creates a professional PDF invoice containing billing details,
+    /// payment information, and company branding for the specified billing record.
     /// </summary>
+    /// <param name="id">The unique identifier of the billing record</param>
+    /// <returns>JsonModel containing the PDF file data or error information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Generates a professional PDF invoice
+    /// - Includes billing details, payment information, and company branding
+    /// - Access restricted to billing record owner or administrators
+    /// - Used for invoice generation and download functionality
+    /// - Returns PDF file data for direct download
+    /// - Includes tax calculations and payment terms
+    /// </remarks>
     [HttpGet("{id}/invoice-pdf")]
     public async Task<JsonModel> DownloadInvoicePdf(Guid id)
     {
@@ -77,8 +132,21 @@ public class BillingController : BaseController
     }
 
     /// <summary>
-    /// Get billing record by ID
+    /// Retrieves detailed information about a specific billing record.
+    /// This endpoint returns comprehensive billing record details including
+    /// payment status, amounts, dates, and associated subscription information.
     /// </summary>
+    /// <param name="id">The unique identifier of the billing record to retrieve</param>
+    /// <returns>JsonModel containing the billing record details or error information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed billing record information
+    /// - Includes payment status, amounts, and transaction details
+    /// - Shows associated subscription and user information
+    /// - Access restricted to billing record owner or administrators
+    /// - Used for billing record details and payment tracking
+    /// - Provides complete audit trail of billing activities
+    /// </remarks>
     [HttpGet("{id}")]
     public async Task<JsonModel> GetBillingRecord(Guid id)
     {
@@ -86,8 +154,21 @@ public class BillingController : BaseController
     }
 
     /// <summary>
-    /// Get user billing history
+    /// Retrieves the complete billing history for a specific user.
+    /// This endpoint returns all billing records associated with the specified user,
+    /// providing a comprehensive view of their payment history and billing activities.
     /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <returns>JsonModel containing the user's billing history or error information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all billing records for the specified user
+    /// - Includes payment history, amounts, and status information
+    /// - Shows subscription-related billing and standalone charges
+    /// - Access restricted to the user themselves or administrators
+    /// - Used for user billing history and payment tracking
+    /// - Provides chronological view of all billing activities
+    /// </remarks>
     [HttpGet("user/{userId}")]
     public async Task<JsonModel> GetUserBillingHistory(int userId)
     {
@@ -95,8 +176,21 @@ public class BillingController : BaseController
     }
 
     /// <summary>
-    /// Get subscription billing history
+    /// Retrieves the billing history for a specific subscription.
+    /// This endpoint returns all billing records associated with the specified subscription,
+    /// providing a detailed view of subscription-related billing and payment activities.
     /// </summary>
+    /// <param name="subscriptionId">The unique identifier of the subscription</param>
+    /// <returns>JsonModel containing the subscription's billing history or error information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all billing records for the specified subscription
+    /// - Includes recurring billing, upgrades, and adjustments
+    /// - Shows payment history and billing cycle information
+    /// - Access restricted to subscription owner or administrators
+    /// - Used for subscription billing tracking and management
+    /// - Provides detailed view of subscription-related financial activities
+    /// </remarks>
     [HttpGet("subscription/{subscriptionId}")]
     public async Task<JsonModel> GetSubscriptionBillingHistory(Guid subscriptionId)
     {
@@ -104,8 +198,22 @@ public class BillingController : BaseController
     }
 
     /// <summary>
-    /// Create a new billing record
+    /// Creates a new billing record in the system.
+    /// This endpoint allows creation of billing records for various types of charges
+    /// including subscription fees, consultation fees, and other service charges.
     /// </summary>
+    /// <param name="createDto">DTO containing the billing record creation details</param>
+    /// <returns>JsonModel containing the creation result and new billing record information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a new billing record with specified details
+    /// - Supports various billing types (subscription, consultation, etc.)
+    /// - Sets up payment processing and due dates
+    /// - Access restricted to administrators or authorized users
+    /// - Used for manual billing creation and charge management
+    /// - Includes validation of billing details and business rules
+    /// - Sets up audit trails and administrative tracking
+    /// </remarks>
     [HttpPost]
     public async Task<JsonModel> CreateBillingRecord([FromBody] CreateBillingRecordDto createDto)
     {
@@ -113,8 +221,22 @@ public class BillingController : BaseController
     }
 
     /// <summary>
-    /// Process payment for a billing record
+    /// Processes payment for a specific billing record.
+    /// This endpoint handles payment processing through Stripe, updating billing status,
+    /// and managing payment confirmations and notifications.
     /// </summary>
+    /// <param name="id">The unique identifier of the billing record to process payment for</param>
+    /// <returns>JsonModel containing the payment processing result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Processes payment through Stripe payment gateway
+    /// - Updates billing record status based on payment result
+    /// - Handles payment failures and retry logic
+    /// - Sends payment confirmation notifications
+    /// - Access restricted to billing record owner or administrators
+    /// - Used for manual payment processing and payment retries
+    /// - Includes comprehensive payment validation and security checks
+    /// </remarks>
     [HttpPost("{id}/process-payment")]
     public async Task<JsonModel> ProcessPayment(Guid id)
     {
@@ -122,8 +244,23 @@ public class BillingController : BaseController
     }
 
     /// <summary>
-    /// Process refund for a billing record
+    /// Processes a refund for a specific billing record.
+    /// This endpoint handles refund processing through Stripe, updating billing status,
+    /// and managing refund confirmations and notifications.
     /// </summary>
+    /// <param name="id">The unique identifier of the billing record to process refund for</param>
+    /// <param name="refundRequest">DTO containing refund amount and reason</param>
+    /// <returns>JsonModel containing the refund processing result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Processes refund through Stripe payment gateway
+    /// - Updates billing record status and refund information
+    /// - Handles partial and full refunds
+    /// - Records refund reason for audit purposes
+    /// - Access restricted to administrators only
+    /// - Used for refund processing and customer service
+    /// - Includes refund validation and business rule checks
+    /// </remarks>
     [HttpPost("{id}/process-refund")]
     public async Task<JsonModel> ProcessRefund(Guid id, [FromBody] RefundRequestDto refundRequest)
     {

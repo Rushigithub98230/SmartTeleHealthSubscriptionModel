@@ -6,6 +6,12 @@ using SmartTelehealth.Application.Services;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive chat room management and communication functionality.
+/// This controller provides extensive functionality for creating, managing, and controlling chat rooms
+/// including patient-provider chat rooms, group chat rooms, direct messaging, participant management,
+/// access control, and chat room lifecycle operations for healthcare communication.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class ChatRoomController : BaseController
@@ -13,6 +19,11 @@ public class ChatRoomController : BaseController
     private readonly IMessagingService _messagingService;
     private readonly ChatRoomService _chatRoomService;
 
+    /// <summary>
+    /// Initializes a new instance of the ChatRoomController with required services.
+    /// </summary>
+    /// <param name="messagingService">Service for handling messaging-related business logic</param>
+    /// <param name="chatRoomService">Service for handling chat room operations</param>
     public ChatRoomController(
         IMessagingService messagingService,
         ChatRoomService chatRoomService)
@@ -21,12 +32,48 @@ public class ChatRoomController : BaseController
         _chatRoomService = chatRoomService;
     }
 
+    /// <summary>
+    /// Creates a new chat room with specified configuration.
+    /// This endpoint handles general chat room creation including room setup, configuration,
+    /// and initial participant management for healthcare communication.
+    /// </summary>
+    /// <param name="createDto">DTO containing chat room creation details</param>
+    /// <returns>JsonModel containing the created chat room information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a new chat room with specified configuration
+    /// - Sets up chat room settings and initial participants
+    /// - Configures chat room for healthcare communication
+    /// - Access restricted to authenticated users
+    /// - Used for general chat room creation and management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on chat room creation
+    /// - Maintains chat room creation audit trails
+    /// </remarks>
     [HttpPost]
     public async Task<JsonModel> CreateChatRoom([FromBody] CreateChatRoomDto createDto)
     {
         return await _messagingService.CreateChatRoomAsync(createDto, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Creates a specialized patient-provider chat room for healthcare communication.
+    /// This endpoint creates a dedicated chat room between a patient and healthcare provider
+    /// with subscription-based access control and healthcare-specific communication features.
+    /// </summary>
+    /// <param name="createDto">DTO containing patient-provider chat room creation details</param>
+    /// <returns>JsonModel containing the created patient-provider chat room information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a patient-provider specific chat room
+    /// - Sets up healthcare communication features and access control
+    /// - Links chat room to subscription for privilege management
+    /// - Access restricted to authenticated users
+    /// - Used for patient-provider communication setup
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on chat room creation
+    /// - Maintains healthcare communication audit trails
+    /// </remarks>
     [HttpPost("patient-provider")]
     public async Task<JsonModel> CreatePatientProviderChatRoom(
         [FromBody] CreatePatientProviderChatRoomDto createDto)
@@ -37,6 +84,24 @@ public class ChatRoomController : BaseController
             createDto.SubscriptionId?.ToString());
     }
 
+    /// <summary>
+    /// Creates a group chat room with multiple participants.
+    /// This endpoint creates a group chat room for multiple users including group setup,
+    /// participant management, and group communication features for healthcare collaboration.
+    /// </summary>
+    /// <param name="createDto">DTO containing group chat room creation details</param>
+    /// <returns>JsonModel containing the created group chat room information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a group chat room with multiple participants
+    /// - Sets up group communication features and participant management
+    /// - Configures group settings and access control
+    /// - Access restricted to authenticated users
+    /// - Used for group healthcare communication and collaboration
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on group chat room creation
+    /// - Maintains group communication audit trails
+    /// </remarks>
     [HttpPost("group")]
     public async Task<JsonModel> CreateGroupChatRoom([FromBody] CreateGroupChatRoomDto createDto)
     {
@@ -48,6 +113,24 @@ public class ChatRoomController : BaseController
             userId.ToString());
     }
 
+    /// <summary>
+    /// Creates a direct chat room between two users.
+    /// This endpoint creates a private one-on-one chat room between two specific users
+    /// for direct healthcare communication and private messaging.
+    /// </summary>
+    /// <param name="createDto">DTO containing direct chat room creation details</param>
+    /// <returns>JsonModel containing the created direct chat room information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a direct chat room between two users
+    /// - Sets up private one-on-one communication
+    /// - Configures direct messaging features and access control
+    /// - Access restricted to authenticated users
+    /// - Used for direct healthcare communication and private messaging
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on direct chat room creation
+    /// - Maintains direct communication audit trails
+    /// </remarks>
     [HttpPost("direct")]
     public async Task<JsonModel> CreateDirectChatRoom([FromBody] CreateDirectChatRoomDto createDto)
     {

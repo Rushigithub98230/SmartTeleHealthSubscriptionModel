@@ -6,6 +6,12 @@ using SmartTelehealth.Core.DTOs;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for administrative subscription management operations.
+/// This controller provides comprehensive administrative functionality for managing subscriptions,
+/// including bulk operations, automation controls, analytics access, and subscription lifecycle management.
+/// It serves as the central hub for administrators to manage and monitor subscription operations.
+/// </summary>
 [ApiController]
 [Route("api/admin/[controller]")]
 [Authorize(Roles = "Admin")]
@@ -16,6 +22,13 @@ public class AdminSubscriptionController : BaseController
     private readonly ISubscriptionNotificationService _notificationService;
     private readonly ISubscriptionAutomationService _automationService;
 
+    /// <summary>
+    /// Initializes a new instance of the AdminSubscriptionController with required services.
+    /// </summary>
+    /// <param name="subscriptionService">Service for subscription management operations</param>
+    /// <param name="analyticsService">Service for subscription analytics and reporting</param>
+    /// <param name="notificationService">Service for subscription notifications</param>
+    /// <param name="automationService">Service for subscription automation and lifecycle management</param>
     public AdminSubscriptionController(
         ISubscriptionService subscriptionService,
         ISubscriptionAnalyticsService analyticsService,
@@ -29,8 +42,28 @@ public class AdminSubscriptionController : BaseController
     }
 
     /// <summary>
-    /// Get all subscriptions with filtering and pagination
+    /// Retrieves all subscriptions with comprehensive filtering and pagination options for administrative management.
+    /// This endpoint provides administrators with access to all subscriptions in the system with advanced filtering
+    /// capabilities for effective subscription oversight and management.
     /// </summary>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 20)</param>
+    /// <param name="status">Filter by subscription status (Active, Paused, Cancelled, etc.)</param>
+    /// <param name="planId">Filter by specific subscription plan ID</param>
+    /// <param name="startDate">Start date for date range filtering</param>
+    /// <param name="endDate">End date for date range filtering</param>
+    /// <returns>JsonModel containing paginated subscription data with filtering applied</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all subscriptions with comprehensive filtering options
+    /// - Supports filtering by status, plan, and date range
+    /// - Provides pagination for large datasets
+    /// - Access restricted to administrators only
+    /// - Used for administrative subscription management and oversight
+    /// - Includes detailed subscription information and user data
+    /// - Supports advanced filtering for subscription analysis
+    /// - Provides comprehensive subscription overview for administrators
+    /// </remarks>
     [HttpGet]
     public async Task<JsonModel> GetAllSubscriptions(
         [FromQuery] int page = 1,
@@ -46,8 +79,24 @@ public class AdminSubscriptionController : BaseController
     }
 
     /// <summary>
-    /// Get subscription analytics dashboard data
+    /// Retrieves comprehensive subscription analytics dashboard data for administrative oversight.
+    /// This endpoint provides administrators with detailed analytics including subscription metrics,
+    /// growth trends, and performance indicators for strategic decision-making.
     /// </summary>
+    /// <param name="startDate">Start date for analytics data range (optional)</param>
+    /// <param name="endDate">End date for analytics data range (optional)</param>
+    /// <returns>JsonModel containing comprehensive subscription analytics data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns comprehensive subscription analytics for administrative dashboard
+    /// - Provides subscription performance indicators and growth trends
+    /// - Includes subscription lifecycle analytics and conversion rates
+    /// - Shows subscription distribution and health metrics
+    /// - Access restricted to administrators only
+    /// - Used for administrative dashboard and strategic planning
+    /// - Supports date range filtering for historical analysis
+    /// - Includes key performance indicators for subscription business
+    /// </remarks>
     [HttpGet("analytics")]
     public async Task<JsonModel> GetSubscriptionAnalytics(
         [FromQuery] DateTime? startDate = null,
@@ -57,8 +106,24 @@ public class AdminSubscriptionController : BaseController
     }
 
     /// <summary>
-    /// Get revenue analytics
+    /// Retrieves detailed revenue analytics for administrative financial oversight.
+    /// This endpoint provides administrators with comprehensive revenue analysis including MRR, ARR,
+    /// revenue trends, and financial performance metrics for business intelligence.
     /// </summary>
+    /// <param name="startDate">Start date for revenue analytics data range (optional)</param>
+    /// <param name="endDate">End date for revenue analytics data range (optional)</param>
+    /// <returns>JsonModel containing detailed revenue analytics data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed revenue analytics including MRR and ARR calculations
+    /// - Provides revenue trends and growth analysis
+    /// - Shows revenue distribution by plan and customer segment
+    /// - Includes revenue forecasting and predictive analytics
+    /// - Access restricted to administrators only
+    /// - Used for financial reporting and revenue optimization
+    /// - Supports date range filtering for historical revenue analysis
+    /// - Includes revenue per customer and lifetime value metrics
+    /// </remarks>
     [HttpGet("analytics/revenue")]
     public async Task<JsonModel> GetRevenueAnalytics(
         [FromQuery] DateTime? startDate = null,
@@ -68,8 +133,24 @@ public class AdminSubscriptionController : BaseController
     }
 
     /// <summary>
-    /// Get churn analytics
+    /// Retrieves churn and retention analytics for administrative customer management.
+    /// This endpoint provides administrators with detailed analysis of customer churn, retention rates,
+    /// and customer lifetime value for subscription business optimization.
     /// </summary>
+    /// <param name="startDate">Start date for churn analytics data range (optional)</param>
+    /// <param name="endDate">End date for churn analytics data range (optional)</param>
+    /// <returns>JsonModel containing churn and retention analytics data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed churn analysis including churn rate and reasons
+    /// - Provides retention rate analysis and customer lifetime value
+    /// - Shows churn patterns by plan and customer segment
+    /// - Includes predictive churn analysis and risk assessment
+    /// - Access restricted to administrators only
+    /// - Used for customer retention strategies and churn prevention
+    /// - Supports date range filtering for historical churn analysis
+    /// - Includes cohort analysis and retention cohort metrics
+    /// </remarks>
     [HttpGet("analytics/churn")]
     public async Task<JsonModel> GetChurnAnalytics(
         [FromQuery] DateTime? startDate = null,
@@ -79,8 +160,25 @@ public class AdminSubscriptionController : BaseController
     }
 
     /// <summary>
-    /// Export analytics data
+    /// Exports analytics data in the specified format for administrative reporting and analysis.
+    /// This endpoint allows administrators to export subscription analytics data in various formats
+    /// for external reporting, analysis, and business intelligence purposes.
     /// </summary>
+    /// <param name="format">Export format (csv, json, excel) - default is csv</param>
+    /// <param name="startDate">Start date for export data range (optional)</param>
+    /// <param name="endDate">End date for export data range (optional)</param>
+    /// <returns>JsonModel containing the exported analytics data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Exports analytics data in the specified format (CSV, JSON, Excel)
+    /// - Supports comprehensive data export including all analytics metrics
+    /// - Provides filtered data export based on date range
+    /// - Access restricted to administrators only
+    /// - Used for external reporting and business intelligence
+    /// - Supports various export formats for different use cases
+    /// - Includes data validation and export optimization
+    /// - Provides export status tracking and download links
+    /// </remarks>
     [HttpGet("analytics/export")]
     public async Task<JsonModel> ExportAnalytics(
         [FromQuery] string format = "csv",

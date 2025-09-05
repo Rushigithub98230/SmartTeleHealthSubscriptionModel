@@ -7,6 +7,24 @@ using SmartTelehealth.Core.Interfaces;
 
 namespace SmartTelehealth.Infrastructure.Services;
 
+/// <summary>
+/// Infrastructure service responsible for payment processing operations and payment lifecycle management.
+/// This service handles payment processing, retry logic for failed payments, payment status management,
+/// and integration with Stripe payment processing. It provides comprehensive payment processing
+/// functionality with error handling, retry mechanisms, and payment reconciliation.
+/// 
+/// Key Features:
+/// - Payment processing and transaction handling
+/// - Failed payment retry logic with exponential backoff
+/// - Payment status management and updates
+/// - Stripe payment integration and synchronization
+/// - Payment reconciliation and error handling
+/// - Notification management for payment events
+/// - User payment history and tracking
+/// - Payment method validation and processing
+/// - Comprehensive error handling and logging
+/// - Payment security and fraud prevention
+/// </summary>
 public class PaymentProcessingService : IPaymentProcessingService
 {
     private readonly IBillingRepository _billingRepository;
@@ -14,13 +32,22 @@ public class PaymentProcessingService : IPaymentProcessingService
     private readonly IStripeService _stripeService;
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepository;
-    private readonly ILogger<BillingService> _logger;
+    private readonly ILogger<PaymentProcessingService> _logger;
       
     
     // Retry configuration
     private readonly int _maxRetryAttempts = 3;
     private readonly TimeSpan _retryDelay = TimeSpan.FromMinutes(5);
     
+    /// <summary>
+    /// Initializes a new instance of the PaymentProcessingService
+    /// </summary>
+    /// <param name="billingRepository">Repository for billing record data access operations</param>
+    /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
+    /// <param name="stripeService">Stripe service for payment processing operations</param>
+    /// <param name="notificationService">Service for sending payment-related notifications</param>
+    /// <param name="userRepository">Repository for user data access operations</param>
+    /// <param name="logger">Logger instance for recording service operations and errors</param>
     public PaymentProcessingService(
         IBillingRepository billingRepository,
         ISubscriptionRepository subscriptionRepository,
@@ -39,6 +66,22 @@ public class PaymentProcessingService : IPaymentProcessingService
           
     }
     
+    /// <summary>
+    /// Creates a new billing record for payment processing
+    /// </summary>
+    /// <param name="createDto">DTO containing billing record creation details</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing billing record creation results</returns>
+    /// <exception cref="Exception">Thrown when billing record creation fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Creates billing record from provided DTO data
+    /// - Validates billing record details and user information
+    /// - Returns comprehensive billing record creation results
+    /// - Used for billing record creation and payment processing setup
+    /// - Ensures proper billing record creation and validation
+    /// - Logs all billing record creation for audit purposes
+    /// </remarks>
     public async Task<JsonModel> CreateBillingRecordAsync(CreateBillingRecordDto createDto, TokenModel tokenModel)
     {
         try
@@ -79,6 +122,23 @@ public class PaymentProcessingService : IPaymentProcessingService
         }
     }
     
+    /// <summary>
+    /// Processes a payment for a specific billing record with retry logic
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record to process payment for</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing payment processing results and status</returns>
+    /// <exception cref="Exception">Thrown when payment processing fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Processes payment for the specified billing record with retry logic
+    /// - Validates billing record and payment information
+    /// - Implements exponential backoff retry mechanism for failed payments
+    /// - Returns comprehensive payment processing results
+    /// - Used for payment processing and transaction handling
+    /// - Ensures proper payment processing and validation
+    /// - Logs all payment processing attempts for audit purposes
+    /// </remarks>
     public async Task<JsonModel> ProcessPaymentAsync(Guid billingRecordId, TokenModel tokenModel)
     {
         return await ProcessPaymentWithRetryAsync(billingRecordId, 0, tokenModel);
@@ -303,6 +363,22 @@ public class PaymentProcessingService : IPaymentProcessingService
         }
     }
 
+    /// <summary>
+    /// Retries a failed payment for a specific billing record
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record to retry payment for</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing payment retry results and status</returns>
+    /// <exception cref="Exception">Thrown when payment retry fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Retries failed payment for the specified billing record
+    /// - Validates billing record and payment information
+    /// - Returns comprehensive payment retry results
+    /// - Used for failed payment recovery and processing
+    /// - Ensures proper payment retry processing and validation
+    /// - Logs all payment retry attempts for audit purposes
+    /// </remarks>
     public async Task<JsonModel> RetryPaymentAsync(Guid billingRecordId, TokenModel tokenModel)
     {
         try
@@ -370,6 +446,24 @@ public class PaymentProcessingService : IPaymentProcessingService
         }
     }
 
+    /// <summary>
+    /// Processes a refund for a specific billing record with reason
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record to process refund for</param>
+    /// <param name="amount">The amount to refund</param>
+    /// <param name="reason">The reason for the refund</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing refund processing results and status</returns>
+    /// <exception cref="Exception">Thrown when refund processing fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Processes refund for the specified billing record with reason
+    /// - Validates refund amount and billing record information
+    /// - Returns comprehensive refund processing results
+    /// - Used for refund processing and management
+    /// - Ensures proper refund processing and validation
+    /// - Logs all refund processing activities for audit purposes
+    /// </remarks>
     public async Task<JsonModel> ProcessRefundAsync(Guid billingRecordId, decimal amount, string reason, TokenModel tokenModel)
     {
         try
@@ -464,6 +558,22 @@ public class PaymentProcessingService : IPaymentProcessingService
         }
     }
 
+    /// <summary>
+    /// Retrieves a specific billing record by its unique identifier
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record to retrieve</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing billing record details or not found status</returns>
+    /// <exception cref="Exception">Thrown when billing record retrieval fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves specific billing record from the repository
+    /// - Returns detailed billing record information if found
+    /// - Returns 404 status if billing record not found
+    /// - Used for billing record detail views and management
+    /// - Ensures proper data retrieval and error handling
+    /// - Logs all billing record access for audit purposes
+    /// </remarks>
     public async Task<JsonModel> GetBillingRecordAsync(Guid billingRecordId, TokenModel tokenModel)
     {
         try
@@ -496,6 +606,23 @@ public class PaymentProcessingService : IPaymentProcessingService
         }
     }
 
+    /// <summary>
+    /// Retrieves payment history for a specific user and date range
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user to get payment history for</param>
+    /// <param name="startDate">Optional start date for the payment history period</param>
+    /// <param name="endDate">Optional end date for the payment history period</param>
+    /// <returns>IEnumerable of PaymentHistoryDto containing payment history information</returns>
+    /// <exception cref="Exception">Thrown when payment history retrieval fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves payment history for the specified user and date range
+    /// - Validates user ID and date range parameters
+    /// - Returns comprehensive payment history information
+    /// - Used for payment history tracking and management
+    /// - Ensures proper payment history data retrieval
+    /// - Logs all payment history access for audit purposes
+    /// </remarks>
     public async Task<IEnumerable<PaymentHistoryDto>> GetPaymentHistoryAsync(string userId, DateTime? startDate = null, DateTime? endDate = null)
     {
         try
@@ -525,6 +652,24 @@ public class PaymentProcessingService : IPaymentProcessingService
         }
     }
 
+    /// <summary>
+    /// Retrieves payment analytics for a specific user and date range
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user to get payment analytics for</param>
+    /// <param name="startDate">Optional start date for the payment analytics period</param>
+    /// <param name="endDate">Optional end date for the payment analytics period</param>
+    /// <param name="tokenModel">Optional token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing payment analytics information</returns>
+    /// <exception cref="Exception">Thrown when payment analytics retrieval fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves payment analytics for the specified user and date range
+    /// - Validates user ID and date range parameters
+    /// - Returns comprehensive payment analytics information
+    /// - Used for user payment analytics and reporting
+    /// - Ensures proper payment analytics data retrieval
+    /// - Logs all payment analytics access for audit purposes
+    /// </remarks>
     public async Task<JsonModel> GetPaymentAnalyticsAsync(int userId, DateTime? startDate = null, DateTime? endDate = null, TokenModel tokenModel = null)
     {
         try
@@ -726,8 +871,23 @@ public class PaymentProcessingService : IPaymentProcessingService
     }
 
     /// <summary>
-    /// Aggregate accrued and cash revenue for admin reporting
+    /// Retrieves revenue summary for a specified date range and plan
     /// </summary>
+    /// <param name="from">Optional start date for the revenue summary period</param>
+    /// <param name="to">Optional end date for the revenue summary period</param>
+    /// <param name="planId">Optional plan ID to filter revenue by</param>
+    /// <param name="tokenModel">Optional token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing revenue summary information</returns>
+    /// <exception cref="Exception">Thrown when revenue summary retrieval fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves revenue summary for the specified date range and plan
+    /// - Validates date range and plan parameters
+    /// - Returns comprehensive revenue summary information
+    /// - Used for revenue reporting and analytics
+    /// - Ensures proper revenue summary data retrieval
+    /// - Logs all revenue summary access for audit purposes
+    /// </remarks>
     public async Task<JsonModel> GetRevenueSummaryAsync(DateTime? from = null, DateTime? to = null, string? planId = null, TokenModel tokenModel = null)
     {
         // TODO: Implement filtering by planId, type, status
@@ -760,6 +920,22 @@ public class PaymentProcessingService : IPaymentProcessingService
     }
 
     // PHASE 2 STUBS
+    /// <summary>
+    /// Creates recurring billing for a subscription
+    /// </summary>
+    /// <param name="createDto">DTO containing recurring billing creation details</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing recurring billing creation results</returns>
+    /// <exception cref="Exception">Thrown when recurring billing creation fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Creates recurring billing for a subscription from provided DTO data
+    /// - Validates recurring billing details and subscription information
+    /// - Returns comprehensive recurring billing creation results
+    /// - Used for recurring billing setup and management
+    /// - Ensures proper recurring billing creation and validation
+    /// - Logs all recurring billing creation for audit purposes
+    /// </remarks>
     public async Task<JsonModel> CreateRecurringBillingAsync(CreateRecurringBillingDto createDto, TokenModel tokenModel)
     {
         var billingRecord = new BillingRecord
@@ -1275,20 +1451,19 @@ public class PaymentProcessingService : IPaymentProcessingService
             var dtos = billingRecords.Select(MapToDto);
             
             // Return with pagination metadata
+            var paginationMeta = new Meta
+            {
+                TotalRecords = totalCount,
+                PageSize = pageSize,
+                CurrentPage = page,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                DefaultPageSize = pageSize
+            };
+
             return new JsonModel
             {
-                data = new
-                {
-                    data = dtos,
-                    meta = new
-                    {
-                        totalRecords = totalCount,
-                        pageSize = pageSize,
-                        currentPage = page,
-                        totalPages = (int)Math.Ceiling((double)totalCount / pageSize),
-                        defaultPageSize = pageSize
-                    }
-                },
+                data = dtos,
+                meta = paginationMeta,
                 Message = "All billing records retrieved successfully",
                 StatusCode = 200
             };

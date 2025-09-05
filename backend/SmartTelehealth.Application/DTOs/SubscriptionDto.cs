@@ -185,6 +185,7 @@ namespace SmartTelehealth.Application.DTOs
         public decimal Price { get; set; }
         public Guid BillingCycleId { get; set; }
         public Guid CurrencyId { get; set; }
+        public Guid CategoryId { get; set; }
         public bool IsActive { get; set; }
         
         // Marketing and display properties

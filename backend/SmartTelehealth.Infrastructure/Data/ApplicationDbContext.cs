@@ -395,6 +395,11 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
                 .WithMany()
                 .HasForeignKey(e => e.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Category)
+                .WithMany(c => c.SubscriptionPlans)
+                .HasForeignKey(e => e.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
     
@@ -807,7 +812,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.DateTime).IsRequired();
             entity.Property(e => e.OldValues);
             entity.Property(e => e.NewValues);
-            entity.Property(e => e.AffectedColumns).HasMaxLength(500);
+            entity.Property(e => e.AffectedColumns).HasMaxLength(2000); // Increased from 500 to 2000 to accommodate large entities like User
             entity.Property(e => e.PrimaryKey).HasMaxLength(50);
         });
     }

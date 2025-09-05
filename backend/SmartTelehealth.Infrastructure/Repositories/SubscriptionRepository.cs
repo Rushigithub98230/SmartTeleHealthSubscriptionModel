@@ -139,6 +139,8 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
     {
         return await _context.SubscriptionPlans
             .Include(sp => sp.BillingCycle)
+            .Include(sp => sp.Currency)
+            .Include(sp => sp.Category)
             .Include(sp => sp.PlanPrivileges)
             .Where(sp => sp.IsActive)
             .OrderBy(sp => sp.DisplayOrder)
@@ -240,7 +242,11 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
     public async Task<IEnumerable<SubscriptionPlan>> GetActiveSubscriptionPlansAsync()
     {
         return await _context.SubscriptionPlans
+            .Include(sp => sp.BillingCycle)
+            .Include(sp => sp.Currency)
+            .Include(sp => sp.Category)
             .Where(sp => sp.IsActive)
+            .OrderBy(sp => sp.DisplayOrder)
             .ToListAsync();
     }
 
@@ -252,12 +258,12 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
 
     public async Task<IEnumerable<SubscriptionPlan>> GetSubscriptionPlansByCategoryAsync(Guid categoryId)
     {
-        // Since SubscriptionPlan doesn't have Category property, return all active plans
-        // This method can be enhanced later if categories are added
         return await _context.SubscriptionPlans
             .Include(sp => sp.BillingCycle)
+            .Include(sp => sp.Currency)
+            .Include(sp => sp.Category)
             .Include(sp => sp.PlanPrivileges)
-            .Where(sp => sp.IsActive)
+            .Where(sp => sp.IsActive && sp.CategoryId == categoryId)
             .OrderBy(sp => sp.DisplayOrder)
             .ToListAsync();
     }

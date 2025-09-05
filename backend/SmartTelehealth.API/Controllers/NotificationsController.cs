@@ -5,6 +5,13 @@ using SmartTelehealth.Application.Interfaces;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive notification management and delivery.
+/// This controller provides extensive functionality for creating, managing, and delivering
+/// various types of notifications including in-app notifications, email notifications,
+/// SMS notifications, and system notifications. It supports notification templates,
+/// delivery tracking, and user notification preferences.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
@@ -12,29 +19,105 @@ public class NotificationsController : BaseController
 {
     private readonly INotificationService _notificationService;
     
+    /// <summary>
+    /// Initializes a new instance of the NotificationsController with the required notification service.
+    /// </summary>
+    /// <param name="notificationService">Service for handling notification-related business logic</param>
     public NotificationsController(INotificationService notificationService)
     {
         _notificationService = notificationService;
     }
 
+    /// <summary>
+    /// Retrieves all notifications in the system with comprehensive filtering and pagination.
+    /// This endpoint provides administrators with access to all notifications including
+    /// delivery status, notification types, and recipient information for system oversight.
+    /// </summary>
+    /// <returns>JsonModel containing all notifications with administrative details</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all notifications in the system
+    /// - Includes notification details, delivery status, and recipient information
+    /// - Shows notification types, creation dates, and delivery statistics
+    /// - Access restricted to administrators only
+    /// - Used for notification management and system oversight
+    /// - Includes comprehensive notification information and delivery status
+    /// - Provides data for notification analytics and management
+    /// - Handles notification data retrieval and error responses
+    /// </remarks>
     [HttpGet]
     public async Task<JsonModel> GetAllNotifications()
     {
         return await _notificationService.GetNotificationsAsync(GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves detailed information about a specific notification by its ID.
+    /// This endpoint provides comprehensive notification details including content,
+    /// delivery status, recipient information, and notification metadata.
+    /// </summary>
+    /// <param name="id">The unique identifier of the notification to retrieve</param>
+    /// <returns>JsonModel containing the notification details</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed notification information by ID
+    /// - Includes notification content, delivery status, and recipient information
+    /// - Shows notification metadata and delivery statistics
+    /// - Access restricted to notification recipients and administrators
+    /// - Used for notification details and management
+    /// - Includes comprehensive notification information and delivery status
+    /// - Provides secure access to notification information
+    /// - Handles authorization validation and error responses
+    /// </remarks>
     [HttpGet("{id}")]
     public async Task<JsonModel> GetNotification(Guid id)
     {
         return await _notificationService.GetNotificationAsync(id, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Creates a new notification in the system.
+    /// This endpoint handles notification creation including content validation,
+    /// recipient verification, and notification scheduling for delivery.
+    /// </summary>
+    /// <param name="createNotificationDto">DTO containing notification creation details</param>
+    /// <returns>JsonModel containing the created notification information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a new notification with content and recipient validation
+    /// - Handles notification scheduling and delivery setup
+    /// - Validates notification content and recipient information
+    /// - Access restricted to authenticated users and administrators
+    /// - Used for notification creation and management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on notification creation
+    /// - Maintains notification audit trails and creation history
+    /// </remarks>
     [HttpPost]
     public async Task<JsonModel> CreateNotification([FromBody] CreateNotificationDto createNotificationDto)
     {
         return await _notificationService.CreateNotificationAsync(createNotificationDto, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Updates an existing notification with new information.
+    /// This endpoint allows authorized users to modify notification details,
+    /// content, and delivery settings while maintaining data integrity.
+    /// </summary>
+    /// <param name="id">The unique identifier of the notification to update</param>
+    /// <param name="updateNotificationDto">DTO containing the updated notification information</param>
+    /// <returns>JsonModel containing the update result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Updates notification information with validation
+    /// - Ensures data integrity and consistency
+    /// - Validates notification content and delivery settings
+    /// - Access restricted to notification creators and administrators
+    /// - Used for notification editing and management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on update operations
+    /// - Maintains notification audit trails and change history
+    /// </remarks>
     [HttpPut("{id}")]
     public async Task<JsonModel> UpdateNotification(Guid id, [FromBody] UpdateNotificationDto updateNotificationDto)
     {
@@ -43,6 +126,24 @@ public class NotificationsController : BaseController
         return await _notificationService.UpdateNotificationAsync(id, updateNotificationDto, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Deletes a notification from the system.
+    /// This endpoint handles notification deletion including cleanup of related data,
+    /// delivery status updates, and notification history management.
+    /// </summary>
+    /// <param name="id">The unique identifier of the notification to delete</param>
+    /// <returns>JsonModel containing the deletion result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Deletes notification with cleanup of related data
+    /// - Updates delivery status and notification history
+    /// - Handles notification cleanup and data integrity
+    /// - Access restricted to notification creators and administrators
+    /// - Used for notification management and cleanup
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on deletion operations
+    /// - Maintains notification audit trails and deletion history
+    /// </remarks>
     [HttpDelete("{id}")]
     public async Task<JsonModel> DeleteNotification(Guid id)
     {

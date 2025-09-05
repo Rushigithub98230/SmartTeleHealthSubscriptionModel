@@ -138,33 +138,64 @@ export class CommonService {
    */
   private handleError = (error: HttpErrorResponse): Observable<never> => {
     let errorMessage = 'An unknown error occurred';
+    let userFriendlyMessage = errorMessage;
     
     if (error.error instanceof ErrorEvent) {
       // Client-side error
       errorMessage = `Client Error: ${error.error.message}`;
+      userFriendlyMessage = 'A network error occurred. Please check your connection and try again.';
     } else {
       // Server-side error
       if (error.error && error.error.message) {
         errorMessage = error.error.message;
+        userFriendlyMessage = error.error.message;
+      } else if (error.error && typeof error.error === 'string') {
+        errorMessage = error.error;
+        userFriendlyMessage = error.error;
       } else if (error.status === 0) {
         errorMessage = 'Unable to connect to server. Please check your connection.';
+        userFriendlyMessage = 'Unable to connect to server. Please check your internet connection and try again.';
+      } else if (error.status === 400) {
+        errorMessage = 'Bad request. Please check your input and try again.';
+        userFriendlyMessage = 'Invalid request. Please check your input and try again.';
       } else if (error.status === 401) {
         errorMessage = 'Unauthorized. Please log in again.';
+        userFriendlyMessage = 'Your session has expired. Please log in again.';
         // Optionally redirect to login
         localStorage.removeItem('adminToken');
         localStorage.removeItem('token');
       } else if (error.status === 403) {
         errorMessage = 'Access denied. You do not have permission to perform this action.';
+        userFriendlyMessage = 'You do not have permission to perform this action.';
       } else if (error.status === 404) {
         errorMessage = 'Resource not found.';
+        userFriendlyMessage = 'The requested resource was not found.';
+      } else if (error.status === 409) {
+        errorMessage = 'Conflict. The resource already exists or there is a conflict with the current state.';
+        userFriendlyMessage = 'There is a conflict with your request. Please check and try again.';
+      } else if (error.status === 422) {
+        errorMessage = 'Validation failed. Please check your input.';
+        userFriendlyMessage = 'Please check your input and correct any errors.';
       } else if (error.status === 500) {
         errorMessage = 'Internal server error. Please try again later.';
-      } else {
+        userFriendlyMessage = 'A server error occurred. Please try again later.';
+      } else if (error.status >= 500) {
         errorMessage = `Server Error: ${error.status} - ${error.statusText}`;
+        userFriendlyMessage = 'A server error occurred. Please try again later.';
+      } else {
+        errorMessage = `HTTP Error: ${error.status} - ${error.statusText}`;
+        userFriendlyMessage = 'An unexpected error occurred. Please try again.';
       }
     }
 
     console.error('HTTP Error:', error);
-    return throwError(() => new Error(errorMessage));
+    
+    // Create a custom error with both technical and user-friendly messages
+    const customError = new Error(userFriendlyMessage);
+    (customError as any).technicalMessage = errorMessage;
+    (customError as any).status = error.status;
+    (customError as any).originalError = error;
+    
+    return throwError(() => customError);
   };
 }

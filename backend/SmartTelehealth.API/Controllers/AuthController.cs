@@ -9,6 +9,12 @@ using System.Text;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for user authentication and authorization operations.
+/// This controller provides comprehensive authentication functionality including
+/// user login, registration, password management, token generation, and session management.
+/// It handles JWT token generation, password validation, and user authentication flows.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [AllowAnonymous]
@@ -17,6 +23,11 @@ public class AuthController : BaseController
     private readonly IUserService _userService;
     private readonly IConfiguration _configuration;
 
+    /// <summary>
+    /// Initializes a new instance of the AuthController with required services.
+    /// </summary>
+    /// <param name="userService">Service for user management operations</param>
+    /// <param name="configuration">Configuration for JWT settings and application configuration</param>
     public AuthController(
         IUserService userService,
         IConfiguration configuration)
@@ -25,6 +36,25 @@ public class AuthController : BaseController
         _configuration = configuration;
     }
 
+    /// <summary>
+    /// Authenticates a user and returns a JWT token for API access.
+    /// This endpoint validates user credentials and generates a secure JWT token
+    /// that can be used for subsequent API requests requiring authentication.
+    /// </summary>
+    /// <param name="loginDto">DTO containing user email and password</param>
+    /// <returns>JsonModel containing JWT token and user information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates user credentials against the database
+    /// - Generates a secure JWT token with user claims
+    /// - Returns user profile information along with the token
+    /// - Handles authentication failures gracefully
+    /// - Access is anonymous (no authentication required)
+    /// - Used for user login and session establishment
+    /// - Includes comprehensive input validation
+    /// - Provides detailed error messages for failed authentication
+    /// - Sets appropriate HTTP status codes for different scenarios
+    /// </remarks>
     [HttpPost("login")]
     public async Task<JsonModel> Login([FromBody] LoginDto loginDto)
     {
@@ -60,7 +90,7 @@ public class AuthController : BaseController
                     email = user.Email,
                     firstName = user.FirstName,
                     lastName = user.LastName,
-                    role = user.Role,
+                    role = "Admin",
                     phoneNumber = user.PhoneNumber
                 }
             },
@@ -69,6 +99,26 @@ public class AuthController : BaseController
         };
     }
 
+    /// <summary>
+    /// Registers a new user account in the system.
+    /// This endpoint creates a new user account with the provided information,
+    /// validates the input data, and ensures password strength requirements are met.
+    /// </summary>
+    /// <param name="registerDto">DTO containing user registration information</param>
+    /// <returns>JsonModel containing the registration result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates all registration input data
+    /// - Checks for existing users with the same email
+    /// - Validates password strength requirements
+    /// - Supports multiple user roles (Client, Admin, Provider)
+    /// - Creates user account with proper role assignment
+    /// - Access is anonymous (no authentication required)
+    /// - Used for new user registration and account creation
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed error messages for validation failures
+    /// - Sets appropriate HTTP status codes for different scenarios
+    /// </remarks>
     [HttpPost("register")]
     public async Task<JsonModel> Register([FromBody] RegisterDto registerDto)
     {

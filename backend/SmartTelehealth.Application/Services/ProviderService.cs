@@ -10,12 +10,37 @@ using System.Threading.Tasks;
 
 namespace SmartTelehealth.Application.Services
 {
+    /// <summary>
+    /// Service responsible for healthcare provider management operations.
+    /// This service handles provider CRUD operations, provider data management,
+    /// provider verification, and provider-related business logic. It provides
+    /// comprehensive provider management functionality with proper validation,
+    /// audit trails, and data mapping between entities and DTOs.
+    /// 
+    /// Key Features:
+    /// - Provider CRUD operations (Create, Read, Update, Delete)
+    /// - Provider data retrieval and management
+    /// - Provider verification and status management
+    /// - Soft delete functionality with audit trails
+    /// - AutoMapper integration for entity-DTO mapping
+    /// - Comprehensive error handling and validation
+    /// - Audit logging and tracking
+    /// - Integration with provider repository
+    /// - Provider search and filtering capabilities
+    /// - Provider profile management
+    /// </summary>
     public class ProviderService : IProviderService
     {
         private readonly IProviderRepository _providerRepository;
         private readonly IMapper _mapper;
           
 
+        /// <summary>
+        /// Initializes a new instance of the ProviderService
+        /// </summary>
+        /// <param name="providerRepository">Repository for provider data access operations</param>
+        /// <param name="mapper">AutoMapper instance for entity-DTO mapping</param>
+        /// <param name="auditService">Service for audit logging and tracking</param>
         public ProviderService(IProviderRepository providerRepository, IMapper mapper, IAuditService auditService)
         {
             _providerRepository = providerRepository;

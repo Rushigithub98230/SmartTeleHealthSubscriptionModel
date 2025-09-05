@@ -4,7 +4,6 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, FormsModule } from '@angul
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -14,14 +13,22 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { SubscriptionService } from '../../services/subscription.service';
 import { PlanStepperComponent } from './plan-stepper.component';
+import { SubscriptionDetailsDialogComponent } from './subscription-details-dialog.component';
+import { ConfirmationDialogComponent, ConfirmationDialogData } from './confirmation-dialog.component';
 import { 
   SubscriptionDto, 
   SubscriptionPlanDto, 
   CreateSubscriptionPlanDto, 
-  PaginatedResponse 
+  PaginatedResponse,
+  SubscriptionDetailsDto,
+  BillingRecordDto,
+  UserSubscriptionPrivilegeUsageDto
 } from '../../models/subscription.models';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-subscription-management',
@@ -43,6 +50,8 @@ import {
     MatChipsModule,
     MatMenuModule,
     MatSnackBarModule,
+    MatDividerModule,
+    MatProgressSpinnerModule,
     PlanStepperComponent
   ],
   templateUrl: './subscription-management.html',
@@ -60,6 +69,7 @@ export class SubscriptionManagementComponent implements OnInit {
   planPageSize = 20;
   planCurrentPage = 0;
   planSearchTerm = '';
+  plansLoading = false;
 
   // Subscriptions data
   subscriptions: SubscriptionDto[] = [];
@@ -69,6 +79,7 @@ export class SubscriptionManagementComponent implements OnInit {
   subscriptionCurrentPage = 0;
   subscriptionSearchTerm = '';
   selectedStatus = '';
+  subscriptionsLoading = false;
 
   // UI state
   selectedTab = 0;
@@ -81,7 +92,7 @@ export class SubscriptionManagementComponent implements OnInit {
 
   // Plans management
   loadPlans() {
-    this.loading = true;
+    this.plansLoading = true;
     this.subscriptionService.getAllPlans(
       this.planCurrentPage + 1, 
       this.planPageSize, 
@@ -91,13 +102,18 @@ export class SubscriptionManagementComponent implements OnInit {
         if (response.statusCode === 200 && response.data) {
           this.plans = response.data;
           this.planTotalCount = response.meta?.totalRecords || this.plans.length;
+        } else {
+          this.plans = [];
+          this.planTotalCount = 0;
         }
-        this.loading = false;
+        this.plansLoading = false;
       },
       error: (error) => {
         console.error('Error loading plans:', error);
-        this.snackBar.open('Error loading plans', 'Close', { duration: 3000 });
-        this.loading = false;
+        this.plans = [];
+        this.planTotalCount = 0;
+        this.snackBar.open('Error loading plans: ' + (error.message || 'Unknown error'), 'Close', { duration: 5000 });
+        this.plansLoading = false;
       }
     });
   }
@@ -178,27 +194,44 @@ export class SubscriptionManagementComponent implements OnInit {
   }
 
   deletePlan(planId: string) {
-    if (confirm('Are you sure you want to delete this plan?')) {
-      this.subscriptionService.deletePlan(planId).subscribe({
-        next: (response) => {
-          if (response.statusCode === 200) {
-            this.snackBar.open('Plan deleted successfully', 'Close', { duration: 3000 });
-            this.loadPlans();
+    const dialogData: ConfirmationDialogData = {
+      title: 'Delete Subscription Plan',
+      message: 'Are you sure you want to delete this subscription plan? This action cannot be undone and may affect existing subscriptions.',
+      confirmText: 'Delete Plan',
+      cancelText: 'Cancel',
+      type: 'danger'
+    };
+
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      width: '500px',
+      data: dialogData
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.subscriptionService.deletePlan(planId).subscribe({
+          next: (response) => {
+            if (response.statusCode === 200) {
+              this.snackBar.open('Plan deleted successfully', 'Close', { duration: 3000 });
+              this.loadPlans();
+            } else {
+              this.snackBar.open(response.message || 'Failed to delete plan', 'Close', { duration: 5000 });
+            }
+          },
+          error: (error) => {
+            console.error('Error deleting plan:', error);
+            this.snackBar.open(error.message || 'Error deleting plan', 'Close', { duration: 5000 });
           }
-        },
-        error: (error) => {
-          console.error('Error deleting plan:', error);
-          this.snackBar.open('Error deleting plan', 'Close', { duration: 3000 });
-        }
-      });
-    }
+        });
+      }
+    });
   }
 
 
 
   // Subscriptions management
   loadSubscriptions() {
-    this.loading = true;
+    this.subscriptionsLoading = true;
     const statusFilter = this.selectedStatus ? [this.selectedStatus] : undefined;
     
     this.subscriptionService.getAllSubscriptions(
@@ -211,13 +244,18 @@ export class SubscriptionManagementComponent implements OnInit {
         if (response.statusCode === 200 && response.data) {
           this.subscriptions = response.data;
           this.subscriptionTotalCount = response.meta?.totalRecords || this.subscriptions.length;
+        } else {
+          this.subscriptions = [];
+          this.subscriptionTotalCount = 0;
         }
-        this.loading = false;
+        this.subscriptionsLoading = false;
       },
       error: (error) => {
         console.error('Error loading subscriptions:', error);
-        this.snackBar.open('Error loading subscriptions', 'Close', { duration: 3000 });
-        this.loading = false;
+        this.subscriptions = [];
+        this.subscriptionTotalCount = 0;
+        this.snackBar.open('Error loading subscriptions: ' + (error.message || 'Unknown error'), 'Close', { duration: 5000 });
+        this.subscriptionsLoading = false;
       }
     });
   }
@@ -238,8 +276,123 @@ export class SubscriptionManagementComponent implements OnInit {
     this.loadSubscriptions();
   }
 
-  viewSubscription(subscription: SubscriptionDto) {
-    this.snackBar.open(`Subscription: ${subscription.planName} for ${subscription.userName}`, 'Close', { duration: 3000 });
+  viewSubscriptionDetails(subscription: SubscriptionDto) {
+    const dialogRef = this.dialog.open(SubscriptionDetailsDialogComponent, {
+      width: '90vw',
+      maxWidth: '1200px',
+      height: '80vh',
+      data: { subscription }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      // Refresh data if needed
+      if (result === 'refresh') {
+        this.loadSubscriptions();
+      }
+    });
+  }
+
+  upgradeSubscription(subscription: SubscriptionDto) {
+    // TODO: Open plan selection dialog for upgrade
+    const newPlanId = prompt('Enter new plan ID for upgrade:');
+    if (newPlanId) {
+      this.subscriptionService.upgradeSubscription(subscription.id, newPlanId).subscribe({
+        next: (response) => {
+          if (response.statusCode === 200) {
+            this.snackBar.open('Subscription upgraded successfully', 'Close', { duration: 3000 });
+            this.loadSubscriptions();
+          }
+        },
+        error: (error) => {
+          console.error('Error upgrading subscription:', error);
+          this.snackBar.open('Error upgrading subscription', 'Close', { duration: 3000 });
+        }
+      });
+    }
+  }
+
+  downgradeSubscription(subscription: SubscriptionDto) {
+    // TODO: Open plan selection dialog for downgrade
+    const newPlanId = prompt('Enter new plan ID for downgrade:');
+    if (newPlanId) {
+      this.subscriptionService.downgradeSubscription(subscription.id, newPlanId).subscribe({
+        next: (response) => {
+          if (response.statusCode === 200) {
+            this.snackBar.open('Subscription downgraded successfully', 'Close', { duration: 3000 });
+            this.loadSubscriptions();
+          }
+        },
+        error: (error) => {
+          console.error('Error downgrading subscription:', error);
+          this.snackBar.open('Error downgrading subscription', 'Close', { duration: 3000 });
+        }
+      });
+    }
+  }
+
+  extendSubscription(subscription: SubscriptionDto) {
+    const additionalDays = prompt('Enter number of days to extend:');
+    if (additionalDays && !isNaN(Number(additionalDays))) {
+      this.subscriptionService.extendSubscription(subscription.id, Number(additionalDays)).subscribe({
+        next: (response) => {
+          if (response.statusCode === 200) {
+            this.snackBar.open(`Subscription extended by ${additionalDays} days`, 'Close', { duration: 3000 });
+            this.loadSubscriptions();
+          }
+        },
+        error: (error) => {
+          console.error('Error extending subscription:', error);
+          this.snackBar.open('Error extending subscription', 'Close', { duration: 3000 });
+        }
+      });
+    }
+  }
+
+  reactivateSubscription(subscriptionId: string) {
+    if (confirm('Are you sure you want to reactivate this subscription?')) {
+      this.subscriptionService.reactivateSubscription(subscriptionId).subscribe({
+        next: (response) => {
+          if (response.statusCode === 200) {
+            this.snackBar.open('Subscription reactivated successfully', 'Close', { duration: 3000 });
+            this.loadSubscriptions();
+          }
+        },
+        error: (error) => {
+          console.error('Error reactivating subscription:', error);
+          this.snackBar.open('Error reactivating subscription', 'Close', { duration: 3000 });
+        }
+      });
+    }
+  }
+
+  viewBillingHistory(subscription: SubscriptionDto) {
+    this.subscriptionService.getBillingHistory(subscription.id).subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          // TODO: Open billing history dialog with response.data
+          this.snackBar.open(`Billing history loaded for ${subscription.userName}`, 'Close', { duration: 3000 });
+        }
+      },
+      error: (error) => {
+        console.error('Error loading billing history:', error);
+        this.snackBar.open('Error loading billing history', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  viewPrivilegeUsage(subscription: SubscriptionDto) {
+    this.subscriptionService.getPrivilegeUsage(subscription.id).subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          // TODO: Open privilege usage dialog with response.data
+          this.snackBar.open(`Privilege usage loaded for ${subscription.userName}`, 'Close', { duration: 3000 });
+        }
+      },
+      error: (error) => {
+        console.error('Error loading privilege usage:', error);
+        this.snackBar.open('Error loading privilege usage', 'Close', { duration: 3000 });
+      }
+    });
   }
 
   pauseSubscription(subscriptionId: string) {
@@ -275,21 +428,40 @@ export class SubscriptionManagementComponent implements OnInit {
   }
 
   cancelSubscription(subscriptionId: string) {
-    const reason = prompt('Please provide a reason for cancellation:');
-    if (reason) {
-      this.subscriptionService.cancelSubscription(subscriptionId, reason).subscribe({
-        next: (response) => {
-          if (response.statusCode === 200) {
-            this.snackBar.open('Subscription cancelled successfully', 'Close', { duration: 3000 });
-            this.loadSubscriptions();
+    const dialogData: ConfirmationDialogData = {
+      title: 'Cancel Subscription',
+      message: 'Are you sure you want to cancel this subscription? The user will lose access to the services.',
+      confirmText: 'Cancel Subscription',
+      cancelText: 'Keep Active',
+      type: 'warning',
+      requireReason: true,
+      reasonLabel: 'Cancellation Reason',
+      reasonPlaceholder: 'Please provide a detailed reason for cancelling this subscription...'
+    };
+
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      width: '600px',
+      data: dialogData
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result && result.confirmed) {
+        this.subscriptionService.cancelSubscription(subscriptionId, result.reason).subscribe({
+          next: (response) => {
+            if (response.statusCode === 200) {
+              this.snackBar.open('Subscription cancelled successfully', 'Close', { duration: 3000 });
+              this.loadSubscriptions();
+            } else {
+              this.snackBar.open(response.message || 'Failed to cancel subscription', 'Close', { duration: 5000 });
+            }
+          },
+          error: (error) => {
+            console.error('Error cancelling subscription:', error);
+            this.snackBar.open(error.message || 'Error cancelling subscription', 'Close', { duration: 5000 });
           }
-        },
-        error: (error) => {
-          console.error('Error cancelling subscription:', error);
-          this.snackBar.open('Error cancelling subscription', 'Close', { duration: 3000 });
-        }
-      });
-    }
+        });
+      }
+    });
   }
 
   getStatusColor(status: string): 'primary' | 'accent' | 'warn' | undefined {

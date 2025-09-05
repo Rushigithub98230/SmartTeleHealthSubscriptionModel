@@ -5,48 +5,168 @@ using SmartTelehealth.Application.Interfaces;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for comprehensive home medication delivery and prescription management.
+/// This controller provides extensive functionality for managing prescriptions, medication shipments,
+/// pharmacy integration, refill management, inventory tracking, and automated dispatch systems.
+/// It handles the complete medication delivery workflow from prescription to home delivery.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class HomeMedController : BaseController
 {
     private readonly IHomeMedService _homeMedService;
 
+    /// <summary>
+    /// Initializes a new instance of the HomeMedController with the required home medication service.
+    /// </summary>
+    /// <param name="homeMedService">Service for handling home medication-related business logic</param>
     public HomeMedController(IHomeMedService homeMedService)
     {
         _homeMedService = homeMedService;
     }
 
     // Prescription Management
+
+    /// <summary>
+    /// Creates a new prescription for home medication delivery.
+    /// This endpoint handles prescription creation including medication details, dosage information,
+    /// and initial setup for pharmacy processing and home delivery workflow.
+    /// </summary>
+    /// <param name="createDto">DTO containing prescription creation details</param>
+    /// <returns>JsonModel containing the created prescription information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a new prescription with medication and dosage details
+    /// - Validates prescription information and medication availability
+    /// - Sets up prescription for pharmacy processing
+    /// - Access restricted to healthcare providers and authorized users
+    /// - Used for prescription creation and medication management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on prescription creation
+    /// - Maintains prescription audit trails and creation history
+    /// </remarks>
     [HttpPost("prescriptions")]
     public async Task<JsonModel> CreatePrescription([FromBody] CreatePrescriptionDto createDto)
     {
         return await _homeMedService.CreatePrescriptionAsync(createDto, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves detailed information about a specific prescription by its ID.
+    /// This endpoint provides comprehensive prescription details including medication information,
+    /// dosage details, prescription status, and delivery information for authorized users.
+    /// </summary>
+    /// <param name="id">The unique identifier of the prescription</param>
+    /// <returns>JsonModel containing the prescription details</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed prescription information by ID
+    /// - Includes medication details, dosage, and prescription status
+    /// - Shows prescription history and delivery information
+    /// - Access restricted to prescription participants and authorized users
+    /// - Used for prescription details and management
+    /// - Includes comprehensive prescription information and metadata
+    /// - Provides secure access to prescription information
+    /// - Handles authorization validation and error responses
+    /// </remarks>
     [HttpGet("prescriptions/{id}")]
     public async Task<JsonModel> GetPrescription(Guid id)
     {
         return await _homeMedService.GetPrescriptionAsync(id, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves all prescriptions for a specific user.
+    /// This endpoint provides a comprehensive list of prescriptions associated with a user,
+    /// including prescription status, medication details, and delivery information.
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user</param>
+    /// <returns>JsonModel containing the user's prescriptions</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all prescriptions for the specified user
+    /// - Includes prescription status, medication details, and delivery information
+    /// - Shows prescription history and current status
+    /// - Access restricted to prescription owners and authorized users
+    /// - Used for user prescription history and management
+    /// - Includes comprehensive prescription information and metadata
+    /// - Provides secure access to user prescription data
+    /// - Handles authorization validation and error responses
+    /// </remarks>
     [HttpGet("users/{userId}/prescriptions")]
     public async Task<JsonModel> GetUserPrescriptions(Guid userId)
     {
         return await _homeMedService.GetUserPrescriptionsAsync(userId, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves all prescriptions created by a specific healthcare provider.
+    /// This endpoint provides a comprehensive list of prescriptions created by a provider,
+    /// including prescription status, patient information, and delivery details.
+    /// </summary>
+    /// <param name="providerId">The unique identifier of the healthcare provider</param>
+    /// <returns>JsonModel containing the provider's prescriptions</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all prescriptions created by the specified provider
+    /// - Includes prescription status, patient information, and delivery details
+    /// - Shows provider prescription history and current status
+    /// - Access restricted to providers and authorized users
+    /// - Used for provider prescription management and tracking
+    /// - Includes comprehensive prescription information and metadata
+    /// - Provides secure access to provider prescription data
+    /// - Handles authorization validation and error responses
+    /// </remarks>
     [HttpGet("providers/{providerId}/prescriptions")]
     public async Task<JsonModel> GetProviderPrescriptions(Guid providerId)
     {
         return await _homeMedService.GetProviderPrescriptionsAsync(providerId, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Updates an existing prescription with new information.
+    /// This endpoint allows authorized users to modify prescription details,
+    /// medication information, and dosage while maintaining data integrity.
+    /// </summary>
+    /// <param name="id">The unique identifier of the prescription to update</param>
+    /// <param name="updateDto">DTO containing the updated prescription information</param>
+    /// <returns>JsonModel containing the update result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Updates prescription information with validation
+    /// - Ensures data integrity and consistency
+    /// - Validates prescription information and business rules
+    /// - Access restricted to prescription owners and authorized users
+    /// - Used for prescription editing and management
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on update operations
+    /// - Maintains prescription audit trails and change history
+    /// </remarks>
     [HttpPut("prescriptions/{id}")]
     public async Task<JsonModel> UpdatePrescription(Guid id, [FromBody] UpdatePrescriptionDto updateDto)
     {
         return await _homeMedService.UpdatePrescriptionAsync(id, updateDto, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Deletes a prescription from the system.
+    /// This endpoint handles prescription deletion including cleanup of related data,
+    /// validation of prescription status, and prescription history management.
+    /// </summary>
+    /// <param name="id">The unique identifier of the prescription to delete</param>
+    /// <returns>JsonModel containing the deletion result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Deletes prescription with cleanup of related data
+    /// - Validates prescription status and deletion eligibility
+    /// - Handles prescription cleanup and data integrity
+    /// - Access restricted to prescription owners and administrators
+    /// - Used for prescription management and cleanup
+    /// - Includes comprehensive validation and error handling
+    /// - Provides detailed feedback on deletion operations
+    /// - Maintains prescription audit trails and deletion history
+    /// </remarks>
     [HttpDelete("prescriptions/{id}")]
     public async Task<JsonModel> DeletePrescription(Guid id)
     {

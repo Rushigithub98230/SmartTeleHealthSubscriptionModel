@@ -10,6 +10,25 @@ using Microsoft.Extensions.Logging;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Service responsible for healthcare provider onboarding and application management.
+/// This service handles the complete provider onboarding lifecycle including application
+/// creation, submission, review, approval, and status management. It provides comprehensive
+/// onboarding functionality with document management, status tracking, notifications,
+/// and administrative review capabilities.
+/// 
+/// Key Features:
+/// - Provider onboarding application creation and management
+/// - Document upload and verification (licenses, certifications, insurance)
+/// - Application submission and status tracking
+/// - Administrative review and approval workflow
+/// - Status management (Pending, UnderReview, Approved, Rejected, RequiresMoreInfo)
+/// - Onboarding statistics and analytics
+/// - Notification system integration
+/// - Audit logging and tracking
+/// - Soft delete functionality
+/// - Comprehensive error handling and validation
+/// </summary>
 public class ProviderOnboardingService : IProviderOnboardingService
 {
     private readonly IProviderOnboardingRepository _onboardingRepository;
@@ -19,6 +38,14 @@ public class ProviderOnboardingService : IProviderOnboardingService
     private readonly IMapper _mapper;
     private readonly ILogger<ProviderOnboardingService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the ProviderOnboardingService
+    /// </summary>
+    /// <param name="onboardingRepository">Repository for provider onboarding data access operations</param>
+    /// <param name="userService">Service for user management and operations</param>
+    /// <param name="notificationService">Service for sending notifications and alerts</param>
+    /// <param name="mapper">AutoMapper instance for entity-DTO mapping</param>
+    /// <param name="logger">Logger instance for recording service operations and errors</param>
     public ProviderOnboardingService(
         IProviderOnboardingRepository onboardingRepository,
         IUserService userService,

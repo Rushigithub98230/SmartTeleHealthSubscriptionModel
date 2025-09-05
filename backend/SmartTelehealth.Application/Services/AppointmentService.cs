@@ -11,6 +11,17 @@ using Microsoft.Extensions.Logging;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Appointment management service that handles all appointment-related operations including:
+/// - Appointment creation, scheduling, and management
+/// - Participant management and invitation handling
+/// - Video call integration with OpenTok
+/// - Payment processing for appointments
+/// - Document management for appointment-related files
+/// - Notification management for appointment events
+/// - Appointment status tracking and updates
+/// - Integration with subscription and privilege systems
+/// </summary>
 public class AppointmentService : IAppointmentService
 {
     private readonly IAppointmentRepository _appointmentRepository;
@@ -28,6 +39,20 @@ public class AppointmentService : IAppointmentService
 
     private const int DefaultMaxParticipants = 8;
 
+    /// <summary>
+    /// Initializes a new instance of the AppointmentService with all required dependencies
+    /// </summary>
+    /// <param name="appointmentRepository">Repository for appointment data access operations</param>
+    /// <param name="participantRepository">Repository for appointment participant data access</param>
+    /// <param name="invitationRepository">Repository for appointment invitation data access</param>
+    /// <param name="paymentLogRepository">Repository for appointment payment log data access</param>
+    /// <param name="userRepository">Repository for user data access operations</param>
+    /// <param name="openTokService">OpenTok service for video call functionality</param>
+    /// <param name="notificationService">Service for sending notifications</param>
+    /// <param name="stripeService">Stripe service for payment processing</param>
+    /// <param name="participantRoleRepository">Repository for participant role data access</param>
+    /// <param name="documentService">Service for document management</param>
+    /// <param name="documentTypeService">Service for document type management</param>
     public AppointmentService(
         IAppointmentRepository appointmentRepository,
         IAppointmentParticipantRepository participantRepository,

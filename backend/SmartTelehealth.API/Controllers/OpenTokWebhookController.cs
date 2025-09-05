@@ -5,17 +5,44 @@ using System.Text.Json;
 
 namespace SmartTelehealth.API.Controllers;
 
+/// <summary>
+/// Controller responsible for OpenTok webhook handling and video conferencing management.
+/// This controller provides comprehensive functionality for handling OpenTok webhooks, managing
+/// video sessions, recording operations, token generation, and health monitoring for video
+/// conferencing integration in healthcare communication systems.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class OpenTokWebhookController : BaseController
 {
     private readonly IOpenTokService _openTokService;
 
+    /// <summary>
+    /// Initializes a new instance of the OpenTokWebhookController with the required OpenTok service.
+    /// </summary>
+    /// <param name="openTokService">Service for handling OpenTok-related business logic</param>
     public OpenTokWebhookController(IOpenTokService openTokService)
     {
         _openTokService = openTokService;
     }
 
+    /// <summary>
+    /// Handles incoming OpenTok webhook events for video conferencing operations.
+    /// This endpoint processes OpenTok webhook notifications including session events, recording events,
+    /// connection events, and stream events for real-time video conferencing management and monitoring.
+    /// </summary>
+    /// <returns>JsonModel containing the webhook processing result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Processes OpenTok webhook events and notifications
+    /// - Handles session, recording, connection, and stream events
+    /// - Updates video conferencing status and metadata
+    /// - Access restricted to OpenTok webhook sources
+    /// - Used for real-time video conferencing event processing
+    /// - Includes comprehensive webhook validation and error handling
+    /// - Provides detailed feedback on webhook processing
+    /// - Maintains video conferencing event audit trails
+    /// </remarks>
     [HttpPost("webhook")]
     public async Task<JsonModel> HandleWebhook()
     {

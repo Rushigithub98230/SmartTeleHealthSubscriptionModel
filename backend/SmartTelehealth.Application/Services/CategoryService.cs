@@ -88,18 +88,23 @@ public class CategoryService : ICategoryService
                 .Take(pageSize)
                 .ToList();
             
-            var result = new
+            var paginationMeta = new Meta
             {
-                Categories = pagedCategories,
-                TotalCount = totalCount,
-                Page = page,
+                TotalRecords = totalCount,
+                CurrentPage = page,
                 PageSize = pageSize,
                 TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
             };
             
             _logger.LogInformation("Paginated categories retrieved by user {UserId}: page {Page}, pageSize {PageSize}", 
                 tokenModel.UserID, page, pageSize);
-            return new JsonModel { data = result, Message = "Categories retrieved successfully", StatusCode = 200 };
+            return new JsonModel 
+            { 
+                data = pagedCategories, 
+                meta = paginationMeta,
+                Message = "Categories retrieved successfully", 
+                StatusCode = 200 
+            };
         }
         catch (Exception ex)
         {

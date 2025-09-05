@@ -12,6 +12,12 @@ using System.Linq;
 
 namespace SmartTelehealth.API.Controllers
 {
+    /// <summary>
+    /// Controller responsible for comprehensive questionnaire management and user response processing.
+    /// This controller provides extensive functionality for managing questionnaire templates, user responses,
+    /// file attachments, analytics, and reporting. It handles the complete questionnaire lifecycle from
+    /// template creation to response analysis and data export for healthcare assessment and data collection.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class QuestionnaireController : BaseController
@@ -19,6 +25,11 @@ namespace SmartTelehealth.API.Controllers
         private readonly IQuestionnaireService _questionnaireService;
         private readonly IFileStorageService _fileStorageService;
 
+        /// <summary>
+        /// Initializes a new instance of the QuestionnaireController with required services.
+        /// </summary>
+        /// <param name="questionnaireService">Service for handling questionnaire-related business logic</param>
+        /// <param name="fileStorageService">Service for handling file storage operations</param>
         public QuestionnaireController(IQuestionnaireService questionnaireService, IFileStorageService fileStorageService)
         {
             _questionnaireService = questionnaireService;
@@ -26,24 +37,96 @@ namespace SmartTelehealth.API.Controllers
         }
 
         // Template Management
+
+        /// <summary>
+        /// Retrieves all questionnaire templates available in the system.
+        /// This endpoint provides a comprehensive list of all questionnaire templates including
+        /// template details, categories, and configuration information for template selection.
+        /// </summary>
+        /// <returns>JsonModel containing all questionnaire templates</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Returns all questionnaire templates in the system
+        /// - Includes template details, categories, and configuration
+        /// - Shows template status and availability information
+        /// - Access restricted to authenticated users
+        /// - Used for template selection and questionnaire management
+        /// - Includes comprehensive template information and metadata
+        /// - Provides data for questionnaire template browsing
+        /// - Handles template data retrieval and error responses
+        /// </remarks>
         [HttpGet("templates")]
         public async Task<JsonModel> GetAllTemplates()
         {
             return await _questionnaireService.GetAllTemplatesAsync();
         }
 
+        /// <summary>
+        /// Retrieves detailed information about a specific questionnaire template by its ID.
+        /// This endpoint provides comprehensive template details including questions, configuration,
+        /// and template metadata for detailed template management and usage.
+        /// </summary>
+        /// <param name="id">The unique identifier of the questionnaire template</param>
+        /// <returns>JsonModel containing the template details</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Returns detailed questionnaire template information by ID
+        /// - Includes template questions, configuration, and metadata
+        /// - Shows template structure and usage information
+        /// - Access restricted to authenticated users
+        /// - Used for template details and questionnaire creation
+        /// - Includes comprehensive template information and metadata
+        /// - Provides secure access to template information
+        /// - Handles authorization validation and error responses
+        /// </remarks>
         [HttpGet("templates/{id}")]
         public async Task<JsonModel> GetTemplateById(Guid id)
         {
             return await _questionnaireService.GetTemplateByIdAsync(id);
         }
 
+        /// <summary>
+        /// Retrieves questionnaire templates filtered by a specific category.
+        /// This endpoint provides a list of questionnaire templates within a specific category
+        /// including template details and category-specific information for targeted template selection.
+        /// </summary>
+        /// <param name="categoryId">The unique identifier of the category</param>
+        /// <returns>JsonModel containing templates for the specified category</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Returns questionnaire templates for the specified category
+        /// - Includes template details and category-specific information
+        /// - Shows template availability and configuration
+        /// - Access restricted to authenticated users
+        /// - Used for category-based template selection
+        /// - Includes comprehensive template information and metadata
+        /// - Provides data for category-specific questionnaire management
+        /// - Handles category template retrieval and error responses
+        /// </remarks>
         [HttpGet("templates/by-category/{categoryId}")]
         public async Task<JsonModel> GetTemplatesByCategory(Guid categoryId)
         {
             return await _questionnaireService.GetTemplatesByCategoryAsync(categoryId);
         }
 
+        /// <summary>
+        /// Creates a new questionnaire template with specified configuration.
+        /// This endpoint handles questionnaire template creation including question setup,
+        /// configuration, and initial template setup for questionnaire management.
+        /// </summary>
+        /// <param name="dto">DTO containing questionnaire template creation details</param>
+        /// <returns>JsonModel containing the created template information</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Creates a new questionnaire template with configuration
+        /// - Validates template structure and question setup
+        /// - Sets up template for questionnaire management
+        /// - Access restricted to authenticated users
+        /// - Used for questionnaire template creation and management
+        /// - Includes comprehensive validation and error handling
+        /// - Provides detailed feedback on template creation
+        /// - Maintains template creation audit trails
+        /// </remarks>
         [HttpPost("templates")]
         public async Task<JsonModel> CreateTemplate([FromBody] CreateQuestionnaireTemplateDto dto)
         {

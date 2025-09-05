@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SmartTelehealth.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class FreshDatabaseSchema : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -73,6 +73,27 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetRoles", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AuditLogs",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<int>(type: "int", nullable: true),
+                    Type = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    TableName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    DateTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    OldValues = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    NewValues = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AffectedColumns = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    PrimaryKey = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    OrganizationId = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -617,6 +638,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     DiscountValidUntil = table.Column<DateTime>(type: "datetime2", nullable: true),
                     BillingCycleId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CurrencyId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CategoryId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     StripeProductId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     StripeMonthlyPriceId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     StripeQuarterlyPriceId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
@@ -630,7 +652,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     Terms = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     EffectiveDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     ExpirationDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CategoryId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     MasterBillingCycleId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     MasterCurrencyId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
@@ -649,7 +670,8 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         name: "FK_SubscriptionPlans_Categories_CategoryId",
                         column: x => x.CategoryId,
                         principalTable: "Categories",
-                        principalColumn: "Id");
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_SubscriptionPlans_MasterBillingCycles_BillingCycleId",
                         column: x => x.BillingCycleId,
@@ -1046,45 +1068,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     table.PrimaryKey("PK_AspNetUserTokens", x => new { x.UserId, x.LoginProvider, x.Name });
                     table.ForeignKey(
                         name: "FK_AspNetUserTokens_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AuditLogs",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Action = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    EntityType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    EntityId = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    UserId = table.Column<int>(type: "int", maxLength: 100, nullable: false),
-                    UserEmail = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    UserRole = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    IpAddress = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    UserAgent = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Status = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    OldValues = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    NewValues = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    ErrorMessage = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    DeletedBy = table.Column<int>(type: "int", nullable: true),
-                    DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AuditLogs_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
                         principalColumn: "Id",
@@ -1644,12 +1627,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     AttemptCount = table.Column<int>(type: "int", nullable: false),
                     NextRetryAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     RefundedAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeletedBy = table.Column<int>(type: "int", nullable: true),
                     DeletedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
@@ -3284,11 +3267,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 name: "IX_AspNetUserRoles_RoleId",
                 table: "AspNetUserRoles",
                 column: "RoleId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_AuditLogs_UserId",
-                table: "AuditLogs",
-                column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BillingAdjustments_AppliedByUserId",

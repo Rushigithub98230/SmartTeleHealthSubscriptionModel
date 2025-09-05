@@ -9,6 +9,24 @@ using System.Text;
 
 namespace SmartTelehealth.Infrastructure.Services
 {
+    /// <summary>
+    /// Infrastructure service responsible for payment security and fraud prevention operations.
+    /// This service handles payment security validation, fraud detection, rate limiting,
+    /// and payment attempt monitoring. It provides comprehensive security measures for
+    /// payment processing including IP validation, amount limits, and suspicious activity detection.
+    /// 
+    /// Key Features:
+    /// - Payment request validation and security checks
+    /// - Fraud detection and prevention mechanisms
+    /// - Rate limiting and payment attempt monitoring
+    /// - IP address validation and geolocation checks
+    /// - Payment amount validation and limits
+    /// - Suspicious activity detection and blocking
+    /// - Payment security audit logging
+    /// - Cache-based security state management
+    /// - Comprehensive security monitoring
+    /// - Integration with audit and logging systems
+    /// </summary>
     public class PaymentSecurityService : IPaymentSecurityService
     {
         private readonly IMemoryCache _cache;
@@ -17,6 +35,12 @@ namespace SmartTelehealth.Infrastructure.Services
         private readonly Dictionary<string, int> _paymentAttempts = new();
         private readonly object _lockObject = new object();
 
+        /// <summary>
+        /// Initializes a new instance of the PaymentSecurityService
+        /// </summary>
+        /// <param name="cache">Memory cache for storing security state and rate limiting data</param>
+        /// <param name="logger">Logger instance for recording service operations and errors</param>
+        /// <param name="auditService">Service for audit logging and security event tracking</param>
         public PaymentSecurityService(
             IMemoryCache cache,
             ILogger<PaymentSecurityService> logger,
@@ -27,6 +51,26 @@ namespace SmartTelehealth.Infrastructure.Services
               
         }
 
+        /// <summary>
+        /// Validates a payment request for security compliance and fraud prevention
+        /// </summary>
+        /// <param name="userId">The unique identifier of the user making the payment request</param>
+        /// <param name="ipAddress">The IP address of the payment request origin</param>
+        /// <param name="amount">The payment amount to validate</param>
+        /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+        /// <returns>Boolean indicating whether the payment request is valid and secure</returns>
+        /// <exception cref="Exception">Thrown when payment validation fails or security checks encounter errors</exception>
+        /// <remarks>
+        /// This method:
+        /// - Validates payment amount against configured limits
+        /// - Checks IP address for suspicious activity or blacklisting
+        /// - Monitors payment attempt frequency and rate limiting
+        /// - Performs fraud detection and security validation
+        /// - Logs all payment validation attempts for security monitoring
+        /// - Used for payment security and fraud prevention
+        /// - Ensures compliance with security policies and regulations
+        /// - Returns validation result for payment processing decision
+        /// </remarks>
         public async Task<bool> ValidatePaymentRequestAsync(string userId, string ipAddress, decimal amount, TokenModel tokenModel)
         {
             try
@@ -70,6 +114,23 @@ namespace SmartTelehealth.Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Checks rate limiting for payment attempts from a specific user and IP address
+        /// </summary>
+        /// <param name="userId">The unique identifier of the user making the payment request</param>
+        /// <param name="ipAddress">The IP address of the payment request origin</param>
+        /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+        /// <returns>Boolean indicating whether the request is within rate limits</returns>
+        /// <exception cref="Exception">Thrown when rate limit check fails</exception>
+        /// <remarks>
+        /// This method:
+        /// - Checks rate limiting for payment attempts from user and IP
+        /// - Validates against configured rate limit thresholds
+        /// - Returns rate limit compliance status
+        /// - Used for payment security and abuse prevention
+        /// - Ensures proper rate limiting enforcement
+        /// - Logs all rate limit checks for security monitoring
+        /// </remarks>
         public async Task<bool> CheckRateLimitAsync(string userId, string ipAddress, TokenModel tokenModel)
         {
             try
@@ -108,6 +169,24 @@ namespace SmartTelehealth.Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Detects suspicious payment activity based on user behavior and transaction patterns
+        /// </summary>
+        /// <param name="userId">The unique identifier of the user making the payment request</param>
+        /// <param name="ipAddress">The IP address of the payment request origin</param>
+        /// <param name="amount">The payment amount to analyze</param>
+        /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+        /// <returns>Boolean indicating whether suspicious activity was detected</returns>
+        /// <exception cref="Exception">Thrown when suspicious activity detection fails</exception>
+        /// <remarks>
+        /// This method:
+        /// - Detects suspicious payment activity based on user behavior patterns
+        /// - Analyzes transaction patterns and amounts for anomalies
+        /// - Returns suspicious activity detection results
+        /// - Used for fraud detection and security monitoring
+        /// - Ensures proper suspicious activity detection
+        /// - Logs all suspicious activity detection for security monitoring
+        /// </remarks>
         public async Task<bool> DetectSuspiciousActivityAsync(string userId, string ipAddress, decimal amount, TokenModel tokenModel)
         {
             try
@@ -153,6 +232,23 @@ namespace SmartTelehealth.Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Validates payment amount against configured limits for a specific user
+        /// </summary>
+        /// <param name="userId">The unique identifier of the user making the payment request</param>
+        /// <param name="amount">The payment amount to validate</param>
+        /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+        /// <returns>Boolean indicating whether the amount is within configured limits</returns>
+        /// <exception cref="Exception">Thrown when amount limit validation fails</exception>
+        /// <remarks>
+        /// This method:
+        /// - Validates payment amount against configured limits for the user
+        /// - Checks against daily, weekly, and monthly amount limits
+        /// - Returns amount limit compliance status
+        /// - Used for payment security and fraud prevention
+        /// - Ensures proper amount limit enforcement
+        /// - Logs all amount limit validations for security monitoring
+        /// </remarks>
         public async Task<bool> ValidateAmountLimitsAsync(string userId, decimal amount, TokenModel tokenModel)
         {
             try
@@ -192,6 +288,25 @@ namespace SmartTelehealth.Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Logs a payment attempt for security monitoring and audit purposes
+        /// </summary>
+        /// <param name="userId">The unique identifier of the user making the payment request</param>
+        /// <param name="ipAddress">The IP address of the payment request origin</param>
+        /// <param name="amount">The payment amount attempted</param>
+        /// <param name="success">Whether the payment attempt was successful</param>
+        /// <param name="errorMessage">Optional error message if the payment attempt failed</param>
+        /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+        /// <returns>Task representing the asynchronous logging operation</returns>
+        /// <exception cref="Exception">Thrown when payment attempt logging fails</exception>
+        /// <remarks>
+        /// This method:
+        /// - Logs payment attempts for security monitoring and audit purposes
+        /// - Records success/failure status and error details
+        /// - Used for security monitoring and fraud detection
+        /// - Ensures proper payment attempt logging
+        /// - Logs all payment attempt logging for audit purposes
+        /// </remarks>
         public async Task LogPaymentAttemptAsync(string userId, string ipAddress, decimal amount, bool success, string? errorMessage, TokenModel tokenModel)
         {
             try
@@ -224,6 +339,24 @@ namespace SmartTelehealth.Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Generates a comprehensive security report for a specific user and date range
+        /// </summary>
+        /// <param name="userId">The unique identifier of the user to generate security report for</param>
+        /// <param name="startDate">The start date for the security report period</param>
+        /// <param name="endDate">The end date for the security report period</param>
+        /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+        /// <returns>PaymentSecurityReportDto containing comprehensive security report information</returns>
+        /// <exception cref="Exception">Thrown when security report generation fails</exception>
+        /// <remarks>
+        /// This method:
+        /// - Generates comprehensive security report for the specified user and date range
+        /// - Validates user ID and date range parameters
+        /// - Returns detailed security report information
+        /// - Used for security monitoring and reporting
+        /// - Ensures proper security report generation
+        /// - Logs all security report generation for audit purposes
+        /// </remarks>
         public async Task<PaymentSecurityReportDto> GenerateSecurityReportAsync(string userId, DateTime startDate, DateTime endDate, TokenModel tokenModel)
         {
             try

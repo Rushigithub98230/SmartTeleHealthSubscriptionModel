@@ -8,6 +8,27 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Application.Services;
 
+/// <summary>
+/// Service responsible for comprehensive analytics and reporting operations.
+/// This service handles all analytics data collection, processing, and reporting
+/// across the entire platform including subscription analytics, revenue analytics,
+/// user analytics, provider analytics, and system health monitoring. It provides
+/// detailed insights into business performance, user behavior, and system metrics.
+/// 
+/// Key Features:
+/// - Revenue analytics (MRR, ARR, total revenue, growth rates)
+/// - Subscription analytics (churn, retention, growth, performance)
+/// - User analytics (activity, retention, lifetime value)
+/// - Provider analytics (performance, workload, ratings)
+/// - Billing analytics (payment success, refunds, failed payments)
+/// - System health monitoring and reporting
+/// - Comprehensive dashboard data aggregation
+/// - Report generation (PDF, CSV, Excel formats)
+/// - Data export and analytics export functionality
+/// - Real-time metrics calculation and caching
+/// - Category and plan performance analytics
+/// - Usage analytics and feature adoption tracking
+/// </summary>
 public class AnalyticsService : IAnalyticsService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;
@@ -19,6 +40,17 @@ public class AnalyticsService : IAnalyticsService
     private readonly ILogger<AnalyticsService> _logger;
     private readonly IMapper _mapper;
 
+    /// <summary>
+    /// Initializes a new instance of the AnalyticsService
+    /// </summary>
+    /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
+    /// <param name="billingRepository">Repository for billing record data access operations</param>
+    /// <param name="userRepository">Repository for user data access operations</param>
+    /// <param name="providerRepository">Repository for provider data access operations</param>
+    /// <param name="consultationRepository">Repository for consultation data access operations</param>
+    /// <param name="categoryRepository">Repository for category data access operations</param>
+    /// <param name="logger">Logger instance for recording service operations and errors</param>
+    /// <param name="mapper">AutoMapper instance for entity-DTO mapping</param>
     public AnalyticsService(
         ISubscriptionRepository subscriptionRepository,
         IBillingRepository billingRepository,
@@ -39,6 +71,26 @@ public class AnalyticsService : IAnalyticsService
         _mapper = mapper;
     }
 
+    /// <summary>
+    /// Retrieves comprehensive revenue analytics including MRR, ARR, total revenue, and growth metrics
+    /// </summary>
+    /// <param name="startDate">Start date for analytics period (optional)</param>
+    /// <param name="endDate">End date for analytics period (optional)</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing comprehensive revenue analytics data</returns>
+    /// <exception cref="Exception">Thrown when revenue analytics calculation fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Calculates total revenue for the specified period
+    /// - Computes Monthly Recurring Revenue (MRR) from active subscriptions
+    /// - Calculates Annual Recurring Revenue (ARR) as MRR * 12
+    /// - Determines subscription counts and growth metrics
+    /// - Calculates average revenue per subscription
+    /// - Tracks refunds and cancellation metrics
+    /// - Used for revenue dashboard and financial reporting
+    /// - Provides key business metrics for decision making
+    /// - Logs all analytics access for audit purposes
+    /// </remarks>
     public async Task<JsonModel> GetRevenueAnalyticsAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
     {
         try
@@ -115,6 +167,25 @@ public class AnalyticsService : IAnalyticsService
         }
     }
 
+    /// <summary>
+    /// Retrieves comprehensive subscription analytics including churn, retention, and growth metrics
+    /// </summary>
+    /// <param name="startDate">Start date for analytics period (optional)</param>
+    /// <param name="endDate">End date for analytics period (optional)</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing comprehensive subscription analytics data</returns>
+    /// <exception cref="Exception">Thrown when subscription analytics calculation fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Calculates total, active, paused, and cancelled subscription counts
+    /// - Computes churn rate and retention metrics
+    /// - Determines new subscriptions for the period
+    /// - Calculates average subscription value and growth rates
+    /// - Tracks subscription lifecycle and status transitions
+    /// - Used for subscription management and business intelligence
+    /// - Provides insights into subscription health and trends
+    /// - Logs all analytics access for audit purposes
+    /// </remarks>
     public async Task<JsonModel> GetSubscriptionAnalyticsAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
     {
         try
@@ -167,6 +238,24 @@ public class AnalyticsService : IAnalyticsService
         }
     }
 
+    /// <summary>
+    /// Retrieves comprehensive subscription dashboard data aggregating all key metrics
+    /// </summary>
+    /// <param name="startDate">Start date for dashboard period (optional)</param>
+    /// <param name="endDate">End date for dashboard period (optional)</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing comprehensive dashboard data</returns>
+    /// <exception cref="Exception">Thrown when dashboard data aggregation fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Aggregates revenue, subscription, and category analytics
+    /// - Combines multiple analytics sources into unified dashboard
+    /// - Provides top categories and revenue trends
+    /// - Calculates comprehensive business metrics
+    /// - Used for executive dashboards and business intelligence
+    /// - Provides single source of truth for key performance indicators
+    /// - Logs all dashboard access for audit purposes
+    /// </remarks>
     public async Task<JsonModel> GetSubscriptionDashboardAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
     {
         try
