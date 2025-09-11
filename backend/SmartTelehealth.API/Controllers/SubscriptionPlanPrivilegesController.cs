@@ -17,19 +17,19 @@ namespace SmartTelehealth.API.Controllers;
 public class SubscriptionPlanPrivilegesController : BaseController
 {
     private readonly IPrivilegeService _privilegeService;
-    private readonly ISubscriptionService _subscriptionService;
+    private readonly ISubscriptionPlanService _subscriptionPlanService;
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionPlanPrivilegesController with required services.
     /// </summary>
     /// <param name="privilegeService">Service for handling privilege-related business logic</param>
-    /// <param name="subscriptionService">Service for handling subscription plan operations</param>
+    /// <param name="subscriptionPlanService">Service for handling subscription plan operations</param>
     public SubscriptionPlanPrivilegesController(
         IPrivilegeService privilegeService,
-        ISubscriptionService subscriptionService)
+        ISubscriptionPlanService subscriptionPlanService)
     {
         _privilegeService = privilegeService;
-        _subscriptionService = subscriptionService;
+        _subscriptionPlanService = subscriptionPlanService;
     }
 
     /// <summary>

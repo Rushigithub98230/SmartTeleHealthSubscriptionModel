@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IUserSubscriptionPrivilegeUsageRepository, UserSubscriptionPrivilegeUsageRepository>();
         services.AddScoped<IPrivilegeUsageHistoryRepository, PrivilegeUsageHistoryRepository>();
         services.AddScoped<IPrivilegeRepository, PrivilegeRepository>();
+        services.AddScoped<IProcessedWebhookEventRepository, ProcessedWebhookEventRepository>();
         services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
         services.AddScoped<IMedicationDeliveryRepository, MedicationDeliveryRepository>();
         services.AddScoped<IMedicationShipmentRepository, MedicationShipmentRepository>();
@@ -79,6 +80,10 @@ public static class DependencyInjection
         
         // Register Communication Service (Twilio)
         services.AddScoped<ICommunicationService, TwilioService>();
+        
+        // Register Legacy Email Service for SMTP to Twilio migration
+        // COMMENTED OUT - Only uncomment when needed for migration purposes
+        // services.AddScoped<IEmailService, EmailService>();
         
         // Register Notification Service
         services.AddScoped<INotificationService, NotificationService>();

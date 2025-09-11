@@ -18,6 +18,8 @@ namespace SmartTelehealth.API.Controllers;
 public class AdminSubscriptionController : BaseController
 {
     private readonly ISubscriptionService _subscriptionService;
+    private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
+    private readonly ISubscriptionPlanService _subscriptionPlanService;
     private readonly ISubscriptionAnalyticsService _analyticsService;
     private readonly ISubscriptionNotificationService _notificationService;
     private readonly ISubscriptionAutomationService _automationService;
@@ -26,16 +28,22 @@ public class AdminSubscriptionController : BaseController
     /// Initializes a new instance of the AdminSubscriptionController with required services.
     /// </summary>
     /// <param name="subscriptionService">Service for subscription management operations</param>
+    /// <param name="subscriptionLifecycleService">Service for subscription lifecycle operations</param>
+    /// <param name="subscriptionPlanService">Service for subscription plan management operations</param>
     /// <param name="analyticsService">Service for subscription analytics and reporting</param>
     /// <param name="notificationService">Service for subscription notifications</param>
     /// <param name="automationService">Service for subscription automation and lifecycle management</param>
     public AdminSubscriptionController(
         ISubscriptionService subscriptionService,
+        ISubscriptionLifecycleService subscriptionLifecycleService,
+        ISubscriptionPlanService subscriptionPlanService,
         ISubscriptionAnalyticsService analyticsService,
         ISubscriptionNotificationService notificationService,
         ISubscriptionAutomationService automationService)
     {
         _subscriptionService = subscriptionService;
+        _subscriptionLifecycleService = subscriptionLifecycleService;
+        _subscriptionPlanService = subscriptionPlanService;
         _analyticsService = analyticsService;
         _notificationService = notificationService;
         _automationService = automationService;
@@ -201,7 +209,7 @@ public class AdminSubscriptionController : BaseController
             Reason = request.NewStatus
         }).ToList();
         
-        return await _subscriptionService.PerformBulkActionAsync(actions, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.PerformBulkActionAsync(actions, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -217,7 +225,7 @@ public class AdminSubscriptionController : BaseController
             Reason = request.Reason
         }).ToList();
         
-        return await _subscriptionService.PerformBulkActionAsync(actions, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.PerformBulkActionAsync(actions, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -287,7 +295,13 @@ public class AdminSubscriptionController : BaseController
     [HttpGet("statistics")]
     public async Task<JsonModel> GetSubscriptionStatistics()
     {
-        return await _subscriptionService.GetSubscriptionAnalyticsAsync(GetToken(HttpContext));
+        // This method should be moved to a dedicated analytics service
+        return new JsonModel 
+        { 
+            data = new object(), 
+            Message = "Subscription statistics not available - use analytics service", 
+            StatusCode = 501 
+        };
     }
 
     /// <summary>
@@ -305,7 +319,7 @@ public class AdminSubscriptionController : BaseController
     [HttpPut("{id}")]
     public async Task<JsonModel> UpdateSubscription(string id, [FromBody] UpdateSubscriptionDto updateDto)
     {
-        return await _subscriptionService.UpdateSubscriptionAsync(id, updateDto, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.UpdateSubscriptionAsync(id, updateDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -314,7 +328,7 @@ public class AdminSubscriptionController : BaseController
     [HttpPost("{id}/cancel")]
     public async Task<JsonModel> CancelSubscription(string id, [FromBody] CancelSubscriptionRequest request)
     {
-        return await _subscriptionService.CancelSubscriptionAsync(id, request.Reason, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, request.Reason, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -323,7 +337,7 @@ public class AdminSubscriptionController : BaseController
     [HttpPost("{id}/pause")]
     public async Task<JsonModel> PauseSubscription(string id)
     {
-        return await _subscriptionService.PauseSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.PauseSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -332,7 +346,7 @@ public class AdminSubscriptionController : BaseController
     [HttpPost("{id}/resume")]
     public async Task<JsonModel> ResumeSubscription(string id)
     {
-        return await _subscriptionService.ResumeSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.ResumeSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>

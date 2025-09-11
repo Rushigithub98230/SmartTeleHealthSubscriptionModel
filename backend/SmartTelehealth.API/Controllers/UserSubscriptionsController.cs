@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.Services;
+using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using System.Security.Claims;
@@ -24,6 +25,7 @@ public class UserSubscriptionsController : BaseController
     private readonly ISubscriptionPlanRepository _planRepo;
     private readonly PrivilegeService _privilegeService;
     private readonly SubscriptionService _subscriptionService;
+    private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
 
     /// <summary>
     /// Initializes a new instance of the UserSubscriptionsController with required services.
@@ -32,16 +34,19 @@ public class UserSubscriptionsController : BaseController
     /// <param name="planRepo">Repository for subscription plan data access</param>
     /// <param name="privilegeService">Service for privilege management operations</param>
     /// <param name="subscriptionService">Service for subscription business logic</param>
+    /// <param name="subscriptionLifecycleService">Service for subscription lifecycle operations</param>
     public UserSubscriptionsController(
         ISubscriptionRepository subscriptionRepo,
         ISubscriptionPlanRepository planRepo,
         PrivilegeService privilegeService,
-        SubscriptionService subscriptionService)
+        SubscriptionService subscriptionService,
+        ISubscriptionLifecycleService subscriptionLifecycleService)
     {
         _subscriptionRepo = subscriptionRepo;
         _planRepo = planRepo;
         _privilegeService = privilegeService;
         _subscriptionService = subscriptionService;
+        _subscriptionLifecycleService = subscriptionLifecycleService;
     }
 
     /// <summary>
@@ -102,7 +107,7 @@ public class UserSubscriptionsController : BaseController
             UserId = userId,
             PlanId = dto.PlanId.ToString()
         };
-        var result = await _subscriptionService.CreateSubscriptionAsync(createDto, GetToken(HttpContext));
+        var result = await _subscriptionLifecycleService.CreateSubscriptionAsync(createDto, GetToken(HttpContext));
         if (result.StatusCode != 200) 
             return new JsonModel { data = new object(), Message = result.Message, StatusCode = result.StatusCode };
         return result;
@@ -130,7 +135,7 @@ public class UserSubscriptionsController : BaseController
     public async Task<JsonModel> CancelSubscription([FromBody] CancelSubscriptionDto dto)
     {
         var userId = GetCurrentUserId();
-        var result = await _subscriptionService.CancelSubscriptionAsync(dto.SubscriptionId.ToString(), null, GetToken(HttpContext));
+        var result = await _subscriptionLifecycleService.CancelSubscriptionAsync(dto.SubscriptionId.ToString(), null, GetToken(HttpContext));
         if (result.StatusCode != 200) 
             return new JsonModel { data = new object(), Message = result.Message, StatusCode = result.StatusCode };
         return result;

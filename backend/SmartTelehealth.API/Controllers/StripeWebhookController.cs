@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Services;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using Stripe;
@@ -25,9 +26,11 @@ public class StripeWebhookController : BaseController
     private readonly IBillingService _billingService;
     private readonly IBillingRepository _billingRepository;
     private readonly INotificationService _notificationService;
+    private readonly ICommunicationService _communicationService;
       
     private readonly IStripeService _stripeService;
     private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
+    private readonly WebhookIdempotencyService _webhookIdempotencyService;
     private readonly ILogger<StripeWebhookController> _logger;
     private readonly IConfiguration _configuration;
     private readonly int _maxRetries;
@@ -49,9 +52,10 @@ public class StripeWebhookController : BaseController
         IBillingService billingService,
         IBillingRepository billingRepository,
         INotificationService notificationService,
-          
+        ICommunicationService communicationService,
         IStripeService stripeService,
         ISubscriptionLifecycleService subscriptionLifecycleService,
+        WebhookIdempotencyService webhookIdempotencyService,
         ILogger<StripeWebhookController> logger,
         IConfiguration configuration)
     {
@@ -59,9 +63,10 @@ public class StripeWebhookController : BaseController
         _billingService = billingService;
         _billingRepository = billingRepository;
         _notificationService = notificationService;
-          
+        _communicationService = communicationService;
         _stripeService = stripeService;
         _subscriptionLifecycleService = subscriptionLifecycleService;
+        _webhookIdempotencyService = webhookIdempotencyService;
         _logger = logger;
         _configuration = configuration;
         _maxRetries = configuration.GetValue<int>("Stripe:WebhookRetryAttempts", 3);
@@ -104,28 +109,43 @@ public class StripeWebhookController : BaseController
             webhookSecret
         );
 
-        // CRITICAL FIX: Implement webhook idempotency
+        // Implement proper webhook idempotency
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
         try
         {
-            // Check if this event has already been processed
-            var eventId = stripeEvent.Id;
-                
-           
+            // Check idempotency before processing
+            var idempotencyResult = await _webhookIdempotencyService.CheckIdempotencyAsync(stripeEvent.Id, stripeEvent.Type);
+            
+            if (!idempotencyResult.ShouldProcess)
+            {
+                _logger.LogInformation("Skipping webhook event {EventId} - {Reason}", stripeEvent.Id, idempotencyResult.Reason);
+                return new JsonModel { data = new object(), Message = $"Event skipped: {idempotencyResult.Reason}", StatusCode = 200 };
+            }
+
+            _logger.LogInformation("Processing webhook event {EventId} of type {EventType} (New: {IsNew})", 
+                stripeEvent.Id, stripeEvent.Type, idempotencyResult.IsNewEvent);
 
             // Process webhook with retry logic
             await ProcessWebhookWithRetryAsync(stripeEvent);
 
             // Mark event as successfully processed
-            
+            stopwatch.Stop();
+            await _webhookIdempotencyService.MarkAsProcessedAsync(stripeEvent.Id, stopwatch.ElapsedMilliseconds);
+
+            _logger.LogInformation("Successfully processed webhook event {EventId} in {Duration}ms", 
+                stripeEvent.Id, stopwatch.ElapsedMilliseconds);
 
             return new JsonModel { data = new object(), Message = "Webhook processed successfully", StatusCode = 200 };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing webhook event {EventId} of type {EventType}", stripeEvent.Id, stripeEvent.Type);
+            stopwatch.Stop();
+            _logger.LogError(ex, "Error processing webhook event {EventId} of type {EventType} after {Duration}ms", 
+                stripeEvent.Id, stripeEvent.Type, stopwatch.ElapsedMilliseconds);
             
             // Mark event as failed
-            
+            await _webhookIdempotencyService.MarkAsFailedAsync(stripeEvent.Id, ex.Message, _maxRetries);
             
             throw; // Re-throw to trigger retry mechanism
         }
@@ -273,7 +293,7 @@ public class StripeWebhookController : BaseController
                 StripeSubscriptionId = subscription.Id,
                 Status = MapStripeStatusToLocal(subscription.Status)
             };
-            await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+            await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
         }
     }
 
@@ -291,7 +311,7 @@ public class StripeWebhookController : BaseController
                 NextBillingDate = GetNextBillingDateFromSubscription(subscription),
                 CurrentPrice = subscription.Items.Data.FirstOrDefault()?.Price.UnitAmount / 100m ?? 0
             };
-            await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+            await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
         }
     }
 
@@ -303,7 +323,7 @@ public class StripeWebhookController : BaseController
         var localSubscription = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscription.Id, GetToken(HttpContext));
         if (localSubscription.StatusCode == 200)
         {
-            await _subscriptionService.CancelSubscriptionAsync(localSubscription.data.ToString(), "Cancelled via Stripe", GetToken(HttpContext));
+            await _subscriptionLifecycleService.CancelSubscriptionAsync(localSubscription.data.ToString(), "Cancelled via Stripe", GetToken(HttpContext));
         }
     }
 
@@ -348,7 +368,7 @@ public class StripeWebhookController : BaseController
                             LastPaymentError = null // Clear error
                         };
 
-                        await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+                        await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
 
                         // Send payment success notification
                         await _notificationService.CreateNotificationAsync(new CreateNotificationDto
@@ -360,6 +380,19 @@ public class StripeWebhookController : BaseController
                             IsRead = false,
                             Priority = "Normal"
                         }, GetToken(HttpContext));
+
+                        // Send payment success email
+                        var billingRecord = new BillingRecordDto 
+                        { 
+                            Amount = (decimal)(invoice.AmountPaid / 100), 
+                            PaidDate = DateTime.UtcNow, 
+                            Description = $"Payment for subscription - Invoice: {invoice.Number}" 
+                        };
+                        await _notificationService.SendPaymentSuccessEmailAsync(
+                            subscriptionData.UserEmail, 
+                            subscriptionData.UserName, 
+                            billingRecord, 
+                            GetToken(HttpContext));
 
                         // Log payment success
                         
@@ -402,7 +435,7 @@ public class StripeWebhookController : BaseController
                             FailedPaymentAttempts = 1 // Increment failed attempts
                         };
                         
-                        await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+                        await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
 
                         // Send payment failure notification
                         await _notificationService.CreateNotificationAsync(new CreateNotificationDto
@@ -414,6 +447,19 @@ public class StripeWebhookController : BaseController
                             IsRead = false,
                             Priority = "High"
                         }, GetToken(HttpContext));
+
+                        // Send payment failed email
+                        var billingRecord = new BillingRecordDto 
+                        { 
+                            Amount = (decimal)(invoice.AmountDue / 100), 
+                            PaidDate = DateTime.UtcNow, 
+                            Description = $"Failed payment for subscription - Invoice: {invoice.Number}" 
+                        };
+                        await _notificationService.SendPaymentFailedEmailAsync(
+                            subscriptionData.UserEmail, 
+                            subscriptionData.UserName, 
+                            billingRecord, 
+                            GetToken(HttpContext));
 
                         // Log payment failure
                         
@@ -528,7 +574,7 @@ public class StripeWebhookController : BaseController
                     Status = "PaymentActionRequired",
                     LastPaymentError = "Payment authentication required"
                 };
-                await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+                await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
             }
         }
     }
@@ -660,7 +706,7 @@ public class StripeWebhookController : BaseController
                 Status = "Paused",
                 PausedDate = DateTime.UtcNow
             };
-            await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+            await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
             
             _logger.LogInformation("Subscription {SubscriptionId} paused via Stripe webhook", subscription.Id);
         }
@@ -680,7 +726,7 @@ public class StripeWebhookController : BaseController
                 Status = "Active",
                 ResumedDate = DateTime.UtcNow
             };
-            await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+            await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
             
             _logger.LogInformation("Subscription {SubscriptionId} resumed via Stripe webhook", subscription.Id);
         }
@@ -700,7 +746,7 @@ public class StripeWebhookController : BaseController
                 Status = "PaymentFailed",
                 LastPaymentError = "Payment past due via Stripe"
             };
-            await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+            await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
             
             _logger.LogInformation("Subscription {SubscriptionId} marked as past due via Stripe webhook", subscription.Id);
         }
@@ -720,7 +766,7 @@ public class StripeWebhookController : BaseController
                 Status = "PaymentFailed",
                 LastPaymentError = "Payment unpaid via Stripe"
             };
-            await _subscriptionService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+            await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
             
             _logger.LogInformation("Subscription {SubscriptionId} marked as unpaid via Stripe webhook", subscription.Id);
         }
@@ -1092,7 +1138,7 @@ public class StripeWebhookController : BaseController
                         LastPaymentError = "Trial ended due to payment failure"
                     };
 
-                    await _subscriptionService.UpdateSubscriptionAsync(subscriptionId, updateDto, GetToken(HttpContext));
+                    await _subscriptionLifecycleService.UpdateSubscriptionAsync(subscriptionId, updateDto, GetToken(HttpContext));
 
                     // Send trial expired notification
                     await _notificationService.CreateNotificationAsync(new CreateNotificationDto

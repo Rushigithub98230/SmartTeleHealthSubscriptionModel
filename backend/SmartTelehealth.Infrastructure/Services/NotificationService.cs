@@ -572,9 +572,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent consultation reminder to {Email} for consultation {ConsultationId}", email, consultation.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Consultation reminder email sent successfully to {Email} for consultation {ConsultationId}", email, consultation.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send consultation reminder email to {Email} for consultation {ConsultationId}: {Error}", email, consultation.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -609,9 +617,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent password reset email to {Email}", email);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Password reset email sent successfully to {Email}", email);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send password reset email to {Email}: {Error}", email, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -650,9 +666,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent delivery notification to {Email} for delivery {DeliveryId}", email, delivery.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Delivery notification email sent successfully to {Email} for delivery {DeliveryId}", email, delivery.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send delivery notification email to {Email} for delivery {DeliveryId}: {Error}", email, delivery.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -686,9 +710,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription paused notification to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Subscription paused notification email sent successfully to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send subscription paused notification email to {Email} for subscription {SubscriptionId}: {Error}", email, subscription.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -722,9 +754,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription resumed notification to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Subscription resumed notification email sent successfully to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send subscription resumed notification email to {Email} for subscription {SubscriptionId}: {Error}", email, subscription.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -758,9 +798,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription cancelled notification to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Subscription cancelled notification email sent successfully to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send subscription cancelled notification email to {Email} for subscription {SubscriptionId}: {Error}", email, subscription.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -796,9 +844,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent provider message notification to {Email} for message {MessageId}", email, message.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Provider message notification email sent successfully to {Email} for message {MessageId}", email, message.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send provider message notification email to {Email} for message {MessageId}: {Error}", email, message.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -1153,9 +1209,17 @@ public class NotificationService : INotificationService
                 <p><a href='{_configuration["AppUrl"]}/verify-email?token={verificationToken}'>Verify Email</a></p>
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent email verification to {Email}", email);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Email verification sent successfully to {Email}", email);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send email verification to {Email}: {Error}", email, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -1188,9 +1252,17 @@ public class NotificationService : INotificationService
                 <p>Your subscription is now active and you can start using our services.</p>
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription welcome email to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Subscription welcome email sent successfully to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send subscription welcome email to {Email} for subscription {SubscriptionId}: {Error}", email, subscription.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -1210,40 +1282,6 @@ public class NotificationService : INotificationService
             };
         }
     }
-    public async Task<JsonModel> SendSubscriptionCancellationAsync(string email, string userName, SubscriptionDto subscription, TokenModel tokenModel)
-    {
-        try
-        {
-            var subject = "Subscription Cancelled";
-            var body = $@"
-                <h2>Subscription Cancelled</h2>
-                <p>Hello {userName},</p>
-                <p>Your subscription to <strong>{subscription.PlanName}</strong> has been cancelled.</p>
-                <p>If you have any questions or would like to reactivate your subscription, please contact support.</p>
-                <br>
-                <p>Best regards,<br>Smart Telehealth Team</p>";
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription cancellation email to {Email} for subscription {SubscriptionId}", email, subscription.Id);
-            
-            return new JsonModel
-            {
-                data = true,
-                Message = "Subscription cancellation email sent successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error sending subscription cancellation email to {Email}", email);
-            return new JsonModel
-            {
-                data = new object(),
-                Message = "Error sending subscription cancellation email",
-                StatusCode = 500
-            };
-        }
-    }
     public async Task<JsonModel> SendSubscriptionSuspensionAsync(string email, string userName, SubscriptionDto subscription, TokenModel tokenModel)
     {
         try
@@ -1256,9 +1294,17 @@ public class NotificationService : INotificationService
                 <p>If you believe this is a mistake or have questions, please contact support.</p>
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription suspension email to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Subscription suspension email sent successfully to {Email} for subscription {SubscriptionId}", email, subscription.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send subscription suspension email to {Email} for subscription {SubscriptionId}: {Error}", email, subscription.Id, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -1339,9 +1385,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(user.Email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription suspended notification to {Email} for subscription {SubscriptionId}", user.Email, subscriptionId);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(user.Email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Subscription suspended notification email sent successfully to {Email} for subscription {SubscriptionId}", user.Email, subscriptionId);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send subscription suspended notification email to {Email} for subscription {SubscriptionId}: {Error}", user.Email, subscriptionId, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -1384,9 +1438,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(user.Email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent refund notification to {Email} for amount {Amount} and billing record {BillingRecordId}", user.Email, amount, billingRecordId);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(user.Email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Refund notification email sent successfully to {Email} for amount {Amount} and billing record {BillingRecordId}", user.Email, amount, billingRecordId);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send refund notification email to {Email} for amount {Amount} and billing record {BillingRecordId}: {Error}", user.Email, amount, billingRecordId, emailResult.Message);
+            }
             
             return new JsonModel
             {
@@ -1429,9 +1491,17 @@ public class NotificationService : INotificationService
                 <br>
                 <p>Best regards,<br>Smart Telehealth Team</p>";
             
-            // EMAIL FUNCTIONALITY DISABLED - Commented out for now
-            // await SendEmailAsync(user.Email, subject, body);
-            _logger.LogInformation("Email sending disabled - would have sent subscription reactivated notification to {Email} for subscription {SubscriptionId}", user.Email, subscriptionId);
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(user.Email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Subscription reactivated notification email sent successfully to {Email} for subscription {SubscriptionId}", user.Email, subscriptionId);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send subscription reactivated notification email to {Email} for subscription {SubscriptionId}: {Error}", user.Email, subscriptionId, emailResult.Message);
+            }
             
             return new JsonModel
             {

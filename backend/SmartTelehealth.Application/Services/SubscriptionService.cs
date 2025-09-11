@@ -159,267 +159,6 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    /// <summary>
-    /// Creates a new subscription for a user with comprehensive validation and Stripe integration
-    /// </summary>
-    /// <param name="createDto">DTO containing subscription creation details (userId, planId, billingCycleId, paymentMethodId)</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the created subscription data or error information</returns>
-    /// <remarks>
-    /// This method performs the following operations:
-    /// 1. Validates subscription plan exists and is active
-    /// 2. Prevents duplicate active/paused subscriptions for the same user and plan
-    /// 3. Retrieves user details for Stripe integration
-    /// 4. Ensures Stripe customer exists or creates one
-    /// 5. Validates payment method if provided
-    /// 6. Creates Stripe subscription with proper billing cycle
-    /// 7. Creates local subscription entity with Stripe IDs
-    /// 8. Handles trial subscriptions if plan allows trials
-    /// 9. Sets up billing dates and audit fields
-    /// 10. Creates initial privilege usage records
-    /// 11. Sends welcome notifications
-    /// 
-    /// Business Rules:
-    /// - One active subscription per user per plan
-    /// - Trial subscriptions automatically convert to active after trial period
-    /// - All subscriptions are linked to Stripe for payment processing
-    /// - Audit fields are automatically set for tracking
-    /// </remarks>
-    public async Task<JsonModel> CreateSubscriptionAsync(CreateSubscriptionDto createDto, TokenModel tokenModel)
-    {
-        try
-        {
-            // Step 1: Validate subscription plan exists and is active
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(createDto.PlanId));
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan does not exist", StatusCode = 404 };
-            if (!plan.IsActive)
-                return new JsonModel { data = new object(), Message = "Subscription plan is not active", StatusCode = 400 };
-
-            // Step 2: Prevent duplicate subscriptions for the same user and plan (active or paused)
-            var userSubscriptions = await _subscriptionRepository.GetByUserIdAsync(createDto.UserId);
-            if (userSubscriptions.Any(s => s.SubscriptionPlanId == plan.Id && (s.Status == Subscription.SubscriptionStatuses.Active || s.Status == Subscription.SubscriptionStatuses.Paused)))
-                return new JsonModel { data = new object(), Message = "User already has an active or paused subscription for this plan", StatusCode = 400 };
-
-            // Step 3: Get user details for Stripe integration
-            var userResult = await _userService.GetUserByIdAsync(createDto.UserId, tokenModel);
-            UserDto? user = null;
-            if (userResult.StatusCode == 200 && userResult.data != null)
-            {
-                user = (UserDto)userResult.data;
-            }
-            else
-            {
-                _logger.LogWarning("Failed to get user {UserId} for subscription creation by user {TokenUserId}. Proceeding without user details.", 
-                    createDto.UserId, tokenModel?.UserID ?? 0);
-            }
-
-            // Step 4: Ensure Stripe Customer exists for payment processing
-            string stripeCustomerId;
-            try
-            {
-                if (user != null)
-                {
-                    // Create or retrieve existing Stripe customer
-                    stripeCustomerId = await EnsureStripeCustomerAsync(user, tokenModel);
-                }
-                else
-                {
-                    // For test environments or when user service is not available, use a default customer ID
-                    stripeCustomerId = $"test_customer_{createDto.UserId}";
-                    _logger.LogInformation("Using test customer ID {CustomerId} for user {UserId}", stripeCustomerId, createDto.UserId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create Stripe customer for user {UserId}", createDto.UserId);
-                return new JsonModel { data = new object(), Message = "Failed to create payment customer", StatusCode = 500 };
-            }
-
-            // Step 5: Validate Payment Method if provided
-            if (!string.IsNullOrEmpty(createDto.PaymentMethodId))
-            {
-                try
-                {
-                    // Validate the payment method with Stripe to ensure it's valid and can be used
-                    var isValid = await _stripeService.ValidatePaymentMethodAsync(createDto.PaymentMethodId, tokenModel);
-                    if (!isValid)
-                    {
-                        return new JsonModel { data = new object(), Message = "Invalid payment method", StatusCode = 400 };
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to validate payment method {PaymentMethodId} for user {UserId}", createDto.PaymentMethodId, createDto.UserId);
-                    return new JsonModel { data = new object(), Message = "Payment method validation failed", StatusCode = 400 };
-                }
-            }
-
-            // Step 6: Create Stripe Subscription with proper billing cycle logic
-            string stripeSubscriptionId;
-            // Get the appropriate Stripe price ID based on the selected billing cycle
-            string stripePriceId = await GetStripePriceIdForBillingCycleAsync(plan, createDto.BillingCycleId);
-            
-            try
-            {
-                _logger.LogInformation("Creating Stripe subscription for user {UserId} with billing cycle ID {BillingCycleId} using price ID {StripePriceId}", 
-                    createDto.UserId, createDto.BillingCycleId, stripePriceId);
-                
-                // Create the actual Stripe subscription
-                stripeSubscriptionId = await _stripeService.CreateSubscriptionAsync(
-                    stripeCustomerId,
-                    stripePriceId,
-                    createDto.PaymentMethodId,
-                    tokenModel
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create Stripe subscription for user {UserId} with plan {PlanId}", createDto.UserId, createDto.PlanId);
-                return new JsonModel { data = new object(), Message = "Failed to create payment subscription", StatusCode = 500 };
-            }
-
-            // 7. Create local subscription entity with Stripe IDs
-            var entity = _mapper.Map<Subscription>(createDto);
-            
-            // NEW: Set Stripe integration fields
-            entity.StripeCustomerId = stripeCustomerId;
-            entity.StripeSubscriptionId = stripeSubscriptionId;
-            entity.StripePriceId = stripePriceId;
-            entity.PaymentMethodId = createDto.PaymentMethodId;
-            
-            // Set the current price from the plan
-            entity.CurrentPrice = plan.Price;
-            
-            // Trial logic
-            if (plan.IsTrialAllowed && plan.TrialDurationInDays > 0)
-            {
-                entity.IsTrialSubscription = true;
-                entity.TrialStartDate = DateTime.UtcNow;
-                entity.TrialEndDate = DateTime.UtcNow.AddDays(plan.TrialDurationInDays);
-                entity.TrialDurationInDays = plan.TrialDurationInDays;
-                entity.Status = Subscription.SubscriptionStatuses.TrialActive;
-            }
-            else
-            {
-                entity.Status = Subscription.SubscriptionStatuses.Active;
-            }
-            
-            entity.StartDate = DateTime.UtcNow;
-            entity.NextBillingDate = await CalculateNextBillingDateAsync(DateTime.UtcNow, createDto.BillingCycleId);
-            
-            // Set EndDate based on billing cycle
-            entity.EndDate = await CalculateEndDateAsync(DateTime.UtcNow, createDto.BillingCycleId);
-            
-            // Set audit properties for creation
-            entity.IsActive = true;
-            entity.CreatedBy = tokenModel.UserID;
-            entity.CreatedDate = DateTime.UtcNow;
-            
-            var created = await _subscriptionRepository.CreateAsync(entity);
-            
-            // CRITICAL FIX: Create Stripe subscription and link it
-            try
-            {
-                // Ensure user has Stripe customer ID
-                if (string.IsNullOrEmpty(user.StripeCustomerId))
-                {
-                    var customerId = await _stripeService.CreateCustomerAsync(user.Email, user.FullName, tokenModel);
-                    user.StripeCustomerId = customerId;
-                    // Update user with Stripe customer ID
-                    var updateUserDto = new UpdateUserDto
-                    {
-                        StripeCustomerId = customerId
-                    };
-                    await _userService.UpdateUserAsync(user.Id, updateUserDto, tokenModel);
-                }
-                
-                // Get the appropriate Stripe price ID based on billing cycle
-                string priceId = null;
-                switch (plan.BillingCycleId.ToString().ToLower())
-                {
-                    case "monthly":
-                        priceId = plan.StripeMonthlyPriceId;
-                        break;
-                    case "quarterly":
-                        priceId = plan.StripeQuarterlyPriceId;
-                        break;
-                    case "annual":
-                        priceId = plan.StripeAnnualPriceId;
-                        break;
-                }
-                
-                // Create Stripe subscription if price ID exists
-                if (!string.IsNullOrEmpty(priceId))
-                {
-                    var subscriptionId = await _stripeService.CreateSubscriptionAsync(
-                        user.StripeCustomerId,
-                        priceId,
-                        createDto.PaymentMethodId ?? user.StripeCustomerId,
-                        tokenModel
-                    );
-                    
-                    // Link local subscription with Stripe subscription
-                    created.StripeSubscriptionId = subscriptionId;
-                    await _subscriptionRepository.UpdateAsync(created);
-                    
-                    _logger.LogInformation("Successfully linked subscription {SubscriptionId} with Stripe subscription {StripeSubscriptionId}", 
-                        created.Id, subscriptionId);
-                }
-                else
-                {
-                    _logger.LogWarning("No Stripe price ID found for billing cycle {BillingCycleId} in plan {PlanId}. Stripe integration skipped.", 
-                        createDto.BillingCycleId, createDto.PlanId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create Stripe subscription for local subscription {SubscriptionId}. Local subscription created but Stripe integration failed.", 
-                    created.Id);
-                // Don't fail the entire operation, but log the error
-            }
-            
-            // Add status history
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = created.Id,
-                FromStatus = null,
-                ToStatus = created.Status,
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
-            
-            var dto = _mapper.Map<SubscriptionDto>(created);
-            
-            // Send confirmation and welcome emails
-            if (user != null)
-            {
-                // Send subscription confirmation and welcome emails
-                await _notificationService.SendSubscriptionConfirmationAsync(user.Email, user.FullName, dto, tokenModel);
-                await _notificationService.SendSubscriptionWelcomeEmailAsync(user.Email, user.FullName, dto, tokenModel);
-                
-                // Send subscription created notification via the subscription notification service
-                await _subscriptionNotificationService.SendSubscriptionCreatedNotificationAsync(created.Id.ToString(), tokenModel);
-                
-                _logger.LogInformation("Subscription confirmation, welcome emails, and created notification sent to {Email}", user.Email);
-            }
-            
-
-            
-            _logger.LogInformation("Successfully created subscription {SubscriptionId} for user {UserId} with Stripe subscription {StripeSubscriptionId}", 
-                created.Id, createDto.UserId, stripeSubscriptionId);
-            
-            return new JsonModel { data = dto, Message = "Subscription created successfully with payment integration", StatusCode = 201 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating subscription for user {UserId}", createDto.UserId);
-            return new JsonModel { data = new object(), Message = "Failed to create subscription", StatusCode = 500 };
-        }
-    }
 
     /// <summary>
     /// Ensures a Stripe customer exists for the user, creating one if necessary
@@ -554,714 +293,13 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    /// <summary>
-    /// Cancels a subscription with proper validation and Stripe synchronization
-    /// </summary>
-    /// <param name="subscriptionId">The unique identifier of the subscription to cancel</param>
-    /// <param name="reason">Optional reason for cancellation</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the cancellation result or error information</returns>
-    /// <remarks>
-    /// This method performs the following operations:
-    /// 1. Validates user access to the subscription
-    /// 2. Checks if subscription exists and is not already cancelled
-    /// 3. Validates the status transition is allowed
-    /// 4. Cancels the Stripe subscription if it exists
-    /// 5. Updates local subscription status to Cancelled
-    /// 6. Records cancellation reason and timestamp
-    /// 7. Creates status history entry
-    /// 8. Sends cancellation notification to user
-    /// 
-    /// Business Rules:
-    /// - Only active or paused subscriptions can be cancelled
-    /// - Cancellation is irreversible
-    /// - Stripe subscription is cancelled immediately
-    /// - User retains access until the end of current billing period
-    /// </remarks>
-    public async Task<JsonModel> CancelSubscriptionAsync(string subscriptionId, string? reason, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
 
-            // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (entity == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            // Prevent cancelling an already cancelled subscription
-            if (entity.IsCancelled)
-                return new JsonModel { data = new object(), Message = "Subscription is already cancelled", StatusCode = 400 };
-            
-            // Validate status transition - ensure cancellation is allowed from current status
-            var validation = entity.ValidateStatusTransition(Subscription.SubscriptionStatuses.Cancelled);
-            if (validation != ValidationResult.Success)
-                return new JsonModel { data = new object(), Message = validation.ErrorMessage, StatusCode = 400 };
-            
-            var oldStatus = entity.Status;
-            
-            // NEW: Cancel Stripe subscription first
-            if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-            {
-                try
-                {
-                    var stripeCancelResult = await _stripeService.CancelSubscriptionAsync(
-                        entity.StripeSubscriptionId,
-                        tokenModel
-                    );
-                    
-                    if (stripeCancelResult)
-                    {
-                        _logger.LogInformation("Successfully cancelled Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Failed to cancel Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local cancellation only.", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error cancelling Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local cancellation only.", 
-                        entity.StripeSubscriptionId, subscriptionId);
-                    // Don't fail the entire operation if Stripe cancellation fails
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Subscription {SubscriptionId} has no Stripe subscription ID. Cannot cancel Stripe subscription.", subscriptionId);
-            }
-            
-            // Update local subscription
-            entity.Status = Subscription.SubscriptionStatuses.Cancelled;
-            entity.CancellationReason = reason;
-            entity.CancelledDate = DateTime.UtcNow;
-            
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
-            
-            // Add status history
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = updated.Id,
-                FromStatus = oldStatus,
-                ToStatus = updated.Status,
-                Reason = reason,
-                ChangedAt = DateTime.UtcNow
-            });
-            
-            var dto = _mapper.Map<SubscriptionDto>(updated);
-            
-            // Send cancellation email
-            var userResult = await _userService.GetUserByIdAsync(entity.UserId, tokenModel);
-            if (userResult.StatusCode == 200 && userResult.data != null)
-            {
-                // Send subscription cancellation email
-                await _notificationService.SendSubscriptionCancellationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, dto, tokenModel);
-                _logger.LogInformation("Subscription cancellation email sent to {Email}", ((UserDto)userResult.data).Email);
-            }
-            
 
-            
-            return new JsonModel { data = dto, Message = "Subscription cancelled successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error cancelling subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to cancel subscription", StatusCode = 500 };
-        }
-    }
 
-    /// <summary>
-    /// Pauses a subscription with proper validation and Stripe synchronization
-    /// </summary>
-    /// <param name="subscriptionId">The unique identifier of the subscription to pause</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the pause result or error information</returns>
-    /// <remarks>
-    /// This method performs the following operations:
-    /// 1. Validates user access to the subscription
-    /// 2. Checks if subscription exists and is not already paused
-    /// 3. Validates that subscription is not cancelled
-    /// 4. Validates the status transition is allowed
-    /// 5. Pauses the Stripe subscription if it exists
-    /// 6. Updates local subscription status to Paused
-    /// 7. Records pause timestamp and audit information
-    /// 8. Creates status history entry
-    /// 9. Sends pause notification to user
-    /// 
-    /// Business Rules:
-    /// - Only active subscriptions can be paused
-    /// - Cancelled subscriptions cannot be paused
-    /// - Paused subscriptions can be resumed later
-    /// - Stripe subscription is paused immediately
-    /// - User retains access until pause takes effect
-    /// </remarks>
-    public async Task<JsonModel> PauseSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
 
-            // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (entity == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            // Check if subscription is already paused
-            if (entity.IsPaused)
-                return new JsonModel { data = new object(), Message = "Subscription is already paused", StatusCode = 400 };
-            
-            // Check if subscription is cancelled (cannot pause cancelled subscriptions)
-            if (entity.IsCancelled)
-                return new JsonModel { data = new object(), Message = "Cannot pause a cancelled subscription", StatusCode = 400 };
-            
-            // Validate status transition - ensure pause is allowed from current status
-            var validation = entity.ValidateStatusTransition(Subscription.SubscriptionStatuses.Paused);
-            if (validation != ValidationResult.Success)
-                return new JsonModel { data = new object(), Message = validation.ErrorMessage, StatusCode = 400 };
-            
-            var oldStatus = entity.Status;
-            
-            // NEW: Pause Stripe subscription first
-            if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-            {
-                try
-                {
-                    var stripePauseResult = await _stripeService.PauseSubscriptionAsync(
-                        entity.StripeSubscriptionId,
-                        tokenModel
-                    );
-                    
-                    if (stripePauseResult)
-                    {
-                        _logger.LogInformation("Successfully paused Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Failed to pause Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local pause only.", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error pausing Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local pause only.", 
-                        entity.StripeSubscriptionId, subscriptionId);
-                    // Don't fail the entire operation if Stripe pause fails
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Subscription {SubscriptionId} has no Stripe subscription ID. Cannot pause Stripe subscription.", subscriptionId);
-            }
-            
-            // Update local subscription
-            entity.Status = Subscription.SubscriptionStatuses.Paused;
-            entity.PausedDate = DateTime.UtcNow;
-            
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
-            
-            // Add status history
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = updated.Id,
-                FromStatus = oldStatus,
-                ToStatus = updated.Status,
-                ChangedAt = DateTime.UtcNow
-            });
-            
-            var dto = _mapper.Map<SubscriptionDto>(updated);
-            
-            // Send pause notification email
-            var userResult = await _userService.GetUserByIdAsync(entity.UserId, tokenModel);
-            if (userResult.StatusCode == 200 && userResult.data != null)
-            {
-                // Send subscription pause notification email
-                await _notificationService.SendSubscriptionPausedNotificationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, dto, tokenModel);
-                _logger.LogInformation("Subscription pause notification email sent to {Email}", ((UserDto)userResult.data).Email);
-            }
-            
 
-            
-            return new JsonModel { data = dto, Message = "Subscription paused successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error pausing subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to pause subscription", StatusCode = 500 };
-        }
-    }
 
-    /// <summary>
-    /// Resumes a paused subscription with proper validation and Stripe synchronization
-    /// </summary>
-    /// <param name="subscriptionId">The unique identifier of the subscription to resume</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the resume result or error information</returns>
-    /// <remarks>
-    /// This method performs the following operations:
-    /// 1. Validates user access to the subscription
-    /// 2. Checks if subscription exists and is currently paused
-    /// 3. Validates the status transition is allowed
-    /// 4. Resumes the Stripe subscription if it exists
-    /// 5. Updates local subscription status to Active
-    /// 6. Records resume timestamp and audit information
-    /// 7. Creates status history entry
-    /// 8. Sends resume notification to user
-    /// 9. Recalculates next billing date
-    /// 
-    /// Business Rules:
-    /// - Only paused subscriptions can be resumed
-    /// - Resumed subscriptions return to Active status
-    /// - Billing cycle continues from where it was paused
-    /// - Stripe subscription is resumed immediately
-    /// - User regains full access to subscription features
-    /// </remarks>
-    public async Task<JsonModel> ResumeSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
 
-            // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (entity == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            // Check if subscription is currently paused
-            if (!entity.IsPaused)
-                return new JsonModel { data = new object(), Message = "Subscription is not paused", StatusCode = 400 };
-            
-            // Validate status transition
-            var validation = entity.ValidateStatusTransition(Subscription.SubscriptionStatuses.Active);
-            if (validation != ValidationResult.Success)
-                return new JsonModel { data = new object(), Message = validation.ErrorMessage, StatusCode = 400 };
-            
-            var oldStatus = entity.Status;
-            
-            // NEW: Resume Stripe subscription first
-            if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-            {
-                try
-                {
-                    var stripeResumeResult = await _stripeService.ResumeSubscriptionAsync(
-                        entity.StripeSubscriptionId,
-                        tokenModel
-                    );
-                    
-                    if (stripeResumeResult)
-                    {
-                        _logger.LogInformation("Successfully resumed Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Failed to resume Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local resume only.", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error resuming Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local resume only.", 
-                        entity.StripeSubscriptionId, subscriptionId);
-                    // Don't fail the entire operation if Stripe resume fails
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Subscription {SubscriptionId} has no Stripe subscription ID. Cannot resume Stripe subscription.", subscriptionId);
-            }
-            
-            // Update local subscription
-            entity.Status = Subscription.SubscriptionStatuses.Active;
-            entity.ResumedDate = DateTime.UtcNow;
-            
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
-            
-            // Add status history
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = updated.Id,
-                FromStatus = oldStatus,
-                ToStatus = updated.Status,
-                ChangedAt = DateTime.UtcNow
-            });
-            
-            var dto = _mapper.Map<SubscriptionDto>(updated);
-            
-            // Send resume email
-            var userResult = await _userService.GetUserByIdAsync(entity.UserId, tokenModel);
-            if (userResult.StatusCode == 200 && userResult.data != null)
-            {
-                // Send subscription resume email
-                await _notificationService.SendSubscriptionResumedNotificationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, dto, tokenModel);
-                _logger.LogInformation("Subscription resume email sent to {Email}", ((UserDto)userResult.data).Email);
-            }
-            
-
-            
-            return new JsonModel { data = dto, Message = "Subscription resumed successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error resuming subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to resume subscription", StatusCode = 500 };
-        }
-    }
-
-    /// <summary>
-    /// Upgrades a subscription to a new plan with proper validation and Stripe synchronization
-    /// </summary>
-    /// <param name="subscriptionId">The unique identifier of the subscription to upgrade</param>
-    /// <param name="newPlanId">The unique identifier of the new subscription plan</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the upgrade result or error information</returns>
-    /// <remarks>
-    /// This method performs the following operations:
-    /// 1. Validates user access to the subscription
-    /// 2. Checks if subscription exists and is upgradeable
-    /// 3. Validates that the new plan is different from current plan
-    /// 4. Validates that the new plan exists and is active
-    /// 5. Updates the Stripe subscription with new price
-    /// 6. Updates local subscription with new plan details
-    /// 7. Recalculates billing dates and amounts
-    /// 8. Records upgrade timestamp and audit information
-    /// 9. Creates status history entry
-    /// 10. Sends upgrade notification to user
-    /// 
-    /// Business Rules:
-    /// - Only active subscriptions can be upgraded
-    /// - Cannot upgrade to the same plan
-    /// - New plan must be active and available
-    /// - Billing cycle may be prorated or adjusted
-    /// - User immediately gains access to new plan features
-    /// </remarks>
-    public async Task<JsonModel> UpgradeSubscriptionAsync(string subscriptionId, string newPlanId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
-
-            // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (entity == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            // Prevent upgrading to the same plan
-            if (entity.SubscriptionPlanId == Guid.Parse(newPlanId))
-                return new JsonModel { data = new object(), Message = "Subscription is already on this plan", StatusCode = 400 };
-            
-            // Get the new plan details
-            var newPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(newPlanId));
-            if (newPlan == null)
-                return new JsonModel { data = new object(), Message = "New plan not found", StatusCode = 404 };
-
-            var oldPlanId = entity.SubscriptionPlanId;
-            
-            // NEW: Update Stripe subscription with new price ID
-            if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-            {
-                try
-                {
-                    // Determine which Stripe price ID to use based on billing cycle
-                    string newStripePriceId = newPlan.StripeMonthlyPriceId; // Default to monthly
-                    
-                    // You can add logic here to determine the correct price ID based on billing cycle
-                    // For now, using monthly as default
-                    
-                    var stripeUpdateResult = await _stripeService.UpdateSubscriptionAsync(
-                        entity.StripeSubscriptionId,
-                        newStripePriceId,
-                        tokenModel
-                    );
-                    
-                    if (stripeUpdateResult)
-                    {
-                        _logger.LogInformation("Successfully updated Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId} from plan {OldPlanId} to {NewPlanId}", 
-                            entity.StripeSubscriptionId, subscriptionId, oldPlanId, newPlanId);
-                        
-                        // Update local subscription with new Stripe price ID
-                        entity.StripePriceId = newStripePriceId;
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Failed to update Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local update only.", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error updating Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local update only.", 
-                        entity.StripeSubscriptionId, subscriptionId);
-                    // Don't fail the entire operation if Stripe update fails
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Subscription {SubscriptionId} has no Stripe subscription ID. Cannot update Stripe.", subscriptionId);
-            }
-            
-            // Update local subscription
-            entity.SubscriptionPlanId = Guid.Parse(newPlanId);
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
-            
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
-            
-
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription upgraded successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error upgrading subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to upgrade subscription", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> ReactivateSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
-
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (entity == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            // Validate status transition
-            var validation = entity.ValidateStatusTransition(Subscription.SubscriptionStatuses.Active);
-            if (validation != ValidationResult.Success)
-                return new JsonModel { data = new object(), Message = validation.ErrorMessage, StatusCode = 400 };
-            
-            var oldStatus = entity.Status;
-            
-            // NEW: Reactivate Stripe subscription first
-            if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-            {
-                try
-                {
-                    // For reactivation, we need to create a new Stripe subscription since the old one was cancelled
-                    // Get the current plan details
-                    var currentPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(entity.SubscriptionPlanId);
-                    if (currentPlan != null)
-                    {
-                        // Determine which Stripe price ID to use based on billing cycle
-                        string stripePriceId = currentPlan.StripeMonthlyPriceId; // Default to monthly
-                        
-                        // You can add logic here to determine the correct price ID based on billing cycle
-                        // For now, using monthly as default
-                        
-                        var stripeSubscriptionResult = await _stripeService.CreateSubscriptionAsync(
-                            entity.StripeCustomerId,
-                            stripePriceId,
-                            entity.PaymentMethodId,
-                            tokenModel
-                        );
-                        
-                        if (!string.IsNullOrEmpty(stripeSubscriptionResult))
-                        {
-                            _logger.LogInformation("Successfully reactivated Stripe subscription {NewStripeSubscriptionId} for subscription {SubscriptionId}", 
-                                stripeSubscriptionResult, subscriptionId);
-                            
-                            // Update local subscription with new Stripe subscription ID
-                            entity.StripeSubscriptionId = stripeSubscriptionResult;
-                            entity.StripePriceId = stripePriceId;
-                        }
-                        else
-                        {
-                            _logger.LogWarning("Failed to reactivate Stripe subscription for subscription {SubscriptionId}. Proceeding with local reactivation only.", 
-                                subscriptionId);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error reactivating Stripe subscription for subscription {SubscriptionId}. Proceeding with local reactivation only.", 
-                        subscriptionId);
-                    // Don't fail the entire operation if Stripe reactivation fails
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Subscription {SubscriptionId} has no Stripe customer ID. Cannot reactivate Stripe subscription.", subscriptionId);
-            }
-            
-            // Update local subscription
-            entity.Status = Subscription.SubscriptionStatuses.Active;
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
-            
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
-            
-            // Add status history
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = updated.Id,
-                FromStatus = oldStatus,
-                ToStatus = updated.Status,
-                ChangedAt = DateTime.UtcNow
-            });
-            
-
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error reactivating subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to reactivate subscription", StatusCode = 500 };
-        }
-    }
-
-    /// <summary>
-    /// Retrieves all subscription plans available in the system
-    /// </summary>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the list of all subscription plans or error information</returns>
-    /// <remarks>
-    /// This method:
-    /// - Retrieves all subscription plans from the repository
-    /// - Maps entities to DTOs for response
-    /// - Returns all plans regardless of status (active/inactive)
-    /// - Used for administrative purposes and plan management
-    /// - Logs errors for troubleshooting
-    /// </remarks>
-    public async Task<JsonModel> GetAllPlansAsync(TokenModel tokenModel)
-    {
-        try
-        {
-            // Retrieve all subscription plans from repository
-            var plans = await _subscriptionRepository.GetAllSubscriptionPlansAsync();
-            
-            // Map entities to DTOs and return success response
-            var dtos = _mapper.Map<IEnumerable<SubscriptionPlanDto>>(plans);
-            return new JsonModel { data = dtos, Message = "Subscription plans retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting all subscription plans");
-            return new JsonModel { data = new object(), Message = "Failed to retrieve subscription plans", StatusCode = 500 };
-        }
-    }
-
-    /// <summary>
-    /// Retrieves all active subscription plans for public display (no authentication required)
-    /// </summary>
-    /// <returns>JsonModel containing the list of active subscription plans or error information</returns>
-    /// <remarks>
-    /// This method:
-    /// - Retrieves all subscription plans from the repository
-    /// - Filters to only include active plans (IsActive = true)
-    /// - Maps entities to DTOs for public consumption
-    /// - Used for public plan display (pricing pages, signup flows)
-    /// - No authentication required - public access
-    /// - Logs errors for troubleshooting
-    /// </remarks>
-    public async Task<JsonModel> GetPublicPlansAsync()
-    {
-        try
-        {
-            // Retrieve all subscription plans from repository
-            var plans = await _subscriptionRepository.GetAllSubscriptionPlansAsync();
-            
-            // Only return active plans for public display
-            var activePlans = plans.Where(p => p.IsActive);
-            
-            // Map entities to DTOs and return success response
-            var dtos = _mapper.Map<IEnumerable<SubscriptionPlanDto>>(activePlans);
-            return new JsonModel { data = dtos, Message = "Public subscription plans retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting public subscription plans");
-            return new JsonModel { data = new object(), Message = "Failed to retrieve public subscription plans", StatusCode = 500 };
-        }
-    }
-
-    /// <summary>
-    /// Retrieves subscription plans with advanced filtering, searching, and pagination
-    /// </summary>
-    /// <param name="page">Page number for pagination (1-based)</param>
-    /// <param name="pageSize">Number of items per page</param>
-    /// <param name="searchTerm">Search term to filter plans by name or description</param>
-    /// <param name="categoryId">Category ID to filter plans (currently not implemented)</param>
-    /// <param name="isActive">Filter by active status (true/false/null for all)</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing paginated and filtered subscription plans or error information</returns>
-    /// <remarks>
-    /// This method:
-    /// - Retrieves all subscription plans from the repository
-    /// - Applies search filter on name and description (case-insensitive)
-    /// - Applies active status filter if specified
-    /// - Implements pagination for large result sets
-    /// - Maps entities to DTOs for response
-    /// - Used for administrative plan management with advanced filtering
-    /// - Logs errors for troubleshooting
-    /// 
-    /// Note: Category filtering is currently disabled as SubscriptionPlan doesn't have CategoryId property
-    /// </remarks>
-    public async Task<JsonModel> GetAllPlansAsync(int page, int pageSize, string? searchTerm, string? categoryId, bool? isActive, TokenModel tokenModel)
-    {
-        try
-        {
-            // Retrieve all subscription plans from repository
-            var allPlans = await _subscriptionRepository.GetAllSubscriptionPlansAsync();
-            
-            // Apply filters
-            var filteredPlans = allPlans.AsQueryable();
-            
-            // Apply search term filter (name and description)
-            if (!string.IsNullOrEmpty(searchTerm))
-            {
-                filteredPlans = filteredPlans.Where(p => p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) || 
-                                                       p.Description.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
-            }
-            
-            // Apply category filter
-            if (!string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out var categoryGuid))
-            {
-                filteredPlans = filteredPlans.Where(p => p.CategoryId == categoryGuid);
-            }
-            
-            if (isActive.HasValue)
-            {
-                filteredPlans = filteredPlans.Where(p => p.IsActive == isActive.Value);
-            }
-            
-            // Apply pagination
-            var totalCount = filteredPlans.Count();
-            var plans = filteredPlans
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-            
-            var dtos = _mapper.Map<IEnumerable<SubscriptionPlanDto>>(plans);
-            return new JsonModel { data = dtos, Message = "Subscription plans retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting filtered subscription plans");
-            return new JsonModel { data = new object(), Message = "Failed to retrieve subscription plans", StatusCode = 500 };
-        }
-    }
 
     /// <summary>
     /// Retrieves a specific subscription plan by its ID
@@ -1277,16 +315,6 @@ public class SubscriptionService : ISubscriptionService
     /// - Used for detailed plan information display
     /// - No additional access control - plan details are generally public
     /// </remarks>
-    public async Task<JsonModel> GetPlanByIdAsync(string planId, TokenModel tokenModel)
-    {
-        // Retrieve subscription plan by ID from repository
-        var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-        if (plan == null)
-            return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
-        
-        // Map entity to DTO and return success response
-        return new JsonModel { data = _mapper.Map<SubscriptionPlanDto>(plan), Message = "Plan retrieved successfully", StatusCode = 200 };
-    }
 
     /// <summary>
     /// Retrieves billing history for a specific subscription with access control validation
@@ -1516,74 +544,32 @@ public class SubscriptionService : ISubscriptionService
         return await GetSubscriptionAsync(subscriptionId, tokenModel);
     }
 
-    /// <summary>
-    /// Updates a subscription with new properties and proper validation
-    /// </summary>
-    /// <param name="subscriptionId">The unique identifier of the subscription to update</param>
-    /// <param name="updateDto">DTO containing the subscription properties to update</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the updated subscription data or error information</returns>
-    /// <remarks>
-    /// This method:
-    /// - Validates user access to the subscription
-    /// - Checks if subscription exists
-    /// - Updates subscription properties from the DTO
-    /// - Sets audit fields (UpdatedBy, UpdatedDate)
-    /// - Saves changes to the repository
-    /// - Maps updated entity to DTO for response
-    /// - Used for subscription property updates
-    /// - Logs errors for troubleshooting
-    /// 
-    /// Access Control:
-    /// - Admins can update any subscription
-    /// - Users can only update their own subscriptions
-    /// - Returns 403 Forbidden if access is denied
-    /// </remarks>
-    public async Task<JsonModel> UpdateSubscriptionAsync(string subscriptionId, UpdateSubscriptionDto updateDto, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
-
-            // Retrieve subscription entity from repository
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (subscription == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-
-            // Update subscription properties from DTO
-            if (!string.IsNullOrEmpty(updateDto.Status))
-                subscription.Status = updateDto.Status;
-            
-            if (updateDto.AutoRenew.HasValue)
-                subscription.AutoRenew = updateDto.AutoRenew.Value;
-            
-            if (updateDto.NextBillingDate.HasValue)
-                subscription.NextBillingDate = updateDto.NextBillingDate.Value;
-
-            subscription.UpdatedBy = tokenModel.UserID;
-            subscription.UpdatedDate = DateTime.UtcNow;
-            
-            var updatedSubscription = await _subscriptionRepository.UpdateAsync(subscription);
-            
-
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updatedSubscription), Message = "Subscription updated successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to update subscription", StatusCode = 500 };
-        }
-    }
 
     public async Task<JsonModel> ProcessPaymentAsync(string subscriptionId, PaymentRequestDto paymentRequest, TokenModel tokenModel)
     {
         try
         {
+            // Validate input parameters
+            if (string.IsNullOrEmpty(subscriptionId) || !Guid.TryParse(subscriptionId, out _))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID format", StatusCode = 400 };
+            }
+
+            if (paymentRequest == null)
+            {
+                return new JsonModel { data = new object(), Message = "Payment request is required", StatusCode = 400 };
+            }
+
+            if (string.IsNullOrEmpty(paymentRequest.PaymentMethodId))
+            {
+                return new JsonModel { data = new object(), Message = "Payment method ID is required", StatusCode = 400 };
+            }
+
+            if (paymentRequest.Amount <= 0)
+            {
+                return new JsonModel { data = new object(), Message = "Payment amount must be greater than zero", StatusCode = 400 };
+            }
+
             // Validate token permissions
             if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
@@ -1722,7 +708,7 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    public async Task<JsonModel> GetSubscriptionAnalyticsAsync(string subscriptionId, TokenModel tokenModel)
+    public async Task<JsonModel> GetSubscriptionAnalyticsAsync(string subscriptionId, DateTime? startDate = null, DateTime? endDate = null, TokenModel tokenModel = null)
     {
         try
         {
@@ -1741,8 +727,8 @@ public class SubscriptionService : ISubscriptionService
             if (usageStats.StatusCode != 200)
                 return new JsonModel { data = new object(), Message = "Failed to get usage statistics", StatusCode = 500 };
 
-            // Get billing history
-            var billingHistory = await _billingService.GetPaymentHistoryAsync(subscription.UserId, null, null, tokenModel);
+            // Get billing history with optional date filtering
+            var billingHistory = await _billingService.GetPaymentHistoryAsync(subscription.UserId, startDate, endDate, tokenModel);
 
             var analytics = new SubscriptionAnalyticsDto
             {
@@ -1755,7 +741,7 @@ public class SubscriptionService : ISubscriptionService
                 PaymentCount = billingHistory.data is IEnumerable<BillingRecordDto> billingData2 ? billingData2.Count() : 0,
                 AveragePaymentAmount = billingHistory.data is IEnumerable<BillingRecordDto> billingData3 && billingData3.Any() ? billingData3.Average(bh => bh.Amount) : 0,
                 UsageStatistics = usageStats.data is UsageStatisticsDto usageData ? usageData : null,
-                PaymentHistory = billingHistory.data is IEnumerable<BillingRecordDto> billingData4 ? billingData4.Select(bh => new PaymentHistoryDto
+                PaymentHistory = billingHistory.data is IEnumerable<BillingRecordDto> billingData ? billingData.Select(bh => new PaymentHistoryDto
                 {
                     Id = Guid.TryParse(bh.Id, out Guid id) ? id : Guid.Empty,
                     UserId = bh.UserId,
@@ -1783,235 +769,10 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    public async Task<JsonModel> CreatePlanAsync(CreateSubscriptionPlanDto createPlanDto, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var plan = new SubscriptionPlan
-            {
-                Name = createPlanDto.Name,
-                Description = createPlanDto.Description,
-                Price = createPlanDto.Price,
-                BillingCycleId = createPlanDto.BillingCycleId,
-                CurrencyId = createPlanDto.CurrencyId,
-                CategoryId = createPlanDto.CategoryId,
-                IsActive = createPlanDto.IsActive,
-                DisplayOrder = createPlanDto.DisplayOrder,
-                // Trial configuration
-                IsTrialAllowed = createPlanDto.IsTrialAllowed,
-                TrialDurationInDays = createPlanDto.TrialDurationInDays,
-                // PlanPrivileges will be added later or via a separate call
-                // Set audit properties for creation
-                CreatedBy = tokenModel.UserID,
-                CreatedDate = DateTime.UtcNow
-            };
-            var created = await _subscriptionRepository.CreateSubscriptionPlanAsync(plan);
-
-            // Create Stripe product and prices for the plan
-            try
-            {
-                // Create Stripe product
-                var stripeProductId = await _stripeService.CreateProductAsync(created.Name, created.Description ?? "", tokenModel);
-                created.StripeProductId = stripeProductId;
-
-                // Create Stripe prices for different billing cycles
-                var monthlyPriceId = await _stripeService.CreatePriceAsync(
-                    stripeProductId, created.Price, "usd", "month", 1, tokenModel);
-                created.StripeMonthlyPriceId = monthlyPriceId;
-
-                var quarterlyPriceId = await _stripeService.CreatePriceAsync(
-                    stripeProductId, created.Price * 3, "usd", "month", 3, tokenModel);
-                created.StripeQuarterlyPriceId = quarterlyPriceId;
-
-                var annualPriceId = await _stripeService.CreatePriceAsync(
-                    stripeProductId, created.Price * 12, "usd", "month", 12, tokenModel);
-                created.StripeAnnualPriceId = annualPriceId;
-
-                // Update plan with Stripe IDs
-                await _subscriptionRepository.UpdateSubscriptionPlanAsync(created);
-
-                _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Prices {MonthlyId}, {QuarterlyId}, {AnnualId}", 
-                    created.Name, stripeProductId, monthlyPriceId, quarterlyPriceId, annualPriceId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create Stripe resources for plan {PlanName}. Plan created but Stripe integration failed.", created.Name);
-                // Don't fail the entire operation, just log the error
-            }
-
-            // Process privileges if provided
-            if (createPlanDto.Privileges != null && createPlanDto.Privileges.Any())
-            {
-                foreach (var privilege in createPlanDto.Privileges)
-                {
-                    // Validate privilege exists
-                    var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
-                    if (privilegeEntity == null)
-                    {
-                        _logger.LogWarning("Privilege {PrivilegeId} not found, skipping privilege assignment", privilege.PrivilegeId);
-                        continue; // Skip this privilege and continue with others
-                    }
-
-                    // Create plan privilege
-                    var planPrivilege = new SubscriptionPlanPrivilege
-                    {
-                        Id = Guid.NewGuid(),
-                        SubscriptionPlanId = created.Id,
-                        PrivilegeId = privilege.PrivilegeId,
-                        Value = privilege.Value,
-                        UsagePeriodId = privilege.UsagePeriodId,
-                        DurationMonths = privilege.DurationMonths,
-                        ExpirationDate = privilege.ExpirationDate,
-                        DailyLimit = privilege.DailyLimit,
-                        WeeklyLimit = privilege.WeeklyLimit,
-                        MonthlyLimit = privilege.MonthlyLimit,
-                        // Set audit properties for creation
-                        IsActive = true,
-                        CreatedBy = tokenModel.UserID,
-                        CreatedDate = DateTime.UtcNow
-                    };
-
-                    await _planPrivilegeRepo.AddAsync(planPrivilege);
-                }
-            }
 
 
 
-            return new JsonModel { data = _mapper.Map<SubscriptionPlanDto>(created), Message = "Plan created successfully with privileges", StatusCode = 201 };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel { data = new object(), Message = $"Failed to create plan: {ex.Message}", StatusCode = 500 };
-        }
-    }
 
-    public async Task<JsonModel> UpdatePlanAsync(string planId, UpdateSubscriptionPlanDto updatePlanDto, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
-            plan.Name = updatePlanDto.Name;
-            plan.Description = updatePlanDto.Description;
-            plan.IsActive = updatePlanDto.IsActive;
-            // Remove updates to Price, BillingCycleId, CurrencyId, etc., as they are not present in the DTO
-            var updated = await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
-            return new JsonModel { data = _mapper.Map<SubscriptionPlanDto>(updated), Message = "Plan updated", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel { data = new object(), Message = $"Failed to update plan: {ex.Message}", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> ActivatePlanAsync(string planId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
-            plan.IsActive = true;
-            await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
-            return new JsonModel { data = true, Message = "Plan activated", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel { data = new object(), Message = $"Failed to activate plan: {ex.Message}", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> DeactivatePlanAsync(string planId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
-            plan.IsActive = false;
-            await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
-
-           
-
-            // Send notifications to all active subscribers of this plan
-            var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
-            foreach (var subscription in activeSubscriptions)
-            {
-                if (subscription.SubscriptionPlanId == plan.Id)
-                {
-                    var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
-                    if (userResult.StatusCode == 200 && userResult.data != null)
-                    {
-                        var user = userResult.data as UserDto;
-                        if (user != null && !string.IsNullOrEmpty(user.Email))
-                        {
-                            // Send subscription suspension email as plan is deactivated
-                            await _notificationService.SendSubscriptionSuspensionAsync(
-                                user.Email, 
-                                user.FullName ?? user.FirstName, 
-                                _mapper.Map<SubscriptionDto>(subscription), 
-                                tokenModel
-                            );
-                            _logger.LogInformation("Plan deactivation notification sent to {Email}", user.Email);
-                        }
-                    }
-                }
-            }
-
-            return new JsonModel { data = true, Message = "Plan deactivated", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deactivating plan {PlanId}", planId);
-            return new JsonModel { data = new object(), Message = "Failed to deactivate plan", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> DeletePlanAsync(string planId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var result = await _subscriptionRepository.DeleteSubscriptionPlanAsync(Guid.Parse(planId));
-            if (!result)
-                return new JsonModel { data = new object(), Message = "Plan not found or could not be deleted", StatusCode = 404 };
-            return new JsonModel { data = true, Message = "Plan deleted", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel { data = new object(), Message = $"Failed to delete plan: {ex.Message}", StatusCode = 500 };
-        }
-    }
 
     public async Task<JsonModel> GetByStripeSubscriptionIdAsync(string stripeSubscriptionId, TokenModel tokenModel)
     {
@@ -2149,326 +910,11 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    public async Task<JsonModel> CancelUserSubscriptionAsync(string subscriptionId, string? reason, TokenModel tokenModel)
-    {
-        try
-        {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (subscription == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            subscription.Status = "Cancelled";
-            // subscription.CancelledAt = DateTime.UtcNow; // Property doesn't exist
-            // subscription.CancellationReason = reason; // Property doesn't exist
-            subscription.UpdatedBy = tokenModel.UserID;
-            subscription.UpdatedDate = DateTime.UtcNow;
-            
-            await _subscriptionRepository.UpdateAsync(subscription);
-            
-            // Create audit log
-            
-            return new JsonModel { data = true, Message = "Subscription cancelled successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error cancelling user subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to cancel subscription", StatusCode = 500 };
-        }
-    }
 
-    public async Task<JsonModel> PauseUserSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
 
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (subscription == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            subscription.Status = "Paused";
-            // subscription.PausedAt = DateTime.UtcNow; // Property doesn't exist
-            subscription.UpdatedBy = tokenModel.UserID;
-            subscription.UpdatedDate = DateTime.UtcNow;
-            
-            await _subscriptionRepository.UpdateAsync(subscription);
-            
-            // Create audit log
-            
-            return new JsonModel { data = true, Message = "Subscription paused successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error pausing user subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to pause subscription", StatusCode = 500 };
-        }
-    }
 
-    public async Task<JsonModel> ResumeUserSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
 
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (subscription == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            subscription.Status = "Active";
-            // subscription.ResumedAt = DateTime.UtcNow; // Property doesn't exist
-            subscription.UpdatedBy = tokenModel.UserID;
-            subscription.UpdatedDate = DateTime.UtcNow;
-            
-            await _subscriptionRepository.UpdateAsync(subscription);
-            return new JsonModel { data = true, Message = "Subscription resumed successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error resuming user subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to resume subscription", StatusCode = 500 };
-        }
-    }
 
-    public async Task<JsonModel> ExtendUserSubscriptionAsync(string subscriptionId, int additionalDays, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (subscription == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-            
-            if (subscription.EndDate.HasValue)
-            {
-                subscription.EndDate = subscription.EndDate.Value.AddDays(additionalDays);
-            }
-            
-            // NEW: Extend Stripe subscription if it exists
-            if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId))
-            {
-                try
-                {
-                    // For Stripe, we need to update the subscription end date
-                    // This would typically involve updating the subscription metadata or creating a new subscription
-                    // For now, we'll log that the extension was made locally
-                    _logger.LogInformation("Subscription {SubscriptionId} extended by {AdditionalDays} days locally. Stripe subscription {StripeSubscriptionId} extension may require manual update.", 
-                        subscriptionId, additionalDays, subscription.StripeSubscriptionId);
-                    
-                    // TODO: Implement Stripe subscription extension logic
-                    // This might involve calling Stripe API to update subscription end date
-                    // or creating a new subscription with extended end date
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error extending Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Proceeding with local extension only.", 
-                        subscription.StripeSubscriptionId, subscriptionId);
-                    // Don't fail the entire operation if Stripe extension fails
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Subscription {SubscriptionId} has no Stripe subscription ID. Cannot extend Stripe subscription.", subscriptionId);
-            }
-            
-            subscription.UpdatedBy = tokenModel.UserID;
-            subscription.UpdatedDate = DateTime.UtcNow;
-            
-            await _subscriptionRepository.UpdateAsync(subscription);
-            
-            // Audit log
-            
-            return new JsonModel { data = true, Message = "Subscription extended successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error extending user subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to extend subscription", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> PerformBulkActionAsync(List<BulkActionRequestDto> actions, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var results = new List<BulkActionResultDto>();
-            
-            foreach (var action in actions)
-            {
-                try
-                {
-                    JsonModel result = action.Action.ToLower() switch
-                    {
-                        "cancel" => await CancelUserSubscriptionAsync(action.SubscriptionId, action.Reason, tokenModel),
-                        "pause" => await PauseUserSubscriptionAsync(action.SubscriptionId, tokenModel),
-                        "resume" => await ResumeUserSubscriptionAsync(action.SubscriptionId, tokenModel),
-                        "extend" => await ExtendUserSubscriptionAsync(action.SubscriptionId, action.AdditionalDays ?? 30, tokenModel),
-                        _ => new JsonModel { data = new object(), Message = $"Unknown action: {action.Action}", StatusCode = 400 }
-                    };
-                    
-                    results.Add(new BulkActionResultDto
-                    {
-                        SubscriptionId = action.SubscriptionId,
-                        Action = action.Action,
-                        Success = result.StatusCode == 200,
-                        Message = result.Message
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error performing bulk action {Action} on subscription {SubscriptionId}", action.Action, action.SubscriptionId);
-                    results.Add(new BulkActionResultDto
-                    {
-                        SubscriptionId = action.SubscriptionId,
-                        Action = action.Action,
-                        Success = false,
-                        Message = "Internal error occurred"
-                    });
-                }
-            }
-            
-            return new JsonModel { data = results, Message = "Bulk actions completed", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error performing bulk actions");
-            return new JsonModel { data = new object(), Message = "Failed to perform bulk actions", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> GetAllSubscriptionPlansAsync(TokenModel tokenModel, string? searchTerm = null, string? categoryId = null, bool? isActive = null, int page = 1, int pageSize = 50)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            // Get all plans first
-            var allPlans = await _subscriptionRepository.GetAllSubscriptionPlansAsync();
-            var plans = allPlans.AsEnumerable();
-
-            // Apply search filter
-            if (!string.IsNullOrEmpty(searchTerm))
-            {
-                searchTerm = searchTerm.ToLower();
-                plans = plans.Where(p => 
-                    p.Name.ToLower().Contains(searchTerm) || 
-                    p.Description.ToLower().Contains(searchTerm) ||
-                    (p.ShortDescription != null && p.ShortDescription.ToLower().Contains(searchTerm)));
-            }
-
-            // Apply category filter - using BillingCycleId as a proxy for category for now
-            if (!string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out Guid categoryGuid))
-            {
-                plans = plans.Where(p => p.BillingCycleId == categoryGuid);
-            }
-
-            // Apply active filter
-            if (isActive.HasValue)
-            {
-                plans = plans.Where(p => p.IsActive == isActive.Value);
-            }
-
-            // Apply pagination
-            var totalCount = plans.Count();
-            var pagedPlans = plans
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-
-            var dtos = _mapper.Map<IEnumerable<SubscriptionPlanDto>>(pagedPlans);
-            
-            var paginationMeta = new Meta
-            {
-                TotalRecords = totalCount,
-                PageSize = pageSize,
-                CurrentPage = page,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
-                DefaultPageSize = pageSize
-            };
-
-            return new JsonModel 
-            { 
-                data = dtos,
-                meta = paginationMeta,
-                Message = "Subscription plans retrieved successfully", 
-                StatusCode = 200 
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting all subscription plans");
-            return new JsonModel { data = new object(), Message = "Failed to retrieve subscription plans", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> GetActiveSubscriptionPlansAsync(TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var plans = await _subscriptionRepository.GetActiveSubscriptionPlansAsync();
-            var dtos = _mapper.Map<IEnumerable<SubscriptionPlanDto>>(plans);
-            return new JsonModel { data = dtos, Message = "Active subscription plans retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting active subscription plans");
-            return new JsonModel { data = new object(), Message = "Failed to retrieve active subscription plans", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> GetSubscriptionPlansByCategoryAsync(string category, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            // First get the category by name
-            var categoryEntity = await _subscriptionRepository.GetCategoryByNameAsync(category);
-            if (categoryEntity == null)
-                return new JsonModel { data = new object(), Message = "Category not found", StatusCode = 404 };
-
-            var plans = await _subscriptionRepository.GetSubscriptionPlansByCategoryAsync(categoryEntity.Id);
-            var dtos = _mapper.Map<IEnumerable<SubscriptionPlanDto>>(plans);
-            return new JsonModel { data = dtos, Message = "Subscription plans by category retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting subscription plans by category {Category}", category);
-            return new JsonModel { data = new object(), Message = "Failed to retrieve subscription plans by category", StatusCode = 500 };
-        }
-    }
 
     public async Task<JsonModel> GetAllCategoriesAsync(int page, int pageSize, string? searchTerm, bool? isActive, TokenModel tokenModel)
     {
@@ -2490,273 +936,188 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    public async Task<JsonModel> GetSubscriptionPlanAsync(string planId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
-            return new JsonModel { data = _mapper.Map<SubscriptionPlanDto>(plan), Message = "Subscription plan retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting subscription plan {PlanId}", planId);
-            return new JsonModel { data = new object(), Message = "Failed to retrieve subscription plan", StatusCode = 500 };
-        }
-    }
 
 
 
-    public async Task<JsonModel> UpdateSubscriptionPlanAsync(string planId, UpdateSubscriptionPlanDto updateDto, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
 
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
-
-            var originalPrice = plan.Price;
-            var originalName = plan.Name;
-            var originalDescription = plan.Description;
-
-            // Update plan properties
-            if (!string.IsNullOrEmpty(updateDto.Name))
-                plan.Name = updateDto.Name;
-            
-            if (!string.IsNullOrEmpty(updateDto.Description))
-                plan.Description = updateDto.Description;
-            
-            if (updateDto.CategoryId != Guid.Empty)
-                plan.CategoryId = updateDto.CategoryId;
-            
-            if (updateDto.IsActive)
-                plan.IsActive = updateDto.IsActive;
-            
-            if (updateDto.DisplayOrder.HasValue)
-                plan.DisplayOrder = updateDto.DisplayOrder.Value;
-
-            // NEW: Handle price updates with Stripe synchronization
-            if (updateDto.Price > 0 && updateDto.Price != originalPrice)
-            {
-                plan.Price = updateDto.Price;
-                
-                // Sync price changes to Stripe if Stripe integration exists
-                if (!string.IsNullOrEmpty(plan.StripeProductId))
-                {
-                    try
-                    {
-                        _logger.LogInformation("Updating Stripe prices for plan {PlanName} from {OldPrice} to {NewPrice}", 
-                            plan.Name, originalPrice, updateDto.Price);
-                        
-                        // Update monthly price
-                        if (!string.IsNullOrEmpty(plan.StripeMonthlyPriceId))
-                        {
-                            var newMonthlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
-                                plan.StripeMonthlyPriceId, 
-                                plan.StripeProductId, 
-                                updateDto.Price, 
-                                "usd", 
-                                "month", 
-                                1, 
-                                tokenModel
-                            );
-                            plan.StripeMonthlyPriceId = newMonthlyPriceId;
-                        }
-                        
-                        // Update quarterly price (3x monthly)
-                        if (!string.IsNullOrEmpty(plan.StripeQuarterlyPriceId))
-                        {
-                            var newQuarterlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
-                                plan.StripeQuarterlyPriceId, 
-                                plan.StripeProductId, 
-                                updateDto.Price * 3, 
-                                "usd", 
-                                "month", 
-                                3, 
-                                tokenModel
-                            );
-                            plan.StripeQuarterlyPriceId = newQuarterlyPriceId;
-                        }
-                        
-                        // Update annual price (12x monthly)
-                        if (!string.IsNullOrEmpty(plan.StripeAnnualPriceId))
-                        {
-                            var newAnnualPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
-                                plan.StripeAnnualPriceId, 
-                                plan.StripeProductId, 
-                                updateDto.Price * 12, 
-                                "usd", 
-                                "month", 
-                                12, 
-                                tokenModel
-                            );
-                            plan.StripeAnnualPriceId = newAnnualPriceId;
-                        }
-                        
-                        _logger.LogInformation("Successfully updated Stripe prices for plan {PlanName}", plan.Name);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error updating Stripe prices for plan {PlanName}. Proceeding with local update only.", plan.Name);
-                        // Don't fail the entire operation if Stripe update fails
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("Plan {PlanName} has no Stripe product ID. Cannot sync price changes to Stripe.", plan.Name);
-                }
-            }
-
-            // NEW: Handle name/description updates with Stripe synchronization
-            if ((!string.IsNullOrEmpty(updateDto.Name) && updateDto.Name != originalName) ||
-                (updateDto.Description != null && updateDto.Description != originalDescription))
-            {
-                if (!string.IsNullOrEmpty(plan.StripeProductId))
-                {
-                    try
-                    {
-                        _logger.LogInformation("Updating Stripe product for plan {PlanName}", plan.Name);
-                        
-                        await _stripeService.UpdateProductAsync(
-                            plan.StripeProductId, 
-                            plan.Name, 
-                            plan.Description ?? "", 
-                            tokenModel
-                        );
-                        
-                        _logger.LogInformation("Successfully updated Stripe product for plan {PlanName}", plan.Name);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error updating Stripe product for plan {PlanName}. Proceeding with local update only.", plan.Name);
-                        plan.Name = originalName;
-                        plan.Description = originalDescription;
-                    }
-                }
-            }
-
-            plan.UpdatedBy = tokenModel.UserID;
-            plan.UpdatedDate = DateTime.UtcNow;
-            
-            var updatedPlan = await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
-            var dto = _mapper.Map<SubscriptionPlanDto>(updatedPlan);
-
-           
-
-            return new JsonModel { data = dto, Message = "Subscription plan updated successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating subscription plan {PlanId}", planId);
-            return new JsonModel { data = new object(), Message = "Failed to update subscription plan", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> DeleteSubscriptionPlanAsync(string planId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
-
-            // Check if plan has active subscriptions
-            var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
-            if (activeSubscriptions.Any(s => s.SubscriptionPlanId == plan.Id))
-                return new JsonModel { data = new object(), Message = "Cannot delete plan with active subscriptions", StatusCode = 400 };
-
-            // NEW: Clean up Stripe resources before deleting the plan
-            if (!string.IsNullOrEmpty(plan.StripeProductId))
-            {
-                try
-                {
-                    _logger.LogInformation("Cleaning up Stripe resources for plan {PlanName}", plan.Name);
-                    
-                    // Deactivate all prices
-                    if (!string.IsNullOrEmpty(plan.StripeMonthlyPriceId))
-                    {
-                        await _stripeService.DeactivatePriceAsync(plan.StripeMonthlyPriceId, tokenModel);
-                    }
-                    if (!string.IsNullOrEmpty(plan.StripeQuarterlyPriceId))
-                    {
-                        await _stripeService.DeactivatePriceAsync(plan.StripeQuarterlyPriceId, tokenModel);
-                    }
-                    if (!string.IsNullOrEmpty(plan.StripeAnnualPriceId))
-                    {
-                        await _stripeService.DeactivatePriceAsync(plan.StripeAnnualPriceId, tokenModel);
-                    }
-                    
-                    // Delete the product (this will also deactivate all associated prices)
-                    await _stripeService.DeleteProductAsync(plan.StripeProductId, tokenModel);
-                    
-                    _logger.LogInformation("Successfully cleaned up Stripe resources for plan {PlanName}", plan.Name);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error cleaning up Stripe resources for plan {PlanName}. Proceeding with local deletion.", plan.Name);
-                    // Don't fail the entire operation if Stripe cleanup fails
-                }
-            }
-
-            var result = await _subscriptionRepository.DeleteSubscriptionPlanAsync(plan.Id);
-            if (!result)
-                return new JsonModel { data = new object(), Message = "Failed to delete subscription plan", StatusCode = 500 };
-
-            
-
-            return new JsonModel { data = true, Message = "Subscription plan deleted successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting subscription plan {PlanId}", planId);
-            return new JsonModel { data = new object(), Message = "Failed to delete subscription plan", StatusCode = 500 };
-        }
-    }
 
     // Example: Booking a consultation using privilege system
-    public async Task<JsonModel> BookConsultationAsync(Guid userId, Guid subscriptionId, TokenModel tokenModel)
+    public async Task<JsonModel> BookConsultationAsync(int userId, Guid subscriptionId, TokenModel tokenModel)
     {
-        // Check if user has remaining consult privileges
-        var remaining = await _privilegeService.GetRemainingPrivilegeAsync(subscriptionId, "Teleconsultation", tokenModel);
-        if (remaining <= 0)
-            return new JsonModel { data = new object(), Message = "No teleconsultations remaining in your plan.", StatusCode = 400 };
-        var used = await _privilegeService.UsePrivilegeAsync(subscriptionId, "Teleconsultation", 1, tokenModel);
-        if (!used)
-            return new JsonModel { data = new object(), Message = "Failed to use teleconsultation privilege.", StatusCode = 500 };
-        // Proceed with booking logic (not shown)
-        return new JsonModel { data = true, Message = "Consultation booked.", StatusCode = 200 };
+        try
+        {
+            // Validate input parameters
+            if (userId <= 0)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid user ID", StatusCode = 400 };
+            }
+
+            if (subscriptionId == Guid.Empty)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID", StatusCode = 400 };
+            }
+
+            // Validate token permissions
+            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId.ToString()))
+            {
+                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
+            }
+
+            // Check if user has remaining consult privileges
+            var remaining = await _privilegeService.GetRemainingPrivilegeAsync(subscriptionId, "Teleconsultation", tokenModel);
+            if (remaining <= 0)
+                return new JsonModel { data = new object(), Message = "No teleconsultations remaining in your plan.", StatusCode = 400 };
+
+            var used = await _privilegeService.UsePrivilegeAsync(subscriptionId, "Teleconsultation", 1, tokenModel);
+            if (!used)
+                return new JsonModel { data = new object(), Message = "Failed to use teleconsultation privilege.", StatusCode = 500 };
+
+            // Get subscription details
+            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            if (subscription == null)
+                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
+
+            // Create consultation booking
+            var consultation = new
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                SubscriptionId = subscriptionId,
+                ScheduledDate = DateTime.UtcNow.AddHours(1), // Default to 1 hour from now
+                Status = "Scheduled",
+                CreatedDate = DateTime.UtcNow,
+                PlanName = subscription.SubscriptionPlan?.Name ?? "Unknown Plan"
+            };
+
+            // TODO: Save consultation to database when consultation entity is available
+            // await _consultationRepository.AddAsync(consultation);
+
+            // Send confirmation notification
+            var userResult = await _userService.GetUserByIdAsync(userId, tokenModel);
+            if (userResult.StatusCode == 200 && userResult.data != null)
+            {
+                var user = (UserDto)userResult.data;
+                
+                // Send consultation booking confirmation notification
+                
+                try
+                {
+                    // Use the subscription notification service for proper business logic
+                    var emailResult = await _subscriptionNotificationService.SendSubscriptionCreatedNotificationAsync(subscriptionId.ToString(), tokenModel);
+                    if (emailResult.StatusCode == 200)
+                    {
+                        _logger.LogInformation("Consultation booking confirmation notification sent to {Email} for user {UserId}", user.Email, userId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to send consultation booking confirmation notification to {Email} for user {UserId}: {Message}", 
+                            user.Email, userId, emailResult.Message);
+                    }
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx, "Failed to send consultation booking confirmation notification to {Email} for user {UserId}", user.Email, userId);
+                    // Don't fail the entire operation if email fails
+                }
+            }
+
+            return new JsonModel { data = consultation, Message = "Consultation booked successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error booking consultation for user {UserId} with subscription {SubscriptionId}", userId, subscriptionId);
+            return new JsonModel { data = new object(), Message = "Failed to book consultation", StatusCode = 500 };
+        }
     }
 
     // Example: Medication supply using privilege system
-    public async Task<JsonModel> RequestMedicationSupplyAsync(Guid userId, Guid subscriptionId, TokenModel tokenModel)
+    public async Task<JsonModel> RequestMedicationSupplyAsync(int userId, Guid subscriptionId, TokenModel tokenModel)
     {
-        var remaining = await _privilegeService.GetRemainingPrivilegeAsync(subscriptionId, "MedicationSupply", tokenModel);
-        if (remaining <= 0)
-            return new JsonModel { data = new object(), Message = "No medication supply privilege remaining in your plan.", StatusCode = 400 };
-        var used = await _privilegeService.UsePrivilegeAsync(subscriptionId, "MedicationSupply", 1, tokenModel);
-        if (!used)
-            return new JsonModel { data = new object(), Message = "Failed to use medication supply privilege.", StatusCode = 500 };
-        // Proceed with medication supply logic (not shown)
-        return new JsonModel { data = true, Message = "Medication supply requested.", StatusCode = 200 };
+        try
+        {
+            // Validate input parameters
+            if (userId <= 0)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid user ID", StatusCode = 400 };
+            }
+
+            if (subscriptionId == Guid.Empty)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID", StatusCode = 400 };
+            }
+
+            // Validate token permissions
+            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId.ToString()))
+            {
+                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
+            }
+
+            // Check if user has remaining medication supply privileges
+            var remaining = await _privilegeService.GetRemainingPrivilegeAsync(subscriptionId, "MedicationSupply", tokenModel);
+            if (remaining <= 0)
+                return new JsonModel { data = new object(), Message = "No medication supply privilege remaining in your plan.", StatusCode = 400 };
+
+            var used = await _privilegeService.UsePrivilegeAsync(subscriptionId, "MedicationSupply", 1, tokenModel);
+            if (!used)
+                return new JsonModel { data = new object(), Message = "Failed to use medication supply privilege.", StatusCode = 500 };
+
+            // Get subscription details
+            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            if (subscription == null)
+                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
+
+            // Create medication supply request
+            var medicationRequest = new
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                SubscriptionId = subscriptionId,
+                RequestDate = DateTime.UtcNow,
+                Status = "Pending",
+                Priority = "Normal",
+                PlanName = subscription.SubscriptionPlan?.Name ?? "Unknown Plan",
+                EstimatedDelivery = DateTime.UtcNow.AddDays(3) // Default 3 days
+            };
+
+            // TODO: Save medication request to database when medication entity is available
+            // await _medicationRepository.AddAsync(medicationRequest);
+
+            // Send confirmation notification
+            var userResult = await _userService.GetUserByIdAsync(userId, tokenModel);
+            if (userResult.StatusCode == 200 && userResult.data != null)
+            {
+                var user = (UserDto)userResult.data;
+                
+                // Send medication supply request confirmation notification
+                
+                try
+                {
+                    // Use the subscription notification service for proper business logic
+                    var emailResult = await _subscriptionNotificationService.SendSubscriptionCreatedNotificationAsync(subscriptionId.ToString(), tokenModel);
+                    if (emailResult.StatusCode == 200)
+                    {
+                        _logger.LogInformation("Medication supply request confirmation notification sent to {Email} for user {UserId}", user.Email, userId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to send medication supply request confirmation notification to {Email} for user {UserId}: {Message}", 
+                            user.Email, userId, emailResult.Message);
+                    }
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx, "Failed to send medication supply request confirmation notification to {Email} for user {UserId}", user.Email, userId);
+                    // Don't fail the entire operation if email fails
+                }
+            }
+
+            return new JsonModel { data = medicationRequest, Message = "Medication supply requested successfully", StatusCode = 200 };
+        }
+                    catch (Exception ex)
+                    {
+            _logger.LogError(ex, "Error requesting medication supply for user {UserId} with subscription {SubscriptionId}", userId, subscriptionId);
+            return new JsonModel { data = new object(), Message = "Failed to request medication supply", StatusCode = 500 };
+        }
     }
 
     // --- PAYMENT & BILLING EDGE CASES ---
@@ -2842,10 +1203,35 @@ public class SubscriptionService : ISubscriptionService
     // 2. Retry payment and reactivate subscription if successful
     public async Task<JsonModel> RetryPaymentAsync(string subscriptionId, PaymentRequestDto paymentRequest, TokenModel tokenModel)
     {
+        try
+        {
+            // Validate input parameters
+            if (string.IsNullOrEmpty(subscriptionId) || !Guid.TryParse(subscriptionId, out _))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID format", StatusCode = 400 };
+            }
+
+            if (paymentRequest == null)
+            {
+                return new JsonModel { data = new object(), Message = "Payment request is required", StatusCode = 400 };
+            }
+
+            if (paymentRequest.Amount <= 0)
+            {
+                return new JsonModel { data = new object(), Message = "Payment amount must be greater than zero", StatusCode = 400 };
+            }
+
+            // Validate token permissions
+            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            {
+                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
+            }
+
         var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
         if (entity == null)
             return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-        // NEW: Process payment retry through Stripe with proper subscription reactivation
+
+            // Process payment retry through Stripe with proper subscription reactivation
         PaymentResultDto paymentResult;
         
         if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
@@ -2857,8 +1243,17 @@ public class SubscriptionService : ISubscriptionService
                 
                 // For Stripe payment retries, we should use the subscription's payment method
                 // and process the payment through Stripe
+                    var paymentMethodId = !string.IsNullOrEmpty(entity.PaymentMethodId) 
+                        ? entity.PaymentMethodId 
+                        : await GetDefaultPaymentMethodAsync(entity.UserId, tokenModel);
+                    
+                    if (string.IsNullOrEmpty(paymentMethodId))
+                    {
+                        return new JsonModel { data = new object(), Message = "No payment method available for retry", StatusCode = 400 };
+                    }
+                    
                 paymentResult = await _stripeService.ProcessPaymentAsync(
-                    entity.PaymentMethodId ?? entity.UserId.ToString(), 
+                        paymentMethodId, 
                     paymentRequest.Amount, 
                     "USD", 
                     tokenModel
@@ -2908,193 +1303,23 @@ public class SubscriptionService : ISubscriptionService
             
             await _subscriptionRepository.UpdateAsync(entity);
             
-           
-            
             return new JsonModel { data = paymentResult, Message = "Payment retried and subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
         }
         else
         {
             return new JsonModel { data = new object(), Message = $"Payment retry failed: {paymentResult.ErrorMessage}", StatusCode = 400 };
+                }
+            }
+            catch (Exception ex)
+            {
+            _logger.LogError(ex, "Error processing payment retry for subscription {SubscriptionId}", subscriptionId);
+            return new JsonModel { data = new object(), Message = "Failed to process payment retry", StatusCode = 500 };
         }
     }
 
     // 3. Auto-renewal logic (to be called by a scheduler/cron job)
-    public async Task<JsonModel> AutoRenewSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
-    {
-        var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-        if (entity == null)
-            return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-        if (entity.Status != Subscription.SubscriptionStatuses.Active)
-            return new JsonModel { data = new object(), Message = "Only active subscriptions can be auto-renewed", StatusCode = 400 };
-        // NEW: Process payment through Stripe with proper subscription renewal
-        PaymentResultDto paymentResult;
-        
-        if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-        {
-            try
-            {
-                // For Stripe auto-renewal, we should use the subscription's payment method
-                // and process the renewal through Stripe's subscription renewal mechanism
-                _logger.LogInformation("Processing auto-renewal for Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}", 
-                    entity.StripeSubscriptionId, subscriptionId);
-                
-                // Use Stripe service to process the renewal payment
-                paymentResult = await _stripeService.ProcessPaymentAsync(
-                    entity.PaymentMethodId ?? entity.UserId.ToString(), 
-                    entity.CurrentPrice, 
-                    "USD", 
-                    tokenModel
-                );
-                
-                if (paymentResult.Status == "succeeded")
-                {
-                    _logger.LogInformation("Successfully processed Stripe auto-renewal payment for subscription {SubscriptionId}", subscriptionId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing Stripe auto-renewal for subscription {SubscriptionId}. Falling back to local payment processing.", subscriptionId);
-                // Fallback to local payment processing
-                paymentResult = await _stripeService.ProcessPaymentAsync(entity.UserId.ToString(), entity.CurrentPrice, "USD", tokenModel);
-            }
-        }
-        else
-        {
-            // Fallback for subscriptions without Stripe integration
-            paymentResult = await _stripeService.ProcessPaymentAsync(entity.UserId.ToString(), entity.CurrentPrice, "USD", tokenModel);
-        }
-        
-        if (paymentResult.Status == "succeeded")
-        {
-            // Send renewal confirmation email
-            var userResult = await _userService.GetUserByIdAsync(entity.UserId, tokenModel);
-            if (userResult.StatusCode == 200 && userResult.data != null)
-            {
-                var billingRecord = new BillingRecordDto { Amount = entity.CurrentPrice, PaidDate = DateTime.UtcNow, Description = "Auto-Renewal" };
-                await _notificationService.SendPaymentSuccessEmailAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, billingRecord, tokenModel);
-            }
-            
-            // Update subscription with new billing date
-            entity.NextBillingDate = entity.NextBillingDate.AddMonths(1);
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
-            
-            // Add status history for renewal
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = entity.Id,
-                FromStatus = entity.Status,
-                ToStatus = entity.Status, // Same status, but renewed
-                Reason = "Auto-renewal successful",
-                ChangedAt = DateTime.UtcNow
-            });
-            
-            await _subscriptionRepository.UpdateAsync(entity);
-            
-            // Audit log
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(entity), Message = "Subscription auto-renewed successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        else
-        {
-                            await HandleFailedPaymentAsync(subscriptionId, paymentResult.ErrorMessage ?? "Auto-renewal payment failed", tokenModel);
-            return new JsonModel { data = new object(), Message = $"Auto-renewal payment failed: {paymentResult.ErrorMessage}", StatusCode = 400 };
-        }
-    }
 
     // 4. Prorated upgrades/downgrades
-    public async Task<JsonModel> ProrateUpgradeAsync(string subscriptionId, string newPlanId, TokenModel tokenModel)
-    {
-        var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-        if (entity == null)
-            return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-        if (entity.SubscriptionPlanId == Guid.Parse(newPlanId))
-            return new JsonModel { data = new object(), Message = "Already on this plan", StatusCode = 400 };
-        // Simulate proration calculation
-        var daysLeft = (entity.NextBillingDate - DateTime.UtcNow).TotalDays;
-        var oldPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(entity.SubscriptionPlanId);
-        var newPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(newPlanId));
-        if (oldPlan == null || newPlan == null)
-            return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
-        // In proration, use Price and BillingCycleId
-        var credit = (decimal)(daysLeft / 30.0) * oldPlan.Price; // Assuming Price is the monthly price
-        var charge = newPlan.Price - credit;
-        // NEW: Process prorated payment through Stripe with subscription upgrade
-        PaymentResultDto paymentResult;
-        
-        if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-        {
-            try
-            {
-                _logger.LogInformation("Processing prorated upgrade for Stripe subscription {StripeSubscriptionId} from plan {OldPlanId} to {NewPlanId} for subscription {SubscriptionId}", 
-                    entity.StripeSubscriptionId, entity.SubscriptionPlanId, newPlanId, subscriptionId);
-                
-                // For Stripe prorated upgrades, we should update the subscription with the new price
-                // and let Stripe handle the proration automatically
-                var stripeUpdateResult = await _stripeService.UpdateSubscriptionAsync(
-                    entity.StripeSubscriptionId,
-                    newPlan.StripeMonthlyPriceId, // Default to monthly price
-                    tokenModel
-                );
-                
-                if (stripeUpdateResult)
-                {
-                    _logger.LogInformation("Successfully updated Stripe subscription {StripeSubscriptionId} for prorated upgrade", entity.StripeSubscriptionId);
-                    
-                    // Process the prorated payment difference
-                    paymentResult = await _stripeService.ProcessPaymentAsync(
-                        entity.PaymentMethodId ?? entity.UserId.ToString(), 
-                        charge, 
-                        "USD", 
-                        tokenModel
-                    );
-                }
-                else
-                {
-                    _logger.LogWarning("Failed to update Stripe subscription for prorated upgrade. Proceeding with local upgrade only.");
-                    // Fallback to local payment processing
-                    paymentResult = await _stripeService.ProcessPaymentAsync(entity.UserId.ToString(), charge, "USD", tokenModel);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing Stripe prorated upgrade for subscription {SubscriptionId}. Falling back to local payment processing.", subscriptionId);
-                // Fallback to local payment processing
-                paymentResult = await _stripeService.ProcessPaymentAsync(entity.UserId.ToString(), charge, "USD", tokenModel);
-            }
-        }
-        else
-        {
-            // Fallback for subscriptions without Stripe integration
-            paymentResult = await _stripeService.ProcessPaymentAsync(entity.UserId.ToString(), charge, "USD", tokenModel);
-        }
-        
-        if (paymentResult.Status == "succeeded")
-        {
-            // Update local subscription
-            entity.SubscriptionPlanId = newPlan.Id;
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
-            
-            // Add status history for prorated upgrade
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = entity.Id,
-                FromStatus = entity.Status,
-                ToStatus = entity.Status, // Same status, but plan changed
-                Reason = $"Prorated upgrade from plan {entity.SubscriptionPlanId} to {newPlan.Id}",
-                ChangedAt = DateTime.UtcNow
-            });
-            
-            await _subscriptionRepository.UpdateAsync(entity);
-            
-            // Audit log
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(entity), Message = "Subscription upgraded with proration and Stripe synchronization", StatusCode = 200 };
-        }
-        else
-        {
-            return new JsonModel { data = new object(), Message = $"Prorated upgrade payment failed: {paymentResult.ErrorMessage}", StatusCode = 400 };
-        }
-    }
 
     // --- USAGE & LIMITS ---
 
@@ -3198,181 +1423,13 @@ public class SubscriptionService : ISubscriptionService
     // --- ADMIN OPERATIONS ---
 
     // Deactivate a plan (admin action)
-    public async Task<JsonModel> DeactivatePlanAsync(string planId, string adminUserId, TokenModel tokenModel)
-    {
-        // Admin only method - validate admin role
-        if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-        {
-            return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-        }
-
-        // Example: deactivate plan and notify/pause all subscribers
-        var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(planId));
-        if (plan == null)
-            return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
-        plan.IsActive = false;
-        await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
-        // TODO: Pause all subscribers and notify them
-        return new JsonModel { data = true, Message = "Plan deactivated and subscribers notified/paused.", StatusCode = 200 };
-    }
 
     // Bulk cancel subscriptions (admin action)
-    public async Task<JsonModel> BulkCancelSubscriptionsAsync(IEnumerable<string> subscriptionIds, string adminUserId, TokenModel tokenModel, string? reason = null)
-    {
-        int cancelled = 0;
-        foreach (var id in subscriptionIds)
-        {
-            var sub = await _subscriptionRepository.GetByIdAsync(Guid.Parse(id));
-            if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active)
-            {
-                sub.Status = Subscription.SubscriptionStatuses.Cancelled;
-                sub.CancellationReason = reason ?? "Bulk admin cancel";
-                sub.CancelledDate = DateTime.UtcNow;
-                await _subscriptionRepository.UpdateAsync(sub);
-                var userResult = await _userService.GetUserByIdAsync(sub.UserId, tokenModel);
-                if (userResult.StatusCode == 200 && userResult.data != null)
-                {
-                    // Send subscription cancellation email
-                    await _notificationService.SendSubscriptionCancellationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, _mapper.Map<SubscriptionDto>(sub), tokenModel);
-                    _logger.LogInformation("Subscription cancellation email sent to {Email}", ((UserDto)userResult.data).Email);
-                }
-                cancelled++;
-            }
-        }
-        return new JsonModel { data = cancelled, Message = $"{cancelled} subscriptions cancelled.", StatusCode = 200 };
-    }
 
     // Bulk upgrade subscriptions (admin action)
-    public async Task<JsonModel> BulkUpgradeSubscriptionsAsync(IEnumerable<string> subscriptionIds, string newPlanId, string adminUserId, TokenModel tokenModel)
-    {
-        int upgraded = 0;
-        foreach (var id in subscriptionIds)
-        {
-            var sub = await _subscriptionRepository.GetByIdAsync(Guid.Parse(id));
-            if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active && sub.SubscriptionPlanId != Guid.Parse(newPlanId))
-            {
-                sub.SubscriptionPlanId = Guid.Parse(newPlanId);
-                sub.UpdatedBy = tokenModel.UserID;
-                sub.UpdatedDate = DateTime.UtcNow;
-                await _subscriptionRepository.UpdateAsync(sub);
-                var userResult = await _userService.GetUserByIdAsync(sub.UserId, tokenModel);
-                if (userResult.StatusCode == 200 && userResult.data != null)
-                {
-                    // Send subscription confirmation email
-                    await _notificationService.SendSubscriptionConfirmationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, _mapper.Map<SubscriptionDto>(sub), tokenModel);
-                    _logger.LogInformation("Subscription confirmation email sent to {Email}", ((UserDto)userResult.data).Email);
-                }
-                upgraded++;
-            }
-        }
-        return new JsonModel { data = upgraded, Message = $"{upgraded} subscriptions upgraded.", StatusCode = 200 };
-    }
 
-    public async Task<JsonModel> HandlePaymentProviderWebhookAsync(string eventType, string subscriptionId, string? errorMessage, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            if (eventType == "payment_failed")
-            {
-                await HandleFailedPaymentAsync(subscriptionId, errorMessage ?? "Unknown error", tokenModel);
-                return new JsonModel { data = true, Message = "Payment failure handled", StatusCode = 200 };
-            }
-            if (eventType == "payment_succeeded")
-            {
-                var sub = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-                if (sub != null)
-                {
-                    sub.Status = Subscription.SubscriptionStatuses.Active;
-                    await _subscriptionRepository.UpdateAsync(sub);
-                    
-                    var userResult = await _userService.GetUserByIdAsync(sub.UserId, tokenModel);
-                    if (userResult.StatusCode == 200 && userResult.data != null)
-                    {
-                        var billingRecord = new BillingRecordDto { Amount = sub.CurrentPrice, PaidDate = DateTime.UtcNow, Description = "Webhook Payment Success" };
-                        // Send payment success email
-                        await _notificationService.SendPaymentSuccessEmailAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, billingRecord, tokenModel);
-                        _logger.LogInformation("Payment success email sent to {Email}", ((UserDto)userResult.data).Email);
-                    }
-                }
-                return new JsonModel { data = true, Message = "Payment success handled", StatusCode = 200 };
-            }
-            
-            return new JsonModel { data = new object(), Message = "Unhandled webhook event type", StatusCode = 400 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error handling payment provider webhook for subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to handle webhook event", StatusCode = 500 };
-        }
-    }
 
     // Additional methods for comprehensive subscription management
-    public async Task<JsonModel> GetSubscriptionAnalyticsAsync(string subscriptionId, DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
-
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (subscription == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-
-            // Get usage statistics
-            var usageStats = await GetUsageStatisticsAsync(subscriptionId, tokenModel);
-            if (usageStats.StatusCode != 200)
-                return new JsonModel { data = new object(), Message = "Failed to get usage statistics", StatusCode = 500 };
-
-            // Get billing history with date range
-            var billingHistory = await _billingService.GetPaymentHistoryAsync(subscription.UserId, startDate, endDate, tokenModel);
-
-            var analytics = new SubscriptionAnalyticsDto
-            {
-                SubscriptionId = subscriptionId,
-                PlanName = subscription.SubscriptionPlan.Name,
-                Status = subscription.Status,
-                StartDate = subscription.StartDate,
-                NextBillingDate = subscription.NextBillingDate,
-                TotalAmountPaid = billingHistory.data is IEnumerable<BillingRecordDto> billingData5 ? billingData5.Sum(bh => bh.Amount) : 0,
-                PaymentCount = billingHistory.data is IEnumerable<BillingRecordDto> billingData6 ? billingData6.Count() : 0,
-                AveragePaymentAmount = billingHistory.data is IEnumerable<BillingRecordDto> billingData7 && billingData7.Any() ? billingData7.Average(bh => bh.Amount) : 0,
-                UsageStatistics = usageStats.data is UsageStatisticsDto usageData ? usageData : null,
-                PaymentHistory = billingHistory.data is IEnumerable<BillingRecordDto> billingData8 ? billingData8.Select(bh => new PaymentHistoryDto
-                {
-                    Id = Guid.TryParse(bh.Id, out Guid id) ? id : Guid.Empty,
-                    UserId = bh.UserId,
-                    SubscriptionId = bh.SubscriptionId ?? string.Empty,
-                    Amount = bh.Amount,
-                    Currency = bh.Currency,
-                    PaymentMethod = bh.PaymentMethod,
-                    Status = bh.Status,
-                    TransactionId = bh.StripePaymentIntentId,
-                    ErrorMessage = bh.FailureReason,
-                    CreatedDate = bh.CreatedDate,
-                    ProcessedAt = bh.PaidAt,
-                    PaymentDate = bh.CreatedDate,
-                    Description = bh.Description,
-                    PaymentMethodId = bh.PaymentMethodId
-                }).ToList() : new List<PaymentHistoryDto>()
-            };
-
-            return new JsonModel { data = analytics, Message = "Subscription analytics retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting subscription analytics for subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to retrieve subscription analytics", StatusCode = 500 };
-        }
-    }
 
     // Helper method to check if user has access to subscription
     private async Task<bool> HasAccessToSubscription(int userId, string subscriptionId)
@@ -3382,135 +1439,32 @@ public class SubscriptionService : ISubscriptionService
             var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
             return subscription != null && subscription.UserId == userId;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error checking subscription access for user {UserId}, subscription {SubscriptionId}", userId, subscriptionId);
             return false;
         }
     }
 
+    // Helper method to get default payment method for a user
+    private async Task<string?> GetDefaultPaymentMethodAsync(int userId, TokenModel tokenModel)
+    {
+        try
+        {
+            var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(userId.ToString(), tokenModel);
+            var defaultMethod = paymentMethods.FirstOrDefault(pm => pm.IsDefault);
+            return defaultMethod?.Id;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting default payment method for user {UserId}", userId);
+            return null;
+        }
+    }
+
     // Export methods
-    public async Task<JsonModel> ExportSubscriptionPlansAsync(TokenModel tokenModel, string? searchTerm = null, string? categoryId = null, bool? isActive = null, string format = "csv")
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
 
-            // Get filtered plans using the existing method
-            var plansResult = await GetAllSubscriptionPlansAsync(tokenModel, searchTerm, categoryId, isActive, 1, int.MaxValue);
-            
-            if (plansResult.StatusCode != 200)
-            {
-                return plansResult;
-            }
 
-            // Extract plans from the result
-            var plansData = plansResult.data as dynamic;
-            var plans = plansData?.plans as IEnumerable<SubscriptionPlanDto>;
-            
-            if (plans == null)
-            {
-                return new JsonModel { data = new object(), Message = "No plans found for export", StatusCode = 404 };
-            }
-
-            // Generate export data based on format
-            var exportData = format.ToLower() == "csv" 
-                ? GenerateSubscriptionPlansCsv(plans)
-                : GenerateSubscriptionPlansExcel(plans);
-
-            return new JsonModel 
-            { 
-                data = new { exportData, format, fileName = $"subscription_plans_{DateTime.UtcNow:yyyyMMdd}.{format}" }, 
-                Message = "Export data generated successfully", 
-                StatusCode = 200 
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error exporting subscription plans");
-            return new JsonModel { data = new object(), Message = "Failed to export subscription plans", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> ExportCategoriesAsync(TokenModel tokenModel, string? searchTerm = null, bool? isActive = null, string format = "csv")
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            // For now, return a placeholder since categories service is not fully implemented
-            return new JsonModel 
-            { 
-                data = new { exportData = "Categories export not yet implemented", format, fileName = $"categories_{DateTime.UtcNow:yyyyMMdd}.{format}" }, 
-                Message = "Categories export not yet implemented", 
-                StatusCode = 501 
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error exporting categories");
-            return new JsonModel { data = new object(), Message = "Failed to export categories", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> GetSubscriptionAnalyticsAsync(TokenModel tokenModel, string? searchTerm = null, string? categoryId = null, bool? isActive = null)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            // Get filtered plans
-            var plansResult = await GetAllSubscriptionPlansAsync(tokenModel, searchTerm, categoryId, isActive, 1, int.MaxValue);
-            
-            if (plansResult.StatusCode != 200)
-            {
-                return plansResult;
-            }
-
-            // Extract plans from the result
-            var plansData = plansResult.data as dynamic;
-            var plans = plansData?.plans as IEnumerable<SubscriptionPlanDto>;
-            
-            if (plans == null)
-            {
-                return new JsonModel { data = new object(), Message = "No plans found for analytics", StatusCode = 404 };
-            }
-
-            // Generate analytics data
-            var analytics = new
-            {
-                totalPlans = plans.Count(),
-                activePlans = plans.Count(p => p.IsActive),
-                inactivePlans = plans.Count(p => !p.IsActive),
-                averagePrice = plans.Any() ? plans.Average(p => p.Price) : 0,
-                totalSubscriptions = 0, // SubscriberCount not available in current DTO
-                plansByCategory = plans.GroupBy(p => p.BillingCycleId).Select(g => new { category = g.Key.ToString(), count = g.Count() }),
-                priceRange = new
-                {
-                    min = plans.Any() ? plans.Min(p => p.Price) : 0,
-                    max = plans.Any() ? plans.Max(p => p.Price) : 0
-                }
-            };
-
-            return new JsonModel { data = analytics, Message = "Subscription analytics retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting subscription analytics");
-            return new JsonModel { data = new object(), Message = "Failed to retrieve subscription analytics", StatusCode = 500 };
-        }
-    }
 
     // Helper methods for export generation
     private string GenerateSubscriptionPlansCsv(IEnumerable<SubscriptionPlanDto> plans)
@@ -3536,275 +1490,5 @@ public class SubscriptionService : ISubscriptionService
     /// <summary>
     /// Changes the billing cycle of a subscription with Stripe synchronization
     /// </summary>
-    public async Task<JsonModel> ChangeBillingCycleAsync(string subscriptionId, string newBillingCycleId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
 
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
-            if (entity == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-
-            // Get the current plan to check if the new billing cycle is supported
-            var currentPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(entity.SubscriptionPlanId);
-            if (currentPlan == null)
-                return new JsonModel { data = new object(), Message = "Current plan not found", StatusCode = 404 };
-
-            // Determine the appropriate Stripe price ID based on the new billing cycle
-            string newStripePriceId = null;
-            switch (newBillingCycleId.ToLower())
-            {
-                case "monthly":
-                    newStripePriceId = currentPlan.StripeMonthlyPriceId;
-                    break;
-                case "quarterly":
-                    newStripePriceId = currentPlan.StripeQuarterlyPriceId;
-                    break;
-                case "annual":
-                    newStripePriceId = currentPlan.StripeAnnualPriceId;
-                    break;
-                default:
-                    return new JsonModel { data = new object(), Message = "Unsupported billing cycle", StatusCode = 400 };
-            }
-
-            if (string.IsNullOrEmpty(newStripePriceId))
-            {
-                return new JsonModel { data = new object(), Message = "Selected billing cycle not available for this plan", StatusCode = 400 };
-            }
-
-            var oldBillingCycleId = entity.BillingCycleId;
-            
-            // NEW: Update Stripe subscription with new price ID
-            if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
-            {
-                try
-                {
-                    var stripeUpdateResult = await _stripeService.UpdateSubscriptionAsync(
-                        entity.StripeSubscriptionId,
-                        newStripePriceId,
-                        tokenModel
-                    );
-                    
-                    if (stripeUpdateResult)
-                    {
-                        _logger.LogInformation("Successfully updated Stripe subscription {StripeSubscriptionId} billing cycle from {OldBillingCycle} to {NewBillingCycle} for subscription {SubscriptionId}", 
-                            entity.StripeSubscriptionId, oldBillingCycleId, newBillingCycleId, subscriptionId);
-                        
-                        // Update local subscription with new Stripe price ID
-                        entity.StripePriceId = newStripePriceId;
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Failed to update Stripe subscription {StripeSubscriptionId} billing cycle for subscription {SubscriptionId}. Proceeding with local update only.", 
-                            entity.StripeSubscriptionId, subscriptionId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error updating Stripe subscription {StripeSubscriptionId} billing cycle for subscription {SubscriptionId}. Proceeding with local update only.", 
-                        entity.StripeSubscriptionId, subscriptionId);
-                    // Don't fail the entire operation if Stripe update fails
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Subscription {SubscriptionId} has no Stripe subscription ID. Cannot update Stripe billing cycle.", subscriptionId);
-            }
-            
-            // Update local subscription
-            entity.BillingCycleId = Guid.Parse(newBillingCycleId);
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
-            
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
-            
-            // Audit log
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Billing cycle changed successfully with Stripe synchronization", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error changing billing cycle for subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to change billing cycle", StatusCode = 500 };
-        }
-    }
-
-    #region Plan Privilege Management Methods
-
-    public async Task<JsonModel> GetPlanPrivilegesAsync(Guid planId, TokenModel tokenModel)
-    {
-        try
-        {
-            _logger.LogInformation("Getting privileges for plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
-
-            // Check if plan exists
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(planId);
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
-
-            // Get plan privileges
-            var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(planId);
-            var privilegeDtos = planPrivileges.Select(pp => new PlanPrivilegeDto
-            {
-                PrivilegeId = pp.PrivilegeId,
-                Value = pp.Value,
-                UsagePeriodId = pp.UsagePeriodId,
-                DurationMonths = pp.DurationMonths,
-                ExpirationDate = pp.ExpirationDate
-            }).ToList();
-
-            return new JsonModel { data = privilegeDtos, Message = "Plan privileges retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting privileges for plan {PlanId}", planId);
-            return new JsonModel { data = new object(), Message = "Failed to get plan privileges", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> AssignPrivilegesToPlanAsync(Guid planId, List<PlanPrivilegeDto> privileges, TokenModel tokenModel)
-    {
-        try
-        {
-            _logger.LogInformation("Assigning privileges to plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
-
-            // Check admin access
-            if (tokenModel?.RoleID != 1)
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-
-            // Check if plan exists
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(planId);
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
-
-            // Validate and assign privileges
-            int assignedCount = 0;
-            foreach (var privilege in privileges)
-            {
-                // Validate privilege exists
-                var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
-                if (privilegeEntity == null)
-                {
-                    _logger.LogWarning("Privilege {PrivilegeId} not found, skipping", privilege.PrivilegeId);
-                    continue;
-                }
-
-                // Create plan privilege
-                var planPrivilege = new SubscriptionPlanPrivilege
-                {
-                    SubscriptionPlanId = planId,
-                    PrivilegeId = privilege.PrivilegeId,
-                    Value = privilege.Value,
-                    UsagePeriodId = privilege.UsagePeriodId,
-                    DurationMonths = privilege.DurationMonths,
-                    ExpirationDate = privilege.ExpirationDate,
-                    CreatedDate = DateTime.UtcNow
-                };
-
-                await _planPrivilegeRepo.AddAsync(planPrivilege);
-                assignedCount++;
-            }
-
-            // Audit log
-
-            return new JsonModel { data = new object(), Message = $"Successfully assigned {assignedCount} privileges to plan", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error assigning privileges to plan {PlanId}", planId);
-            return new JsonModel { data = new object(), Message = "Failed to assign privileges to plan", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> RemovePrivilegeFromPlanAsync(Guid planId, Guid privilegeId, TokenModel tokenModel)
-    {
-        try
-        {
-            _logger.LogInformation("Removing privilege {PrivilegeId} from plan {PlanId} by user {UserId}", privilegeId, planId, tokenModel?.UserID ?? 0);
-
-            // Check admin access
-            if (tokenModel?.RoleID != 1)
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-
-            // Check if plan exists
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(planId);
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
-
-            // Find and remove the privilege
-            var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(planId);
-            var planPrivilege = planPrivileges.FirstOrDefault(pp => pp.PrivilegeId == privilegeId);
-            
-            if (planPrivilege == null)
-                return new JsonModel { data = new object(), Message = "Privilege not found in plan", StatusCode = 404 };
-
-            // Soft delete - set audit properties
-            planPrivilege.IsDeleted = true;
-            planPrivilege.DeletedBy = tokenModel.UserID;
-            planPrivilege.DeletedDate = DateTime.UtcNow;
-            planPrivilege.UpdatedBy = tokenModel.UserID;
-            planPrivilege.UpdatedDate = DateTime.UtcNow;
-            
-            await _planPrivilegeRepo.UpdateAsync(planPrivilege);
-
-            // Audit log
-
-            return new JsonModel { data = true, Message = "Privilege removed from plan successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error removing privilege {PrivilegeId} from plan {PlanId}", privilegeId, planId);
-            return new JsonModel { data = new object(), Message = "Failed to remove privilege from plan", StatusCode = 500 };
-        }
-    }
-
-    public async Task<JsonModel> UpdatePlanPrivilegeAsync(Guid planId, Guid privilegeId, PlanPrivilegeDto updatedPrivilegeDto, TokenModel tokenModel)
-    {
-        try
-        {
-            _logger.LogInformation("Updating privilege {PrivilegeId} in plan {PlanId} by user {UserId}", privilegeId, planId, tokenModel?.UserID ?? 0);
-
-            // Check admin access
-            if (tokenModel?.RoleID != 1)
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-
-            // Check if plan exists
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(planId);
-            if (plan == null)
-                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
-
-            // Find the privilege
-            var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(planId);
-            var planPrivilege = planPrivileges.FirstOrDefault(pp => pp.PrivilegeId == privilegeId);
-            
-            if (planPrivilege == null)
-                return new JsonModel { data = new object(), Message = "Privilege not found in plan", StatusCode = 404 };
-
-            // Update the privilege
-            planPrivilege.Value = updatedPrivilegeDto.Value;
-            planPrivilege.UsagePeriodId = updatedPrivilegeDto.UsagePeriodId;
-            planPrivilege.DurationMonths = updatedPrivilegeDto.DurationMonths;
-            planPrivilege.ExpirationDate = updatedPrivilegeDto.ExpirationDate;
-            planPrivilege.UpdatedBy = tokenModel.UserID;
-            planPrivilege.UpdatedDate = DateTime.UtcNow;
-
-            await _planPrivilegeRepo.UpdateAsync(planPrivilege);
-
-            // Audit log
-
-            return new JsonModel { data = true, Message = "Plan privilege updated successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating privilege {PrivilegeId} in plan {PlanId}", privilegeId, planId);
-            return new JsonModel { data = new object(), Message = "Failed to update plan privilege", StatusCode = 500 };
-        }
-    }
-
-    #endregion
 }

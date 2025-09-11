@@ -44,6 +44,9 @@ public static class DependencyInjection
         // Register Analytics Service
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         
+        // Register Webhook Idempotency Service
+        services.AddScoped<WebhookIdempotencyService>();
+        
         // Register Chat Services
         services.AddScoped<IChatStorageService, ChatStorageService>();
         services.AddScoped<IMessagingService, MessagingService>();
@@ -58,7 +61,25 @@ public static class DependencyInjection
         
         // Register Automated Billing and Lifecycle Services
         services.AddScoped<IAutomatedBillingService, AutomatedBillingService>();
-        services.AddScoped<ISubscriptionLifecycleService, SubscriptionLifecycleService>();
+        services.AddScoped<ISubscriptionLifecycleService, SubscriptionLifecycleService>(provider =>
+            new SubscriptionLifecycleService(
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionStatusHistoryRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanRepository>(),
+                provider.GetRequiredService<AutoMapper.IMapper>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionLifecycleService>>(),
+                provider.GetRequiredService<IStripeService>(),
+                provider.GetRequiredService<IPrivilegeService>(),
+                provider.GetRequiredService<INotificationService>(),
+                provider.GetRequiredService<IUserService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanPrivilegeRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
+                provider.GetRequiredService<IBillingService>(),
+                provider.GetRequiredService<ISubscriptionNotificationService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
+            )
+        );
         services.AddScoped<ISubscriptionAutomationService, SubscriptionAutomationService>();
         services.AddHostedService<Services.BackgroundServices.SubscriptionBackgroundService>();
         
@@ -70,6 +91,22 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<ISubscriptionAnalyticsService, SubscriptionAnalyticsService>();
         services.AddScoped<ISubscriptionNotificationService, SubscriptionNotificationService>();
+        
+        // Register Subscription Plan Service
+        services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>(provider =>
+            new SubscriptionPlanService(
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanPrivilegeRepository>(),
+                provider.GetRequiredService<ICategoryService>(),
+                provider.GetRequiredService<AutoMapper.IMapper>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionPlanService>>(),
+                provider.GetRequiredService<IStripeService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
+                provider.GetRequiredService<INotificationService>(),
+                provider.GetRequiredService<IUserService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>()
+            )
+        );
         
         return services;
     }

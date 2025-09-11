@@ -17,14 +17,20 @@ namespace SmartTelehealth.API.Controllers;
 public class SubscriptionsController : BaseController
 {
     private readonly ISubscriptionService _subscriptionService;
+    private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
+    
 
     /// <summary>
-    /// Initializes a new instance of the SubscriptionsController with the required subscription service.
+    /// Initializes a new instance of the SubscriptionsController with the required services.
     /// </summary>
     /// <param name="subscriptionService">Service for handling subscription-related business logic</param>
-    public SubscriptionsController(ISubscriptionService subscriptionService)
+    /// <param name="subscriptionLifecycleService">Service for handling subscription lifecycle operations</param>
+    /// <param name="subscriptionPlanService">Service for handling subscription plan-related business logic</param>
+    public SubscriptionsController(ISubscriptionService subscriptionService, ISubscriptionLifecycleService subscriptionLifecycleService, ISubscriptionPlanService subscriptionPlanService)
     {
         _subscriptionService = subscriptionService;
+        _subscriptionLifecycleService = subscriptionLifecycleService;
+       
     }
 
     /// <summary>
@@ -88,7 +94,7 @@ public class SubscriptionsController : BaseController
     [HttpPost]
     public async Task<JsonModel> CreateSubscription([FromBody] CreateSubscriptionDto createDto)
     {
-        return await _subscriptionService.CreateSubscriptionAsync(createDto, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.CreateSubscriptionAsync(createDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -111,7 +117,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("{id}/cancel")]
     public async Task<JsonModel> CancelSubscription(string id, [FromBody] string reason)
     {
-        return await _subscriptionService.CancelSubscriptionAsync(id, reason, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, reason, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -133,7 +139,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("{id}/pause")]
     public async Task<JsonModel> PauseSubscription(string id)
     {
-        return await _subscriptionService.PauseSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.PauseSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -155,7 +161,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("{id}/resume")]
     public async Task<JsonModel> ResumeSubscription(string id)
     {
-        return await _subscriptionService.ResumeSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.ResumeSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -178,7 +184,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("{id}/upgrade")]
     public async Task<JsonModel> UpgradeSubscription(string id, [FromBody] string newPlanId)
     {
-        return await _subscriptionService.UpgradeSubscriptionAsync(id, newPlanId, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.UpgradeSubscriptionAsync(id, newPlanId, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -200,47 +206,10 @@ public class SubscriptionsController : BaseController
     [HttpPost("{id}/reactivate")]
     public async Task<JsonModel> ReactivateSubscription(string id)
     {
-        return await _subscriptionService.ReactivateSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.ReactivateSubscriptionAsync(id, GetToken(HttpContext));
     }
 
-    /// <summary>
-    /// Retrieves all available subscription plans.
-    /// This endpoint returns a list of all subscription plans that are currently available
-    /// for users to subscribe to, including their pricing, features, and availability status.
-    /// </summary>
-    /// <returns>JsonModel containing the list of all subscription plans</returns>
-    /// <remarks>
-    /// This endpoint:
-    /// - Returns all active subscription plans
-    /// - Includes plan details such as pricing, features, and privileges
-    /// - Can be accessed by both authenticated users and admins
-    /// - Used for displaying plan options in the frontend
-    /// </remarks>
-    [HttpGet("plans")]
-    public async Task<JsonModel> GetAllPlans()
-    {
-        return await _subscriptionService.GetAllPlansAsync(GetToken(HttpContext));
-    }
 
-    /// <summary>
-    /// Retrieves a specific subscription plan by its unique identifier.
-    /// This endpoint returns detailed information about a particular subscription plan,
-    /// including its features, pricing, privileges, and availability.
-    /// </summary>
-    /// <param name="planId">The unique identifier of the subscription plan to retrieve</param>
-    /// <returns>JsonModel containing the subscription plan details or error information</returns>
-    /// <remarks>
-    /// This endpoint:
-    /// - Returns detailed plan information including features and pricing
-    /// - Includes associated privileges and their limits
-    /// - Can be accessed by both authenticated users and admins
-    /// - Used for plan comparison and detailed plan views
-    /// </remarks>
-    [HttpGet("plans/{planId}")]
-    public async Task<JsonModel> GetPlanById(string planId)
-    {
-        return await _subscriptionService.GetPlanByIdAsync(planId, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retrieves the billing history for a specific subscription.
@@ -367,7 +336,7 @@ public class SubscriptionsController : BaseController
     [HttpPut("{id}")]
     public async Task<JsonModel> UpdateSubscription(string id, [FromBody] UpdateSubscriptionDto updateDto)
     {
-        return await _subscriptionService.UpdateSubscriptionAsync(id, updateDto, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.UpdateSubscriptionAsync(id, updateDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -455,7 +424,7 @@ public class SubscriptionsController : BaseController
     [HttpGet("{id}/analytics")]
     public async Task<JsonModel> GetSubscriptionAnalytics(string id)
     {
-        return await _subscriptionService.GetSubscriptionAnalyticsAsync(id, GetToken(HttpContext));
+        return await _subscriptionService.GetSubscriptionAnalyticsAsync(id, null, null, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -476,11 +445,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan creation
     /// - Maintains plan creation audit trails and history
     /// </remarks>
-    [HttpPost("plans")]
-    public async Task<JsonModel> CreatePlan([FromBody] CreateSubscriptionPlanDto createPlanDto)
-    {
-        return await _subscriptionService.CreatePlanAsync(createPlanDto, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Updates an existing subscription plan with new configuration.
@@ -501,11 +465,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan updates
     /// - Maintains plan update audit trails and change history
     /// </remarks>
-    [HttpPut("plans/{planId}")]
-    public async Task<JsonModel> UpdatePlan(string planId, [FromBody] UpdateSubscriptionPlanDto updatePlanDto)
-    {
-        return await _subscriptionService.UpdatePlanAsync(planId, updatePlanDto, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Activates a subscription plan to make it available for user subscriptions.
@@ -525,11 +484,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan activation
     /// - Maintains plan activation audit trails and status history
     /// </remarks>
-    [HttpPost("plans/{planId}/activate")]
-    public async Task<JsonModel> ActivatePlan(string planId)
-    {
-        return await _subscriptionService.ActivatePlanAsync(planId, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Deactivates a subscription plan to prevent new user subscriptions.
@@ -549,11 +503,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan deactivation
     /// - Maintains plan deactivation audit trails and status history
     /// </remarks>
-    [HttpPost("plans/{planId}/deactivate")]
-    public async Task<JsonModel> DeactivatePlan(string planId)
-    {
-        return await _subscriptionService.DeactivatePlanAsync(planId, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Deletes a subscription plan from the system.
@@ -573,11 +522,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan deletion
     /// - Maintains plan deletion audit trails and removal history
     /// </remarks>
-    [HttpDelete("plans/{planId}")]
-    public async Task<JsonModel> DeletePlan(string planId)
-    {
-        return await _subscriptionService.DeletePlanAsync(planId, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retrieves a subscription by its Stripe subscription ID.
@@ -668,7 +612,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("admin/{id}/cancel")]
     public async Task<JsonModel> CancelUserSubscription(string id, [FromBody] string? reason)
     {
-        return await _subscriptionService.CancelUserSubscriptionAsync(id, reason, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, reason, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -692,7 +636,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("admin/{id}/pause")]
     public async Task<JsonModel> PauseUserSubscription(string id)
     {
-        return await _subscriptionService.PauseUserSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.PauseSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -716,7 +660,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("admin/{id}/resume")]
     public async Task<JsonModel> ResumeUserSubscription(string id)
     {
-        return await _subscriptionService.ResumeUserSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.ResumeSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -741,7 +685,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("admin/{id}/extend")]
     public async Task<JsonModel> ExtendUserSubscription(string id, [FromBody] int additionalDays)
     {
-        return await _subscriptionService.ExtendUserSubscriptionAsync(id, additionalDays, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.ExtendUserSubscriptionAsync(id, additionalDays, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -766,7 +710,7 @@ public class SubscriptionsController : BaseController
     [HttpPost("admin/bulk-action")]
     public async Task<JsonModel> PerformBulkAction([FromBody] List<BulkActionRequestDto> actions)
     {
-        return await _subscriptionService.PerformBulkActionAsync(actions, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.PerformBulkActionAsync(actions, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -794,23 +738,6 @@ public class SubscriptionsController : BaseController
     /// - Supports advanced filtering for plan analysis
     /// - Provides comprehensive plan overview for administrators
     /// </remarks>
-    [HttpGet("admin/plans")]
-    public async Task<JsonModel> GetAllSubscriptionPlans(
-        [FromQuery] string? searchTerm = null,
-        [FromQuery] string? categoryId = null,
-        [FromQuery] bool? isActive = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
-        [FromQuery] string? format = null)
-    {
-        // If format is specified, return export data
-        if (!string.IsNullOrEmpty(format) && (format.ToLower() == "csv" || format.ToLower() == "excel"))
-        {
-            return await _subscriptionService.ExportSubscriptionPlansAsync(GetToken(HttpContext), searchTerm, categoryId, isActive, format);
-        }
-        
-        return await _subscriptionService.GetAllSubscriptionPlansAsync(GetToken(HttpContext), searchTerm, categoryId, isActive, page, pageSize);
-    }
 
     /// <summary>
     /// Retrieves all active subscription plans for administrative management.
@@ -829,11 +756,6 @@ public class SubscriptionsController : BaseController
     /// - Provides data for active plan analysis and management
     /// - Handles plan validation and error responses
     /// </remarks>
-    [HttpGet("admin/plans/active")]
-    public async Task<JsonModel> GetActiveSubscriptionPlans()
-    {
-        return await _subscriptionService.GetActiveSubscriptionPlansAsync(GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retrieves subscription plans by specific category for administrative management.
@@ -853,11 +775,6 @@ public class SubscriptionsController : BaseController
     /// - Provides data for category plan analysis and management
     /// - Handles category validation and error responses
     /// </remarks>
-    [HttpGet("admin/plans/category/{category}")]
-    public async Task<JsonModel> GetSubscriptionPlansByCategory(string category)
-    {
-        return await _subscriptionService.GetSubscriptionPlansByCategoryAsync(category, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retrieves detailed information about a specific subscription plan for administrative management.
@@ -877,11 +794,6 @@ public class SubscriptionsController : BaseController
     /// - Provides secure access to plan information
     /// - Handles plan validation and error responses
     /// </remarks>
-    [HttpGet("admin/plans/{planId}")]
-    public async Task<JsonModel> GetSubscriptionPlan(string planId)
-    {
-        return await _subscriptionService.GetSubscriptionPlanAsync(planId, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Creates a new subscription plan for administrative management.
@@ -901,11 +813,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan creation
     /// - Maintains plan creation audit trails and history
     /// </remarks>
-    [HttpPost("admin/plans")]
-    public async Task<JsonModel> CreateSubscriptionPlan([FromBody] CreateSubscriptionPlanDto createDto)
-    {
-        return await _subscriptionService.CreatePlanAsync(createDto, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Updates an existing subscription plan for administrative management.
@@ -926,11 +833,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan updates
     /// - Maintains plan update audit trails and change history
     /// </remarks>
-    [HttpPut("admin/plans/{planId}")]
-    public async Task<JsonModel> UpdateSubscriptionPlan(string planId, [FromBody] UpdateSubscriptionPlanDto updateDto)
-    {
-        return await _subscriptionService.UpdateSubscriptionPlanAsync(planId, updateDto, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Deletes a subscription plan from the system for administrative management.
@@ -950,11 +852,6 @@ public class SubscriptionsController : BaseController
     /// - Provides detailed feedback on plan deletion
     /// - Maintains plan deletion audit trails and removal history
     /// </remarks>
-    [HttpDelete("admin/plans/{planId}")]
-    public async Task<JsonModel> DeleteSubscriptionPlan(string planId)
-    {
-        return await _subscriptionService.DeleteSubscriptionPlanAsync(planId, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retrieves all categories with comprehensive filtering and export capabilities for administrative management.
@@ -991,7 +888,13 @@ public class SubscriptionsController : BaseController
         // If format is specified, return export data
         if (!string.IsNullOrEmpty(format) && (format.ToLower() == "csv" || format.ToLower() == "excel"))
         {
-            return await _subscriptionService.ExportCategoriesAsync(GetToken(HttpContext), searchTerm, isActive, format);
+            // This method should be moved to a dedicated category service
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = "Category export not available - use category service", 
+                StatusCode = 501 
+            };
         }
         
         return await _subscriptionService.GetAllCategoriesAsync(page, pageSize, searchTerm, isActive, GetToken(HttpContext));
@@ -1024,30 +927,6 @@ public class SubscriptionsController : BaseController
     /// - Supports advanced filtering for plan analysis
     /// - Provides comprehensive plan overview for administrators
     /// </remarks>
-    [HttpGet("admin/plans/paged")]
-    public async Task<JsonModel> GetAllPlansPaged(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string? searchTerm = null,
-        [FromQuery] string? categoryId = null,
-        [FromQuery] bool? isActive = null,
-        [FromQuery] string? format = null,
-        [FromQuery] bool? includeAnalytics = null)
-    {
-        // If format is specified, return export data
-        if (!string.IsNullOrEmpty(format) && (format.ToLower() == "csv" || format.ToLower() == "excel"))
-        {
-            return await _subscriptionService.ExportSubscriptionPlansAsync(GetToken(HttpContext), searchTerm, categoryId, isActive, format);
-        }
-        
-        // If analytics is requested, return analytics data
-        if (includeAnalytics == true)
-        {
-            return await _subscriptionService.GetSubscriptionAnalyticsAsync(GetToken(HttpContext), searchTerm, categoryId, isActive);
-        }
-        
-        return await _subscriptionService.GetAllPlansAsync(page, pageSize, searchTerm, categoryId, isActive, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retrieves public subscription plans for homepage display (no authentication required).
@@ -1063,10 +942,4 @@ public class SubscriptionsController : BaseController
     /// - Used for homepage plan comparison and marketing
     /// - Optimized for public consumption with limited sensitive information
     /// </remarks>
-    [HttpGet("plans/public")]
-    [AllowAnonymous]
-    public async Task<JsonModel> GetPublicPlans()
-    {
-        return await _subscriptionService.GetPublicPlansAsync();
-    }
 } 

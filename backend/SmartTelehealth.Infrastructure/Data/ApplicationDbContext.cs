@@ -39,6 +39,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
     public DbSet<Category> Categories { get; set; }
     public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
     public DbSet<Subscription> Subscriptions { get; set; }
+    public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents { get; set; }
     public DbSet<HealthAssessment> HealthAssessments { get; set; }
     public DbSet<Consultation> Consultations { get; set; }
     public DbSet<Message> Messages { get; set; }

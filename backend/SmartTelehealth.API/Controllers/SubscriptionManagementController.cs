@@ -18,6 +18,8 @@ namespace SmartTelehealth.API.Controllers;
 public class SubscriptionManagementController : BaseController
 {
     private readonly ISubscriptionService _subscriptionService;
+    private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
+    private readonly ISubscriptionPlanService _subscriptionPlanService;
     private readonly ICategoryService _categoryService;
     private readonly IAnalyticsService _analyticsService;
       
@@ -26,16 +28,22 @@ public class SubscriptionManagementController : BaseController
     /// Initializes a new instance of the SubscriptionManagementController with required services.
     /// </summary>
     /// <param name="subscriptionService">Service for handling subscription-related business logic</param>
+    /// <param name="subscriptionLifecycleService">Service for handling subscription lifecycle operations</param>
+    /// <param name="subscriptionPlanService">Service for handling subscription plan-related business logic</param>
     /// <param name="categoryService">Service for handling category management operations</param>
     /// <param name="analyticsService">Service for handling analytics and reporting</param>
     /// <param name="auditService">Service for handling audit logging operations</param>
     public SubscriptionManagementController(
         ISubscriptionService subscriptionService,
+        ISubscriptionLifecycleService subscriptionLifecycleService,
+        ISubscriptionPlanService subscriptionPlanService,
         ICategoryService categoryService,
         IAnalyticsService analyticsService,
         IAuditService auditService)
     {
         _subscriptionService = subscriptionService;
+        _subscriptionLifecycleService = subscriptionLifecycleService;
+        _subscriptionPlanService = subscriptionPlanService;
         _categoryService = categoryService;
         _analyticsService = analyticsService;
           
@@ -74,7 +82,7 @@ public class SubscriptionManagementController : BaseController
         [FromQuery] string? categoryId = null,
         [FromQuery] bool? isActive = null)
     {
-        return await _subscriptionService.GetAllPlansAsync(page, pageSize, searchTerm, categoryId, isActive, GetToken(HttpContext));
+        return await _subscriptionPlanService.GetAllPlansAsync(page, pageSize, searchTerm, categoryId, isActive, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -98,7 +106,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("plans")]
     public async Task<JsonModel> CreatePlan([FromBody] CreateSubscriptionPlanDto createDto)
     {
-        return await _subscriptionService.CreatePlanAsync(createDto, GetToken(HttpContext));
+        return await _subscriptionPlanService.CreatePlanAsync(createDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -126,7 +134,7 @@ public class SubscriptionManagementController : BaseController
         if (id != updateDto.Id)
             return new JsonModel { data = new object(), Message = "ID mismatch", StatusCode = 400 };
         
-        return await _subscriptionService.UpdatePlanAsync(id, updateDto, GetToken(HttpContext));
+        return await _subscriptionPlanService.UpdatePlanAsync(id, updateDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -150,7 +158,7 @@ public class SubscriptionManagementController : BaseController
     [HttpDelete("plans/{id}")]
     public async Task<JsonModel> DeletePlan(string id)
     {
-        return await _subscriptionService.DeletePlanAsync(id, GetToken(HttpContext));
+        return await _subscriptionPlanService.DeletePlanAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -174,7 +182,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("plans/{id}/activate")]
     public async Task<JsonModel> ActivatePlan(string id)
     {
-        return await _subscriptionService.ActivatePlanAsync(id, GetToken(HttpContext));
+        return await _subscriptionPlanService.ActivatePlanAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -198,7 +206,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("plans/{id}/deactivate")]
     public async Task<JsonModel> DeactivatePlan(string id)
     {
-        return await _subscriptionService.DeactivatePlanAsync(id, GetToken(HttpContext));
+        return await _subscriptionPlanService.DeactivatePlanAsync(id, GetToken(HttpContext).UserID.ToString(), GetToken(HttpContext));
     }
 
     #endregion
@@ -271,7 +279,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("subscriptions/{id}/cancel")]
     public async Task<JsonModel> CancelUserSubscription(string id, [FromBody] string? reason = null)
     {
-        return await _subscriptionService.CancelUserSubscriptionAsync(id, reason, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, reason, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -296,7 +304,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("subscriptions/{id}/pause")]
     public async Task<JsonModel> PauseUserSubscription(string id, [FromBody] string? reason = null)
     {
-        return await _subscriptionService.PauseUserSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.PauseSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -320,7 +328,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("subscriptions/{id}/resume")]
     public async Task<JsonModel> ResumeUserSubscription(string id)
     {
-        return await _subscriptionService.ResumeUserSubscriptionAsync(id, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.ResumeSubscriptionAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -352,7 +360,7 @@ public class SubscriptionManagementController : BaseController
             return new JsonModel { data = new object(), Message = "New end date must be in the future", StatusCode = 400 };
         }
         
-        return await _subscriptionService.ExtendUserSubscriptionAsync(id, additionalDays, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.ExtendUserSubscriptionAsync(id, additionalDays, GetToken(HttpContext));
     }
 
     #endregion
@@ -527,7 +535,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("bulk-action")]
     public async Task<JsonModel> PerformBulkAction([FromBody] BulkActionRequestDto request)
     {
-        var result = await _subscriptionService.PerformBulkActionAsync(new List<BulkActionRequestDto> { request }, GetToken(HttpContext));
+        var result = await _subscriptionLifecycleService.PerformBulkActionAsync(new List<BulkActionRequestDto> { request }, GetToken(HttpContext));
         
         var results = new List<BulkActionResultDto>
         {
@@ -580,7 +588,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPost("plans/{planId}/privileges")]
     public async Task<JsonModel> AssignPrivilegesToPlan(string planId, [FromBody] List<PlanPrivilegeDto> privileges)
     {
-        return await _subscriptionService.AssignPrivilegesToPlanAsync(Guid.Parse(planId), privileges, GetToken(HttpContext));
+        return await _subscriptionPlanService.AssignPrivilegesToPlanAsync(Guid.Parse(planId), privileges, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -605,7 +613,7 @@ public class SubscriptionManagementController : BaseController
     [HttpDelete("plans/{planId}/privileges/{privilegeId}")]
     public async Task<JsonModel> RemovePrivilegeFromPlan(string planId, string privilegeId)
     {
-        return await _subscriptionService.RemovePrivilegeFromPlanAsync(Guid.Parse(planId), Guid.Parse(privilegeId), GetToken(HttpContext));
+        return await _subscriptionPlanService.RemovePrivilegeFromPlanAsync(Guid.Parse(planId), Guid.Parse(privilegeId), GetToken(HttpContext));
     }
 
     /// <summary>
@@ -631,7 +639,7 @@ public class SubscriptionManagementController : BaseController
     [HttpPut("plans/{planId}/privileges/{privilegeId}")]
     public async Task<JsonModel> UpdatePlanPrivilege(string planId, string privilegeId, [FromBody] PlanPrivilegeDto privilegeDto)
     {
-        return await _subscriptionService.UpdatePlanPrivilegeAsync(Guid.Parse(planId), Guid.Parse(privilegeId), privilegeDto, GetToken(HttpContext));
+        return await _subscriptionPlanService.UpdatePlanPrivilegeAsync(Guid.Parse(planId), Guid.Parse(privilegeId), privilegeDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -655,7 +663,7 @@ public class SubscriptionManagementController : BaseController
     [HttpGet("plans/{planId}/privileges")]
     public async Task<JsonModel> GetPlanPrivileges(string planId)
     {
-        return await _subscriptionService.GetPlanPrivilegesAsync(Guid.Parse(planId), GetToken(HttpContext));
+        return await _subscriptionPlanService.GetPlanPrivilegesAsync(Guid.Parse(planId), GetToken(HttpContext));
     }
 
     #endregion
