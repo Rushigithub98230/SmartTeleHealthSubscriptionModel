@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class ChatRoomParticipantRepository : IChatRoomParticipantRepository
+public class ChatRoomParticipantRepository : RepositoryBase<ChatRoomParticipant>, IChatRoomParticipantRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public ChatRoomParticipantRepository(ApplicationDbContext context)
+    public ChatRoomParticipantRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

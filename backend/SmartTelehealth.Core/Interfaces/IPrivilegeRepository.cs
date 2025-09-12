@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IPrivilegeRepository
+public interface IPrivilegeRepository : IRepositoryBase<Privilege>
 {
     Task<Privilege?> GetByIdAsync(Guid id);
     Task<IEnumerable<Privilege>> GetAllAsync();

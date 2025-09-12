@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface INotificationRepository
+public interface INotificationRepository : IRepositoryBase<Notification>
 {
     Task<Notification> CreateAsync(Notification notification);
     Task<IEnumerable<Notification>> GetByUserIdAsync(int userId);

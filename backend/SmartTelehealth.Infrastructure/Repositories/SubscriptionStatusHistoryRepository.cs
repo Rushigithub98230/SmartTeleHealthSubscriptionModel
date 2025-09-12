@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class SubscriptionStatusHistoryRepository : ISubscriptionStatusHistoryRepository
+public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionStatusHistory>, ISubscriptionStatusHistoryRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public SubscriptionStatusHistoryRepository(ApplicationDbContext context)
+    public SubscriptionStatusHistoryRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

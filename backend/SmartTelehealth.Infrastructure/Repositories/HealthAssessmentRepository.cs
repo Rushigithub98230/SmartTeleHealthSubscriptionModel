@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class HealthAssessmentRepository : IHealthAssessmentRepository
+public class HealthAssessmentRepository : RepositoryBase<HealthAssessment>, IHealthAssessmentRepository
 {
     private readonly ApplicationDbContext _context;
     
-    public HealthAssessmentRepository(ApplicationDbContext context)
+    public HealthAssessmentRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

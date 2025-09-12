@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IProviderOnboardingRepository
+public interface IProviderOnboardingRepository : IRepositoryBase<ProviderOnboarding>
 {
     Task<ProviderOnboarding?> GetByIdAsync(Guid id);
     Task<ProviderOnboarding?> GetByUserIdAsync(int userId);

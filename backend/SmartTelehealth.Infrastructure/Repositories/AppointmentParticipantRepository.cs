@@ -5,10 +5,10 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class AppointmentParticipantRepository : IAppointmentParticipantRepository
+public class AppointmentParticipantRepository : RepositoryBase<AppointmentParticipant>, IAppointmentParticipantRepository
 {
     private readonly ApplicationDbContext _context;
-    public AppointmentParticipantRepository(ApplicationDbContext context)
+    public AppointmentParticipantRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

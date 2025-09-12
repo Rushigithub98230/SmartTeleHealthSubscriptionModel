@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 
 namespace SmartTelehealth.Infrastructure.Repositories
 {
-    public class ParticipantRoleRepository : IParticipantRoleRepository
+    public class ParticipantRoleRepository : RepositoryBase<ParticipantRole>, IParticipantRoleRepository
     {
         private readonly ApplicationDbContext _context;
-        public ParticipantRoleRepository(ApplicationDbContext context)
+        public ParticipantRoleRepository(ApplicationDbContext context) : base(context)
         {
             _context = context;
         }

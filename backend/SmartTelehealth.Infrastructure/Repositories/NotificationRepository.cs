@@ -5,10 +5,10 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class NotificationRepository : INotificationRepository
+public class NotificationRepository : RepositoryBase<Notification>, INotificationRepository
 {
     private readonly ApplicationDbContext _dbContext;
-    public NotificationRepository(ApplicationDbContext dbContext)
+    public NotificationRepository(ApplicationDbContext dbContext) : base(dbContext)
     {
         _dbContext = dbContext;
     }

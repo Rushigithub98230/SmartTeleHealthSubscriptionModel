@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IMedicationShipmentRepository
+public interface IMedicationShipmentRepository : IRepositoryBase<MedicationDelivery>
 {
     Task<MedicationDelivery> GetByIdAsync(Guid id);
     Task<IEnumerable<MedicationDelivery>> GetByUserIdAsync(int userId);

@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class ProviderOnboardingRepository : IProviderOnboardingRepository
+public class ProviderOnboardingRepository : RepositoryBase<ProviderOnboarding>, IProviderOnboardingRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public ProviderOnboardingRepository(ApplicationDbContext context)
+    public ProviderOnboardingRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

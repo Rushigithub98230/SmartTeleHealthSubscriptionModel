@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IAuditRepository
+public interface IAuditRepository : IRepositoryBase<AuditLog>
 {
     Task<AuditLog> GetByIdAsync(Guid id);
     Task<IEnumerable<AuditLog>> GetByUserIdAsync(Guid userId);

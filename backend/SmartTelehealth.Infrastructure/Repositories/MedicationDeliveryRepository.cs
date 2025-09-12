@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class MedicationDeliveryRepository : IMedicationDeliveryRepository
+public class MedicationDeliveryRepository : RepositoryBase<MedicationDelivery>, IMedicationDeliveryRepository
 {
     private readonly ApplicationDbContext _context;
     
-    public MedicationDeliveryRepository(ApplicationDbContext context)
+    public MedicationDeliveryRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

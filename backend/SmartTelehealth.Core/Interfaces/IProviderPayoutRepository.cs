@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IProviderPayoutRepository
+public interface IProviderPayoutRepository : IRepositoryBase<ProviderPayout>
 {
     Task<ProviderPayout?> GetByIdAsync(Guid id);
     Task<IEnumerable<ProviderPayout>> GetByProviderAsync(int providerId);
@@ -27,7 +27,7 @@ public interface IProviderPayoutRepository
     Task<object> GetAllPeriodsAsync();
 }
 
-public interface IPayoutPeriodRepository
+public interface IPayoutPeriodRepository : IRepositoryBase<PayoutPeriod>
 {
     Task<PayoutPeriod?> GetByIdAsync(Guid id);
     Task<IEnumerable<PayoutPeriod>> GetAllAsync();
@@ -37,7 +37,7 @@ public interface IPayoutPeriodRepository
     Task<bool> DeleteAsync(Guid id);
 }
 
-public interface IPayoutDetailRepository
+public interface IPayoutDetailRepository : IRepositoryBase<PayoutDetail>
 {
     Task<IEnumerable<PayoutDetail>> GetByPayoutAsync(Guid payoutId);
     Task<PayoutDetail> AddAsync(PayoutDetail detail);

@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IBillingAdjustmentRepository
+public interface IBillingAdjustmentRepository : IRepositoryBase<BillingAdjustment>
 {
     Task<BillingAdjustment> GetByIdAsync(Guid id);
     Task<IEnumerable<BillingAdjustment>> GetByBillingRecordIdAsync(Guid billingRecordId);

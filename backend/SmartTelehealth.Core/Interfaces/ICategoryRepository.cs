@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface ICategoryRepository
+public interface ICategoryRepository : IRepositoryBase<Category>
 {
     Task<Category?> GetByIdAsync(Guid id);
     Task<IEnumerable<Category>> GetAllAsync();

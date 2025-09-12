@@ -9,11 +9,11 @@ using System.Threading.Tasks;
 
 namespace SmartTelehealth.Infrastructure.Repositories
 {
-    public class ProviderPayoutRepository : IProviderPayoutRepository
+    public class ProviderPayoutRepository : RepositoryBase<ProviderPayout>, IProviderPayoutRepository
     {
         private readonly ApplicationDbContext _context;
 
-        public ProviderPayoutRepository(ApplicationDbContext context)
+        public ProviderPayoutRepository(ApplicationDbContext context) : base(context)
         {
             _context = context;
         }

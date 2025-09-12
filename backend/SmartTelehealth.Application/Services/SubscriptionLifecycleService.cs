@@ -1633,7 +1633,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 await _subscriptionNotificationService.SendSubscriptionExpiredNotificationAsync(subscriptionId.ToString(), tokenModel);
                 _logger.LogInformation("Subscription expiration notification sent to {Email}", ((UserDto)userResult.data).Email);
             }
-            
+           
             _logger.LogInformation("Successfully expired subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             return true;
         }

@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IChatSessionRepository
+public interface IChatSessionRepository : IRepositoryBase<ChatSession>
 {
     // Basic CRUD operations
     Task<ChatSession?> GetByIdAsync(Guid id);

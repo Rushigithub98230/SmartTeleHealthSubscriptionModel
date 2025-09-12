@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories
 {
-    public class AuditLogRepository : IAuditLogRepository
+    public class AuditLogRepository : RepositoryBase<AuditLog>, IAuditLogRepository
     {
         private readonly ApplicationDbContext _context;
 
-        public AuditLogRepository(ApplicationDbContext context)
+        public AuditLogRepository(ApplicationDbContext context) : base(context)
         {
             _context = context;
         }

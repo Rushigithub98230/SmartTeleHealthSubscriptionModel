@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 
 namespace SmartTelehealth.Infrastructure.Repositories
 {
-    public class PrescriptionRepository : IPrescriptionRepository
+    public class PrescriptionRepository : RepositoryBase<Prescription>, IPrescriptionRepository
     {
         private readonly ApplicationDbContext _context;
         
-        public PrescriptionRepository(ApplicationDbContext context)
+        public PrescriptionRepository(ApplicationDbContext context) : base(context)
         {
             _context = context;
         }

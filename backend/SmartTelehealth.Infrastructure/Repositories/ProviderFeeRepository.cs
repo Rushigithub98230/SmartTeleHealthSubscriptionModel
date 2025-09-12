@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class ProviderFeeRepository : IProviderFeeRepository
+public class ProviderFeeRepository : RepositoryBase<ProviderFee>, IProviderFeeRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public ProviderFeeRepository(ApplicationDbContext context)
+    public ProviderFeeRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }
@@ -160,11 +160,11 @@ public class ProviderFeeRepository : IProviderFeeRepository
     public Task<IEnumerable<ProviderFee>> GetByCategoryIdAsync(Guid categoryId) => Task.FromResult<IEnumerable<ProviderFee>>(new List<ProviderFee>());
 }
 
-public class CategoryFeeRangeRepository : ICategoryFeeRangeRepository
+public class CategoryFeeRangeRepository : RepositoryBase<CategoryFeeRange>, ICategoryFeeRangeRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public CategoryFeeRangeRepository(ApplicationDbContext context)
+    public CategoryFeeRangeRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IMessageReactionRepository
+public interface IMessageReactionRepository : IRepositoryBase<MessageReaction>
 {
     Task<MessageReaction?> GetByIdAsync(Guid id);
     Task<IEnumerable<MessageReaction>> GetByMessageIdAsync(Guid messageId);

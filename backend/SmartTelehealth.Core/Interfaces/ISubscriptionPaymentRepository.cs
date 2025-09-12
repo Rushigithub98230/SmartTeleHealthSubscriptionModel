@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface ISubscriptionPaymentRepository
+public interface ISubscriptionPaymentRepository : IRepositoryBase<SubscriptionPayment>
 {
     Task<SubscriptionPayment> GetByIdAsync(Guid id);
     Task<IEnumerable<SubscriptionPayment>> GetBySubscriptionIdAsync(Guid subscriptionId);

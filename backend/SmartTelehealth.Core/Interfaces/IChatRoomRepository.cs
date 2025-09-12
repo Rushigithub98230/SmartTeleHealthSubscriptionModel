@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IChatRoomRepository
+public interface IChatRoomRepository : IRepositoryBase<ChatRoom>
 {
     Task<ChatRoom?> GetByIdAsync(Guid id);
     Task<IEnumerable<ChatRoom>> GetByUserIdAsync(int userId);

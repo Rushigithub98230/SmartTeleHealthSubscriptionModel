@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IMessageRepository
+public interface IMessageRepository : IRepositoryBase<Message>
 {
     // Message operations
     Task<Message> CreateMessageAsync(Message message);

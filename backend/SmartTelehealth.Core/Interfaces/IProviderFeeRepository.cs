@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IProviderFeeRepository
+public interface IProviderFeeRepository : IRepositoryBase<ProviderFee>
 {
     Task<ProviderFee?> GetByIdAsync(Guid id);
     Task<ProviderFee?> GetByProviderAndCategoryAsync(int providerId, Guid categoryId);
@@ -24,7 +24,7 @@ public interface IProviderFeeRepository
     Task<object> GetFeeStatisticsAsync();
 }
 
-public interface ICategoryFeeRangeRepository
+public interface ICategoryFeeRangeRepository : IRepositoryBase<CategoryFeeRange>
 {
     Task<CategoryFeeRange?> GetByIdAsync(Guid id);
     Task<CategoryFeeRange?> GetByCategoryAsync(Guid categoryId);

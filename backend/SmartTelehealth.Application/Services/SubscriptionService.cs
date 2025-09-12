@@ -1113,8 +1113,8 @@ public class SubscriptionService : ISubscriptionService
 
             return new JsonModel { data = medicationRequest, Message = "Medication supply requested successfully", StatusCode = 200 };
         }
-                    catch (Exception ex)
-                    {
+        catch (Exception ex)
+        {
             _logger.LogError(ex, "Error requesting medication supply for user {UserId} with subscription {SubscriptionId}", userId, subscriptionId);
             return new JsonModel { data = new object(), Message = "Failed to request medication supply", StatusCode = 500 };
         }

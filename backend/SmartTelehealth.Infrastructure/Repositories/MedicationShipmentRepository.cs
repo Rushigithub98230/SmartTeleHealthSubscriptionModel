@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 
 namespace SmartTelehealth.Infrastructure.Repositories
 {
-    public class MedicationShipmentRepository : IMedicationShipmentRepository
+    public class MedicationShipmentRepository : RepositoryBase<MedicationDelivery>, IMedicationShipmentRepository
     {
         private readonly ApplicationDbContext _context;
         
-        public MedicationShipmentRepository(ApplicationDbContext context)
+        public MedicationShipmentRepository(ApplicationDbContext context) : base(context)
         {
             _context = context;
         }

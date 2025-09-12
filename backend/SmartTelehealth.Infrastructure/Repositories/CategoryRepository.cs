@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class CategoryRepository : ICategoryRepository
+public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public CategoryRepository(ApplicationDbContext context)
+    public CategoryRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

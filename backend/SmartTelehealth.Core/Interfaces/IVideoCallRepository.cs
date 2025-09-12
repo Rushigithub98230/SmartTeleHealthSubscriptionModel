@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IVideoCallRepository
+public interface IVideoCallRepository : IRepositoryBase<VideoCall>
 {
     Task<VideoCall?> GetByIdAsync(Guid id);
     Task<IEnumerable<VideoCall>> GetByUserIdAsync(int userId);

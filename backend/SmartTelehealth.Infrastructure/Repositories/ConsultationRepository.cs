@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class ConsultationRepository : IConsultationRepository
+public class ConsultationRepository : RepositoryBase<Consultation>, IConsultationRepository
 {
     private readonly ApplicationDbContext _context;
     
-    public ConsultationRepository(ApplicationDbContext context)
+    public ConsultationRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

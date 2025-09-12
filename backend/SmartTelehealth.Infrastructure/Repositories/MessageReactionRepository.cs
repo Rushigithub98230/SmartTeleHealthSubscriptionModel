@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class MessageReactionRepository : IMessageReactionRepository
+public class MessageReactionRepository : RepositoryBase<MessageReaction>, IMessageReactionRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public MessageReactionRepository(ApplicationDbContext context)
+    public MessageReactionRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

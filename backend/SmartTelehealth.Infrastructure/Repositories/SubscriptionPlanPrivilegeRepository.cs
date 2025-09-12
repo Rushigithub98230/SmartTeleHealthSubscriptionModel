@@ -5,10 +5,10 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class SubscriptionPlanPrivilegeRepository : ISubscriptionPlanPrivilegeRepository
+public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPlanPrivilege>, ISubscriptionPlanPrivilegeRepository
 {
     private readonly ApplicationDbContext _context;
-    public SubscriptionPlanPrivilegeRepository(ApplicationDbContext context)
+    public SubscriptionPlanPrivilegeRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

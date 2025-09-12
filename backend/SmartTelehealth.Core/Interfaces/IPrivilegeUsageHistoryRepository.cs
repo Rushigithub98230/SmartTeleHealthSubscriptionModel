@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IPrivilegeUsageHistoryRepository
+public interface IPrivilegeUsageHistoryRepository : IRepositoryBase<PrivilegeUsageHistory>
 {
     Task<PrivilegeUsageHistory?> GetByIdAsync(Guid id);
     Task<IEnumerable<PrivilegeUsageHistory>> GetByUserSubscriptionPrivilegeUsageIdAsync(Guid userSubscriptionPrivilegeUsageId);

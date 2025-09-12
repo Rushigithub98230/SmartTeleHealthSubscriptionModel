@@ -5,10 +5,10 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class AppointmentPaymentLogRepository : IAppointmentPaymentLogRepository
+public class AppointmentPaymentLogRepository : RepositoryBase<AppointmentPaymentLog>, IAppointmentPaymentLogRepository
 {
     private readonly ApplicationDbContext _context;
-    public AppointmentPaymentLogRepository(ApplicationDbContext context)
+    public AppointmentPaymentLogRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

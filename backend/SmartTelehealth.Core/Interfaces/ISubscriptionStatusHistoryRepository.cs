@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface ISubscriptionStatusHistoryRepository
+public interface ISubscriptionStatusHistoryRepository : IRepositoryBase<SubscriptionStatusHistory>
 {
     Task<SubscriptionStatusHistory?> GetByIdAsync(Guid id);
     Task<IEnumerable<SubscriptionStatusHistory>> GetBySubscriptionIdAsync(Guid subscriptionId);

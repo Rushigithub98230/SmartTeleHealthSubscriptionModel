@@ -1,15 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
+using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class UserRoleRepository : IUserRoleRepository
+public class UserRoleRepository : RepositoryBase<UserRole>, IUserRoleRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public UserRoleRepository(ApplicationDbContext context)
+    public UserRoleRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

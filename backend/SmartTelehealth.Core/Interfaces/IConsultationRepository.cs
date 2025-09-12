@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IConsultationRepository
+public interface IConsultationRepository : IRepositoryBase<Consultation>
 {
     Task<Consultation> GetByIdAsync(Guid id);
     Task<IEnumerable<Consultation>> GetByUserIdAsync(int userId);

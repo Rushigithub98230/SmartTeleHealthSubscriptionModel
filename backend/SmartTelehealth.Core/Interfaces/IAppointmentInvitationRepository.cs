@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IAppointmentInvitationRepository
+public interface IAppointmentInvitationRepository : IRepositoryBase<AppointmentInvitation>
 {
     Task<AppointmentInvitation?> GetByIdAsync(Guid id);
     Task<IEnumerable<AppointmentInvitation>> GetAllAsync();

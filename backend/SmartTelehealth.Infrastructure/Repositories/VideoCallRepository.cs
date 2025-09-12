@@ -5,11 +5,11 @@ using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
 
-public class VideoCallRepository : IVideoCallRepository
+public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallRepository
 {
     private readonly ApplicationDbContext _context;
 
-    public VideoCallRepository(ApplicationDbContext context)
+    public VideoCallRepository(ApplicationDbContext context) : base(context)
     {
         _context = context;
     }

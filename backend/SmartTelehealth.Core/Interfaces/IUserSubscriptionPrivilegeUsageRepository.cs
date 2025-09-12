@@ -2,7 +2,7 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces;
 
-public interface IUserSubscriptionPrivilegeUsageRepository
+public interface IUserSubscriptionPrivilegeUsageRepository : IRepositoryBase<UserSubscriptionPrivilegeUsage>
 {
     Task<UserSubscriptionPrivilegeUsage?> GetByIdAsync(Guid id);
     Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetBySubscriptionIdAsync(Guid subscriptionId);
