@@ -52,6 +52,8 @@ public class CreateBillingRecordDto
     public string? FailureReason { get; set; }
     
     public string? ConsultationId { get; set; }
+    public DateTime? PaidDate { get; set; }
+    public string? ErrorMessage { get; set; }
 }
 
 

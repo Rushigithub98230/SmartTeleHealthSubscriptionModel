@@ -4,10 +4,7 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IVideoCallRepository : IRepositoryBase<VideoCall>
 {
-    Task<VideoCall?> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<VideoCall>
+    
     Task<IEnumerable<VideoCall>> GetByUserIdAsync(int userId);
-    Task<IEnumerable<VideoCall>> GetAllAsync();
-    Task<VideoCall> CreateAsync(VideoCall videoCall);
-    Task<VideoCall> UpdateAsync(VideoCall videoCall);
-    Task<bool> DeleteAsync(Guid id);
 } 

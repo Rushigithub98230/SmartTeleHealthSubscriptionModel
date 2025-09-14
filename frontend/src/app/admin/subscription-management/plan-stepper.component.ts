@@ -173,44 +173,12 @@ export class PlanStepperComponent implements OnInit {
 
     // Load categories
     this.subscriptionService.getCategories().subscribe({
-      next: (response) => {
-        console.log('=== CATEGORIES API RESPONSE DEBUG ===');
-        console.log('Full response:', response);
-        console.log('Response data type:', typeof response.data);
-        console.log('Response data:', response.data);
-        console.log('Response data keys:', response.data ? Object.keys(response.data) : 'No data');
-        console.log('Response data JSON:', JSON.stringify(response.data, null, 2));
-        console.log('Response data is array:', Array.isArray(response.data));
-        console.log('Response data length:', response.data ? (Array.isArray(response.data) ? response.data.length : 'Not an array') : 'No data');
-        console.log('=== END DEBUG ===');
-        
-        if (response.statusCode === 200) {
-          // Handle the new response structure where categories are directly in data
-          if (Array.isArray(response.data)) {
-            this.categories = response.data;
-            console.log('Using direct array categories:', this.categories);
-          } else if (response.data && (response.data as any).categories) {
-            // Fallback for old paginated response structure
-            this.categories = (response.data as any).categories;
-            console.log('Using old paginated categories structure:', this.categories);
-          } else if (response.data && (response.data as any).Categories) {
-            // Fallback for uppercase Categories
-            this.categories = (response.data as any).Categories;
-            console.log('Using uppercase Categories:', this.categories);
-          } else if (response.data && typeof response.data === 'object' && Object.keys(response.data).length === 0) {
-            // Handle empty object response - likely no categories in database
-            this.categories = [];
-            console.log('Empty object response - no categories found in database');
-            this.snackBar.open('No categories found in database. Please contact administrator to add categories.', 'Close', { duration: 5000 });
-          } else {
-            this.categories = [];
-            console.log('No categories found, using empty array');
-            console.log('Response data structure:', JSON.stringify(response.data, null, 2));
-          }
-          console.log('Final categories array:', this.categories);
+      next: (response: any) => {
+        if (response.statusCode === 200 && response.data) {
+          this.categories = Array.isArray(response.data) ? response.data : [];
         } else {
-          console.error('Categories API returned error status:', response.statusCode);
           this.categories = [];
+          this.snackBar.open('No categories found', 'Close', { duration: 3000 });
         }
       },
       error: (err) => {

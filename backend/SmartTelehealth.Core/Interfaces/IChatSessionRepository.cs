@@ -4,14 +4,11 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IChatSessionRepository : IRepositoryBase<ChatSession>
 {
-    // Basic CRUD operations
-    Task<ChatSession?> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<ChatSession>
+    
     Task<IEnumerable<ChatSession>> GetByUserIdAsync(int userId);
     Task<IEnumerable<ChatSession>> GetBySubscriptionIdAsync(Guid subscriptionId);
     Task<IEnumerable<ChatSession>> GetByProviderIdAsync(int providerId);
-    Task<ChatSession> CreateAsync(ChatSession session);
-    Task<ChatSession> UpdateAsync(ChatSession session);
-    Task<bool> DeleteAsync(Guid id);
 
     // Usage tracking methods
     Task<int> GetMonthlySessionCountAsync(Guid subscriptionId, DateTime startDate, DateTime endDate);

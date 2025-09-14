@@ -97,6 +97,9 @@ public static class DependencyInjection
         // Register Stripe Service (placeholder - needs implementation)
         services.AddScoped<IStripeService, StripeService>();
 
+        // Register Stripe Billing Service
+        services.AddScoped<IStripeBillingService, StripeBillingService>();
+
         // Register Master Data Service
         services.AddScoped<IMasterDataService, MasterDataService>();
 

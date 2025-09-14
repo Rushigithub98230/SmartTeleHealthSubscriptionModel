@@ -85,7 +85,8 @@ export class AuthService {
         if (response?.data?.token && response?.data?.user) {
           this.setAuth(response.data.token, response.data.user);
           console.log('Login successful, token stored:', response.data.token.substring(0, 20) + '...');
-          this.router.navigate(['/admin/dashboard']);
+          // Redirect to admin portal after successful login
+          this.router.navigate(['/admin/subscriptions']);
         }
       }),
       catchError(error => {
@@ -154,6 +155,24 @@ export class AuthService {
     const authenticated = this.isAuthenticatedSubject.value;
     console.log('Checking if authenticated:', authenticated);
     return authenticated;
+  }
+
+  /**
+   * Check if current user is admin and should be redirected to admin portal
+   */
+  shouldRedirectToAdmin(): boolean {
+    const user = this.getCurrentUser();
+    return this.isAuthenticated() && user?.role === 'Admin';
+  }
+
+  /**
+   * Get appropriate redirect URL based on user role
+   */
+  getRedirectUrl(): string {
+    if (this.shouldRedirectToAdmin()) {
+      return '/admin/subscriptions';
+    }
+    return '/home';
   }
 
   /**

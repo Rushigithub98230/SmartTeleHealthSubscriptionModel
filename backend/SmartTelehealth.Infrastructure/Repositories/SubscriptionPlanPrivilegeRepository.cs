@@ -13,8 +13,16 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
         _context = context;
     }
 
-    public async Task<SubscriptionPlanPrivilege?> GetByIdAsync(Guid id)
-        => await _context.SubscriptionPlanPrivileges.FindAsync(id);
+    /// <summary>
+    /// Retrieves a subscription plan privilege by its unique identifier
+    /// </summary>
+    public override async Task<SubscriptionPlanPrivilege?> GetByIdAsync(object id)
+    {
+        if (id is not Guid privilegeId)
+            return null;
+
+        return await _context.SubscriptionPlanPrivileges.FindAsync(privilegeId);
+    }
 
     public async Task<IEnumerable<SubscriptionPlanPrivilege>> GetByPlanIdAsync(Guid planId)
         => await _context.SubscriptionPlanPrivileges
@@ -24,25 +32,66 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
     public async Task<IEnumerable<SubscriptionPlanPrivilege>> GetByPrivilegeIdAsync(Guid privilegeId)
         => await _context.SubscriptionPlanPrivileges.Where(x => x.PrivilegeId == privilegeId).ToListAsync();
 
-    public async Task AddAsync(SubscriptionPlanPrivilege planPrivilege)
+    /// <summary>
+    /// Retrieves all subscription plan privileges
+    /// </summary>
+    public override async Task<IEnumerable<SubscriptionPlanPrivilege>> GetAllAsync()
     {
-        _context.SubscriptionPlanPrivileges.Add(planPrivilege);
-        await _context.SaveChangesAsync();
+        return await _context.SubscriptionPlanPrivileges.ToListAsync();
     }
 
-    public async Task UpdateAsync(SubscriptionPlanPrivilege planPrivilege)
+    /// <summary>
+    /// Creates a new subscription plan privilege
+    /// </summary>
+    public override async Task<SubscriptionPlanPrivilege> CreateAsync(SubscriptionPlanPrivilege planPrivilege)
     {
-        _context.SubscriptionPlanPrivileges.Update(planPrivilege);
-        await _context.SaveChangesAsync();
+        planPrivilege.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(planPrivilege);
     }
 
-    public async Task DeleteAsync(Guid id)
+    /// <summary>
+    /// Updates an existing subscription plan privilege
+    /// </summary>
+    public override async Task<SubscriptionPlanPrivilege> UpdateAsync(SubscriptionPlanPrivilege planPrivilege)
     {
-        var entity = await _context.SubscriptionPlanPrivileges.FindAsync(id);
+        planPrivilege.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(planPrivilege);
+    }
+
+    /// <summary>
+    /// Deletes a subscription plan privilege by its unique identifier (hard delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
+    {
+        if (id is not Guid privilegeId)
+            return false;
+
+        var entity = await _context.SubscriptionPlanPrivileges.FindAsync(privilegeId);
         if (entity != null)
         {
             _context.SubscriptionPlanPrivileges.Remove(entity);
             await _context.SaveChangesAsync();
+            return true;
         }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a subscription plan privilege exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid privilegeId)
+            return false;
+
+        return await _context.SubscriptionPlanPrivileges.AnyAsync(x => x.Id == privilegeId);
+    }
+
+    /// <summary>
+    /// Legacy method for backward compatibility
+    /// </summary>
+    public async Task AddAsync(SubscriptionPlanPrivilege planPrivilege)
+    {
+        await CreateAsync(planPrivilege);
     }
 } 

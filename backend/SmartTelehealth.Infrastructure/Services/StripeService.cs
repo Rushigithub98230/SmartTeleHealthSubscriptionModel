@@ -678,12 +678,13 @@ public class StripeService : IStripeService
                     Currency = currency.ToLower(),
                     PaymentMethod = paymentMethodId,
                     Confirm = true,
-                    ReturnUrl = "https://example.com/return",
+                    ReturnUrl = _configuration["StripeSettings:ReturnUrl"] ?? "https://example.com/return",
                     Metadata = new Dictionary<string, string>
                     {
                         { "processed_by_user_id", tokenModel.UserID.ToString() },
                         { "processed_by_role_id", tokenModel.RoleID.ToString() },
-                        { "processed_at", DateTime.UtcNow.ToString("O") }
+                        { "processed_at", DateTime.UtcNow.ToString("O") },
+                        { "source", "smart_telehealth" }
                     }
                 };
 

@@ -4,11 +4,8 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface INotificationRepository : IRepositoryBase<Notification>
 {
-    Task<Notification> CreateAsync(Notification notification);
+    // Basic CRUD methods are inherited from IRepositoryBase<Notification>
+    
     Task<IEnumerable<Notification>> GetByUserIdAsync(int userId);
     Task MarkAsReadAsync(Guid notificationId);
-    Task<IEnumerable<Notification>> GetAllAsync();
-    Task<Notification?> GetByIdAsync(Guid id);
-    Task<Notification> UpdateAsync(Notification notification);
-    Task<bool> DeleteAsync(Guid id);
 } 

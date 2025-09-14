@@ -14,15 +14,29 @@ public class ChatSessionRepository : RepositoryBase<ChatSession>, IChatSessionRe
         _context = context;
     }
 
-    public async Task<ChatSession?> GetByIdAsync(Guid id)
+    public override async Task<ChatSession?> GetByIdAsync(object id)
     {
+        if (id is not Guid sessionId)
+            return null;
+
         return await _context.ChatSessions
             .Include(c => c.User)
             .Include(c => c.Provider)
             .Include(c => c.Subscription)
             .Include(c => c.Messages)
             .Include(c => c.Attachments)
-            .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+            .FirstOrDefaultAsync(c => c.Id == sessionId && !c.IsDeleted);
+    }
+
+    public override async Task<IEnumerable<ChatSession>> GetAllAsync()
+    {
+        return await _context.ChatSessions
+            .Include(c => c.User)
+            .Include(c => c.Provider)
+            .Include(c => c.Subscription)
+            .Where(c => !c.IsDeleted)
+            .OrderByDescending(c => c.StartTime)
+            .ToListAsync();
     }
 
     public async Task<IEnumerable<ChatSession>> GetByUserIdAsync(int userId)
@@ -55,31 +69,39 @@ public class ChatSessionRepository : RepositoryBase<ChatSession>, IChatSessionRe
             .ToListAsync();
     }
 
-    public async Task<ChatSession> CreateAsync(ChatSession session)
+    public override async Task<ChatSession> CreateAsync(ChatSession session)
     {
         session.CreatedDate = DateTime.UtcNow;
-        _context.ChatSessions.Add(session);
-        await _context.SaveChangesAsync();
-        return session;
+        session.UpdatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(session);
     }
 
-    public async Task<ChatSession> UpdateAsync(ChatSession session)
+    public override async Task<ChatSession> UpdateAsync(ChatSession session)
     {
         session.UpdatedDate = DateTime.UtcNow;
-        _context.ChatSessions.Update(session);
-        await _context.SaveChangesAsync();
-        return session;
+        return await base.UpdateAsync(session);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var session = await _context.ChatSessions.FindAsync(id);
+        if (id is not Guid sessionId)
+            return false;
+
+        var session = await _context.ChatSessions.FindAsync(sessionId);
         if (session == null) return false;
 
         session.IsDeleted = true;
         session.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid sessionId)
+            return false;
+
+        return await _context.ChatSessions.AnyAsync(c => c.Id == sessionId && !c.IsDeleted);
     }
 
     public async Task<int> GetMonthlySessionCountAsync(Guid subscriptionId, DateTime startDate, DateTime endDate)

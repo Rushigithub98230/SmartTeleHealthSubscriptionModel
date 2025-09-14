@@ -18,47 +18,171 @@ namespace SmartTelehealth.Infrastructure.Repositories
             _context = context;
         }
 
-        // All string-based methods are commented out to resolve build errors.
-        // public async Task<ProviderPayout> GetByIdAsync(string id) { ... }
-        // public async Task<IEnumerable<ProviderPayout>> GetAllAsync() { ... }
-        // public async Task<IEnumerable<ProviderPayout>> GetByProviderIdAsync(string providerId) { ... }
-        // public async Task<IEnumerable<ProviderPayout>> GetByStatusAsync(string status) { ... }
-        // public async Task<IEnumerable<ProviderPayout>> GetPendingPayoutsAsync() { ... }
-        // public async Task<IEnumerable<ProviderPayout>> GetByDateRangeAsync(DateTime startDate, DateTime endDate) { ... }
-        // public async Task<ProviderPayout> AddAsync(ProviderPayout payout) { ... }
-        // public async Task<ProviderPayout> UpdateAsync(ProviderPayout payout) { ... }
-        // public async Task<bool> DeleteAsync(string id) { ... }
-        // public async Task<IEnumerable<ProviderPayout>> GetByProviderAndStatusAsync(string providerId, string status) { ... }
-        // public async Task<decimal> GetTotalPayoutAmountByProviderAsync(string providerId) { ... }
-        // public async Task<decimal> GetPendingPayoutAmountByProviderAsync(string providerId) { ... }
-        // public async Task<int> GetPayoutCountByProviderAsync(string providerId) { ... }
-        // public async Task<IEnumerable<ProviderPayout>> GetRecentPayoutsAsync(int count = 10) { ... }
-        // public async Task<bool> ExistsAsync(string id) { ... }
-        // public async Task<int> GetTotalCountAsync() { ... }
-        // public async Task<int> GetCountByStatusAsync(string status) { ... }
+        /// <summary>
+        /// Retrieves a provider payout by its unique identifier
+        /// </summary>
+        public override async Task<ProviderPayout?> GetByIdAsync(object id)
+        {
+            if (id is not Guid payoutId)
+                return null;
 
-        // Remove all methods that use string for IDs or status. Only keep the stub methods that use Guid and enums, as required by the interface.
-        // The following methods are stubs to resolve build errors. They do not perform any logic.
-        public Task<ProviderPayout?> GetByIdAsync(Guid id) => Task.FromResult<ProviderPayout?>(null);
-        public Task<IEnumerable<ProviderPayout>> GetAllAsync() => Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
-        public Task<IEnumerable<ProviderPayout>> GetByProviderAsync(int providerId) => Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
-        public Task<IEnumerable<ProviderPayout>> GetByPeriodAsync(Guid periodId) => Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
-        public Task<IEnumerable<ProviderPayout>> GetPendingAsync() => Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
-        public Task<IEnumerable<ProviderPayout>> GetByStatusWithPaginationAsync(string status, int page, int pageSize) => Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
-        public Task<bool> DeleteAsync(Guid id) => Task.FromResult(false);
-        public Task<decimal> GetTotalEarningsByProviderAsync(int providerId) => Task.FromResult(0m);
-        public Task<decimal> GetPendingEarningsByProviderAsync(int providerId) => Task.FromResult(0m);
-        public Task<decimal> GetTotalPayoutAmountByProviderAsync(int providerId) => Task.FromResult(0m);
-        public Task<decimal> GetPendingPayoutAmountByProviderAsync(int providerId) => Task.FromResult(0m);
-        public Task<int> GetPayoutCountByProviderAsync(int providerId) => Task.FromResult(0);
-        public Task<object> GetPayoutStatisticsAsync() => Task.FromResult<object>(new { });
-        public Task<object> AddPeriodAsync() => Task.FromResult<object>(new { });
-        public Task<object> GetAllPeriodsAsync() => Task.FromResult<object>(new { });
-        public Task<IEnumerable<ProviderPayout>> GetByStatusAsync(string status) => Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
-        public Task<ProviderPayout> AddAsync(ProviderPayout payout) => throw new NotImplementedException();
-        public Task<ProviderPayout> UpdateAsync(ProviderPayout payout) => throw new NotImplementedException();
-        public Task<int> GetCountByStatusAsync(string status) => Task.FromResult(0);
-        public Task<int> GetTotalCountAsync() => Task.FromResult(0);
-        public Task<IEnumerable<ProviderPayout>> GetPendingPayoutsAsync() => Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            // This repository needs to be properly integrated or removed
+            return await Task.FromResult<ProviderPayout?>(null);
+        }
+
+        /// <summary>
+        /// Retrieves all provider payouts
+        /// </summary>
+        public override async Task<IEnumerable<ProviderPayout>> GetAllAsync()
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+        }
+
+        /// <summary>
+        /// Creates a new provider payout
+        /// </summary>
+        public override async Task<ProviderPayout> CreateAsync(ProviderPayout payout)
+        {
+            payout.CreatedDate = DateTime.UtcNow;
+            return await base.CreateAsync(payout);
+        }
+
+        /// <summary>
+        /// Updates an existing provider payout
+        /// </summary>
+        public override async Task<ProviderPayout> UpdateAsync(ProviderPayout payout)
+        {
+            payout.UpdatedDate = DateTime.UtcNow;
+            return await base.UpdateAsync(payout);
+        }
+
+        /// <summary>
+        /// Deletes a provider payout by its unique identifier (hard delete)
+        /// </summary>
+        public override async Task<bool> DeleteAsync(object id)
+        {
+            if (id is not Guid payoutId)
+                return false;
+
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(false);
+        }
+
+        /// <summary>
+        /// Checks if a provider payout exists
+        /// </summary>
+        public override async Task<bool> ExistsAsync(object id)
+        {
+            if (id is not Guid payoutId)
+                return false;
+
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(false);
+        }
+
+        // Specialized methods
+        public async Task<IEnumerable<ProviderPayout>> GetByProviderAsync(int providerId)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+        }
+
+        public async Task<IEnumerable<ProviderPayout>> GetByPeriodAsync(Guid periodId)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+        }
+
+        public async Task<IEnumerable<ProviderPayout>> GetPendingAsync()
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+        }
+
+        public async Task<IEnumerable<ProviderPayout>> GetByStatusWithPaginationAsync(string status, int page, int pageSize)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+        }
+
+        public async Task<decimal> GetTotalEarningsByProviderAsync(int providerId)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(0m);
+        }
+
+        public async Task<decimal> GetPendingEarningsByProviderAsync(int providerId)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(0m);
+        }
+
+        public async Task<decimal> GetTotalPayoutAmountByProviderAsync(int providerId)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(0m);
+        }
+
+        public async Task<decimal> GetPendingPayoutAmountByProviderAsync(int providerId)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(0m);
+        }
+
+        public async Task<int> GetPayoutCountByProviderAsync(int providerId)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(0);
+        }
+
+        public async Task<object> GetPayoutStatisticsAsync()
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<object>(new { Message = "ProviderPayouts not implemented" });
+        }
+
+        public async Task<IEnumerable<ProviderPayout>> GetByStatusAsync(string status)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+        }
+
+        public async Task<int> GetCountByStatusAsync(string status)
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(0);
+        }
+
+        public async Task<int> GetTotalCountAsync()
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult(0);
+        }
+
+        public async Task<IEnumerable<ProviderPayout>> GetPendingPayoutsAsync()
+        {
+            // TODO: ProviderPayouts DbSet not found in ApplicationDbContext
+            return await Task.FromResult<IEnumerable<ProviderPayout>>(new List<ProviderPayout>());
+        }
+
+        // Legacy methods for backward compatibility
+        public async Task<ProviderPayout> AddAsync(ProviderPayout payout)
+        {
+            return await CreateAsync(payout);
+        }
+
+        public async Task<object> AddPeriodAsync()
+        {
+            // Stub implementation - this should be implemented based on business requirements
+            return await Task.FromResult<object>(new { Message = "AddPeriodAsync not implemented" });
+        }
+
+        public async Task<object> GetAllPeriodsAsync()
+        {
+            // Stub implementation - this should be implemented based on business requirements
+            return await Task.FromResult<object>(new { Message = "GetAllPeriodsAsync not implemented" });
+        }
     }
 } 

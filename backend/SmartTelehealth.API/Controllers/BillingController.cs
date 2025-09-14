@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Core.DTOs;
 
 namespace SmartTelehealth.API.Controllers;
 
@@ -106,7 +107,22 @@ public class BillingController : BaseController
             }
         }
         
-        return await _billingService.GetAllBillingRecordsAsync(page, pageSize, searchTerm, status, type, userId, subscriptionId, startDate, endDate, sortBy, sortOrder, GetToken(HttpContext));
+        var filter = new BillingFilterDto
+        {
+            Page = page,
+            PageSize = pageSize,
+            SearchTerm = searchTerm,
+            Statuses = status?.ToList(),
+            Types = type?.ToList(),
+            UserIds = userId?.Select(int.Parse).ToList(),
+            SubscriptionIds = subscriptionId?.Select(Guid.Parse).ToList(),
+            CreatedDateFrom = startDate,
+            CreatedDateTo = endDate,
+            SortColumn = sortBy,
+            SortOrder = sortOrder
+        };
+        
+        return await _billingService.GetBillingRecordsWithFilteringAsync(filter, GetToken(HttpContext));
     }
 
     /// <summary>

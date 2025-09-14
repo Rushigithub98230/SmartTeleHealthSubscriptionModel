@@ -618,13 +618,13 @@ export class SubscriptionDetailsDialogComponent implements OnInit {
   private loadStatusHistory() {
     this.loadingHistory = true;
     this.subscriptionService.getSubscriptionHistory(this.subscription.id).subscribe({
-      next: (response) => {
+      next: (response: any) => {
         if (response.statusCode === 200) {
           this.statusHistory = response.data || [];
         }
         this.loadingHistory = false;
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error loading status history:', error);
         this.loadingHistory = false;
       }

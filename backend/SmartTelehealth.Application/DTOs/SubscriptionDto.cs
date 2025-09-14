@@ -86,10 +86,28 @@ namespace SmartTelehealth.Application.DTOs
         public string SubscriptionId { get; set; } = string.Empty;
         public int UserId { get; set; }
         [Required]
-        public int NewPlanId { get; set; }
+        public string NewPlanId { get; set; } = string.Empty;
         [Required]
         public string PaymentMethodId { get; set; } = string.Empty;
         public bool Prorate { get; set; } = true;
+    }
+
+    public class DowngradeSubscriptionDto
+    {
+        public string SubscriptionId { get; set; } = string.Empty;
+        public int UserId { get; set; }
+        [Required]
+        public string NewPlanId { get; set; } = string.Empty;
+        [Required]
+        public string PaymentMethodId { get; set; } = string.Empty;
+        public bool Prorate { get; set; } = true;
+    }
+
+    public class ExtendSubscriptionDto
+    {
+        [Required]
+        public DateTime NewEndDate { get; set; }
+        public string? Reason { get; set; }
     }
 
     public class BillingHistoryDto

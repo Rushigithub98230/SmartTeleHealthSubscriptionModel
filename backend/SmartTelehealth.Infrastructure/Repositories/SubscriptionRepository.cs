@@ -207,6 +207,41 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Subscription>> GetSubscriptionsDueForRenewalAsync()
+    {
+        return await _context.Subscriptions
+            .Include(s => s.SubscriptionPlan)
+            .Include(s => s.User)
+            .Where(s => s.Status == "Active" && 
+                       s.EndDate.HasValue && 
+                       s.EndDate.Value <= DateTime.UtcNow.AddDays(7))
+            .OrderBy(s => s.EndDate)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Subscription>> GetSubscriptionsWithExpiredTrialsAsync()
+    {
+        return await _context.Subscriptions
+            .Include(s => s.SubscriptionPlan)
+            .Include(s => s.User)
+            .Where(s => s.Status == "TrialActive" && 
+                       s.TrialEndDate.HasValue && 
+                       s.TrialEndDate.Value <= DateTime.UtcNow)
+            .OrderBy(s => s.TrialEndDate)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Subscription>> GetSubscriptionsWithUpcomingRenewalsAsync()
+    {
+        return await _context.Subscriptions
+            .Include(s => s.SubscriptionPlan)
+            .Include(s => s.User)
+            .Where(s => s.Status == "Active" && 
+                       s.NextBillingDate <= DateTime.UtcNow.AddDays(3))
+            .OrderBy(s => s.NextBillingDate)
+            .ToListAsync();
+    }
+
     public async Task<int> GetCountAsync()
     {
         return await _context.Subscriptions.CountAsync();
@@ -391,5 +426,317 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
     {
         return await _context.MasterCurrencies
             .FirstOrDefaultAsync(c => c.Id == currencyId);
+    }
+
+    /// <summary>
+    /// Retrieves subscriptions with comprehensive filtering using filter DTO
+    /// </summary>
+    public async Task<(IEnumerable<Subscription> Subscriptions, int TotalCount)> GetSubscriptionsWithAdvancedFilteringAsync(SubscriptionFilterDto filter)
+    {
+        var query = _context.Subscriptions
+            .Include(s => s.SubscriptionPlan)
+                .ThenInclude(sp => sp.Category)
+            .Include(s => s.SubscriptionPlan)
+                .ThenInclude(sp => sp.Currency)
+            .Include(s => s.BillingCycle)
+            .Include(s => s.User)
+            .Include(s => s.StatusHistory)
+            .AsQueryable();
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+        {
+            var term = filter.SearchTerm.ToLower();
+            query = query.Where(s => 
+                s.SubscriptionPlan.Name.ToLower().Contains(term) ||
+                s.User.Email.ToLower().Contains(term) ||
+                s.Status.ToLower().Contains(term) ||
+                (s.StripeSubscriptionId != null && s.StripeSubscriptionId.ToLower().Contains(term)));
+        }
+
+        // Apply ID filters
+        if (filter.SubscriptionId.HasValue)
+        {
+            query = query.Where(s => s.Id == filter.SubscriptionId.Value);
+        }
+
+        if (filter.PlanId.HasValue)
+        {
+            query = query.Where(s => s.SubscriptionPlanId == filter.PlanId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.PlanName))
+        {
+            var planName = filter.PlanName.ToLower();
+            query = query.Where(s => s.SubscriptionPlan.Name.ToLower().Contains(planName));
+        }
+
+        if (filter.UserId.HasValue)
+        {
+            query = query.Where(s => s.UserId == filter.UserId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.UserEmail))
+        {
+            var email = filter.UserEmail.ToLower();
+            query = query.Where(s => s.User.Email.ToLower().Contains(email));
+        }
+
+        // Apply status filters
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            query = query.Where(s => s.Status == filter.Status);
+        }
+
+        if (filter.Statuses != null && filter.Statuses.Any())
+        {
+            query = query.Where(s => filter.Statuses.Contains(s.Status));
+        }
+
+        // Apply boolean status filters
+        if (filter.IsActive.HasValue)
+        {
+            query = query.Where(s => s.IsActive == filter.IsActive.Value);
+        }
+
+        if (filter.IsTrial.HasValue)
+        {
+            query = query.Where(s => s.IsTrialSubscription == filter.IsTrial.Value);
+        }
+
+        if (filter.IsPaused.HasValue)
+        {
+            query = query.Where(s => s.IsPaused == filter.IsPaused.Value);
+        }
+
+        if (filter.IsCancelled.HasValue)
+        {
+            query = query.Where(s => s.IsCancelled == filter.IsCancelled.Value);
+        }
+
+        if (filter.IsExpired.HasValue)
+        {
+            query = query.Where(s => s.IsExpired == filter.IsExpired.Value);
+        }
+
+        // Apply amount filters
+        if (filter.MinAmount.HasValue)
+        {
+            query = query.Where(s => s.Amount >= filter.MinAmount.Value);
+        }
+
+        if (filter.MaxAmount.HasValue)
+        {
+            query = query.Where(s => s.Amount <= filter.MaxAmount.Value);
+        }
+
+        if (filter.ExactAmount.HasValue)
+        {
+            query = query.Where(s => s.Amount == filter.ExactAmount.Value);
+        }
+
+        if (filter.CurrencyId.HasValue)
+        {
+            query = query.Where(s => s.SubscriptionPlan.CurrencyId == filter.CurrencyId.Value);
+        }
+
+        // Apply billing cycle filters
+        if (filter.BillingCycleId.HasValue)
+        {
+            query = query.Where(s => s.BillingCycleId == filter.BillingCycleId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.BillingCycleName))
+        {
+            var cycleName = filter.BillingCycleName.ToLower();
+            query = query.Where(s => s.BillingCycle.Name.ToLower().Contains(cycleName));
+        }
+
+        // Apply date range filters
+        if (filter.CreatedDateFrom.HasValue)
+        {
+            query = query.Where(s => s.CreatedDate >= filter.CreatedDateFrom.Value);
+        }
+
+        if (filter.CreatedDateTo.HasValue)
+        {
+            query = query.Where(s => s.CreatedDate <= filter.CreatedDateTo.Value);
+        }
+
+        if (filter.UpdatedDateFrom.HasValue)
+        {
+            query = query.Where(s => s.UpdatedDate >= filter.UpdatedDateFrom.Value);
+        }
+
+        if (filter.UpdatedDateTo.HasValue)
+        {
+            query = query.Where(s => s.UpdatedDate <= filter.UpdatedDateTo.Value);
+        }
+
+        if (filter.StartDateFrom.HasValue)
+        {
+            query = query.Where(s => s.StartDate >= filter.StartDateFrom.Value);
+        }
+
+        if (filter.StartDateTo.HasValue)
+        {
+            query = query.Where(s => s.StartDate <= filter.StartDateTo.Value);
+        }
+
+        if (filter.EndDateFrom.HasValue)
+        {
+            query = query.Where(s => s.EndDate >= filter.EndDateFrom.Value);
+        }
+
+        if (filter.EndDateTo.HasValue)
+        {
+            query = query.Where(s => s.EndDate <= filter.EndDateTo.Value);
+        }
+
+        if (filter.NextBillingDateFrom.HasValue)
+        {
+            query = query.Where(s => s.NextBillingDate >= filter.NextBillingDateFrom.Value);
+        }
+
+        if (filter.NextBillingDateTo.HasValue)
+        {
+            query = query.Where(s => s.NextBillingDate <= filter.NextBillingDateTo.Value);
+        }
+
+        if (filter.LastBillingDateFrom.HasValue)
+        {
+            query = query.Where(s => s.LastBillingDate >= filter.LastBillingDateFrom.Value);
+        }
+
+        if (filter.LastBillingDateTo.HasValue)
+        {
+            query = query.Where(s => s.LastBillingDate <= filter.LastBillingDateTo.Value);
+        }
+
+        // Apply trial duration filters
+        if (filter.MinTrialDays.HasValue)
+        {
+            query = query.Where(s => s.TrialDurationInDays >= filter.MinTrialDays.Value);
+        }
+
+        if (filter.MaxTrialDays.HasValue)
+        {
+            query = query.Where(s => s.TrialDurationInDays <= filter.MaxTrialDays.Value);
+        }
+
+        // Apply billing interval filters - Note: BillingInterval property doesn't exist in Subscription entity
+        // These filters are commented out as they're not applicable to the current entity structure
+        // if (filter.MinBillingInterval.HasValue)
+        // {
+        //     query = query.Where(s => s.BillingInterval >= filter.MinBillingInterval.Value);
+        // }
+
+        // if (filter.MaxBillingInterval.HasValue)
+        // {
+        //     query = query.Where(s => s.BillingInterval <= filter.MaxBillingInterval.Value);
+        // }
+
+        // Apply Stripe integration filters
+        if (!string.IsNullOrWhiteSpace(filter.StripeSubscriptionId))
+        {
+            query = query.Where(s => s.StripeSubscriptionId == filter.StripeSubscriptionId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.StripeCustomerId))
+        {
+            query = query.Where(s => s.StripeCustomerId == filter.StripeCustomerId);
+        }
+
+        if (filter.HasStripeIntegration.HasValue)
+        {
+            if (filter.HasStripeIntegration.Value)
+            {
+                query = query.Where(s => !string.IsNullOrEmpty(s.StripeSubscriptionId));
+            }
+            else
+            {
+                query = query.Where(s => string.IsNullOrEmpty(s.StripeSubscriptionId));
+            }
+        }
+
+        // Apply list filters
+        if (filter.SubscriptionIds != null && filter.SubscriptionIds.Any())
+        {
+            query = query.Where(s => filter.SubscriptionIds.Contains(s.Id));
+        }
+
+        if (filter.ExcludeSubscriptionIds != null && filter.ExcludeSubscriptionIds.Any())
+        {
+            query = query.Where(s => !filter.ExcludeSubscriptionIds.Contains(s.Id));
+        }
+
+        if (filter.PlanIds != null && filter.PlanIds.Any())
+        {
+            query = query.Where(s => filter.PlanIds.Contains(s.SubscriptionPlanId));
+        }
+
+        if (filter.UserIds != null && filter.UserIds.Any())
+        {
+            query = query.Where(s => filter.UserIds.Contains(s.UserId));
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply dynamic sorting
+        query = ApplySorting(query, filter.SortColumn, filter.SortOrder);
+
+        // Apply pagination
+        var skip = (filter.Page - 1) * filter.PageSize;
+        var subscriptions = await query
+            .Skip(skip)
+            .Take(filter.PageSize)
+            .ToListAsync();
+
+        return (subscriptions, totalCount);
+    }
+
+    private static IQueryable<Subscription> ApplySorting(IQueryable<Subscription> query, string sortColumn, string sortOrder)
+    {
+        return sortColumn.ToLower() switch
+        {
+            "createddate" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.CreatedDate)
+                : query.OrderBy(s => s.CreatedDate),
+            "updateddate" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.UpdatedDate)
+                : query.OrderBy(s => s.UpdatedDate),
+            "startdate" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.StartDate)
+                : query.OrderBy(s => s.StartDate),
+            "enddate" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.EndDate)
+                : query.OrderBy(s => s.EndDate),
+            "nextbillingdate" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.NextBillingDate)
+                : query.OrderBy(s => s.NextBillingDate),
+            "lastbillingdate" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.LastBillingDate)
+                : query.OrderBy(s => s.LastBillingDate),
+            "amount" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.Amount)
+                : query.OrderBy(s => s.Amount),
+            "status" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.Status)
+                : query.OrderBy(s => s.Status),
+            "planname" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.SubscriptionPlan.Name)
+                : query.OrderBy(s => s.SubscriptionPlan.Name),
+            "useremail" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.User.Email)
+                : query.OrderBy(s => s.User.Email),
+            "trialdays" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(s => s.TrialDurationInDays)
+                : query.OrderBy(s => s.TrialDurationInDays),
+            // "billinginterval" => sortOrder.ToLower() == "desc" 
+            //     ? query.OrderByDescending(s => s.BillingInterval)
+            //     : query.OrderBy(s => s.BillingInterval),
+            _ => query.OrderByDescending(s => s.CreatedDate)
+        };
     }
 } 

@@ -4,13 +4,11 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IHealthAssessmentRepository : IRepositoryBase<HealthAssessment>
 {
-    Task<HealthAssessment> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<HealthAssessment>
+    
     Task<IEnumerable<HealthAssessment>> GetByUserIdAsync(int userId);
     Task<IEnumerable<HealthAssessment>> GetByCategoryIdAsync(Guid categoryId);
     Task<IEnumerable<HealthAssessment>> GetPendingAssessmentsAsync();
-    Task<HealthAssessment> CreateAsync(HealthAssessment assessment);
-    Task<HealthAssessment> UpdateAsync(HealthAssessment assessment);
-    Task<bool> DeleteAsync(Guid id);
     Task<IEnumerable<HealthAssessment>> GetUserAssessmentsAsync(int userId);
     Task<IEnumerable<HealthAssessment>> GetProviderPendingAssessmentsAsync(int providerId);
     Task<IEnumerable<HealthAssessment>> GetProviderReviewedAssessmentsAsync(int providerId);

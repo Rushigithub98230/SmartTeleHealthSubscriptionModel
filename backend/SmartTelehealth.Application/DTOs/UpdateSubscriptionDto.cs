@@ -26,4 +26,5 @@ public class UpdateSubscriptionDto
     public bool? AutoRenew { get; set; }
     public Guid? SubscriptionPlanId { get; set; }
     public DateTime? TrialEndDate { get; set; }
+    public DateTime? UpdatedDate { get; set; }
 }

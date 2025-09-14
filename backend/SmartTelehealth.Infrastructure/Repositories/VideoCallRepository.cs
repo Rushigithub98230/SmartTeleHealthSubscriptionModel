@@ -14,12 +14,18 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
         _context = context;
     }
 
-    public async Task<VideoCall?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a video call by its unique identifier with related entities
+    /// </summary>
+    public override async Task<VideoCall?> GetByIdAsync(object id)
     {
+        if (id is not Guid callId)
+            return null;
+
         return await _context.VideoCalls
             .Include(vc => vc.Participants)
             .Include(vc => vc.Events)
-            .FirstOrDefaultAsync(vc => vc.Id == id);
+            .FirstOrDefaultAsync(vc => vc.Id == callId);
     }
 
     public async Task<IEnumerable<VideoCall>> GetByUserIdAsync(int userId)
@@ -30,7 +36,10 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<VideoCall>> GetAllAsync()
+    /// <summary>
+    /// Retrieves all video calls with related entities
+    /// </summary>
+    public override async Task<IEnumerable<VideoCall>> GetAllAsync()
     {
         return await _context.VideoCalls
             .Include(vc => vc.Participants)
@@ -38,24 +47,33 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
             .ToListAsync();
     }
 
-    public async Task<VideoCall> CreateAsync(VideoCall videoCall)
+    /// <summary>
+    /// Creates a new video call
+    /// </summary>
+    public override async Task<VideoCall> CreateAsync(VideoCall videoCall)
     {
-        _context.VideoCalls.Add(videoCall);
-        await _context.SaveChangesAsync();
-        return videoCall;
+        videoCall.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(videoCall);
     }
 
-    public async Task<VideoCall> UpdateAsync(VideoCall videoCall)
+    /// <summary>
+    /// Updates an existing video call
+    /// </summary>
+    public override async Task<VideoCall> UpdateAsync(VideoCall videoCall)
     {
         videoCall.UpdatedDate = DateTime.UtcNow;
-        _context.VideoCalls.Update(videoCall);
-        await _context.SaveChangesAsync();
-        return videoCall;
+        return await base.UpdateAsync(videoCall);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a video call by its unique identifier (soft delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var videoCall = await _context.VideoCalls.FindAsync(id);
+        if (id is not Guid callId)
+            return false;
+
+        var videoCall = await _context.VideoCalls.FindAsync(callId);
         if (videoCall == null)
             return false;
 
@@ -63,5 +81,17 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
         videoCall.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Checks if a video call exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid callId)
+            return false;
+
+        return await _context.VideoCalls
+            .AnyAsync(vc => vc.Id == callId && !vc.IsDeleted);
     }
 } 

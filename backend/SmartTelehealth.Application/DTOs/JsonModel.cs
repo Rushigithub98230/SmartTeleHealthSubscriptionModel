@@ -47,6 +47,8 @@ namespace SmartTelehealth.Application.DTOs
         public int CurrentPage { get; set; }
         public int DefaultPageSize { get; set; }
         public decimal TotalRecords { get; set; }
+        public bool HasNextPage { get; set; }
+        public bool HasPreviousPage { get; set; }
     }
 }
 

@@ -1,4 +1,5 @@
 using SmartTelehealth.Core.Entities;
+using SmartTelehealth.Core.DTOs;
 
 namespace SmartTelehealth.Core.Interfaces;
 
@@ -11,39 +12,7 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
 {
     #region Basic CRUD Operations
     
-    /// <summary>
-    /// Retrieves a subscription plan by its unique identifier
-    /// </summary>
-    /// <param name="id">The unique identifier of the subscription plan</param>
-    /// <returns>SubscriptionPlan entity if found, null otherwise</returns>
-    Task<SubscriptionPlan?> GetByIdAsync(Guid id);
-    
-    /// <summary>
-    /// Retrieves all subscription plans
-    /// </summary>
-    /// <returns>Collection of all subscription plans</returns>
-    Task<IEnumerable<SubscriptionPlan>> GetAllAsync();
-    
-    /// <summary>
-    /// Creates a new subscription plan
-    /// </summary>
-    /// <param name="plan">The subscription plan entity to create</param>
-    /// <returns>The created subscription plan entity</returns>
-    Task<SubscriptionPlan> CreateAsync(SubscriptionPlan plan);
-    
-    /// <summary>
-    /// Updates an existing subscription plan
-    /// </summary>
-    /// <param name="plan">The subscription plan entity to update</param>
-    /// <returns>The updated subscription plan entity</returns>
-    Task<SubscriptionPlan> UpdateAsync(SubscriptionPlan plan);
-    
-    /// <summary>
-    /// Deletes a subscription plan by its unique identifier
-    /// </summary>
-    /// <param name="id">The unique identifier of the subscription plan to delete</param>
-    /// <returns>True if deletion was successful, false otherwise</returns>
-    Task<bool> DeleteAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<SubscriptionPlan>
     
     #endregion
     
@@ -68,44 +37,12 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
     #region Query Operations
     
     /// <summary>
-    /// Retrieves all active subscription plans
+    /// Retrieves subscription plans with comprehensive filtering using filter DTO
+    /// This is the main method that consolidates all filtering capabilities
     /// </summary>
-    /// <returns>Collection of active subscription plans</returns>
-    Task<IEnumerable<SubscriptionPlan>> GetActivePlansAsync();
-    
-    /// <summary>
-    /// Retrieves subscription plans by category
-    /// </summary>
-    /// <param name="categoryId">The unique identifier of the category</param>
-    /// <returns>Collection of subscription plans for the specified category</returns>
-    Task<IEnumerable<SubscriptionPlan>> GetPlansByCategoryAsync(Guid categoryId);
-    
-    /// <summary>
-    /// Searches subscription plans by name or description
-    /// </summary>
-    /// <param name="searchTerm">The search term to match against plan name or description</param>
-    /// <returns>Collection of matching subscription plans</returns>
-    Task<IEnumerable<SubscriptionPlan>> SearchPlansAsync(string searchTerm);
-    
-    /// <summary>
-    /// Retrieves subscription plans with comprehensive filtering, pagination, and sorting
-    /// </summary>
-    /// <param name="page">Page number for pagination (1-based)</param>
-    /// <param name="pageSize">Number of items per page</param>
-    /// <param name="searchTerm">Search term for filtering plans</param>
-    /// <param name="categoryId">Category ID for filtering plans</param>
-    /// <param name="isActive">Filter by active status</param>
-    /// <param name="sortColumn">Column name for sorting</param>
-    /// <param name="sortOrder">Sort order (asc/desc)</param>
+    /// <param name="filter">Comprehensive filter DTO containing all filter parameters</param>
     /// <returns>Tuple containing filtered and paginated subscription plans and total count</returns>
-    Task<(IEnumerable<SubscriptionPlan> Plans, int TotalCount)> GetPlansWithPaginationAsync(
-        int page = 1, 
-        int pageSize = 50, 
-        string? searchTerm = null, 
-        string? categoryId = null, 
-        bool? isActive = null,
-        string? sortColumn = "DisplayOrder",
-        string? sortOrder = "asc");
+    Task<(IEnumerable<SubscriptionPlan> Plans, int TotalCount)> GetPlansWithAdvancedFilteringAsync(SubscriptionPlanFilterDto filter);
     
     #endregion
     
@@ -116,28 +53,6 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
     /// </summary>
     /// <returns>Object containing plan statistics</returns>
     Task<object> GetPlanStatisticsAsync();
-    
-    /// <summary>
-    /// Retrieves subscription plans created within a date range
-    /// </summary>
-    /// <param name="startDate">Start date of the range</param>
-    /// <param name="endDate">End date of the range</param>
-    /// <returns>Collection of subscription plans created within the date range</returns>
-    Task<IEnumerable<SubscriptionPlan>> GetPlansByDateRangeAsync(DateTime startDate, DateTime endDate);
-    
-    /// <summary>
-    /// Retrieves subscription plans by billing cycle
-    /// </summary>
-    /// <param name="billingCycleId">The unique identifier of the billing cycle</param>
-    /// <returns>Collection of subscription plans for the specified billing cycle</returns>
-    Task<IEnumerable<SubscriptionPlan>> GetPlansByBillingCycleAsync(Guid billingCycleId);
-    
-    /// <summary>
-    /// Retrieves subscription plans by currency
-    /// </summary>
-    /// <param name="currencyId">The unique identifier of the currency</param>
-    /// <returns>Collection of subscription plans for the specified currency</returns>
-    Task<IEnumerable<SubscriptionPlan>> GetPlansByCurrencyAsync(Guid currencyId);
     
     #endregion
     

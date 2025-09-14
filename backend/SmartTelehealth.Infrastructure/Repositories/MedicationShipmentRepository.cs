@@ -17,13 +17,27 @@ namespace SmartTelehealth.Infrastructure.Repositories
             _context = context;
         }
         
-        public async Task<MedicationDelivery?> GetByIdAsync(Guid id)
+        public override async Task<MedicationDelivery?> GetByIdAsync(object id)
+        {
+            if (id is not Guid shipmentId)
+                return null;
+
+            return await _context.MedicationDeliveries
+                .Include(m => m.User)
+                .Include(m => m.Subscription)
+                .Include(m => m.Provider)
+                .FirstOrDefaultAsync(m => m.Id == shipmentId && !m.IsDeleted);
+        }
+
+        public override async Task<IEnumerable<MedicationDelivery>> GetAllAsync()
         {
             return await _context.MedicationDeliveries
                 .Include(m => m.User)
                 .Include(m => m.Subscription)
                 .Include(m => m.Provider)
-                .FirstOrDefaultAsync(m => m.Id == id && !m.IsDeleted);
+                .Where(m => !m.IsDeleted)
+                .OrderByDescending(m => m.CreatedDate)
+                .ToListAsync();
         }
         
         public async Task<IEnumerable<MedicationDelivery>> GetByUserIdAsync(int userId)
@@ -64,7 +78,7 @@ namespace SmartTelehealth.Infrastructure.Repositories
                 .ToListAsync();
         }
         
-        public async Task<MedicationDelivery> CreateAsync(MedicationDelivery shipment)
+        public override async Task<MedicationDelivery> CreateAsync(MedicationDelivery shipment)
         {
             shipment.CreatedDate = DateTime.UtcNow;
             shipment.UpdatedDate = DateTime.UtcNow;
@@ -72,28 +86,35 @@ namespace SmartTelehealth.Infrastructure.Repositories
             if (shipment.Status == 0) // Default enum value
                 shipment.Status = MedicationDelivery.DeliveryStatus.Pending;
                 
-            _context.MedicationDeliveries.Add(shipment);
-            await _context.SaveChangesAsync();
-            return shipment;
+            return await base.CreateAsync(shipment);
         }
         
-        public async Task<MedicationDelivery> UpdateAsync(MedicationDelivery shipment)
+        public override async Task<MedicationDelivery> UpdateAsync(MedicationDelivery shipment)
         {
             shipment.UpdatedDate = DateTime.UtcNow;
-            _context.MedicationDeliveries.Update(shipment);
-            await _context.SaveChangesAsync();
-            return shipment;
+            return await base.UpdateAsync(shipment);
         }
         
-        public async Task<bool> DeleteAsync(Guid id)
+        public override async Task<bool> DeleteAsync(object id)
         {
-            var shipment = await _context.MedicationDeliveries.FindAsync(id);
+            if (id is not Guid shipmentId)
+                return false;
+
+            var shipment = await _context.MedicationDeliveries.FindAsync(shipmentId);
             if (shipment == null) return false;
 
             shipment.IsDeleted = true;
             shipment.UpdatedDate = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        public override async Task<bool> ExistsAsync(object id)
+        {
+            if (id is not Guid shipmentId)
+                return false;
+
+            return await _context.MedicationDeliveries.AnyAsync(m => m.Id == shipmentId && !m.IsDeleted);
         }
         
         public async Task<IEnumerable<MedicationDelivery>> GetOverdueShipmentsAsync()

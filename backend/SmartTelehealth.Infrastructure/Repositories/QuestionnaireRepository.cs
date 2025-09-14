@@ -5,23 +5,77 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Core.Interfaces;
 
 namespace SmartTelehealth.Infrastructure.Repositories
 {
-    public class QuestionnaireRepository : IQuestionnaireRepository
+    public class QuestionnaireRepository : RepositoryBase<QuestionnaireTemplate>, IQuestionnaireRepository
     {
         private readonly Data.ApplicationDbContext _context;
-        public QuestionnaireRepository(Data.ApplicationDbContext context)
+        public QuestionnaireRepository(Data.ApplicationDbContext context) : base(context)
         {
             _context = context;
         }
 
-        public async Task<QuestionnaireTemplate?> GetTemplateByIdAsync(Guid id)
+        public override async Task<QuestionnaireTemplate?> GetByIdAsync(object id)
+        {
+            if (id is not Guid templateId)
+                return null;
+
+            return await _context.QuestionnaireTemplates
+                .Include(t => t.Questions)
+                    .ThenInclude(q => q.Options)
+                .FirstOrDefaultAsync(t => t.Id == templateId && !t.IsDeleted);
+        }
+
+        public override async Task<IEnumerable<QuestionnaireTemplate>> GetAllAsync()
         {
             return await _context.QuestionnaireTemplates
                 .Include(t => t.Questions)
                     .ThenInclude(q => q.Options)
-                .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
+                .Where(t => !t.IsDeleted)
+                .OrderByDescending(t => t.CreatedDate)
+                .ToListAsync();
+        }
+
+        public override async Task<QuestionnaireTemplate> CreateAsync(QuestionnaireTemplate template)
+        {
+            template.CreatedDate = DateTime.UtcNow;
+            template.UpdatedDate = DateTime.UtcNow;
+            return await base.CreateAsync(template);
+        }
+
+        public override async Task<QuestionnaireTemplate> UpdateAsync(QuestionnaireTemplate template)
+        {
+            template.UpdatedDate = DateTime.UtcNow;
+            return await base.UpdateAsync(template);
+        }
+
+        public override async Task<bool> DeleteAsync(object id)
+        {
+            if (id is not Guid templateId)
+                return false;
+
+            var template = await _context.QuestionnaireTemplates.FindAsync(templateId);
+            if (template == null) return false;
+
+            template.IsDeleted = true;
+            template.UpdatedDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public override async Task<bool> ExistsAsync(object id)
+        {
+            if (id is not Guid templateId)
+                return false;
+
+            return await _context.QuestionnaireTemplates.AnyAsync(t => t.Id == templateId && !t.IsDeleted);
+        }
+
+        public async Task<QuestionnaireTemplate?> GetTemplateByIdAsync(Guid id)
+        {
+            return await GetByIdAsync(id);
         }
 
         public async Task<IEnumerable<QuestionnaireTemplate>> GetTemplatesByCategoryAsync(Guid categoryId)

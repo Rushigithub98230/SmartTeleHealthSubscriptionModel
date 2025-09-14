@@ -14,8 +14,71 @@ public class PrivilegeUsageHistoryRepository : RepositoryBase<PrivilegeUsageHist
         _context = context;
     }
 
-    public async Task<PrivilegeUsageHistory?> GetByIdAsync(Guid id)
-        => await _context.PrivilegeUsageHistories.FindAsync(id);
+    /// <summary>
+    /// Retrieves a privilege usage history by its unique identifier
+    /// </summary>
+    public override async Task<PrivilegeUsageHistory?> GetByIdAsync(object id)
+    {
+        if (id is not Guid historyId)
+            return null;
+
+        return await _context.PrivilegeUsageHistories.FindAsync(historyId);
+    }
+
+    /// <summary>
+    /// Retrieves all privilege usage histories
+    /// </summary>
+    public override async Task<IEnumerable<PrivilegeUsageHistory>> GetAllAsync()
+    {
+        return await _context.PrivilegeUsageHistories.ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a new privilege usage history
+    /// </summary>
+    public override async Task<PrivilegeUsageHistory> CreateAsync(PrivilegeUsageHistory history)
+    {
+        history.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(history);
+    }
+
+    /// <summary>
+    /// Updates an existing privilege usage history
+    /// </summary>
+    public override async Task<PrivilegeUsageHistory> UpdateAsync(PrivilegeUsageHistory history)
+    {
+        history.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(history);
+    }
+
+    /// <summary>
+    /// Deletes a privilege usage history by its unique identifier (hard delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
+    {
+        if (id is not Guid historyId)
+            return false;
+
+        var history = await _context.PrivilegeUsageHistories.FindAsync(historyId);
+        if (history != null)
+        {
+            _context.PrivilegeUsageHistories.Remove(history);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a privilege usage history exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid historyId)
+            return false;
+
+        return await _context.PrivilegeUsageHistories.AnyAsync(x => x.Id == historyId);
+    }
 
     public async Task<IEnumerable<PrivilegeUsageHistory>> GetByUserSubscriptionPrivilegeUsageIdAsync(Guid userSubscriptionPrivilegeUsageId)
         => await _context.PrivilegeUsageHistories
@@ -84,11 +147,6 @@ public class PrivilegeUsageHistoryRepository : RepositoryBase<PrivilegeUsageHist
         await _context.SaveChangesAsync();
     }
 
-    public async Task UpdateAsync(PrivilegeUsageHistory usageHistory)
-    {
-        _context.PrivilegeUsageHistories.Update(usageHistory);
-        await _context.SaveChangesAsync();
-    }
 
     public async Task DeleteAsync(Guid id)
     {

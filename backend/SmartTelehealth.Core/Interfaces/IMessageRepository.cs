@@ -4,6 +4,9 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IMessageRepository : IRepositoryBase<Message>
 {
+    // Basic CRUD methods are inherited from IRepositoryBase<Message>
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync
+
     // Message operations
     Task<Message> CreateMessageAsync(Message message);
     Task<Message?> GetMessageByIdAsync(Guid messageId);

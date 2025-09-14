@@ -4,10 +4,7 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IBillingAdjustmentRepository : IRepositoryBase<BillingAdjustment>
 {
-    Task<BillingAdjustment> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<BillingAdjustment>
+    
     Task<IEnumerable<BillingAdjustment>> GetByBillingRecordIdAsync(Guid billingRecordId);
-    Task<BillingAdjustment> CreateAsync(BillingAdjustment billingAdjustment);
-    Task<BillingAdjustment> UpdateAsync(BillingAdjustment billingAdjustment);
-    Task<bool> DeleteAsync(Guid id);
-    Task<IEnumerable<BillingAdjustment>> GetAllAsync();
 } 

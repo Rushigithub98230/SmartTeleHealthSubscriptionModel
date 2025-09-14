@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.DTOs;
+using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 
@@ -48,7 +49,37 @@ public class SubscriptionPlansController : BaseController
     [AllowAnonymous]
     public async Task<JsonModel> GetActivePlans()
     {
-        return await _subscriptionPlanService.GetActiveSubscriptionPlansAsync(GetToken(HttpContext));
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = 1,
+            PageSize = 1000, // Get all active plans
+            IsActive = true
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, null, adminOnly: false);
+    }
+
+    /// <summary>
+    /// Retrieves subscription plans with comprehensive filtering for public use.
+    /// This endpoint supports advanced filtering, pagination, sorting, and search capabilities.
+    /// </summary>
+    /// <param name="filter">Comprehensive filter DTO containing all filter parameters</param>
+    /// <returns>JsonModel containing filtered, paginated, and sorted subscription plans</returns>
+    /// <remarks>
+    /// This endpoint supports:
+    /// - Advanced search by name, description, or short description
+    /// - Filtering by category, pricing, billing cycle, and status
+    /// - Date range filtering for creation, update, and effective dates
+    /// - Trial duration and display order filtering
+    /// - Stripe integration status filtering
+    /// - Comprehensive pagination with metadata
+    /// - Dynamic sorting by multiple columns
+    /// - No authentication required - accessible to all users
+    /// </remarks>
+    [HttpPost("filter")]
+    [AllowAnonymous]
+    public async Task<JsonModel> GetPlansWithFiltering([FromBody] SubscriptionPlanFilterDto filter)
+    {
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, null, adminOnly: false);
     }
 
     /// <summary>
@@ -71,7 +102,13 @@ public class SubscriptionPlansController : BaseController
     [AllowAnonymous]
     public async Task<JsonModel> GetPlansByCategory(string categoryId)
     {
-        return await _subscriptionPlanService.GetSubscriptionPlansByCategoryAsync(categoryId, GetToken(HttpContext));
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = 1,
+            PageSize = 1000,
+            CategoryId = Guid.TryParse(categoryId, out var catId) ? catId : null
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: false);
     }
 
     /// <summary>
@@ -94,7 +131,7 @@ public class SubscriptionPlansController : BaseController
     [AllowAnonymous]
     public async Task<JsonModel> GetPlan(string id)
     {
-        return await _subscriptionPlanService.GetSubscriptionPlanAsync(id, GetToken(HttpContext));
+        return await _subscriptionPlanService.GetPlanByIdAsync(id, GetToken(HttpContext));
     }
 
 
@@ -190,7 +227,15 @@ public class SubscriptionPlansController : BaseController
             return await _subscriptionPlanService.ExportSubscriptionPlansAsync(GetToken(HttpContext), searchTerm, categoryId, isActive, format);
         }
         
-        return await _subscriptionPlanService.GetAllSubscriptionPlansAsync(GetToken(HttpContext), searchTerm, categoryId, isActive, page, pageSize);
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = page,
+            PageSize = pageSize,
+            SearchTerm = searchTerm,
+            CategoryId = !string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out var catId) ? catId : null,
+            IsActive = isActive
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: true);
     }
 
     /// <summary>
@@ -213,7 +258,13 @@ public class SubscriptionPlansController : BaseController
     [HttpGet("admin/active")]
     public async Task<JsonModel> GetActiveSubscriptionPlans()
     {
-        return await _subscriptionPlanService.GetActiveSubscriptionPlansAsync(GetToken(HttpContext));
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = 1,
+            PageSize = 1000,
+            IsActive = true
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: true);
     }
 
     /// <summary>
@@ -238,7 +289,13 @@ public class SubscriptionPlansController : BaseController
     [HttpGet("admin/category/{category}")]
     public async Task<JsonModel> GetSubscriptionPlansByCategory(string category)
     {
-        return await _subscriptionPlanService.GetSubscriptionPlansByCategoryAsync(category, GetToken(HttpContext));
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = 1,
+            PageSize = 1000,
+            CategoryId = Guid.TryParse(category, out var catId) ? catId : null
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: true);
     }
 
     /// <summary>
@@ -263,7 +320,7 @@ public class SubscriptionPlansController : BaseController
     [HttpGet("admin/{planId}")]
     public async Task<JsonModel> GetSubscriptionPlan(string planId)
     {
-        return await _subscriptionPlanService.GetSubscriptionPlanAsync(planId, GetToken(HttpContext));
+        return await _subscriptionPlanService.GetPlanByIdAsync(planId, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -388,7 +445,15 @@ public class SubscriptionPlansController : BaseController
             };
         }
         
-        return await _subscriptionPlanService.GetAllPlansAsync(page, pageSize, searchTerm, categoryId, isActive, GetToken(HttpContext));
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = page,
+            PageSize = pageSize,
+            SearchTerm = searchTerm,
+            CategoryId = !string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out var catId) ? catId : null,
+            IsActive = isActive
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: false);
     }
 
     /// <summary>
@@ -412,6 +477,12 @@ public class SubscriptionPlansController : BaseController
     [AllowAnonymous]
     public async Task<JsonModel> GetPublicPlans()
     {
-        return await _subscriptionPlanService.GetPublicPlansAsync();
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = 1,
+            PageSize = 1000,
+            IsActive = true
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, null, adminOnly: false);
     }
 } 

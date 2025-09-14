@@ -14,11 +14,17 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
         _context = context;
     }
 
-    public async Task<SubscriptionStatusHistory?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a subscription status history by its unique identifier with related entities
+    /// </summary>
+    public override async Task<SubscriptionStatusHistory?> GetByIdAsync(object id)
     {
+        if (id is not Guid historyId)
+            return null;
+
         return await _context.SubscriptionStatusHistories
             .Include(h => h.Subscription)
-            .FirstOrDefaultAsync(h => h.Id == id && !h.IsDeleted);
+            .FirstOrDefaultAsync(h => h.Id == historyId && !h.IsDeleted);
     }
 
     public async Task<IEnumerable<SubscriptionStatusHistory>> GetBySubscriptionIdAsync(Guid subscriptionId)
@@ -48,25 +54,45 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
             .ToListAsync();
     }
 
-    public async Task<SubscriptionStatusHistory> CreateAsync(SubscriptionStatusHistory history)
+    /// <summary>
+    /// Retrieves all subscription status histories with related entities
+    /// </summary>
+    public override async Task<IEnumerable<SubscriptionStatusHistory>> GetAllAsync()
+    {
+        return await _context.SubscriptionStatusHistories
+            .Include(h => h.Subscription)
+            .Where(h => !h.IsDeleted)
+            .OrderByDescending(h => h.ChangedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a new subscription status history
+    /// </summary>
+    public override async Task<SubscriptionStatusHistory> CreateAsync(SubscriptionStatusHistory history)
     {
         history.CreatedDate = DateTime.UtcNow;
-        _context.SubscriptionStatusHistories.Add(history);
-        await _context.SaveChangesAsync();
-        return history;
+        return await base.CreateAsync(history);
     }
 
-    public async Task<SubscriptionStatusHistory> UpdateAsync(SubscriptionStatusHistory history)
+    /// <summary>
+    /// Updates an existing subscription status history
+    /// </summary>
+    public override async Task<SubscriptionStatusHistory> UpdateAsync(SubscriptionStatusHistory history)
     {
         history.UpdatedDate = DateTime.UtcNow;
-        _context.SubscriptionStatusHistories.Update(history);
-        await _context.SaveChangesAsync();
-        return history;
+        return await base.UpdateAsync(history);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a subscription status history by its unique identifier (soft delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var history = await _context.SubscriptionStatusHistories.FindAsync(id);
+        if (id is not Guid historyId)
+            return false;
+
+        var history = await _context.SubscriptionStatusHistories.FindAsync(historyId);
         if (history == null) return false;
 
         history.IsDeleted = true;
@@ -75,10 +101,16 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
         return true;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    /// <summary>
+    /// Checks if a subscription status history exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
     {
+        if (id is not Guid historyId)
+            return false;
+
         return await _context.SubscriptionStatusHistories
-            .AnyAsync(h => h.Id == id && !h.IsDeleted);
+            .AnyAsync(h => h.Id == historyId && !h.IsDeleted);
     }
 
     public async Task<int> GetCountBySubscriptionIdAsync(Guid subscriptionId)

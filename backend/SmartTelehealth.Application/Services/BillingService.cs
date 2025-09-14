@@ -22,6 +22,7 @@ namespace SmartTelehealth.Application.Services
     {
         private readonly IBillingRepository _billingRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly IStripeBillingService _stripeBillingService;
         private readonly IMapper _mapper;
         private readonly ILogger<BillingService> _logger;
 
@@ -30,16 +31,19 @@ namespace SmartTelehealth.Application.Services
         /// </summary>
         /// <param name="billingRepository">Repository for billing record data access operations</param>
         /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
+        /// <param name="stripeBillingService">Service for Stripe-specific billing operations</param>
         /// <param name="mapper">AutoMapper instance for entity-DTO mapping</param>
         /// <param name="logger">Logger instance for logging operations and errors</param>
         public BillingService(
             IBillingRepository billingRepository,
             ISubscriptionRepository subscriptionRepository,
+            IStripeBillingService stripeBillingService,
             IMapper mapper,
             ILogger<BillingService> logger)
         {
             _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
             _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
+            _stripeBillingService = stripeBillingService ?? throw new ArgumentNullException(nameof(stripeBillingService));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -185,124 +189,51 @@ namespace SmartTelehealth.Application.Services
         /// - Ensures proper data filtering and pagination
         /// - Logs all billing records access for audit purposes
         /// </remarks>
-        public async Task<JsonModel> GetAllBillingRecordsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? type, string[]? userId, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
+        public async Task<JsonModel> GetBillingRecordsWithFilteringAsync(BillingFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false)
         {
             try
             {
-                var allBillingRecords = await _billingRepository.GetAllAsync();
-                var filteredRecords = allBillingRecords.AsQueryable();
+                _logger.LogInformation("Retrieving billing records with advanced filtering. Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}", 
+                    filter.Page, filter.PageSize, filter.SearchTerm);
+
+                // Get billing records with advanced filtering from repository
+                var (billingRecords, totalCount) = await _billingRepository.GetBillingRecordsWithAdvancedFilteringAsync(filter);
                 
-                // Apply search term filter
-                if (!string.IsNullOrEmpty(searchTerm))
-                {
-                    filteredRecords = filteredRecords.Where(b => 
-                        b.Id.ToString().Contains(searchTerm) || 
-                        b.SubscriptionId.ToString().Contains(searchTerm) ||
-                        b.UserId.ToString().Contains(searchTerm));
-                }
-                
-                // Apply status filter (array)
-                if (status != null && status.Length > 0)
-                {
-                    var validStatuses = status.Where(s => Enum.TryParse<BillingRecord.BillingStatus>(s, out _)).ToList();
-                    if (validStatuses.Any())
-                    {
-                        filteredRecords = filteredRecords.Where(b => validStatuses.Contains(b.Status.ToString()));
-                    }
-                }
-                
-                // Apply type filter (array)
-                if (type != null && type.Length > 0)
-                {
-                    var validTypes = type.Where(t => Enum.TryParse<BillingRecord.BillingType>(t, out _)).ToList();
-                    if (validTypes.Any())
-                    {
-                        filteredRecords = filteredRecords.Where(b => validTypes.Contains(b.Type.ToString()));
-                    }
-                }
-                
-                // Apply user ID filter (array)
-                if (userId != null && userId.Length > 0)
-                {
-                    var userIds = userId.Where(id => int.TryParse(id, out _)).Select(id => int.Parse(id)).ToList();
-                    if (userIds.Any())
-                    {
-                        filteredRecords = filteredRecords.Where(b => userIds.Contains(b.UserId));
-                    }
-                }
-                
-                // Apply subscription ID filter (array)
-                if (subscriptionId != null && subscriptionId.Length > 0)
-                {
-                    var subscriptionIds = subscriptionId.Where(id => Guid.TryParse(id, out _)).Select(id => Guid.Parse(id)).ToList();
-                    if (subscriptionIds.Any())
-                    {
-                        filteredRecords = filteredRecords.Where(b => b.SubscriptionId.HasValue && subscriptionIds.Contains(b.SubscriptionId.Value));
-                    }
-                }
-                
-                if (startDate.HasValue)
-                {
-                    filteredRecords = filteredRecords.Where(b => b.CreatedDate >= startDate.Value);
-                }
-                
-                if (endDate.HasValue)
-                {
-                    filteredRecords = filteredRecords.Where(b => b.CreatedDate <= endDate.Value);
-                }
-                
-                // Apply sorting
-                if (!string.IsNullOrEmpty(sortBy))
-                {
-                    filteredRecords = sortBy.ToLower() switch
-                    {
-                        "createddate" => sortOrder?.ToLower() == "desc" 
-                            ? filteredRecords.OrderByDescending(b => b.CreatedDate)
-                            : filteredRecords.OrderBy(b => b.CreatedDate),
-                        "amount" => sortOrder?.ToLower() == "desc" 
-                            ? filteredRecords.OrderByDescending(b => b.Amount)
-                            : filteredRecords.OrderBy(b => b.Amount),
-                        "status" => sortOrder?.ToLower() == "desc" 
-                            ? filteredRecords.OrderByDescending(b => b.Status)
-                            : filteredRecords.OrderBy(b => b.Status),
-                        _ => filteredRecords.OrderByDescending(b => b.CreatedDate)
-                    };
-                }
-                else
-                {
-                    filteredRecords = filteredRecords.OrderByDescending(b => b.CreatedDate);
-                }
-                
-                var totalCount = filteredRecords.Count();
-                var billingRecords = filteredRecords
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToList();
-                
+                // Map to DTOs
                 var billingRecordDtos = _mapper.Map<IEnumerable<BillingRecordDto>>(billingRecords);
                 
-                // Return with pagination metadata
+                // Create pagination metadata
                 var paginationMeta = new Meta
                 {
                     TotalRecords = totalCount,
-                    PageSize = pageSize,
-                    CurrentPage = page,
-                    TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
-                    DefaultPageSize = pageSize
+                    PageSize = filter.PageSize,
+                    CurrentPage = filter.Page,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / filter.PageSize),
+                    DefaultPageSize = 10,
+                    HasNextPage = filter.Page < (int)Math.Ceiling((double)totalCount / filter.PageSize),
+                    HasPreviousPage = filter.Page > 1
                 };
+
+                _logger.LogInformation("Successfully retrieved {Count} billing records out of {TotalCount} total records", 
+                    billingRecordDtos.Count(), totalCount);
 
                 return new JsonModel 
                 { 
                     data = billingRecordDtos,
                     meta = paginationMeta,
-                    Message = "All billing records retrieved successfully", 
+                    Message = "Billing records retrieved successfully with advanced filtering",
                     StatusCode = 200 
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting all billing records");
-                return new JsonModel { data = new object(), Message = "Error retrieving billing records", StatusCode = 500 };
+                _logger.LogError(ex, "Error retrieving billing records with advanced filtering");
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Error retrieving billing records",
+                    StatusCode = 500
+                };
             }
         }
 
@@ -370,19 +301,33 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
-                if (billingRecord == null)
+                // Input validation
+                if (billingRecordId == Guid.Empty)
                 {
-                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+                    return new JsonModel { data = new object(), Message = "Invalid billing record ID", StatusCode = 400 };
                 }
 
-                billingRecord.Status = BillingRecord.BillingStatus.Paid;
-                billingRecord.PaidAt = DateTime.UtcNow;
+                if (tokenModel == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Token model is required", StatusCode = 400 };
+                }
 
-                var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(updatedRecord);
+                _logger.LogInformation("Processing payment for billing record {BillingRecordId}", billingRecordId);
+
+                // Delegate to StripeBillingService for payment processing
+                var paymentResult = await _stripeBillingService.ProcessStripePaymentAsync(billingRecordId, tokenModel);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Payment processed successfully", StatusCode = 200 };
+                if (paymentResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Payment processed successfully for billing record {BillingRecordId}", billingRecordId);
+                }
+                else
+                {
+                    _logger.LogWarning("Payment processing failed for billing record {BillingRecordId}: {Message}",
+                        billingRecordId, paymentResult.Message);
+                }
+                
+                return paymentResult;
             }
             catch (Exception ex)
             {
@@ -413,21 +358,38 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
-                if (billingRecord == null)
+                // Input validation
+                if (billingRecordId == Guid.Empty)
                 {
-                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+                    return new JsonModel { data = new object(), Message = "Invalid billing record ID", StatusCode = 400 };
                 }
 
-                // Note: RefundAmount and RefundedAt properties don't exist in BillingRecord entity
-                billingRecord.Status = BillingRecord.BillingStatus.Refunded;
-                billingRecord.UpdatedBy = tokenModel.UserID;
-                billingRecord.UpdatedDate = DateTime.UtcNow;
+                if (amount <= 0)
+                {
+                    return new JsonModel { data = new object(), Message = "Refund amount must be greater than zero", StatusCode = 400 };
+                }
 
-                var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(updatedRecord);
+                if (tokenModel == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Token model is required", StatusCode = 400 };
+                }
+
+                _logger.LogInformation("Processing refund for billing record {BillingRecordId}, amount: {Amount}", billingRecordId, amount);
+
+                // Delegate to StripeBillingService for refund processing
+                var refundResult = await _stripeBillingService.ProcessStripeRefundAsync(billingRecordId, amount, tokenModel);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Refund processed successfully", StatusCode = 200 };
+                if (refundResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Refund processed successfully for billing record {BillingRecordId}", billingRecordId);
+                }
+                else
+                {
+                    _logger.LogWarning("Refund processing failed for billing record {BillingRecordId}: {Message}",
+                        billingRecordId, refundResult.Message);
+                }
+                
+                return refundResult;
             }
             catch (Exception ex)
             {
@@ -1635,24 +1597,23 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
-                if (billingRecord == null)
+                _logger.LogInformation("Processing refund for billing record {BillingRecordId}, amount: {Amount}, reason: {Reason}", 
+                    billingRecordId, amount, reason);
+
+                // Delegate to StripeBillingService for refund processing
+                var refundResult = await _stripeBillingService.ProcessStripeRefundAsync(billingRecordId, amount, tokenModel);
+                
+                if (refundResult.StatusCode == 200)
                 {
-                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+                    _logger.LogInformation("Refund processed successfully for billing record {BillingRecordId}", billingRecordId);
                 }
-
-                // Process refund logic
-                var refundResult = new RefundResultDto
+                else
                 {
-                    Success = true,
-                    RefundId = Guid.NewGuid().ToString(),
-                    Amount = amount,
-                    Reason = reason,
-                    Status = "Completed",
-                    Message = "Refund processed successfully"
-                };
-
-                return new JsonModel { data = refundResult, Message = "Refund processed successfully", StatusCode = 200 };
+                    _logger.LogWarning("Refund processing failed for billing record {BillingRecordId}: {Message}",
+                        billingRecordId, refundResult.Message);
+                }
+                
+                return refundResult;
             }
             catch (Exception ex)
             {
@@ -1756,8 +1717,24 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                // Get filtered billing records using the existing method
-                var billingRecordsResult = await GetAllBillingRecordsAsync(page, pageSize, searchTerm, status, type, userId, subscriptionId, startDate, endDate, sortBy, sortOrder, tokenModel);
+                // Create filter DTO from parameters
+                var filter = new BillingFilterDto
+                {
+                    Page = page,
+                    PageSize = pageSize,
+                    SearchTerm = searchTerm,
+                    Statuses = status?.ToList(),
+                    Types = type?.ToList(),
+                    UserIds = userId?.Select(int.Parse).ToList(),
+                    SubscriptionIds = subscriptionId?.Select(Guid.Parse).ToList(),
+                    CreatedDateFrom = startDate,
+                    CreatedDateTo = endDate,
+                    SortColumn = sortBy,
+                    SortOrder = sortOrder
+                };
+
+                // Get filtered billing records using the new method
+                var billingRecordsResult = await GetBillingRecordsWithFilteringAsync(filter, tokenModel);
                 
                 if (billingRecordsResult.StatusCode != 200)
                 {
@@ -1765,8 +1742,7 @@ namespace SmartTelehealth.Application.Services
                 }
 
                 // Extract billing records from the result
-                var billingRecordsData = billingRecordsResult.data as dynamic;
-                var billingRecords = billingRecordsData?.billingRecords as IEnumerable<BillingRecordDto>;
+                var billingRecords = billingRecordsResult.data as IEnumerable<BillingRecordDto>;
                 
                 if (billingRecords == null)
                 {
@@ -2128,5 +2104,64 @@ namespace SmartTelehealth.Application.Services
         {
             return currentDate.AddDays(billingCycleDays);
         }
+
+        // Additional billing methods
+        public async Task<JsonModel> GetAllBillingRecordsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? type, string[]? userId, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
+        {
+            try
+            {
+                _logger.LogInformation("Getting all billing records with pagination and filtering");
+
+                var filter = new BillingFilterDto
+                {
+                    Page = page,
+                    PageSize = pageSize,
+                    SearchTerm = searchTerm,
+                    Statuses = status?.ToList(),
+                    Types = type?.ToList(),
+                    UserIds = userId?.Select(int.Parse).ToList(),
+                    SubscriptionIds = subscriptionId?.Select(Guid.Parse).ToList(),
+                    CreatedDateFrom = startDate,
+                    CreatedDateTo = endDate,
+                    SortColumn = sortBy ?? "CreatedDate",
+                    SortOrder = sortOrder ?? "desc"
+                };
+
+                return await GetBillingRecordsWithFilteringAsync(filter, tokenModel, true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all billing records");
+                return new JsonModel { data = new object(), Message = "Error retrieving billing records", StatusCode = 500 };
+            }
+        }
+
+        public async Task<IEnumerable<PaymentHistoryDto>> GetPaymentHistoryAsync(string userId, DateTime? startDate = null, DateTime? endDate = null)
+        {
+            try
+            {
+                _logger.LogInformation("Getting payment history for user {UserId}", userId);
+
+                if (!int.TryParse(userId, out int userIdInt))
+                {
+                    return Enumerable.Empty<PaymentHistoryDto>();
+                }
+
+                var result = await GetPaymentHistoryAsync(userIdInt, startDate, endDate, null);
+                
+                if (result.data is IEnumerable<PaymentHistoryDto> history)
+                {
+                    return history;
+                }
+
+                return Enumerable.Empty<PaymentHistoryDto>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting payment history for user {UserId}", userId);
+                return Enumerable.Empty<PaymentHistoryDto>();
+            }
+        }
+
     }
 } 

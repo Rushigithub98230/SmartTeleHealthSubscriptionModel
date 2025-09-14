@@ -4,17 +4,15 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IProviderFeeRepository : IRepositoryBase<ProviderFee>
 {
-    Task<ProviderFee?> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<ProviderFee>
+    
     Task<ProviderFee?> GetByProviderAndCategoryAsync(int providerId, Guid categoryId);
     Task<IEnumerable<ProviderFee>> GetByProviderAsync(int providerId);
     Task<IEnumerable<ProviderFee>> GetByCategoryAsync(Guid categoryId);
-    Task<IEnumerable<ProviderFee>> GetAllAsync();
     Task<IEnumerable<ProviderFee>> GetByStatusAsync(string status);
     Task<IEnumerable<ProviderFee>> GetPendingAsync();
     Task<IEnumerable<ProviderFee>> GetByStatusWithPaginationAsync(string status, int page, int pageSize);
-    Task<ProviderFee> AddAsync(ProviderFee fee);
-    Task<ProviderFee> UpdateAsync(ProviderFee fee);
-    Task<bool> DeleteAsync(Guid id);
+    Task<ProviderFee> AddAsync(ProviderFee fee); // Legacy method
     Task<int> GetCountByStatusAsync(string status);
     Task<int> GetTotalCountAsync();
     Task<IEnumerable<ProviderFee>> GetByProviderIdAsync(int providerId);
@@ -26,11 +24,9 @@ public interface IProviderFeeRepository : IRepositoryBase<ProviderFee>
 
 public interface ICategoryFeeRangeRepository : IRepositoryBase<CategoryFeeRange>
 {
-    Task<CategoryFeeRange?> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<CategoryFeeRange>
+    
     Task<CategoryFeeRange?> GetByCategoryAsync(Guid categoryId);
-    Task<IEnumerable<CategoryFeeRange>> GetAllAsync();
     Task<IEnumerable<CategoryFeeRange>> GetActiveAsync();
-    Task<CategoryFeeRange> AddAsync(CategoryFeeRange feeRange);
-    Task<CategoryFeeRange> UpdateAsync(CategoryFeeRange feeRange);
-    Task<bool> DeleteAsync(Guid id);
+    Task<CategoryFeeRange> AddAsync(CategoryFeeRange feeRange); // Legacy method
 } 

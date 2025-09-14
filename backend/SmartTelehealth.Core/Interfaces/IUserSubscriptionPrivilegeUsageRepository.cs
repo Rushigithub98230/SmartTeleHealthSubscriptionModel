@@ -4,10 +4,9 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IUserSubscriptionPrivilegeUsageRepository : IRepositoryBase<UserSubscriptionPrivilegeUsage>
 {
-    Task<UserSubscriptionPrivilegeUsage?> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<UserSubscriptionPrivilegeUsage>
+    
     Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetBySubscriptionIdAsync(Guid subscriptionId);
     Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetBySubscriptionPlanPrivilegeIdAsync(Guid subscriptionPlanPrivilegeId);
-    Task AddAsync(UserSubscriptionPrivilegeUsage usage);
-    Task UpdateAsync(UserSubscriptionPrivilegeUsage usage);
-    Task DeleteAsync(Guid id);
+    Task AddAsync(UserSubscriptionPrivilegeUsage usage); // Legacy method
 } 

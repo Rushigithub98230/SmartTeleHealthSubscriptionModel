@@ -69,8 +69,8 @@ public class StripeWebhookController : BaseController
         _webhookIdempotencyService = webhookIdempotencyService;
         _logger = logger;
         _configuration = configuration;
-        _maxRetries = configuration.GetValue<int>("Stripe:WebhookRetryAttempts", 3);
-        _retryDelaySeconds = configuration.GetValue<int>("Stripe:WebhookRetryDelaySeconds", 5);
+        _maxRetries = configuration.GetValue<int>("StripeSettings:WebhookRetryAttempts", 3);
+        _retryDelaySeconds = configuration.GetValue<int>("StripeSettings:WebhookRetryDelaySeconds", 5);
     }
 
     /// <summary>
@@ -92,22 +92,37 @@ public class StripeWebhookController : BaseController
     /// - Updates subscription and billing records based on Stripe events
     /// - Supports all major Stripe webhook event types
     /// </remarks>
-    [HttpPost]
+    [HttpPost("webhook")]
     public async Task<JsonModel> HandleWebhook()
     {
         var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
-        var webhookSecret = _configuration["Stripe:WebhookSecret"];
+        var webhookSecret = _configuration["StripeSettings:WebhookSecret"];
 
-        if (string.IsNullOrEmpty(webhookSecret) || webhookSecret == "whsec_test_webhook_secret_replace_in_production")
+        if (!ValidateWebhookSecret(webhookSecret))
         {
-            return new JsonModel { data = new object(), Message = "Webhook secret not configured", StatusCode = 400 };
+            _logger.LogError("Invalid webhook secret configuration. Secret must be a valid Stripe webhook secret.");
+            return new JsonModel { data = new object(), Message = "Webhook configuration error", StatusCode = 500 };
         }
 
-        var stripeEvent = EventUtility.ConstructEvent(
-            json,
-            Request.Headers["Stripe-Signature"],
-            webhookSecret
-        );
+        Event stripeEvent;
+        try
+        {
+            stripeEvent = EventUtility.ConstructEvent(
+                json,
+                Request.Headers["Stripe-Signature"],
+                webhookSecret
+            );
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe webhook signature verification failed: {Message}", ex.Message);
+            return new JsonModel { data = new object(), Message = "Invalid webhook signature", StatusCode = 400 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during webhook signature verification: {Message}", ex.Message);
+            return new JsonModel { data = new object(), Message = "Webhook processing error", StatusCode = 500 };
+        }
 
         // Implement proper webhook idempotency
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -138,16 +153,42 @@ public class StripeWebhookController : BaseController
 
             return new JsonModel { data = new object(), Message = "Webhook processed successfully", StatusCode = 200 };
         }
+        catch (StripeException ex)
+        {
+            stopwatch.Stop();
+            _logger.LogError(ex, "Stripe error processing webhook event {EventId} of type {EventType} after {Duration}ms: {Message}", 
+                stripeEvent.Id, stripeEvent.Type, stopwatch.ElapsedMilliseconds, ex.Message);
+            
+            // Mark event as failed with detailed error information
+            await _webhookIdempotencyService.MarkAsFailedAsync(stripeEvent.Id, $"Stripe error: {ex.Message}", _maxRetries);
+            
+            // Log additional context for debugging
+            _logger.LogError("Stripe error details - Type: {ErrorType}, Code: {ErrorCode}, Param: {ErrorParam}", 
+                ex.StripeError?.Type, ex.StripeError?.Code, ex.StripeError?.Param);
+            
+            return new JsonModel { data = new object(), Message = $"Stripe error: {ex.Message}", StatusCode = 400 };
+        }
+        catch (InvalidOperationException ex)
+        {
+            stopwatch.Stop();
+            _logger.LogError(ex, "Business logic error processing webhook event {EventId} of type {EventType} after {Duration}ms: {Message}", 
+                stripeEvent.Id, stripeEvent.Type, stopwatch.ElapsedMilliseconds, ex.Message);
+            
+            // Mark event as failed
+            await _webhookIdempotencyService.MarkAsFailedAsync(stripeEvent.Id, ex.Message, _maxRetries);
+            
+            return new JsonModel { data = new object(), Message = "Business logic error", StatusCode = 422 };
+        }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            _logger.LogError(ex, "Error processing webhook event {EventId} of type {EventType} after {Duration}ms", 
+            _logger.LogError(ex, "Unexpected error processing webhook event {EventId} of type {EventType} after {Duration}ms", 
                 stripeEvent.Id, stripeEvent.Type, stopwatch.ElapsedMilliseconds);
             
             // Mark event as failed
             await _webhookIdempotencyService.MarkAsFailedAsync(stripeEvent.Id, ex.Message, _maxRetries);
             
-            throw; // Re-throw to trigger retry mechanism
+            return new JsonModel { data = new object(), Message = "Internal server error", StatusCode = 500 };
         }
     }
 
@@ -162,14 +203,25 @@ public class StripeWebhookController : BaseController
             }
             catch (Exception ex)
             {
+                _logger.LogWarning("Webhook processing attempt {Attempt} failed for event {EventId}: {Error}", 
+                    attempt, stripeEvent.Id, ex.Message);
+                
                 if (attempt == _maxRetries)
                 {
                     // Log final failure
+                    _logger.LogError("All {MaxRetries} attempts failed for webhook event {EventId}", 
+                        _maxRetries, stripeEvent.Id);
                     throw;
                 }
                 
-                // Wait before retry
-                await Task.Delay(_retryDelaySeconds * 1000);
+                // Calculate exponential backoff delay
+                var delaySeconds = _retryDelaySeconds * Math.Pow(2, attempt - 1);
+                var delay = TimeSpan.FromSeconds(delaySeconds);
+                
+                _logger.LogInformation("Retrying webhook event {EventId} in {Delay}ms (attempt {Attempt}/{MaxRetries})", 
+                    stripeEvent.Id, delay.TotalMilliseconds, attempt + 1, _maxRetries);
+                
+                await Task.Delay(delay);
             }
         }
     }
@@ -271,6 +323,9 @@ public class StripeWebhookController : BaseController
             case "invoice.voided":
                 await HandleInvoiceVoided(stripeEvent);
                 break;
+            case "checkout.session.completed":
+                await HandleCheckoutSessionCompleted(stripeEvent);
+                break;
             default:
                 // Log unhandled event type
                 _logger.LogInformation("Unhandled Stripe webhook event type: {EventType}", stripeEvent.Type);
@@ -302,16 +357,50 @@ public class StripeWebhookController : BaseController
         var subscription = stripeEvent.Data.Object as Stripe.Subscription;
         if (subscription == null) return;
 
-        var localSubscription = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscription.Id, GetToken(HttpContext));
-        if (localSubscription.StatusCode == 200)
+        try
         {
-            var updateDto = new UpdateSubscriptionDto
+            var localSubscription = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscription.Id, GetToken(HttpContext));
+            if (localSubscription.StatusCode == 200)
             {
-                Status = MapStripeStatusToLocal(subscription.Status),
-                NextBillingDate = GetNextBillingDateFromSubscription(subscription),
-                CurrentPrice = subscription.Items.Data.FirstOrDefault()?.Price.UnitAmount / 100m ?? 0
-            };
-            await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+                var subscriptionData = localSubscription.data as dynamic;
+                if (subscriptionData != null)
+                {
+                    var updateDto = new UpdateSubscriptionDto
+                    {
+                        Status = MapStripeStatusToLocal(subscription.Status),
+                        NextBillingDate = GetNextBillingDateFromSubscription(subscription),
+                        CurrentPrice = subscription.Items.Data.FirstOrDefault()?.Price.UnitAmount / 100m ?? 0,
+                        StripeSubscriptionId = subscription.Id,
+                        UpdatedDate = DateTime.UtcNow
+                    };
+
+                    // Add trial information if available
+                    if (subscription.TrialEnd.HasValue)
+                    {
+                        updateDto.TrialEndDate = subscription.TrialEnd.Value;
+                    }
+
+                    // Add pause information if subscription is paused
+                    if (subscription.PauseCollection != null)
+                    {
+                        updateDto.PausedDate = subscription.PauseCollection.ResumesAt;
+                    }
+
+                    await _subscriptionLifecycleService.UpdateSubscriptionAsync(localSubscription.data.ToString(), updateDto, GetToken(HttpContext));
+
+                    _logger.LogInformation("Subscription {SubscriptionId} updated via Stripe webhook. Status: {Status}", 
+                        subscription.Id, subscription.Status);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Local subscription not found for Stripe subscription {SubscriptionId}", subscription.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling subscription updated webhook for subscription {SubscriptionId}", subscription.Id);
+            throw; // Re-throw to trigger retry mechanism
         }
     }
 
@@ -381,6 +470,32 @@ public class StripeWebhookController : BaseController
                             Priority = "Normal"
                         }, GetToken(HttpContext));
 
+                        // Create billing record for successful payment with comprehensive data
+                        var billingRecordDto = new CreateBillingRecordDto
+                        {
+                            UserId = subscriptionData.UserId,
+                            Amount = (decimal)(invoice.AmountPaid / 100),
+                            CurrencyId = null, // Will use default currency
+                            PaymentMethod = "stripe",
+                            StripeInvoiceId = invoice.Id,
+                            StripePaymentIntentId = GetPaymentIntentIdFromInvoice(invoice),
+                            Status = BillingRecord.BillingStatus.Paid.ToString(),
+                            Description = $"Payment for subscription - Invoice: {invoice.Number}",
+                            BillingDate = invoice.Created,
+                            PaidDate = DateTime.UtcNow,
+                            Type = BillingRecord.BillingType.Subscription.ToString(),
+                            InvoiceNumber = invoice.Number,
+                            SubscriptionId = subscriptionId
+                        };
+
+                        var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, GetToken(HttpContext));
+                        
+                        if (billingResult.StatusCode != 200)
+                        {
+                            _logger.LogError("Failed to create billing record for successful payment. Invoice: {InvoiceId}, Error: {Error}", 
+                                invoice.Id, billingResult.Message);
+                        }
+
                         // Send payment success email
                         var billingRecord = new BillingRecordDto 
                         { 
@@ -447,6 +562,32 @@ public class StripeWebhookController : BaseController
                             IsRead = false,
                             Priority = "High"
                         }, GetToken(HttpContext));
+
+                        // Create billing record for failed payment with comprehensive data
+                        var failedBillingRecordDto = new CreateBillingRecordDto
+                        {
+                            UserId = subscriptionData.UserId,
+                            Amount = (decimal)(invoice.AmountDue / 100),
+                            CurrencyId = null, // Will use default currency
+                            PaymentMethod = "stripe",
+                            StripeInvoiceId = invoice.Id,
+                            StripePaymentIntentId = GetPaymentIntentIdFromInvoice(invoice),
+                            Status = BillingRecord.BillingStatus.Failed.ToString(),
+                            Description = $"Failed payment for subscription - Invoice: {invoice.Number}",
+                            BillingDate = invoice.Created,
+                            Type = BillingRecord.BillingType.Subscription.ToString(),
+                            InvoiceNumber = invoice.Number,
+                            ErrorMessage = "Payment failed via Stripe",
+                            SubscriptionId = subscriptionId
+                        };
+
+                        var failedBillingResult = await _billingService.CreateBillingRecordAsync(failedBillingRecordDto, GetToken(HttpContext));
+                        
+                        if (failedBillingResult.StatusCode != 200)
+                        {
+                            _logger.LogError("Failed to create billing record for failed payment. Invoice: {InvoiceId}, Error: {Error}", 
+                                invoice.Id, failedBillingResult.Message);
+                        }
 
                         // Send payment failed email
                         var billingRecord = new BillingRecordDto 
@@ -617,18 +758,22 @@ public class StripeWebhookController : BaseController
 
     private string GetPaymentIntentIdFromInvoice(Stripe.Invoice invoice)
     {
-        // In Stripe.net 48.4.0, PaymentIntentId is removed from Invoice
-        // We need to extract it from the Invoice.Payments array
-        if (invoice.Payments?.Data?.Count > 0)
+        try
         {
-            var invoicePayment = invoice.Payments.Data.FirstOrDefault();
-            if (invoicePayment != null)
+            // Try to get from metadata first (most reliable)
+            if (invoice.Metadata?.ContainsKey("payment_intent_id") == true)
             {
-                // The payment intent ID might be available through the payment object
-                // For now, return empty string as we need additional API calls to get this
-                return string.Empty;
+                return invoice.Metadata["payment_intent_id"];
             }
+            
+            // Note: Payment intent ID extraction from invoice is limited in Stripe.NET 48.4.0
+            // The most reliable approach is through metadata or by fetching the invoice with expanded data
         }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Error extracting payment intent ID from invoice {InvoiceId}: {Error}", invoice.Id, ex.Message);
+        }
+        
         return string.Empty;
     }
 
@@ -636,11 +781,14 @@ public class StripeWebhookController : BaseController
     {
         try
         {
-            // In Stripe.net 48.4.0, CurrentPeriodEnd is moved to subscription items
-            var firstItem = subscription.Items.Data.FirstOrDefault();
+            // ✅ CORRECT - Use subscription.CurrentPeriodEnd directly (most reliable)
+            // Note: CurrentPeriodEnd is not available in Stripe.NET 48.4.0
+            // We'll use the fallback approach instead
+            
+            // Fallback: Try to get from subscription items
+            var firstItem = subscription.Items?.Data?.FirstOrDefault();
             if (firstItem?.CurrentPeriodEnd != null)
             {
-                // Convert Unix timestamp to DateTime
                 var unixTimestamp = Convert.ToInt64(firstItem.CurrentPeriodEnd);
                 return DateTimeOffset.FromUnixTimeSeconds(unixTimestamp).DateTime;
             }
@@ -656,22 +804,25 @@ public class StripeWebhookController : BaseController
 
     private string GetSubscriptionIdFromInvoice(Stripe.Invoice invoice)
     {
-        // In Stripe.net 48.4.0, SubscriptionId is removed from Invoice
-        // Try to get it from different possible locations
-        if (invoice.Parent != null)
+        try
         {
-            // Try to convert Parent to string - it might be the subscription ID directly
-            var parentString = invoice.Parent.ToString();
-            if (!string.IsNullOrEmpty(parentString) && parentString != "null")
+            // Try to get from metadata first (most reliable)
+            if (invoice.Metadata?.ContainsKey("subscription_id") == true)
             {
-                return parentString;
+                return invoice.Metadata["subscription_id"];
+            }
+            
+            // Additional fallback: check if Parent is a subscription
+            if (invoice.Parent != null && invoice.Parent.Type == "subscription")
+            {
+                // For subscription parents, we can't directly get the ID from InvoiceParent
+                // This would require additional API calls to fetch the subscription
+                _logger.LogDebug("Invoice {InvoiceId} has subscription parent but ID not directly available", invoice.Id);
             }
         }
-        
-        // Fallback: try to get from metadata or other fields
-        if (invoice.Metadata?.ContainsKey("subscription_id") == true)
+        catch (Exception ex)
         {
-            return invoice.Metadata["subscription_id"];
+            _logger.LogWarning("Error extracting subscription ID from invoice {InvoiceId}: {Error}", invoice.Id, ex.Message);
         }
         
         return string.Empty;
@@ -688,8 +839,32 @@ public class StripeWebhookController : BaseController
             "past_due" => "PaymentFailed",
             "trialing" => "TrialActive",
             "unpaid" => "PaymentFailed",
+            "paused" => "Paused",
             _ => "Pending"
         };
+    }
+
+    /// <summary>
+    /// Validates webhook secret format according to Stripe specifications
+    /// </summary>
+    /// <param name="secret">The webhook secret to validate</param>
+    /// <returns>True if the secret is valid, false otherwise</returns>
+    private bool ValidateWebhookSecret(string secret)
+    {
+        if (string.IsNullOrEmpty(secret))
+            return false;
+            
+        // Stripe webhook secrets start with "whsec_" and are typically 50+ characters
+        if (!secret.StartsWith("whsec_"))
+            return false;
+            
+        // Check minimum length (Stripe webhook secrets are typically 50+ characters)
+        if (secret.Length < 50)
+            return false;
+            
+        // Check for valid characters (alphanumeric and underscores)
+        var validPattern = @"^whsec_[a-zA-Z0-9_]+$";
+        return System.Text.RegularExpressions.Regex.IsMatch(secret, validPattern);
     }
 
     // NEW: Handle subscription pause events
@@ -1283,13 +1458,19 @@ public class StripeWebhookController : BaseController
 
                 _logger.LogInformation("Invoice voided handled for billing record {BillingRecordId}", billingRecord.Id);
             }
-
-            
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling invoice voided webhook for {InvoiceId}", invoice.Id);
         }
     }
+
+    private async Task HandleCheckoutSessionCompleted(Event stripeEvent)
+    {
+        // Note: Stripe.Session might not be available in this version
+        // We'll handle this event when the Stripe.NET version supports it
+        _logger.LogInformation("Checkout session completed event received but not fully implemented due to Stripe.NET version limitations");
+        return;
+    }
 }
-} 
+}

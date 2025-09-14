@@ -73,7 +73,7 @@ import { AuthService } from './auth/auth.service';
         <mat-menu #userMenu="matMenu" class="user-menu">
           <div class="menu-header">
             <h3>Admin User</h3>
-            <p>admin@smarttelehealth.com</p>
+            <p>admin&#64;smarttelehealth.com</p>
           </div>
           <mat-divider></mat-divider>
           <button mat-menu-item (click)="navigateToProfile()">
@@ -96,8 +96,8 @@ import { AuthService } from './auth/auth.service';
       <mat-sidenav-container class="admin-sidenav-container">
         <mat-sidenav #sidenav mode="side" opened class="admin-sidenav" [fixedInViewport]="true">
           <div class="sidenav-header">
-            <mat-icon class="sidenav-icon">admin_panel_settings</mat-icon>
-            <span class="sidenav-title">Admin Panel</span>
+            <mat-icon class="sidenav-icon">subscriptions</mat-icon>
+            <span class="sidenav-title">Subscription Management</span>
           </div>
           
           <mat-nav-list class="sidenav-list">
@@ -105,42 +105,25 @@ import { AuthService } from './auth/auth.service';
               <mat-icon matListItemIcon>dashboard</mat-icon>
               <span matListItemTitle>Dashboard</span>
             </a>
-            
             <a mat-list-item routerLink="/admin/subscriptions" routerLinkActive="active-link" class="nav-item">
               <mat-icon matListItemIcon>subscriptions</mat-icon>
               <span matListItemTitle>Subscriptions</span>
             </a>
-            
+            <a mat-list-item routerLink="/admin/categories" routerLinkActive="active-link" class="nav-item">
+              <mat-icon matListItemIcon>category</mat-icon>
+              <span matListItemTitle>Categories</span>
+            </a>
             <a mat-list-item routerLink="/admin/plans" routerLinkActive="active-link" class="nav-item">
-              <mat-icon matListItemIcon>card_membership</mat-icon>
-              <span matListItemTitle>Subscription Plans</span>
+              <mat-icon matListItemIcon>assignment</mat-icon>
+              <span matListItemTitle>Plans</span>
             </a>
-            
-            <a mat-list-item routerLink="/admin/users" routerLinkActive="active-link" class="nav-item">
-              <mat-icon matListItemIcon>people</mat-icon>
-              <span matListItemTitle>User Management</span>
+            <a mat-list-item routerLink="/admin/billing" routerLinkActive="active-link" class="nav-item">
+              <mat-icon matListItemIcon>payment</mat-icon>
+              <span matListItemTitle>Billing</span>
             </a>
-            
             <a mat-list-item routerLink="/admin/analytics" routerLinkActive="active-link" class="nav-item">
               <mat-icon matListItemIcon>analytics</mat-icon>
               <span matListItemTitle>Analytics</span>
-            </a>
-            
-            <a mat-list-item routerLink="/admin/manual-actions" routerLinkActive="active-link" class="nav-item">
-              <mat-icon matListItemIcon>settings</mat-icon>
-              <span matListItemTitle>Manual Actions</span>
-            </a>
-            
-            <mat-divider></mat-divider>
-            
-            <a mat-list-item routerLink="/admin/reports" routerLinkActive="active-link" class="nav-item">
-              <mat-icon matListItemIcon>assessment</mat-icon>
-              <span matListItemTitle>Reports</span>
-            </a>
-            
-            <a mat-list-item routerLink="/admin/settings" routerLinkActive="active-link" class="nav-item">
-              <mat-icon matListItemIcon>admin_panel_settings</mat-icon>
-              <span matListItemTitle>System Settings</span>
             </a>
           </mat-nav-list>
         </mat-sidenav>
@@ -391,11 +374,13 @@ export class AdminLayoutComponent implements OnInit {
   }
 
   navigateToProfile() {
-    this.router.navigate(['/admin/profile']);
+    // Profile functionality removed - redirect to subscriptions
+    this.router.navigate(['/admin/subscriptions']);
   }
 
   navigateToSettings() {
-    this.router.navigate(['/admin/settings']);
+    // Settings functionality removed - redirect to subscriptions
+    this.router.navigate(['/admin/subscriptions']);
   }
 
   logout() {

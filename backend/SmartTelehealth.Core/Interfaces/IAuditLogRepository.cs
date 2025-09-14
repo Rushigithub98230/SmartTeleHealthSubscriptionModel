@@ -2,10 +2,9 @@ using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Core.Interfaces
 {
-    public interface IAuditLogRepository : IRepositoryBase<AuditLog>
-    {
-        Task<AuditLog> CreateAsync(AuditLog auditLog);
-        Task<AuditLog?> GetByIdAsync(int id);
+public interface IAuditLogRepository : IRepositoryBase<AuditLog>
+{
+    // Basic CRUD methods are inherited from IRepositoryBase<AuditLog>
         Task<IEnumerable<AuditLog>> GetByDateRangeAsync(DateTime startDate, DateTime endDate);
         
         // Database Audit Querying Methods

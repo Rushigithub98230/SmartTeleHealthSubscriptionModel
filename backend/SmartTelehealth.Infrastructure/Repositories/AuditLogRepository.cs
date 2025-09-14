@@ -14,16 +14,50 @@ namespace SmartTelehealth.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<AuditLog> CreateAsync(AuditLog auditLog)
+        public override async Task<AuditLog> CreateAsync(AuditLog auditLog)
         {
-            _context.AuditLogs.Add(auditLog);
-            await _context.SaveChangesAsync();
-            return auditLog;
+            return await base.CreateAsync(auditLog);
         }
 
-        public async Task<AuditLog?> GetByIdAsync(int id)
+        public override async Task<AuditLog?> GetByIdAsync(object id)
         {
-            return await _context.AuditLogs.FirstOrDefaultAsync(a => a.Id == id);
+            if (id is not int auditId)
+                return null;
+
+            return await _context.AuditLogs.FirstOrDefaultAsync(a => a.Id == auditId);
+        }
+
+        public override async Task<IEnumerable<AuditLog>> GetAllAsync()
+        {
+            return await _context.AuditLogs
+                .OrderByDescending(a => a.DateTime)
+                .ToListAsync();
+        }
+
+        public override async Task<AuditLog> UpdateAsync(AuditLog auditLog)
+        {
+            return await base.UpdateAsync(auditLog);
+        }
+
+        public override async Task<bool> DeleteAsync(object id)
+        {
+            if (id is not int auditId)
+                return false;
+
+            var auditLog = await _context.AuditLogs.FindAsync(auditId);
+            if (auditLog == null) return false;
+
+            _context.AuditLogs.Remove(auditLog);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public override async Task<bool> ExistsAsync(object id)
+        {
+            if (id is not int auditId)
+                return false;
+
+            return await _context.AuditLogs.AnyAsync(a => a.Id == auditId);
         }
 
         public async Task<IEnumerable<AuditLog>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)

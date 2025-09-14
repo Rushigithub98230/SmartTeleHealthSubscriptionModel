@@ -14,12 +14,18 @@ public class ProviderOnboardingRepository : RepositoryBase<ProviderOnboarding>, 
         _context = context;
     }
 
-    public async Task<ProviderOnboarding?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a provider onboarding by its unique identifier with related entities
+    /// </summary>
+    public override async Task<ProviderOnboarding?> GetByIdAsync(object id)
     {
+        if (id is not Guid onboardingId)
+            return null;
+
         return await _context.ProviderOnboardings
             .Include(o => o.User)
             .Include(o => o.ReviewedByUser)
-            .FirstOrDefaultAsync(o => o.Id == id && o.IsActive);
+            .FirstOrDefaultAsync(o => o.Id == onboardingId && o.IsActive);
     }
 
     public async Task<ProviderOnboarding?> GetByUserIdAsync(int userId)
@@ -30,7 +36,10 @@ public class ProviderOnboardingRepository : RepositoryBase<ProviderOnboarding>, 
             .FirstOrDefaultAsync(o => o.UserId == userId && o.IsActive);
     }
 
-    public async Task<IEnumerable<ProviderOnboarding>> GetAllAsync()
+    /// <summary>
+    /// Retrieves all provider onboardings with related entities
+    /// </summary>
+    public override async Task<IEnumerable<ProviderOnboarding>> GetAllAsync()
     {
         return await _context.ProviderOnboardings
             .Include(o => o.User)
@@ -83,23 +92,33 @@ public class ProviderOnboardingRepository : RepositoryBase<ProviderOnboarding>, 
             .ToListAsync();
     }
 
-    public async Task<ProviderOnboarding> AddAsync(ProviderOnboarding onboarding)
+    /// <summary>
+    /// Creates a new provider onboarding
+    /// </summary>
+    public override async Task<ProviderOnboarding> CreateAsync(ProviderOnboarding onboarding)
     {
-        _context.ProviderOnboardings.Add(onboarding);
-        await _context.SaveChangesAsync();
-        return onboarding;
+        onboarding.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(onboarding);
     }
 
-    public async Task<ProviderOnboarding> UpdateAsync(ProviderOnboarding onboarding)
+    /// <summary>
+    /// Updates an existing provider onboarding
+    /// </summary>
+    public override async Task<ProviderOnboarding> UpdateAsync(ProviderOnboarding onboarding)
     {
-        _context.ProviderOnboardings.Update(onboarding);
-        await _context.SaveChangesAsync();
-        return onboarding;
+        onboarding.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(onboarding);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a provider onboarding by its unique identifier (soft delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var onboarding = await _context.ProviderOnboardings.FindAsync(id);
+        if (id is not Guid onboardingId)
+            return false;
+
+        var onboarding = await _context.ProviderOnboardings.FindAsync(onboardingId);
         if (onboarding == null)
             return false;
 
@@ -107,6 +126,26 @@ public class ProviderOnboardingRepository : RepositoryBase<ProviderOnboarding>, 
         onboarding.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Checks if a provider onboarding exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid onboardingId)
+            return false;
+
+        return await _context.ProviderOnboardings
+            .AnyAsync(o => o.Id == onboardingId && o.IsActive);
+    }
+
+    /// <summary>
+    /// Legacy method for backward compatibility
+    /// </summary>
+    public async Task<ProviderOnboarding> AddAsync(ProviderOnboarding onboarding)
+    {
+        return await CreateAsync(onboarding);
     }
 
     public async Task<int> GetCountByStatusAsync(string status)

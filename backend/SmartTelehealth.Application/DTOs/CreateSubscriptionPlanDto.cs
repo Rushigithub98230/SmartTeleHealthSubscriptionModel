@@ -77,6 +77,19 @@ public class CreateSubscriptionPlanDto
     public DateTime? EffectiveDate { get; set; }
     public DateTime? ExpirationDate { get; set; }
     
+    // Stripe integration fields
+    [MaxLength(100)]
+    public string? StripeProductId { get; set; }
+    
+    [MaxLength(100)]
+    public string? StripeMonthlyPriceId { get; set; }
+    
+    [MaxLength(100)]
+    public string? StripeQuarterlyPriceId { get; set; }
+    
+    [MaxLength(100)]
+    public string? StripeAnnualPriceId { get; set; }
+    
     // Privilege configuration - NEW
     public List<PlanPrivilegeDto> Privileges { get; set; } = new List<PlanPrivilegeDto>();
 }

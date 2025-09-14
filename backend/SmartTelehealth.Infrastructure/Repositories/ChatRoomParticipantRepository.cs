@@ -14,13 +14,19 @@ public class ChatRoomParticipantRepository : RepositoryBase<ChatRoomParticipant>
         _context = context;
     }
 
-    public async Task<ChatRoomParticipant?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a chat room participant by its unique identifier with related entities
+    /// </summary>
+    public override async Task<ChatRoomParticipant?> GetByIdAsync(object id)
     {
+        if (id is not Guid participantId)
+            return null;
+
         return await _context.ChatRoomParticipants
             .Include(crp => crp.ChatRoom)
             .Include(crp => crp.User)
             .Include(crp => crp.Provider)
-            .FirstOrDefaultAsync(crp => crp.Id == id && !crp.IsDeleted);
+            .FirstOrDefaultAsync(crp => crp.Id == participantId && !crp.IsDeleted);
     }
 
     public async Task<ChatRoomParticipant?> GetByChatRoomAndUserAsync(Guid chatRoomId, int userId)
@@ -69,21 +75,37 @@ public class ChatRoomParticipantRepository : RepositoryBase<ChatRoomParticipant>
             .ToListAsync();
     }
 
-    public async Task<ChatRoomParticipant> CreateAsync(ChatRoomParticipant participant)
+    /// <summary>
+    /// Retrieves all chat room participants with related entities
+    /// </summary>
+    public override async Task<IEnumerable<ChatRoomParticipant>> GetAllAsync()
+    {
+        return await _context.ChatRoomParticipants
+            .Include(crp => crp.ChatRoom)
+            .Include(crp => crp.User)
+            .Include(crp => crp.Provider)
+            .Where(crp => !crp.IsDeleted)
+            .OrderByDescending(crp => crp.JoinedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a new chat room participant
+    /// </summary>
+    public override async Task<ChatRoomParticipant> CreateAsync(ChatRoomParticipant participant)
     {
         participant.CreatedDate = DateTime.UtcNow;
         participant.JoinedAt = DateTime.UtcNow;
-        _context.ChatRoomParticipants.Add(participant);
-        await _context.SaveChangesAsync();
-        return participant;
+        return await base.CreateAsync(participant);
     }
 
-    public async Task<ChatRoomParticipant> UpdateAsync(ChatRoomParticipant participant)
+    /// <summary>
+    /// Updates an existing chat room participant
+    /// </summary>
+    public override async Task<ChatRoomParticipant> UpdateAsync(ChatRoomParticipant participant)
     {
         participant.UpdatedDate = DateTime.UtcNow;
-        _context.ChatRoomParticipants.Update(participant);
-        await _context.SaveChangesAsync();
-        return participant;
+        return await base.UpdateAsync(participant);
     }
 
     public async Task<bool> RemoveParticipantAsync(Guid chatRoomId, int userId)
@@ -103,9 +125,15 @@ public class ChatRoomParticipantRepository : RepositoryBase<ChatRoomParticipant>
         return true;
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a chat room participant by its unique identifier (soft delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var participant = await _context.ChatRoomParticipants.FindAsync(id);
+        if (id is not Guid participantId)
+            return false;
+
+        var participant = await _context.ChatRoomParticipants.FindAsync(participantId);
         if (participant == null)
             return false;
 
@@ -115,9 +143,15 @@ public class ChatRoomParticipantRepository : RepositoryBase<ChatRoomParticipant>
         return true;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    /// <summary>
+    /// Checks if a chat room participant exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
     {
-        return await _context.ChatRoomParticipants.AnyAsync(crp => crp.Id == id && !crp.IsDeleted);
+        if (id is not Guid participantId)
+            return false;
+
+        return await _context.ChatRoomParticipants.AnyAsync(crp => crp.Id == participantId && !crp.IsDeleted);
     }
 
     public async Task<int> GetParticipantCountAsync(Guid chatRoomId)

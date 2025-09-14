@@ -15,6 +15,7 @@
   margin-bottom: 24px;
   gap: 16px;
   flex-wrap: wrap;
+  min-height: 56px; /* Ensure minimum height */
 }
 
 .search-field {
@@ -29,6 +30,8 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   margin-bottom: 16px;
+  width: 100%;
+  min-height: 200px; /* Ensure minimum height */
 }
 
 .plans-table,
@@ -48,6 +51,10 @@
 .subscriptions-table td {
   padding: 16px 12px;
   border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .plans-table tr:hover,
@@ -250,9 +257,11 @@
 // Loading state
 .loading-container {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   height: 200px;
+  gap: 16px;
 }
 
 // Empty state
@@ -260,12 +269,18 @@
   text-align: center;
   padding: 48px 24px;
   color: #666;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
   
   .mat-icon {
     font-size: 48px;
     width: 48px;
     height: 48px;
-    margin-bottom: 16px;
+    margin-bottom: 0; /* Remove margin since we're using gap */
     color: #ccc;
   }
   
@@ -290,15 +305,18 @@
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+    min-height: auto; /* Allow flexible height on mobile */
   }
   
   .search-field {
     min-width: unset;
     max-width: unset;
+    width: 100%;
   }
   
   .table-container {
     overflow-x: auto;
+    min-height: 150px; /* Reduce minimum height on mobile */
   }
   
   .plans-table,

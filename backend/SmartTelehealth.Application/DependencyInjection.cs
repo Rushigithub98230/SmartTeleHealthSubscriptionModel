@@ -37,7 +37,15 @@ public static class DependencyInjection
         services.AddScoped<IHealthAssessmentService, HealthAssessmentService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IUserService, UserService>();
-        services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<IBillingService, BillingService>(provider =>
+            new BillingService(
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
+                provider.GetRequiredService<IStripeBillingService>(),
+                provider.GetRequiredService<AutoMapper.IMapper>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BillingService>>()
+            )
+        );
         services.AddScoped<IHomeMedService, HomeMedService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         

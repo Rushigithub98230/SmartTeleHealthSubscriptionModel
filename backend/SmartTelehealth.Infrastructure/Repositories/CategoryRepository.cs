@@ -14,16 +14,25 @@ public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
         _context = context;
     }
 
-    public async Task<Category?> GetByIdAsync(Guid id)
+    // Use base class methods for basic CRUD operations
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
+
+    // Override GetByIdAsync to include related data and apply business logic
+    public override async Task<Category?> GetByIdAsync(object id)
     {
-        return await _context.Categories
-            .Include(c => c.SubscriptionPlans.Where(sp => sp.IsActive))
-            .Include(c => c.ProviderCategories.Where(pc => pc.IsAvailable))
-                .ThenInclude(pc => pc.Provider)
-            .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
+        if (id is Guid guidId)
+        {
+            return await _context.Categories
+                .Include(c => c.SubscriptionPlans.Where(sp => sp.IsActive))
+                .Include(c => c.ProviderCategories.Where(pc => pc.IsAvailable))
+                    .ThenInclude(pc => pc.Provider)
+                .FirstOrDefaultAsync(c => c.Id == guidId && !c.IsDeleted);
+        }
+        return null;
     }
 
-    public async Task<IEnumerable<Category>> GetAllAsync()
+    // Override GetAllAsync to include related data and apply business logic
+    public override async Task<IEnumerable<Category>> GetAllAsync()
     {
         return await _context.Categories
             .Include(c => c.SubscriptionPlans.Where(sp => sp.IsActive))
@@ -32,6 +41,48 @@ public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
             .ToListAsync();
     }
 
+    // Override CreateAsync to set audit fields
+    public override async Task<Category> CreateAsync(Category category)
+    {
+        category.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(category);
+    }
+
+    // Override UpdateAsync to set audit fields
+    public override async Task<Category> UpdateAsync(Category category)
+    {
+        category.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(category);
+    }
+
+    // Override DeleteAsync to implement soft delete
+    public override async Task<bool> DeleteAsync(object id)
+    {
+        if (id is Guid guidId)
+        {
+            var category = await _context.Categories.FindAsync(guidId);
+            if (category == null) return false;
+
+            category.IsDeleted = true;
+            category.UpdatedDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        return false;
+    }
+
+    // Override ExistsAsync to apply business logic
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is Guid guidId)
+        {
+            return await _context.Categories
+                .AnyAsync(c => c.Id == guidId && !c.IsDeleted);
+        }
+        return false;
+    }
+
+    // Specialized methods for Category entity
     public async Task<IEnumerable<Category>> GetAllActiveAsync()
     {
         return await _context.Categories
@@ -48,39 +99,6 @@ public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
             .Where(c => c.IsActive && !c.IsDeleted)
             .OrderBy(c => c.DisplayOrder)
             .ToListAsync();
-    }
-
-    public async Task<Category> CreateAsync(Category category)
-    {
-        category.CreatedDate = DateTime.UtcNow;
-        _context.Categories.Add(category);
-        await _context.SaveChangesAsync();
-        return category;
-    }
-
-    public async Task<Category> UpdateAsync(Category category)
-    {
-        category.UpdatedDate = DateTime.UtcNow;
-        _context.Categories.Update(category);
-        await _context.SaveChangesAsync();
-        return category;
-    }
-
-    public async Task<bool> DeleteAsync(Guid id)
-    {
-        var category = await _context.Categories.FindAsync(id);
-        if (category == null) return false;
-
-        category.IsDeleted = true;
-        category.UpdatedDate = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<bool> ExistsAsync(Guid id)
-    {
-        return await _context.Categories
-            .AnyAsync(c => c.Id == id && !c.IsDeleted);
     }
 
     public async Task<bool> ExistsByNameAsync(string name)

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.DTOs;
+using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using System.Security.Claims;
 
@@ -82,7 +83,40 @@ public class SubscriptionManagementController : BaseController
         [FromQuery] string? categoryId = null,
         [FromQuery] bool? isActive = null)
     {
-        return await _subscriptionPlanService.GetAllPlansAsync(page, pageSize, searchTerm, categoryId, isActive, GetToken(HttpContext));
+        var filter = new SubscriptionPlanFilterDto
+        {
+            Page = page,
+            PageSize = pageSize,
+            SearchTerm = searchTerm,
+            CategoryId = !string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out var catId) ? catId : null,
+            IsActive = isActive
+        };
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: true);
+    }
+
+    /// <summary>
+    /// Retrieves subscription plans with comprehensive filtering for admin management.
+    /// This endpoint supports advanced filtering, pagination, sorting, and search capabilities
+    /// for administrative purposes with full access to all plan data and configurations.
+    /// </summary>
+    /// <param name="filter">Comprehensive filter DTO containing all filter parameters</param>
+    /// <returns>JsonModel containing filtered, paginated, and sorted subscription plans with metadata</returns>
+    /// <remarks>
+    /// This endpoint supports:
+    /// - Advanced search by name, description, or short description
+    /// - Filtering by category, pricing, billing cycle, and status
+    /// - Date range filtering for creation, update, and effective dates
+    /// - Trial duration and display order filtering
+    /// - Stripe integration status filtering
+    /// - Subscription status filtering (has active subscriptions, etc.)
+    /// - Comprehensive pagination with metadata
+    /// - Dynamic sorting by multiple columns
+    /// - Admin-only access with full plan data visibility
+    /// </remarks>
+    [HttpPost("plans/filter")]
+    public async Task<JsonModel> GetPlansWithAdvancedFiltering([FromBody] SubscriptionPlanFilterDto filter)
+    {
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: true);
     }
 
     /// <summary>
@@ -361,6 +395,73 @@ public class SubscriptionManagementController : BaseController
         }
         
         return await _subscriptionLifecycleService.ExtendUserSubscriptionAsync(id, additionalDays, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Upgrades a user subscription to a different plan for administrative management.
+    /// This endpoint handles subscription upgrades including validation, plan changes,
+    /// and upgrade processing for administrative subscription management.
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription to upgrade</param>
+    /// <param name="upgradeDto">DTO containing upgrade details including new plan ID</param>
+    /// <returns>JsonModel containing the upgrade result</returns>
+    [HttpPost("subscriptions/{id}/upgrade")]
+    public async Task<JsonModel> UpgradeUserSubscription(string id, [FromBody] UpgradeSubscriptionDto upgradeDto)
+    {
+        return await _subscriptionLifecycleService.UpgradeSubscriptionAsync(id, upgradeDto.NewPlanId, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Downgrades a user subscription to a different plan for administrative management.
+    /// This endpoint handles subscription downgrades including validation, plan changes,
+    /// and downgrade processing for administrative subscription management.
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription to downgrade</param>
+    /// <param name="downgradeDto">DTO containing downgrade details including new plan ID</param>
+    /// <returns>JsonModel containing the downgrade result</returns>
+    [HttpPost("subscriptions/{id}/downgrade")]
+    public async Task<JsonModel> DowngradeUserSubscription(string id, [FromBody] DowngradeSubscriptionDto downgradeDto)
+    {
+        return await _subscriptionLifecycleService.UpgradeSubscriptionAsync(id, downgradeDto.NewPlanId, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Reactivates a cancelled user subscription for administrative management.
+    /// This endpoint handles subscription reactivation including validation, status updates,
+    /// and reactivation processing for administrative subscription management.
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription to reactivate</param>
+    /// <returns>JsonModel containing the reactivation result</returns>
+    [HttpPost("subscriptions/{id}/reactivate")]
+    public async Task<JsonModel> ReactivateUserSubscription(string id)
+    {
+        return await _subscriptionLifecycleService.ReactivateSubscriptionAsync(id, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves billing history for a specific subscription for administrative management.
+    /// This endpoint provides comprehensive billing information including payment history,
+    /// invoices, and billing records for administrative oversight.
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription</param>
+    /// <returns>JsonModel containing the billing history</returns>
+    [HttpGet("subscriptions/{id}/billing-history")]
+    public async Task<JsonModel> GetSubscriptionBillingHistory(string id)
+    {
+        return await _subscriptionService.GetSubscriptionBillingHistoryAsync(id, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves privilege usage for a specific subscription for administrative management.
+    /// This endpoint provides comprehensive privilege usage information including
+    /// usage statistics and limits for administrative oversight.
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription</param>
+    /// <returns>JsonModel containing the privilege usage information</returns>
+    [HttpGet("subscriptions/{id}/privilege-usage")]
+    public async Task<JsonModel> GetSubscriptionPrivilegeUsage(string id)
+    {
+        return await _subscriptionService.GetSubscriptionPrivilegeUsageAsync(id, GetToken(HttpContext));
     }
 
     #endregion

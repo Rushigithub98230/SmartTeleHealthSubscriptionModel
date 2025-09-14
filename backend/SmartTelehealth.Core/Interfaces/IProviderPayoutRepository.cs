@@ -4,16 +4,13 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IProviderPayoutRepository : IRepositoryBase<ProviderPayout>
 {
-    Task<ProviderPayout?> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<ProviderPayout>
+    
     Task<IEnumerable<ProviderPayout>> GetByProviderAsync(int providerId);
     Task<IEnumerable<ProviderPayout>> GetByPeriodAsync(Guid periodId);
-    Task<IEnumerable<ProviderPayout>> GetAllAsync();
     Task<IEnumerable<ProviderPayout>> GetByStatusAsync(string status);
     Task<IEnumerable<ProviderPayout>> GetPendingAsync();
     Task<IEnumerable<ProviderPayout>> GetByStatusWithPaginationAsync(string status, int page, int pageSize);
-    Task<ProviderPayout> AddAsync(ProviderPayout payout);
-    Task<ProviderPayout> UpdateAsync(ProviderPayout payout);
-    Task<bool> DeleteAsync(Guid id);
     Task<int> GetCountByStatusAsync(string status);
     Task<int> GetTotalCountAsync();
     Task<decimal> GetTotalEarningsByProviderAsync(int providerId);
@@ -25,6 +22,7 @@ public interface IProviderPayoutRepository : IRepositoryBase<ProviderPayout>
     Task<object> GetPayoutStatisticsAsync();
     Task<object> AddPeriodAsync();
     Task<object> GetAllPeriodsAsync();
+    Task<ProviderPayout> AddAsync(ProviderPayout payout); // Legacy method
 }
 
 public interface IPayoutPeriodRepository : IRepositoryBase<PayoutPeriod>

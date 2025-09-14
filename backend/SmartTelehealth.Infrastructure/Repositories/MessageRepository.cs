@@ -14,24 +14,34 @@ public class MessageRepository : RepositoryBase<Message>, IMessageRepository
         _context = context;
     }
 
-    public async Task<Message?> GetByIdAsync(Guid id)
+    // Use base class methods for basic CRUD operations
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
+
+    // Override GetByIdAsync to include related data
+    public override async Task<Message?> GetByIdAsync(object id)
     {
-        return await _context.Messages
-            .Include(m => m.Sender)
-            .Include(m => m.ChatRoom)
-            .Include(m => m.ReplyToMessage)
-            .Include(m => m.Replies)
-            .Include(m => m.Reactions)
-            .Include(m => m.ReadReceipts)
-            .FirstOrDefaultAsync(m => m.Id == id);
+        if (id is Guid guidId)
+        {
+            return await _context.Messages
+                .Include(m => m.Sender)
+                .Include(m => m.ChatRoom)
+                .Include(m => m.ReplyToMessage)
+                .Include(m => m.Replies)
+                .Include(m => m.Reactions)
+                .Include(m => m.ReadReceipts)
+                .FirstOrDefaultAsync(m => m.Id == guidId);
+        }
+        return null;
     }
 
-    public async Task<IEnumerable<Message>> GetAllAsync()
+    // Override GetAllAsync to include related data and apply business logic
+    public override async Task<IEnumerable<Message>> GetAllAsync()
     {
         return await _context.Messages
             .Include(m => m.Sender)
             .Include(m => m.ChatRoom)
             .Include(m => m.ReplyToMessage)
+            .Where(m => !m.IsDeleted)
             .ToListAsync();
     }
 
@@ -104,35 +114,31 @@ public class MessageRepository : RepositoryBase<Message>, IMessageRepository
             .ToListAsync();
     }
 
-    public async Task<Message> AddAsync(Message message)
+    // Override DeleteAsync to implement soft delete
+    public override async Task<bool> DeleteAsync(object id)
     {
-        _context.Messages.Add(message);
-        await _context.SaveChangesAsync();
-        return message;
+        if (id is Guid guidId)
+        {
+            var message = await _context.Messages.FindAsync(guidId);
+            if (message == null)
+                return false;
+
+            message.IsDeleted = true;
+            message.UpdatedDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        return false;
     }
 
-    public async Task<Message> UpdateAsync(Message message)
+    // Override ExistsAsync to apply business logic
+    public override async Task<bool> ExistsAsync(object id)
     {
-        _context.Messages.Update(message);
-        await _context.SaveChangesAsync();
-        return message;
-    }
-
-    public async Task<bool> DeleteAsync(Guid id)
-    {
-        var message = await _context.Messages.FindAsync(id);
-        if (message == null)
-            return false;
-
-        message.IsDeleted = true;
-        message.UpdatedDate = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<bool> ExistsAsync(Guid id)
-    {
-        return await _context.Messages.AnyAsync(m => m.Id == id && !m.IsDeleted);
+        if (id is Guid guidId)
+        {
+            return await _context.Messages.AnyAsync(m => m.Id == guidId && !m.IsDeleted);
+        }
+        return false;
     }
 
     public async Task<int> GetCountAsync()
@@ -184,7 +190,7 @@ public class MessageRepository : RepositoryBase<Message>, IMessageRepository
     // Additional interface methods
     public async Task<Message> CreateMessageAsync(Message message)
     {
-        return await AddAsync(message);
+        return await CreateAsync(message);
     }
 
     public async Task<Message?> GetMessageByIdAsync(Guid id)

@@ -14,15 +14,21 @@ public class ConsultationRepository : RepositoryBase<Consultation>, IConsultatio
         _context = context;
     }
     
-    public async Task<Consultation> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a consultation by its unique identifier with related entities
+    /// </summary>
+    public override async Task<Consultation?> GetByIdAsync(object id)
     {
+        if (id is not Guid consultationId)
+            return null;
+
         return await _context.Consultations
             .Include(c => c.User)
             .Include(c => c.Provider)
             .Include(c => c.Category)
             .Include(c => c.Subscription)
             .Include(c => c.HealthAssessment)
-            .FirstOrDefaultAsync(c => c.Id == id);
+            .FirstOrDefaultAsync(c => c.Id == consultationId);
     }
     
     public async Task<IEnumerable<Consultation>> GetByUserIdAsync(int userId)
@@ -58,29 +64,65 @@ public class ConsultationRepository : RepositoryBase<Consultation>, IConsultatio
             .ToListAsync();
     }
     
-    public async Task<Consultation> CreateAsync(Consultation consultation)
+    /// <summary>
+    /// Retrieves all consultations with related entities
+    /// </summary>
+    public override async Task<IEnumerable<Consultation>> GetAllAsync()
     {
-        _context.Consultations.Add(consultation);
-        await _context.SaveChangesAsync();
-        return consultation;
+        return await _context.Consultations
+            .Include(c => c.User)
+            .Include(c => c.Provider)
+            .Include(c => c.Category)
+            .Include(c => c.Subscription)
+            .Include(c => c.HealthAssessment)
+            .OrderByDescending(c => c.ScheduledAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a new consultation
+    /// </summary>
+    public override async Task<Consultation> CreateAsync(Consultation consultation)
+    {
+        consultation.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(consultation);
     }
     
-    public async Task<Consultation> UpdateAsync(Consultation consultation)
+    /// <summary>
+    /// Updates an existing consultation
+    /// </summary>
+    public override async Task<Consultation> UpdateAsync(Consultation consultation)
     {
-        _context.Consultations.Update(consultation);
-        await _context.SaveChangesAsync();
-        return consultation;
+        consultation.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(consultation);
     }
     
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a consultation by its unique identifier (hard delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var consultation = await _context.Consultations.FindAsync(id);
+        if (id is not Guid consultationId)
+            return false;
+
+        var consultation = await _context.Consultations.FindAsync(consultationId);
         if (consultation == null)
             return false;
             
         _context.Consultations.Remove(consultation);
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Checks if a consultation exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid consultationId)
+            return false;
+
+        return await _context.Consultations.AnyAsync(c => c.Id == consultationId);
     }
     
     public async Task<IEnumerable<Consultation>> GetUpcomingConsultationsAsync()

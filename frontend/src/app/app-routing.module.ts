@@ -3,7 +3,25 @@ import { RouterModule, Routes } from '@angular/router';
 import { AuthGuard } from './admin/auth/auth.guard';
 
 const routes: Routes = [
-  { path: '', redirectTo: '/admin/login', pathMatch: 'full' },
+  // Home/Marketing Page (Public)
+  { 
+    path: '', 
+    loadComponent: () => import('./home/plan-category-list/plan-category-list.component').then(m => m.PlanCategoryListComponent) 
+  },
+  { 
+    path: 'home', 
+    loadComponent: () => import('./home/plan-category-list/plan-category-list.component').then(m => m.PlanCategoryListComponent) 
+  },
+  
+  // Subscription Success/Cancel Pages (Public)
+  { 
+    path: 'subscription/success', 
+    loadComponent: () => import('./subscription-success/subscription-success.component').then(m => m.SubscriptionSuccessComponent) 
+  },
+  { 
+    path: 'subscription/cancel', 
+    loadComponent: () => import('./subscription-cancel/subscription-cancel.component').then(m => m.SubscriptionCancelComponent) 
+  },
   
   // Admin Authentication Routes (Public)
   { 
@@ -24,37 +42,33 @@ const routes: Routes = [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { 
         path: 'dashboard', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
+        loadComponent: () => import('./admin/dashboard/dashboard.component').then(m => m.DashboardComponent) 
       },
       { 
         path: 'subscriptions', 
         loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
       },
       { 
+        path: 'categories', 
+        loadComponent: () => import('./admin/category-management/category-management.component').then(m => m.CategoryManagementComponent) 
+      },
+      { 
+        path: 'plans', 
+        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
+      },
+      { 
+        path: 'billing', 
+        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
+      },
+      { 
         path: 'analytics', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
-      },
-      { 
-        path: 'manual-actions', 
-        loadComponent: () => import('./admin/manual-actions/manual-actions.component').then(m => m.ManualActionsComponent) 
-      },
-      { 
-        path: 'reports', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
-      },
-      { 
-        path: 'settings', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
-      },
-      { 
-        path: 'profile', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
+        loadComponent: () => import('./admin/dashboard/dashboard.component').then(m => m.DashboardComponent) 
       }
     ]
   },
   
-  // Catch all route
-  { path: '**', redirectTo: '/admin/login' }
+  // Catch all route - redirect to home
+  { path: '**', redirectTo: '' }
 ];
 
 @NgModule({

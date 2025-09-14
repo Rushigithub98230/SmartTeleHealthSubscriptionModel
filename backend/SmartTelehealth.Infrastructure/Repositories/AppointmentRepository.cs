@@ -14,17 +14,26 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
         _context = context;
     }
 
-    public async Task<Appointment?> GetByIdAsync(Guid id)
+    // Use base class methods for basic CRUD operations
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
+
+    // Override GetByIdAsync to include related data
+    public override async Task<Appointment?> GetByIdAsync(object id)
     {
-        return await _context.Appointments
-            .Include(a => a.Patient)
-            .Include(a => a.Provider)
-            .Include(a => a.Consultation)
-            .Include(a => a.Participants)
-            .FirstOrDefaultAsync(a => a.Id == id);
+        if (id is Guid guidId)
+        {
+            return await _context.Appointments
+                .Include(a => a.Patient)
+                .Include(a => a.Provider)
+                .Include(a => a.Consultation)
+                .Include(a => a.Participants)
+                .FirstOrDefaultAsync(a => a.Id == guidId);
+        }
+        return null;
     }
 
-    public async Task<IEnumerable<Appointment>> GetAllAsync()
+    // Override GetAllAsync to include related data
+    public override async Task<IEnumerable<Appointment>> GetAllAsync()
     {
         return await _context.Appointments
             .Include(a => a.Patient)
@@ -33,33 +42,52 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<Appointment>> GetByPatientIdAsync(int patientId)
+    // Override DeleteAsync to implement soft delete
+    public override async Task<bool> DeleteAsync(object id)
+    {
+        if (id is Guid guidId)
+        {
+            var appointment = await _context.Appointments.FindAsync(guidId);
+            if (appointment == null)
+                return false;
+
+            appointment.IsDeleted = true;
+            appointment.UpdatedDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        return false;
+    }
+
+    // Override ExistsAsync to apply business logic
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is Guid guidId)
+        {
+            return await _context.Appointments.AnyAsync(a => a.Id == guidId && !a.IsDeleted);
+        }
+        return false;
+    }
+
+    // Specialized methods for Appointment entity
+    public async Task<IEnumerable<Appointment>> GetByPatientAsync(int patientId)
     {
         return await _context.Appointments
+            .Include(a => a.Category)
             .Include(a => a.Patient)
             .Include(a => a.Provider)
             .Include(a => a.Consultation)
-            .Where(a => a.PatientId == patientId)
+            .Where(a => a.PatientId == patientId && !a.IsDeleted)
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<Appointment>> GetByProviderIdAsync(int providerId)
+    public async Task<IEnumerable<Appointment>> GetByProviderAsync(int providerId)
     {
         return await _context.Appointments
             .Include(a => a.Patient)
             .Include(a => a.Provider)
             .Include(a => a.Consultation)
-            .Where(a => a.ProviderId == providerId)
-            .ToListAsync();
-    }
-
-    public async Task<IEnumerable<Appointment>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)
-    {
-        return await _context.Appointments
-            .Include(a => a.Patient)
-            .Include(a => a.Provider)
-            .Include(a => a.Consultation)
-            .Where(a => a.ScheduledAt >= startDate && a.ScheduledAt <= endDate)
+            .Where(a => a.ProviderId == providerId && !a.IsDeleted)
             .ToListAsync();
     }
 
@@ -70,43 +98,23 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
             .Include(a => a.Provider)
             .Include(a => a.Consultation)
             .Include(a => a.AppointmentStatus)
-            .Where(a => a.AppointmentStatusId == appointmentStatusId)
+            .Where(a => a.AppointmentStatusId == appointmentStatusId && !a.IsDeleted)
             .ToListAsync();
     }
 
-    public async Task<Appointment> AddAsync(Appointment appointment)
+    public async Task<IEnumerable<Appointment>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)
     {
-        _context.Appointments.Add(appointment);
-        await _context.SaveChangesAsync();
-        return appointment;
+        return await _context.Appointments
+            .Include(a => a.Patient)
+            .Include(a => a.Provider)
+            .Include(a => a.Consultation)
+            .Where(a => a.ScheduledAt >= startDate && a.ScheduledAt <= endDate && !a.IsDeleted)
+            .ToListAsync();
     }
 
-    public async Task<Appointment> UpdateAsync(Appointment appointment)
+    public async Task<IEnumerable<Appointment>> GetUpcomingAsync()
     {
-        _context.Appointments.Update(appointment);
-        await _context.SaveChangesAsync();
-        return appointment;
-    }
-
-    public async Task<bool> DeleteAsync(Guid id)
-    {
-        var appointment = await _context.Appointments.FindAsync(id);
-        if (appointment == null)
-            return false;
-
-        _context.Appointments.Remove(appointment);
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<bool> ExistsAsync(Guid id)
-    {
-        return await _context.Appointments.AnyAsync(a => a.Id == id);
-    }
-
-    public async Task<int> GetCountAsync()
-    {
-        return await _context.Appointments.CountAsync();
+        return await GetUpcomingAppointmentsAsync(DateTime.UtcNow);
     }
 
     public async Task<IEnumerable<Appointment>> GetUpcomingAppointmentsAsync(DateTime fromDate)
@@ -117,7 +125,7 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
             .Include(a => a.Provider)
             .Include(a => a.Consultation)
             .Include(a => a.AppointmentStatus)
-            .Where(a => a.ScheduledAt >= fromDate && a.AppointmentStatusId == scheduledStatusId)
+            .Where(a => a.ScheduledAt >= fromDate && a.AppointmentStatusId == scheduledStatusId && !a.IsDeleted)
             .OrderBy(a => a.ScheduledAt)
             .ToListAsync();
     }
@@ -131,42 +139,8 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
             .Include(a => a.Provider)
             .Include(a => a.Consultation)
             .Include(a => a.AppointmentStatus)
-            .Where(a => a.ScheduledAt < now && a.AppointmentStatusId == scheduledStatusId)
+            .Where(a => a.ScheduledAt < now && a.AppointmentStatusId == scheduledStatusId && !a.IsDeleted)
             .ToListAsync();
-    }
-
-    // Additional interface methods
-    public async Task<Appointment> CreateAsync(Appointment appointment)
-    {
-        return await AddAsync(appointment);
-    }
-
-    public async Task<IEnumerable<Appointment>> GetByPatientAsync(int patientId)
-    {
-        return await _context.Appointments
-            .Include(a => a.Category)
-            .Include(a => a.Patient)
-            .Include(a => a.Provider)
-            .Include(a => a.Consultation)
-            .Where(a => a.PatientId == patientId)
-            .ToListAsync();
-    }
-
-    public async Task<IEnumerable<Appointment>> GetByProviderAsync(int providerId)
-    {
-        return await _context.Appointments
-            .Include(a => a.Patient)
-            .Include(a => a.Provider)
-            .Include(a => a.Consultation)
-            .Where(a => a.ProviderId == providerId)
-            .ToListAsync();
-    }
-
-
-
-    public async Task<IEnumerable<Appointment>> GetUpcomingAsync()
-    {
-        return await GetUpcomingAppointmentsAsync(DateTime.UtcNow);
     }
 
     public async Task<int> GetCountByStatusAsync(Guid statusId)
@@ -181,7 +155,7 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
         return await _context.Appointments
             .Where(a => a.ScheduledAt >= startDate && 
                        a.ScheduledAt <= endDate && 
-                       a.AppointmentStatusId == completedStatusId && // Completed status
+                       a.AppointmentStatusId == completedStatusId &&
                        !a.IsDeleted)
             .SumAsync(a => a.Fee);
     }
@@ -192,5 +166,16 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
             .Where(s => s.Name == statusName)
             .Select(s => s.Id)
             .FirstAsync();
+    }
+
+    // Legacy methods for backward compatibility
+    public async Task<Appointment> AddAsync(Appointment appointment)
+    {
+        return await CreateAsync(appointment);
+    }
+
+    public async Task<int> GetCountAsync()
+    {
+        return await _context.Appointments.CountAsync(a => !a.IsDeleted);
     }
 } 

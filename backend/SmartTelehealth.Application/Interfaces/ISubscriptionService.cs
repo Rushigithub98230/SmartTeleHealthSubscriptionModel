@@ -41,5 +41,12 @@ namespace SmartTelehealth.Application.Interfaces
         
         // Privilege usage tracking
         Task IncrementPrivilegeUsageAsync(string subscriptionId, string privilegeName);
+        
+        // Additional admin methods
+        Task<JsonModel> GetSubscriptionBillingHistoryAsync(string subscriptionId, TokenModel tokenModel);
+        Task<JsonModel> GetSubscriptionPrivilegeUsageAsync(string subscriptionId, TokenModel tokenModel);
+        
+        // Comprehensive filtering method
+        Task<JsonModel> GetSubscriptionsWithFilteringAsync(SubscriptionFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false);
     }
 } 

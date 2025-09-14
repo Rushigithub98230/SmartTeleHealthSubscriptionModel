@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Infrastructure.Data;
 
 namespace SmartTelehealth.Infrastructure.Repositories;
@@ -33,14 +34,6 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
         if (id is not Guid planId)
             return null;
 
-        return await GetByIdAsync(planId);
-    }
-
-    /// <summary>
-    /// Retrieves a subscription plan by its unique identifier with related entities
-    /// </summary>
-    public async Task<SubscriptionPlan?> GetByIdAsync(Guid id)
-    {
         return await _context.SubscriptionPlans
             .Include(sp => sp.Category)
             .Include(sp => sp.Currency)
@@ -48,7 +41,7 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
             .Include(sp => sp.PlanPrivileges)
                 .ThenInclude(spp => spp.Privilege)
             .Include(sp => sp.Subscriptions)
-            .FirstOrDefaultAsync(sp => sp.Id == id);
+            .FirstOrDefaultAsync(sp => sp.Id == planId);
     }
 
     /// <summary>
@@ -68,18 +61,39 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
     }
 
     /// <summary>
+    /// Creates a new subscription plan
+    /// </summary>
+    public override async Task<SubscriptionPlan> CreateAsync(SubscriptionPlan plan)
+    {
+        plan.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(plan);
+    }
+
+    /// <summary>
+    /// Updates an existing subscription plan
+    /// </summary>
+    public override async Task<SubscriptionPlan> UpdateAsync(SubscriptionPlan plan)
+    {
+        plan.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(plan);
+    }
+
+    /// <summary>
     /// Deletes a subscription plan by its unique identifier
     /// </summary>
-    public async Task<bool> DeleteAsync(Guid id)
+    public override async Task<bool> DeleteAsync(object id)
     {
+        if (id is not Guid planId)
+            return false;
+
         try
         {
-            var plan = await _context.SubscriptionPlans.FindAsync(id);
+            var plan = await _context.SubscriptionPlans.FindAsync(planId);
             if (plan == null)
                 return false;
 
             _context.SubscriptionPlans.Remove(plan);
-        await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
             return true;
         }
         catch
@@ -87,6 +101,18 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
             return false;
         }
     }
+
+    /// <summary>
+    /// Checks if a subscription plan exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid planId)
+            return false;
+
+        return await _context.SubscriptionPlans.AnyAsync(sp => sp.Id == planId);
+    }
+
 
     #endregion
 
@@ -144,67 +170,14 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
 
     #region Query Operations
 
-    /// <summary>
-    /// Retrieves all active subscription plans
-    /// </summary>
-    public async Task<IEnumerable<SubscriptionPlan>> GetActivePlansAsync()
-    {
-        return await _context.SubscriptionPlans
-            .Include(sp => sp.Category)
-            .Include(sp => sp.Currency)
-            .Include(sp => sp.BillingCycle)
-            .Where(sp => sp.IsActive)
-            .OrderBy(sp => sp.DisplayOrder)
-            .ThenBy(sp => sp.Name)
-            .ToListAsync();
-    }
+
+
+
 
     /// <summary>
-    /// Retrieves subscription plans by category
+    /// Retrieves subscription plans with comprehensive filtering using filter DTO
     /// </summary>
-    public async Task<IEnumerable<SubscriptionPlan>> GetPlansByCategoryAsync(Guid categoryId)
-    {
-        return await _context.SubscriptionPlans
-            .Include(sp => sp.Category)
-            .Include(sp => sp.Currency)
-            .Include(sp => sp.BillingCycle)
-            .Where(sp => sp.CategoryId == categoryId)
-            .OrderBy(sp => sp.DisplayOrder)
-            .ThenBy(sp => sp.Name)
-            .ToListAsync();
-    }
-
-    /// <summary>
-    /// Searches subscription plans by name or description
-    /// </summary>
-    public async Task<IEnumerable<SubscriptionPlan>> SearchPlansAsync(string searchTerm)
-    {
-        if (string.IsNullOrWhiteSpace(searchTerm))
-            return await GetAllAsync();
-
-        var term = searchTerm.ToLower();
-        return await _context.SubscriptionPlans
-            .Include(sp => sp.Category)
-            .Include(sp => sp.Currency)
-            .Include(sp => sp.BillingCycle)
-            .Where(sp => sp.Name.ToLower().Contains(term) || 
-                        (sp.Description != null && sp.Description.ToLower().Contains(term)))
-            .OrderBy(sp => sp.DisplayOrder)
-            .ThenBy(sp => sp.Name)
-            .ToListAsync();
-    }
-
-    /// <summary>
-    /// Retrieves subscription plans with comprehensive filtering, pagination, and sorting
-    /// </summary>
-    public async Task<(IEnumerable<SubscriptionPlan> Plans, int TotalCount)> GetPlansWithPaginationAsync(
-        int page = 1, 
-        int pageSize = 50, 
-        string? searchTerm = null, 
-        string? categoryId = null, 
-        bool? isActive = null,
-        string? sortColumn = "DisplayOrder",
-        string? sortOrder = "asc")
+    public async Task<(IEnumerable<SubscriptionPlan> Plans, int TotalCount)> GetPlansWithAdvancedFilteringAsync(SubscriptionPlanFilterDto filter)
     {
         var query = _context.SubscriptionPlans
             .Include(sp => sp.Category)
@@ -215,38 +188,204 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
             .AsQueryable();
 
         // Apply search filter
-        if (!string.IsNullOrWhiteSpace(searchTerm))
+        if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
         {
-            var term = searchTerm.ToLower();
+            var term = filter.SearchTerm.ToLower();
             query = query.Where(sp => 
                 sp.Name.ToLower().Contains(term) || 
                 (sp.Description != null && sp.Description.ToLower().Contains(term)) ||
                 (sp.ShortDescription != null && sp.ShortDescription.ToLower().Contains(term)));
         }
 
-        // Apply category filter
-        if (!string.IsNullOrWhiteSpace(categoryId) && Guid.TryParse(categoryId, out var categoryGuid))
+        // Apply category filters
+        if (filter.CategoryId.HasValue)
         {
-            query = query.Where(sp => sp.CategoryId == categoryGuid);
+            query = query.Where(sp => sp.CategoryId == filter.CategoryId.Value);
         }
 
-        // Apply active status filter
-        if (isActive.HasValue)
+        if (!string.IsNullOrWhiteSpace(filter.CategoryName))
         {
-            query = query.Where(sp => sp.IsActive == isActive.Value);
+            var categoryName = filter.CategoryName.ToLower();
+            query = query.Where(sp => sp.Category != null && sp.Category.Name.ToLower().Contains(categoryName));
+        }
+
+        // Apply status filters
+        if (filter.IsActive.HasValue)
+        {
+            query = query.Where(sp => sp.IsActive == filter.IsActive.Value);
+        }
+
+        if (filter.IsFeatured.HasValue)
+        {
+            query = query.Where(sp => sp.IsFeatured == filter.IsFeatured.Value);
+        }
+
+        if (filter.IsMostPopular.HasValue)
+        {
+            query = query.Where(sp => sp.IsMostPopular == filter.IsMostPopular.Value);
+        }
+
+        if (filter.IsTrending.HasValue)
+        {
+            query = query.Where(sp => sp.IsTrending == filter.IsTrending.Value);
+        }
+
+        if (filter.IsTrialAllowed.HasValue)
+        {
+            query = query.Where(sp => sp.IsTrialAllowed == filter.IsTrialAllowed.Value);
+        }
+
+        // Apply pricing filters
+        if (filter.MinPrice.HasValue)
+        {
+            query = query.Where(sp => sp.Price >= filter.MinPrice.Value);
+        }
+
+        if (filter.MaxPrice.HasValue)
+        {
+            query = query.Where(sp => sp.Price <= filter.MaxPrice.Value);
+        }
+
+        if (filter.ExactPrice.HasValue)
+        {
+            query = query.Where(sp => sp.Price == filter.ExactPrice.Value);
+        }
+
+        if (filter.CurrencyId.HasValue)
+        {
+            query = query.Where(sp => sp.CurrencyId == filter.CurrencyId.Value);
+        }
+
+        // Apply billing cycle filters
+        if (filter.BillingCycleId.HasValue)
+        {
+            query = query.Where(sp => sp.BillingCycleId == filter.BillingCycleId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.BillingCycleName))
+        {
+            var cycleName = filter.BillingCycleName.ToLower();
+            query = query.Where(sp => sp.BillingCycle != null && sp.BillingCycle.Name.ToLower().Contains(cycleName));
+        }
+
+        // Apply date range filters
+        if (filter.CreatedDateFrom.HasValue)
+        {
+            query = query.Where(sp => sp.CreatedDate >= filter.CreatedDateFrom.Value);
+        }
+
+        if (filter.CreatedDateTo.HasValue)
+        {
+            query = query.Where(sp => sp.CreatedDate <= filter.CreatedDateTo.Value);
+        }
+
+        if (filter.UpdatedDateFrom.HasValue)
+        {
+            query = query.Where(sp => sp.UpdatedDate >= filter.UpdatedDateFrom.Value);
+        }
+
+        if (filter.UpdatedDateTo.HasValue)
+        {
+            query = query.Where(sp => sp.UpdatedDate <= filter.UpdatedDateTo.Value);
+        }
+
+        if (filter.EffectiveDateFrom.HasValue)
+        {
+            query = query.Where(sp => sp.EffectiveDate >= filter.EffectiveDateFrom.Value);
+        }
+
+        if (filter.EffectiveDateTo.HasValue)
+        {
+            query = query.Where(sp => sp.EffectiveDate <= filter.EffectiveDateTo.Value);
+        }
+
+        // Apply trial duration filters
+        if (filter.MinTrialDuration.HasValue)
+        {
+            query = query.Where(sp => sp.TrialDurationInDays >= filter.MinTrialDuration.Value);
+        }
+
+        if (filter.MaxTrialDuration.HasValue)
+        {
+            query = query.Where(sp => sp.TrialDurationInDays <= filter.MaxTrialDuration.Value);
+        }
+
+        // Apply display order filters
+        if (filter.MinDisplayOrder.HasValue)
+        {
+            query = query.Where(sp => sp.DisplayOrder >= filter.MinDisplayOrder.Value);
+        }
+
+        if (filter.MaxDisplayOrder.HasValue)
+        {
+            query = query.Where(sp => sp.DisplayOrder <= filter.MaxDisplayOrder.Value);
+        }
+
+        // Apply Stripe integration filters
+        if (!string.IsNullOrWhiteSpace(filter.StripeProductId))
+        {
+            query = query.Where(sp => sp.StripeProductId == filter.StripeProductId);
+        }
+
+        if (filter.HasStripeIntegration.HasValue)
+        {
+            if (filter.HasStripeIntegration.Value)
+            {
+                query = query.Where(sp => !string.IsNullOrEmpty(sp.StripeProductId));
+            }
+            else
+            {
+                query = query.Where(sp => string.IsNullOrEmpty(sp.StripeProductId));
+            }
+        }
+
+        // Apply plan ID filters
+        if (filter.PlanIds != null && filter.PlanIds.Any())
+        {
+            query = query.Where(sp => filter.PlanIds.Contains(sp.Id));
+        }
+
+        if (filter.ExcludePlanIds != null && filter.ExcludePlanIds.Any())
+        {
+            query = query.Where(sp => !filter.ExcludePlanIds.Contains(sp.Id));
+        }
+
+        // Apply subscription-related filters
+        if (filter.HasActiveSubscriptions.HasValue)
+        {
+            if (filter.HasActiveSubscriptions.Value)
+            {
+                query = query.Where(sp => sp.Subscriptions.Any(s => s.Status == "Active"));
+            }
+            else
+            {
+                query = query.Where(sp => !sp.Subscriptions.Any(s => s.Status == "Active"));
+            }
+        }
+
+        if (filter.HasSubscriptions.HasValue)
+        {
+            if (filter.HasSubscriptions.Value)
+            {
+                query = query.Where(sp => sp.Subscriptions.Any());
+            }
+            else
+            {
+                query = query.Where(sp => !sp.Subscriptions.Any());
+            }
         }
 
         // Get total count before pagination
         var totalCount = await query.CountAsync();
 
         // Apply dynamic sorting
-        query = ApplySorting(query, sortColumn, sortOrder);
+        query = ApplySorting(query, filter.SortColumn, filter.SortOrder);
 
         // Apply pagination
-        var skip = (page - 1) * pageSize;
+        var skip = (filter.Page - 1) * filter.PageSize;
         var plans = await query
             .Skip(skip)
-            .Take(pageSize)
+            .Take(filter.PageSize)
             .ToListAsync();
 
         return (plans, totalCount);
@@ -277,6 +416,21 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
             "displayorder" => sortOrder.ToLower() == "desc" 
                 ? query.OrderByDescending(sp => sp.DisplayOrder)
                 : query.OrderBy(sp => sp.DisplayOrder),
+            "isfeatured" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(sp => sp.IsFeatured)
+                : query.OrderBy(sp => sp.IsFeatured),
+            "ismostpopular" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(sp => sp.IsMostPopular)
+                : query.OrderBy(sp => sp.IsMostPopular),
+            "istrending" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(sp => sp.IsTrending)
+                : query.OrderBy(sp => sp.IsTrending),
+            "trialduration" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(sp => sp.TrialDurationInDays)
+                : query.OrderBy(sp => sp.TrialDurationInDays),
+            "effectivedate" => sortOrder.ToLower() == "desc" 
+                ? query.OrderByDescending(sp => sp.EffectiveDate)
+                : query.OrderBy(sp => sp.EffectiveDate),
             _ => query.OrderBy(sp => sp.DisplayOrder).ThenBy(sp => sp.Name)
         };
     }
@@ -316,49 +470,6 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
         };
     }
 
-    /// <summary>
-    /// Retrieves subscription plans created within a date range
-    /// </summary>
-    public async Task<IEnumerable<SubscriptionPlan>> GetPlansByDateRangeAsync(DateTime startDate, DateTime endDate)
-    {
-        return await _context.SubscriptionPlans
-            .Include(sp => sp.Category)
-            .Include(sp => sp.Currency)
-            .Include(sp => sp.BillingCycle)
-            .Where(sp => sp.CreatedDate >= startDate && sp.CreatedDate <= endDate)
-            .OrderBy(sp => sp.CreatedDate)
-            .ToListAsync();
-    }
-
-    /// <summary>
-    /// Retrieves subscription plans by billing cycle
-    /// </summary>
-    public async Task<IEnumerable<SubscriptionPlan>> GetPlansByBillingCycleAsync(Guid billingCycleId)
-    {
-        return await _context.SubscriptionPlans
-            .Include(sp => sp.Category)
-            .Include(sp => sp.Currency)
-            .Include(sp => sp.BillingCycle)
-            .Where(sp => sp.BillingCycleId == billingCycleId)
-            .OrderBy(sp => sp.DisplayOrder)
-            .ThenBy(sp => sp.Name)
-            .ToListAsync();
-    }
-
-    /// <summary>
-    /// Retrieves subscription plans by currency
-    /// </summary>
-    public async Task<IEnumerable<SubscriptionPlan>> GetPlansByCurrencyAsync(Guid currencyId)
-    {
-        return await _context.SubscriptionPlans
-            .Include(sp => sp.Category)
-            .Include(sp => sp.Currency)
-            .Include(sp => sp.BillingCycle)
-            .Where(sp => sp.CurrencyId == currencyId)
-            .OrderBy(sp => sp.DisplayOrder)
-            .ThenBy(sp => sp.Name)
-            .ToListAsync();
-    }
 
     #endregion
 

@@ -14,16 +14,36 @@ public class ChatRoomRepository : RepositoryBase<ChatRoom>, IChatRoomRepository
         _context = context;
     }
 
-    public async Task<ChatRoom?> GetByIdAsync(Guid id)
+    // Use base class methods for basic CRUD operations
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
+
+    // Override GetByIdAsync to include related data and apply business logic
+    public override async Task<ChatRoom?> GetByIdAsync(object id)
+    {
+        if (id is Guid guidId)
+        {
+            return await _context.ChatRooms
+                .Include(cr => cr.Patient)
+                .Include(cr => cr.Provider)
+                .Include(cr => cr.Subscription)
+                .Include(cr => cr.Consultation)
+                .Include(cr => cr.Participants)
+                .Include(cr => cr.Messages)
+                .FirstOrDefaultAsync(cr => cr.Id == guidId && !cr.IsDeleted);
+        }
+        return null;
+    }
+
+    // Override GetAllAsync to include related data and apply business logic
+    public override async Task<IEnumerable<ChatRoom>> GetAllAsync()
     {
         return await _context.ChatRooms
             .Include(cr => cr.Patient)
             .Include(cr => cr.Provider)
             .Include(cr => cr.Subscription)
             .Include(cr => cr.Consultation)
-            .Include(cr => cr.Participants)
-            .Include(cr => cr.Messages)
-            .FirstOrDefaultAsync(cr => cr.Id == id && !cr.IsDeleted);
+            .Where(cr => !cr.IsDeleted)
+            .ToListAsync();
     }
 
     public async Task<IEnumerable<ChatRoom>> GetByUserIdAsync(int userId)
@@ -90,37 +110,45 @@ public class ChatRoomRepository : RepositoryBase<ChatRoom>, IChatRoomRepository
             .ToListAsync();
     }
 
-    public async Task<ChatRoom> CreateAsync(ChatRoom chatRoom)
+    // Override CreateAsync to add audit fields
+    public override async Task<ChatRoom> CreateAsync(ChatRoom chatRoom)
     {
         chatRoom.CreatedDate = DateTime.UtcNow;
-        _context.ChatRooms.Add(chatRoom);
-        await _context.SaveChangesAsync();
-        return chatRoom;
+        return await base.CreateAsync(chatRoom);
     }
 
-    public async Task<ChatRoom> UpdateAsync(ChatRoom chatRoom)
+    // Override UpdateAsync to add audit fields
+    public override async Task<ChatRoom> UpdateAsync(ChatRoom chatRoom)
     {
         chatRoom.UpdatedDate = DateTime.UtcNow;
-        _context.ChatRooms.Update(chatRoom);
-        await _context.SaveChangesAsync();
-        return chatRoom;
+        return await base.UpdateAsync(chatRoom);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    // Override DeleteAsync to implement soft delete
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var chatRoom = await _context.ChatRooms.FindAsync(id);
-        if (chatRoom == null)
-            return false;
+        if (id is Guid guidId)
+        {
+            var chatRoom = await _context.ChatRooms.FindAsync(guidId);
+            if (chatRoom == null)
+                return false;
 
-        chatRoom.IsDeleted = true;
-        chatRoom.UpdatedDate = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return true;
+            chatRoom.IsDeleted = true;
+            chatRoom.UpdatedDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        return false;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    // Override ExistsAsync to apply business logic
+    public override async Task<bool> ExistsAsync(object id)
     {
-        return await _context.ChatRooms.AnyAsync(cr => cr.Id == id && !cr.IsDeleted);
+        if (id is Guid guidId)
+        {
+            return await _context.ChatRooms.AnyAsync(cr => cr.Id == guidId && !cr.IsDeleted);
+        }
+        return false;
     }
 
     public async Task<int> GetCountAsync()

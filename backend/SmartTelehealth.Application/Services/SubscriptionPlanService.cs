@@ -97,18 +97,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     }
 
     /// <summary>
-    /// Retrieves subscription plans with comprehensive filtering, pagination, and sorting
+    /// Retrieves subscription plans with comprehensive filtering using filter DTO
+    /// This is the main method that consolidates all filtering capabilities
     /// </summary>
-    public async Task<JsonModel> GetSubscriptionPlansAsync(
-        TokenModel? tokenModel = null,
-        int page = 1,
-        int pageSize = 50,
-        string? searchTerm = null,
-        string? categoryId = null,
-        bool? isActive = null,
-        string? sortColumn = "DisplayOrder",
-        string? sortOrder = "asc",
-        bool adminOnly = false)
+    public async Task<JsonModel> GetSubscriptionPlansWithFilteringAsync(SubscriptionPlanFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false)
     {
         try
         {
@@ -118,39 +110,53 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            _logger.LogInformation("Retrieving subscription plans with filters - Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, CategoryId: {CategoryId}, IsActive: {IsActive}, SortColumn: {SortColumn}, SortOrder: {SortOrder}", 
-                page, pageSize, searchTerm, categoryId, isActive, sortColumn, sortOrder);
+            // Validate filter parameters
+            if (!filter.IsValid())
+            {
+                var errors = filter.GetValidationErrors();
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Invalid filter parameters: {string.Join(", ", errors)}", 
+                    StatusCode = 400 
+                };
+            }
 
-            // Use the improved repository method with database-level operations
-            var (plans, totalCount) = await _subscriptionPlanRepository.GetPlansWithPaginationAsync(
-                page, pageSize, searchTerm, categoryId, isActive, sortColumn, sortOrder);
+            _logger.LogInformation("Retrieving subscription plans with advanced filtering - Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, CategoryId: {CategoryId}, IsActive: {IsActive}", 
+                filter.Page, filter.PageSize, filter.SearchTerm, filter.CategoryId, filter.IsActive);
+
+            // Use the advanced repository method with comprehensive filtering
+            var (plans, totalCount) = await _subscriptionPlanRepository.GetPlansWithAdvancedFilteringAsync(filter);
 
             var planDtos = _mapper.Map<IEnumerable<SubscriptionPlanDto>>(plans);
 
-            // Create pagination metadata
+            // Create comprehensive pagination metadata
             var paginationMeta = new Meta
             {
                 TotalRecords = totalCount,
-                PageSize = pageSize,
-                CurrentPage = page,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
-                DefaultPageSize = pageSize
+                PageSize = filter.PageSize,
+                CurrentPage = filter.Page,
+                TotalPages = (int)Math.Ceiling((double)totalCount / filter.PageSize),
+                DefaultPageSize = filter.PageSize,
+                HasNextPage = filter.Page < (int)Math.Ceiling((double)totalCount / filter.PageSize),
+                HasPreviousPage = filter.Page > 1
             };
 
             return new JsonModel 
             { 
                 data = planDtos,
                 meta = paginationMeta,
-                Message = "Subscription plans retrieved successfully", 
+                Message = "Subscription plans retrieved successfully with advanced filtering", 
                 StatusCode = 200 
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving subscription plans with filters");
+            _logger.LogError(ex, "Error retrieving subscription plans with advanced filtering");
             return new JsonModel { data = new object(), Message = "Error retrieving subscription plans", StatusCode = 500 };
         }
     }
+
 
     /// <summary>
     /// Creates a new subscription plan
@@ -327,58 +333,6 @@ public class SubscriptionPlanService : ISubscriptionPlanService
 
     #region Plan Search and Filtering
 
-    /// <summary>
-    /// Retrieves all active subscription plans (convenience method)
-    /// </summary>
-    public async Task<JsonModel> GetActiveSubscriptionPlansAsync(TokenModel tokenModel)
-    {
-        return await GetSubscriptionPlansAsync(tokenModel, isActive: true, adminOnly: true);
-    }
-
-    /// <summary>
-    /// Retrieves subscription plans by category (convenience method)
-    /// </summary>
-    public async Task<JsonModel> GetSubscriptionPlansByCategoryAsync(string category, TokenModel tokenModel)
-    {
-        if (!Guid.TryParse(category, out var categoryGuid))
-        {
-            return new JsonModel { data = new object(), Message = "Invalid category ID format", StatusCode = 400 };
-        }
-        return await GetSubscriptionPlansAsync(tokenModel, categoryId: category);
-    }
-
-    /// <summary>
-    /// Retrieves a specific subscription plan by ID (convenience method)
-    /// </summary>
-    public async Task<JsonModel> GetSubscriptionPlanAsync(string planId, TokenModel tokenModel)
-    {
-        return await GetPlanByIdAsync(planId, tokenModel);
-    }
-
-    /// <summary>
-    /// Retrieves all subscription plans with advanced filtering and pagination (convenience method)
-    /// </summary>
-    public async Task<JsonModel> GetAllSubscriptionPlansAsync(TokenModel tokenModel, string? searchTerm = null, string? categoryId = null, bool? isActive = null, int page = 1, int pageSize = 50)
-    {
-        return await GetSubscriptionPlansAsync(tokenModel, page, pageSize, searchTerm, categoryId, isActive, adminOnly: true);
-    }
-
-
-    /// <summary>
-    /// Retrieves all subscription plans with pagination and filtering (convenience method)
-    /// </summary>
-    public async Task<JsonModel> GetAllPlansAsync(int page, int pageSize, string? searchTerm, string? categoryId, bool? isActive, TokenModel tokenModel)
-    {
-        return await GetSubscriptionPlansAsync(tokenModel, page, pageSize, searchTerm, categoryId, isActive, adminOnly: false);
-    }
-
-    /// <summary>
-    /// Retrieves all public subscription plans (convenience method)
-    /// </summary>
-    public async Task<JsonModel> GetPublicPlansAsync()
-    {
-        return await GetSubscriptionPlansAsync(null, isActive: true, adminOnly: false);
-    }
 
     #endregion
 
@@ -403,8 +357,16 @@ public class SubscriptionPlanService : ISubscriptionPlanService
 
             _logger.LogInformation("Exporting subscription plans in {Format} format by user {UserId}", format, tokenModel?.UserID ?? 0);
 
-            // Get filtered plans using the existing method
-            var plansResult = await GetAllSubscriptionPlansAsync(tokenModel, searchTerm, categoryId, isActive, 1, int.MaxValue);
+            // Get filtered plans using the consolidated method
+            var filter = new SubscriptionPlanFilterDto
+            {
+                Page = 1,
+                PageSize = int.MaxValue,
+                SearchTerm = searchTerm,
+                CategoryId = !string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out var catId) ? catId : null,
+                IsActive = isActive
+            };
+            var plansResult = await GetSubscriptionPlansWithFilteringAsync(filter, tokenModel, adminOnly: true);
             
             if (plansResult.StatusCode != 200)
             {

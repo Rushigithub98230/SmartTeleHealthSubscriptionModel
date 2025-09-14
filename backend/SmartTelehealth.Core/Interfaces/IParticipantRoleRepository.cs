@@ -6,6 +6,6 @@ namespace SmartTelehealth.Core.Interfaces
 {
     public interface IParticipantRoleRepository : IRepositoryBase<ParticipantRole>
     {
-        Task<ParticipantRole?> GetByIdAsync(Guid id);
+        // Basic CRUD methods are inherited from IRepositoryBase<ParticipantRole>
     }
 } 

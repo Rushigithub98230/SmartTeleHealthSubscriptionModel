@@ -37,4 +37,13 @@ public class SubscriptionPlanDto
     public bool IsCurrentlyAvailable { get; set; }
     public DateTime CreatedDate { get; set; }
     public DateTime? UpdatedDate { get; set; }
+    
+    // Plan features and limits (from entity)
+    public int MessagingCount { get; set; } = 10;
+    public bool IncludesMedicationDelivery { get; set; } = true;
+    public bool IncludesFollowUpCare { get; set; } = true;
+    public int DeliveryFrequencyDays { get; set; } = 30;
+    public int MaxPauseDurationDays { get; set; } = 90;
+    public int MaxConcurrentUsers { get; set; } = 1;
+    public int GracePeriodDays { get; set; } = 0;
 } 

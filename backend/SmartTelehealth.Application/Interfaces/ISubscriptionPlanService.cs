@@ -22,47 +22,15 @@ public interface ISubscriptionPlanService
     Task<JsonModel> GetPlanByIdAsync(string planId, TokenModel tokenModel);
     
     /// <summary>
-    /// Retrieves subscription plans with comprehensive filtering, pagination, and sorting
+    /// Retrieves subscription plans with comprehensive filtering using filter DTO
+    /// This is the main method that consolidates all filtering capabilities
     /// </summary>
+    /// <param name="filter">Comprehensive filter DTO containing all filter parameters</param>
     /// <param name="tokenModel">Token model for authentication (optional for public access)</param>
-    /// <param name="page">Page number for pagination (1-based)</param>
-    /// <param name="pageSize">Number of items per page</param>
-    /// <param name="searchTerm">Search term for filtering plans</param>
-    /// <param name="categoryId">Category ID for filtering plans</param>
-    /// <param name="isActive">Filter by active status</param>
-    /// <param name="sortColumn">Column name for sorting</param>
-    /// <param name="sortOrder">Sort order (asc/desc)</param>
     /// <param name="adminOnly">Whether to require admin access</param>
-    /// <returns>JsonModel containing filtered, paginated, and sorted subscription plans</returns>
-    Task<JsonModel> GetSubscriptionPlansAsync(
-        TokenModel? tokenModel = null,
-        int page = 1,
-        int pageSize = 50,
-        string? searchTerm = null,
-        string? categoryId = null,
-        bool? isActive = null,
-        string? sortColumn = "DisplayOrder",
-        string? sortOrder = "asc",
-        bool adminOnly = false);
+    /// <returns>JsonModel containing filtered, paginated, and sorted subscription plans with metadata</returns>
+    Task<JsonModel> GetSubscriptionPlansWithFilteringAsync(SubscriptionPlanFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false);
     
-    
-    /// <summary>
-    /// Retrieves all subscription plans with pagination and filtering (convenience method)
-    /// </summary>
-    /// <param name="page">Page number for pagination</param>
-    /// <param name="pageSize">Number of items per page</param>
-    /// <param name="searchTerm">Search term for filtering plans</param>
-    /// <param name="categoryId">Category ID for filtering plans</param>
-    /// <param name="isActive">Filter by active status</param>
-    /// <param name="tokenModel">Token containing user authentication information</param>
-    /// <returns>JsonModel containing paginated subscription plans</returns>
-    Task<JsonModel> GetAllPlansAsync(int page, int pageSize, string? searchTerm, string? categoryId, bool? isActive, TokenModel tokenModel);
-    
-    /// <summary>
-    /// Retrieves all public subscription plans (convenience method)
-    /// </summary>
-    /// <returns>JsonModel containing public subscription plans</returns>
-    Task<JsonModel> GetPublicPlansAsync();
     
     /// <summary>
     /// Creates a new subscription plan
@@ -86,40 +54,7 @@ public interface ISubscriptionPlanService
     
     #region Plan Search and Filtering
     
-    /// <summary>
-    /// Retrieves all active subscription plans
-    /// </summary>
-    /// <param name="tokenModel">Token containing user authentication information</param>
-    /// <returns>JsonModel containing active subscription plans</returns>
-    Task<JsonModel> GetActiveSubscriptionPlansAsync(TokenModel tokenModel);
-    
-    /// <summary>
-    /// Retrieves subscription plans by category
-    /// </summary>
-    /// <param name="category">Category name or identifier</param>
-    /// <param name="tokenModel">Token containing user authentication information</param>
-    /// <returns>JsonModel containing subscription plans for the specified category</returns>
-    Task<JsonModel> GetSubscriptionPlansByCategoryAsync(string category, TokenModel tokenModel);
-    
-    /// <summary>
-    /// Retrieves a subscription plan with detailed information
-    /// </summary>
-    /// <param name="planId">The unique identifier of the subscription plan</param>
-    /// <param name="tokenModel">Token containing user authentication information</param>
-    /// <returns>JsonModel containing the subscription plan details</returns>
-    Task<JsonModel> GetSubscriptionPlanAsync(string planId, TokenModel tokenModel);
-    
-    /// <summary>
-    /// Retrieves all subscription plans with advanced filtering and pagination
-    /// </summary>
-    /// <param name="tokenModel">Token containing user authentication information</param>
-    /// <param name="searchTerm">Search term for filtering plans</param>
-    /// <param name="categoryId">Category ID for filtering plans</param>
-    /// <param name="isActive">Filter by active status</param>
-    /// <param name="page">Page number for pagination</param>
-    /// <param name="pageSize">Number of items per page</param>
-    /// <returns>JsonModel containing filtered and paginated subscription plans</returns>
-    Task<JsonModel> GetAllSubscriptionPlansAsync(TokenModel tokenModel, string? searchTerm = null, string? categoryId = null, bool? isActive = null, int page = 1, int pageSize = 50);
+    // All search and filtering functionality is now consolidated into GetSubscriptionPlansWithFilteringAsync
     
     #endregion
     

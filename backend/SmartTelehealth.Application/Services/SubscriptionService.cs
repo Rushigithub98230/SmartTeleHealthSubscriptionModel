@@ -1491,4 +1491,125 @@ public class SubscriptionService : ISubscriptionService
     /// Changes the billing cycle of a subscription with Stripe synchronization
     /// </summary>
 
+    public async Task<JsonModel> GetSubscriptionBillingHistoryAsync(string subscriptionId, TokenModel tokenModel)
+    {
+        try
+        {
+            if (!Guid.TryParse(subscriptionId, out var subscriptionGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID format", StatusCode = 400 };
+            }
+
+            var billingHistory = await _billingService.GetSubscriptionBillingHistoryAsync(subscriptionGuid, tokenModel);
+            return billingHistory;
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel { data = new object(), Message = $"Error retrieving billing history: {ex.Message}", StatusCode = 500 };
+        }
+    }
+
+    public async Task<JsonModel> GetSubscriptionPrivilegeUsageAsync(string subscriptionId, TokenModel tokenModel)
+    {
+        try
+        {
+            if (!Guid.TryParse(subscriptionId, out var subscriptionGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID format", StatusCode = 400 };
+            }
+
+            // Get subscription details
+            var subscriptionResult = await GetSubscriptionAsync(subscriptionId, tokenModel);
+            if (subscriptionResult.StatusCode != 200)
+            {
+                return subscriptionResult;
+            }
+
+            // Get privilege usage data
+            var privilegeUsage = await _usageRepo.GetBySubscriptionIdAsync(subscriptionGuid);
+            
+            var usageData = privilegeUsage.Select(usage => new
+            {
+                PrivilegeId = usage.SubscriptionPlanPrivilegeId,
+                PrivilegeName = usage.SubscriptionPlanPrivilege?.Privilege?.Name ?? "Unknown",
+                UsedCount = usage.UsedValue,
+                Limit = usage.AllowedValue,
+                UsagePeriod = $"{usage.UsagePeriodStart:yyyy-MM-dd} to {usage.UsagePeriodEnd:yyyy-MM-dd}",
+                LastUsed = usage.LastUsedAt,
+                CreatedAt = usage.CreatedDate
+            }).ToList();
+
+            return new JsonModel
+            {
+                data = usageData,
+                Message = "Privilege usage retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel { data = new object(), Message = $"Error retrieving privilege usage: {ex.Message}", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Retrieves subscriptions with comprehensive filtering, pagination, and sorting
+    /// </summary>
+    public async Task<JsonModel> GetSubscriptionsWithFilteringAsync(SubscriptionFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false)
+    {
+        try
+        {
+            // Validate admin access if required
+            if (adminOnly && (tokenModel?.RoleID != 1 && tokenModel?.RoleID != 3))
+            {
+                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
+
+            // Validate filter parameters
+            if (!filter.IsValid())
+            {
+                var errors = filter.GetValidationErrors();
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Invalid filter parameters: {string.Join(", ", errors)}", 
+                    StatusCode = 400 
+                };
+            }
+
+            _logger.LogInformation("Retrieving subscriptions with advanced filtering - Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, Status: {Status}", 
+                filter.Page, filter.PageSize, filter.SearchTerm, filter.Status);
+
+            // Use the advanced repository method with comprehensive filtering
+            var (subscriptions, totalCount) = await _subscriptionRepository.GetSubscriptionsWithAdvancedFilteringAsync(filter);
+
+            var subscriptionDtos = _mapper.Map<IEnumerable<SubscriptionDto>>(subscriptions);
+
+            // Create comprehensive pagination metadata
+            var paginationMeta = new Meta
+            {
+                TotalRecords = totalCount,
+                PageSize = filter.PageSize,
+                CurrentPage = filter.Page,
+                TotalPages = (int)Math.Ceiling((double)totalCount / filter.PageSize),
+                DefaultPageSize = filter.PageSize,
+                HasNextPage = filter.Page < (int)Math.Ceiling((double)totalCount / filter.PageSize),
+                HasPreviousPage = filter.Page > 1
+            };
+
+            return new JsonModel 
+            { 
+                data = subscriptionDtos,
+                meta = paginationMeta,
+                Message = "Subscriptions retrieved successfully with advanced filtering", 
+                StatusCode = 200 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving subscriptions with advanced filtering");
+            return new JsonModel { data = new object(), Message = "Error retrieving subscriptions", StatusCode = 500 };
+        }
+    }
+
 }

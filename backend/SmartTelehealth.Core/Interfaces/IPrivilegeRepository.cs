@@ -4,9 +4,13 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IPrivilegeRepository : IRepositoryBase<Privilege>
 {
-    Task<Privilege?> GetByIdAsync(Guid id);
-    Task<IEnumerable<Privilege>> GetAllAsync();
+    // Basic CRUD methods are inherited from IRepositoryBase<Privilege>
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync
+
+    // Specialized methods for Privilege entity
+    Task<Privilege?> GetByNameAsync(string name);
+    Task<bool> ExistsByNameAsync(string name);
+    
+    // Legacy method for backward compatibility
     Task AddAsync(Privilege privilege);
-    Task UpdateAsync(Privilege privilege);
-    Task DeleteAsync(Guid id);
 } 

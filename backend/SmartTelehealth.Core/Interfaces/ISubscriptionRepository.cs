@@ -48,6 +48,17 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     Task<IEnumerable<Subscription>> GetPausedSubscriptionsAsync();
     Task<IEnumerable<Subscription>> GetCancelledSubscriptionsInRangeAsync(DateTime startDate, DateTime endDate);
     
+    // Automated billing methods
+    Task<IEnumerable<Subscription>> GetSubscriptionsDueForRenewalAsync();
+    Task<IEnumerable<Subscription>> GetSubscriptionsWithExpiredTrialsAsync();
+    Task<IEnumerable<Subscription>> GetSubscriptionsWithUpcomingRenewalsAsync();
+    // TODO: Implement discount and adjustment entities
+    // Task<IEnumerable<Discount>> GetActiveDiscountsAsync(Guid subscriptionId);
+    // Task<IEnumerable<Adjustment>> GetActiveAdjustmentsAsync(Guid subscriptionId);
+    
+    // Comprehensive filtering method
+    Task<(IEnumerable<Subscription> Subscriptions, int TotalCount)> GetSubscriptionsWithAdvancedFilteringAsync(SubscriptionFilterDto filter);
+    
     // Additional methods needed by services
     Task<Subscription?> GetActiveSubscriptionByUserIdAsync(int userId);
     Task<int> GetActiveSubscriptionsCountAsync();

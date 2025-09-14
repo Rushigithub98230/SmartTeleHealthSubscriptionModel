@@ -14,13 +14,19 @@ public class MedicationDeliveryRepository : RepositoryBase<MedicationDelivery>, 
         _context = context;
     }
     
-    public async Task<MedicationDelivery> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a medication delivery by its unique identifier with related entities
+    /// </summary>
+    public override async Task<MedicationDelivery?> GetByIdAsync(object id)
     {
+        if (id is not Guid deliveryId)
+            return null;
+
         return await _context.MedicationDeliveries
             .Include(m => m.User)
             .Include(m => m.Subscription)
             .Include(m => m.TrackingEvents)
-            .FirstOrDefaultAsync(m => m.Id == id);
+            .FirstOrDefaultAsync(m => m.Id == deliveryId);
     }
     
     public async Task<IEnumerable<MedicationDelivery>> GetByUserIdAsync(int userId)
@@ -64,23 +70,46 @@ public class MedicationDeliveryRepository : RepositoryBase<MedicationDelivery>, 
             .ToListAsync();
     }
     
-    public async Task<MedicationDelivery> CreateAsync(MedicationDelivery delivery)
+    /// <summary>
+    /// Retrieves all medication deliveries with related entities
+    /// </summary>
+    public override async Task<IEnumerable<MedicationDelivery>> GetAllAsync()
     {
-        _context.MedicationDeliveries.Add(delivery);
-        await _context.SaveChangesAsync();
-        return delivery;
+        return await _context.MedicationDeliveries
+            .Include(m => m.User)
+            .Include(m => m.Subscription)
+            .Include(m => m.TrackingEvents)
+            .OrderByDescending(m => m.CreatedDate)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a new medication delivery
+    /// </summary>
+    public override async Task<MedicationDelivery> CreateAsync(MedicationDelivery delivery)
+    {
+        delivery.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(delivery);
     }
     
-    public async Task<MedicationDelivery> UpdateAsync(MedicationDelivery delivery)
+    /// <summary>
+    /// Updates an existing medication delivery
+    /// </summary>
+    public override async Task<MedicationDelivery> UpdateAsync(MedicationDelivery delivery)
     {
-        _context.MedicationDeliveries.Update(delivery);
-        await _context.SaveChangesAsync();
-        return delivery;
+        delivery.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(delivery);
     }
     
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a medication delivery by its unique identifier (hard delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var delivery = await _context.MedicationDeliveries.FindAsync(id);
+        if (id is not Guid deliveryId)
+            return false;
+
+        var delivery = await _context.MedicationDeliveries.FindAsync(deliveryId);
         if (delivery == null)
             return false;
             
@@ -123,9 +152,15 @@ public class MedicationDeliveryRepository : RepositoryBase<MedicationDelivery>, 
         return true;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    /// <summary>
+    /// Checks if a medication delivery exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
     {
-        return await _context.MedicationDeliveries.AnyAsync(m => m.Id == id);
+        if (id is not Guid deliveryId)
+            return false;
+
+        return await _context.MedicationDeliveries.AnyAsync(m => m.Id == deliveryId);
     }
     
     public async Task<int> GetPendingDeliveryCountAsync()
@@ -164,13 +199,4 @@ public class MedicationDeliveryRepository : RepositoryBase<MedicationDelivery>, 
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<MedicationDelivery>> GetAllAsync()
-    {
-        return await _context.MedicationDeliveries
-            .Include(m => m.User)
-            .Include(m => m.Subscription)
-            .Include(m => m.TrackingEvents)
-            .OrderByDescending(m => m.CreatedDate)
-            .ToListAsync();
-    }
 } 

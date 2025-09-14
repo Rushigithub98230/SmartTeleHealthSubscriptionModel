@@ -14,13 +14,19 @@ public class ProviderFeeRepository : RepositoryBase<ProviderFee>, IProviderFeeRe
         _context = context;
     }
 
-    public async Task<ProviderFee?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a provider fee by its unique identifier with related entities
+    /// </summary>
+    public override async Task<ProviderFee?> GetByIdAsync(object id)
     {
+        if (id is not Guid feeId)
+            return null;
+
         return await _context.ProviderFees
             .Include(f => f.Provider)
             .Include(f => f.Category)
             .Include(f => f.ReviewedByUser)
-            .FirstOrDefaultAsync(f => f.Id == id && f.IsActive);
+            .FirstOrDefaultAsync(f => f.Id == feeId && f.IsActive);
     }
 
     public async Task<ProviderFee?> GetByProviderAndCategoryAsync(int providerId, Guid categoryId)
@@ -54,7 +60,10 @@ public class ProviderFeeRepository : RepositoryBase<ProviderFee>, IProviderFeeRe
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<ProviderFee>> GetAllAsync()
+    /// <summary>
+    /// Retrieves all provider fees with related entities
+    /// </summary>
+    public override async Task<IEnumerable<ProviderFee>> GetAllAsync()
     {
         return await _context.ProviderFees
             .Include(f => f.Provider)
@@ -111,23 +120,33 @@ public class ProviderFeeRepository : RepositoryBase<ProviderFee>, IProviderFeeRe
             .ToListAsync();
     }
 
-    public async Task<ProviderFee> AddAsync(ProviderFee fee)
+    /// <summary>
+    /// Creates a new provider fee
+    /// </summary>
+    public override async Task<ProviderFee> CreateAsync(ProviderFee fee)
     {
-        _context.ProviderFees.Add(fee);
-        await _context.SaveChangesAsync();
-        return fee;
+        fee.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(fee);
     }
 
-    public async Task<ProviderFee> UpdateAsync(ProviderFee fee)
+    /// <summary>
+    /// Updates an existing provider fee
+    /// </summary>
+    public override async Task<ProviderFee> UpdateAsync(ProviderFee fee)
     {
-        _context.ProviderFees.Update(fee);
-        await _context.SaveChangesAsync();
-        return fee;
+        fee.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(fee);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a provider fee by its unique identifier (soft delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var fee = await _context.ProviderFees.FindAsync(id);
+        if (id is not Guid feeId)
+            return false;
+
+        var fee = await _context.ProviderFees.FindAsync(feeId);
         if (fee == null)
             return false;
 
@@ -135,6 +154,26 @@ public class ProviderFeeRepository : RepositoryBase<ProviderFee>, IProviderFeeRe
         fee.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Checks if a provider fee exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid feeId)
+            return false;
+
+        return await _context.ProviderFees
+            .AnyAsync(f => f.Id == feeId && f.IsActive);
+    }
+
+    /// <summary>
+    /// Legacy method for backward compatibility
+    /// </summary>
+    public async Task<ProviderFee> AddAsync(ProviderFee fee)
+    {
+        return await CreateAsync(fee);
     }
 
     public async Task<int> GetCountByStatusAsync(string status)
@@ -169,11 +208,17 @@ public class CategoryFeeRangeRepository : RepositoryBase<CategoryFeeRange>, ICat
         _context = context;
     }
 
-    public async Task<CategoryFeeRange?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a category fee range by its unique identifier with related entities
+    /// </summary>
+    public override async Task<CategoryFeeRange?> GetByIdAsync(object id)
     {
+        if (id is not Guid rangeId)
+            return null;
+
         return await _context.CategoryFeeRanges
             .Include(f => f.Category)
-            .FirstOrDefaultAsync(f => f.Id == id);
+            .FirstOrDefaultAsync(f => f.Id == rangeId);
     }
 
     public async Task<CategoryFeeRange?> GetByCategoryAsync(Guid categoryId)

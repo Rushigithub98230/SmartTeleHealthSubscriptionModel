@@ -13,38 +13,41 @@ public class AppointmentParticipantRepository : RepositoryBase<AppointmentPartic
         _context = context;
     }
 
-    public async Task<IEnumerable<AppointmentParticipant>> GetAllAsync()
-    {
-        return await _context.AppointmentParticipants.ToListAsync();
-    }
+    // Use base class methods for basic CRUD operations
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
 
-    public async Task<AppointmentParticipant?> GetByIdAsync(Guid id)
+    // Override GetByIdAsync to handle Guid ID type
+    public override async Task<AppointmentParticipant?> GetByIdAsync(object id)
     {
-        return await _context.AppointmentParticipants.FindAsync(id);
-    }
-
-    public async Task<AppointmentParticipant> CreateAsync(AppointmentParticipant entity)
-    {
-        _context.AppointmentParticipants.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task<AppointmentParticipant> UpdateAsync(AppointmentParticipant entity)
-    {
-        _context.AppointmentParticipants.Update(entity);
-        await _context.SaveChangesAsync();
-        return entity;
-    }
-
-    public async Task<bool> DeleteAsync(Guid id)
-    {
-        var entity = await _context.AppointmentParticipants.FindAsync(id);
-        if (entity != null)
+        if (id is Guid guidId)
         {
-            _context.AppointmentParticipants.Remove(entity);
-            await _context.SaveChangesAsync();
-            return true;
+            return await _context.AppointmentParticipants.FindAsync(guidId);
+        }
+        return null;
+    }
+
+    // Override DeleteAsync to handle Guid ID type
+    public override async Task<bool> DeleteAsync(object id)
+    {
+        if (id is Guid guidId)
+        {
+            var entity = await _context.AppointmentParticipants.FindAsync(guidId);
+            if (entity != null)
+            {
+                _context.AppointmentParticipants.Remove(entity);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Override ExistsAsync to handle Guid ID type
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is Guid guidId)
+        {
+            return await _context.AppointmentParticipants.AnyAsync(e => e.Id == guidId);
         }
         return false;
     }

@@ -14,13 +14,26 @@ public class HealthAssessmentRepository : RepositoryBase<HealthAssessment>, IHea
         _context = context;
     }
     
-    public async Task<HealthAssessment> GetByIdAsync(Guid id)
+    public override async Task<HealthAssessment?> GetByIdAsync(object id)
+    {
+        if (id is not Guid assessmentId)
+            return null;
+
+        return await _context.HealthAssessments
+            .Include(h => h.User)
+            .Include(h => h.Category)
+            .Include(h => h.Provider)
+            .FirstOrDefaultAsync(h => h.Id == assessmentId);
+    }
+
+    public override async Task<IEnumerable<HealthAssessment>> GetAllAsync()
     {
         return await _context.HealthAssessments
             .Include(h => h.User)
             .Include(h => h.Category)
             .Include(h => h.Provider)
-            .FirstOrDefaultAsync(h => h.Id == id);
+            .OrderByDescending(h => h.CreatedDate)
+            .ToListAsync();
     }
     
     public async Task<IEnumerable<HealthAssessment>> GetByUserIdAsync(int userId)
@@ -53,29 +66,39 @@ public class HealthAssessmentRepository : RepositoryBase<HealthAssessment>, IHea
             .ToListAsync();
     }
     
-    public async Task<HealthAssessment> CreateAsync(HealthAssessment assessment)
+    public override async Task<HealthAssessment> CreateAsync(HealthAssessment assessment)
     {
-        _context.HealthAssessments.Add(assessment);
-        await _context.SaveChangesAsync();
-        return assessment;
+        assessment.CreatedDate = DateTime.UtcNow;
+        assessment.UpdatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(assessment);
     }
     
-    public async Task<HealthAssessment> UpdateAsync(HealthAssessment assessment)
+    public override async Task<HealthAssessment> UpdateAsync(HealthAssessment assessment)
     {
-        _context.HealthAssessments.Update(assessment);
-        await _context.SaveChangesAsync();
-        return assessment;
+        assessment.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(assessment);
     }
     
-    public async Task<bool> DeleteAsync(Guid id)
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var assessment = await _context.HealthAssessments.FindAsync(id);
+        if (id is not Guid assessmentId)
+            return false;
+
+        var assessment = await _context.HealthAssessments.FindAsync(assessmentId);
         if (assessment == null)
             return false;
             
         _context.HealthAssessments.Remove(assessment);
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid assessmentId)
+            return false;
+
+        return await _context.HealthAssessments.AnyAsync(h => h.Id == assessmentId);
     }
 
     public async Task<IEnumerable<HealthAssessment>> GetUserAssessmentsAsync(int userId)

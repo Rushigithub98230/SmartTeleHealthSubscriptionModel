@@ -42,6 +42,7 @@ export class CommonService {
       headers, 
       params: httpParams 
     }).pipe(
+      map(response => this.validateResponse(response)),
       catchError(this.handleError)
     );
   }
@@ -57,6 +58,7 @@ export class CommonService {
       headers, 
       params: httpParams 
     }).pipe(
+      map(response => this.validateResponse(response)),
       catchError(this.handleError)
     );
   }
@@ -72,6 +74,7 @@ export class CommonService {
       headers, 
       params: httpParams 
     }).pipe(
+      map(response => this.validateResponse(response)),
       catchError(this.handleError)
     );
   }
@@ -87,8 +90,28 @@ export class CommonService {
       headers, 
       params: httpParams 
     }).pipe(
+      map(response => this.validateResponse(response)),
       catchError(this.handleError)
     );
+  }
+
+  /**
+   * Validate API response structure
+   */
+  private validateResponse<T>(response: ApiResponse<T>): ApiResponse<T> {
+    if (!response) {
+      throw new Error('Invalid response: response is null or undefined');
+    }
+    
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new Error(response.message || `Request failed with status ${response.statusCode}`);
+    }
+    
+    if (response.data === null || response.data === undefined) {
+      console.warn('Response data is null or undefined, but status code indicates success');
+    }
+    
+    return response;
   }
 
   /**

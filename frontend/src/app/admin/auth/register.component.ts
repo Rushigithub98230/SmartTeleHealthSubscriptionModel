@@ -315,7 +315,7 @@ export class AdminRegisterComponent implements OnInit {
   ngOnInit() {
     // Check if user is already authenticated
     if (this.authService.isAuthenticated()) {
-      this.router.navigate(['/admin/dashboard']);
+      this.router.navigate(['/admin/subscriptions']);
     }
   }
 

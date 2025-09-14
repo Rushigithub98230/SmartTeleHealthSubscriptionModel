@@ -232,7 +232,7 @@ export class SubscriptionManagementComponent implements OnInit {
   // Subscriptions management
   loadSubscriptions() {
     this.subscriptionsLoading = true;
-    const statusFilter = this.selectedStatus ? [this.selectedStatus] : undefined;
+    const statusFilter = this.selectedStatus || undefined;
     
     this.subscriptionService.getAllSubscriptions(
       this.subscriptionCurrentPage + 1,

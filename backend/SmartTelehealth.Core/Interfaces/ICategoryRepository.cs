@@ -4,14 +4,12 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface ICategoryRepository : IRepositoryBase<Category>
 {
-    Task<Category?> GetByIdAsync(Guid id);
-    Task<IEnumerable<Category>> GetAllAsync();
+    // Basic CRUD methods are inherited from IRepositoryBase<Category>
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync
+
+    // Specialized methods for Category entity
     Task<IEnumerable<Category>> GetAllActiveAsync();
     Task<IEnumerable<Category>> GetByDisplayOrderAsync();
-    Task<Category> CreateAsync(Category category);
-    Task<Category> UpdateAsync(Category category);
-    Task<bool> DeleteAsync(Guid id);
-    Task<bool> ExistsAsync(Guid id);
     Task<bool> ExistsByNameAsync(string name);
     Task<int> GetActiveCategoryCountAsync();
     Task<IEnumerable<Category>> SearchCategoriesAsync(string searchTerm);

@@ -13,31 +13,25 @@ public class PrivilegeRepository : RepositoryBase<Privilege>, IPrivilegeReposito
         _context = context;
     }
 
-    public async Task<Privilege?> GetByIdAsync(Guid id)
-        => await _context.Privileges.FindAsync(id);
+    // Use base class methods for basic CRUD operations
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync are inherited from RepositoryBase
 
-    public async Task<IEnumerable<Privilege>> GetAllAsync()
-        => await _context.Privileges.ToListAsync();
+    // Keep only specialized methods that add value
+    public async Task<Privilege?> GetByNameAsync(string name)
+    {
+        return await _context.Privileges
+            .FirstOrDefaultAsync(p => p.Name.ToLower() == name.ToLower());
+    }
 
+    public async Task<bool> ExistsByNameAsync(string name)
+    {
+        return await _context.Privileges
+            .AnyAsync(p => p.Name.ToLower() == name.ToLower());
+    }
+
+    // Legacy method for backward compatibility - delegates to base CreateAsync
     public async Task AddAsync(Privilege privilege)
     {
-        _context.Privileges.Add(privilege);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task UpdateAsync(Privilege privilege)
-    {
-        _context.Privileges.Update(privilege);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task DeleteAsync(Guid id)
-    {
-        var entity = await _context.Privileges.FindAsync(id);
-        if (entity != null)
-        {
-            _context.Privileges.Remove(entity);
-            await _context.SaveChangesAsync();
-        }
+        await CreateAsync(privilege);
     }
 } 

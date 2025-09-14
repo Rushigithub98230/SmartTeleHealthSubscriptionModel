@@ -4,14 +4,13 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IConsultationRepository : IRepositoryBase<Consultation>
 {
-    Task<Consultation> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<Consultation>
+    
     Task<IEnumerable<Consultation>> GetByUserIdAsync(int userId);
     Task<IEnumerable<Consultation>> GetByProviderIdAsync(int providerId);
     Task<IEnumerable<Consultation>> GetBySubscriptionIdAsync(Guid subscriptionId);
-    Task<Consultation> CreateAsync(Consultation consultation);
-    Task<Consultation> UpdateAsync(Consultation consultation);
-    Task<bool> DeleteAsync(Guid id);
     Task<IEnumerable<Consultation>> GetUpcomingConsultationsAsync();
     Task<IEnumerable<Consultation>> GetUpcomingAsync();
+    Task<IEnumerable<Consultation>> GetScheduledConsultationsAsync();
     Task<IEnumerable<Consultation>> GetCompletedConsultationsAsync(int userId);
 } 

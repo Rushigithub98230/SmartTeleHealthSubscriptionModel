@@ -14,11 +14,19 @@ public class UserRepository : RepositoryBase<User>, IUserRepository
         _context = context;
     }
 
-    public async Task<User?> GetByIdAsync(int id)
+    // Use base class methods for basic CRUD operations
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
+
+    // Override GetByIdAsync to include related data and apply business logic
+    public override async Task<User?> GetByIdAsync(object id)
     {
-        return await _context.Users
-            .Include(u => u.UserRole)
-            .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+        if (id is int intId)
+        {
+            return await _context.Users
+                .Include(u => u.UserRole)
+                .FirstOrDefaultAsync(u => u.Id == intId && !u.IsDeleted);
+        }
+        return null;
     }
 
     public async Task<User?> GetByEmailAsync(string email)
@@ -43,9 +51,11 @@ public class UserRepository : RepositoryBase<User>, IUserRepository
                                      !u.IsDeleted);
     }
 
-    public async Task<IEnumerable<User>> GetAllAsync()
+    // Override GetAllAsync to include related data and apply business logic
+    public override async Task<IEnumerable<User>> GetAllAsync()
     {
         return await _context.Users
+            .Include(u => u.UserRole)
             .Where(u => !u.IsDeleted)
             .OrderBy(u => u.CreatedDate)
             .ToListAsync();
@@ -54,43 +64,51 @@ public class UserRepository : RepositoryBase<User>, IUserRepository
     public async Task<IEnumerable<User>> GetActiveUsersAsync()
     {
         return await _context.Users
+            .Include(u => u.UserRole)
             .Where(u => u.IsActive && !u.IsDeleted)
             .OrderBy(u => u.CreatedDate)
             .ToListAsync();
     }
 
-    public async Task<User> CreateAsync(User user)
+    // Override CreateAsync to add audit fields
+    public override async Task<User> CreateAsync(User user)
     {
         user.CreatedDate = DateTime.UtcNow;
-        Create(user);
-        await SaveChangesAsync();
-        return user;
+        return await base.CreateAsync(user);
     }
 
-    public async Task<User> UpdateAsync(User user)
+    // Override UpdateAsync to add audit fields
+    public override async Task<User> UpdateAsync(User user)
     {
         user.UpdatedDate = DateTime.UtcNow;
-        Update(user);
-        await SaveChangesAsync();
-        return user;
+        return await base.UpdateAsync(user);
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    // Override DeleteAsync to implement soft delete
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var user = await _context.Users.FindAsync(id);
-        if (user == null) return false;
+        if (id is int intId)
+        {
+            var user = await _context.Users.FindAsync(intId);
+            if (user == null) return false;
 
-        user.IsDeleted = true;
-        user.UpdatedDate = DateTime.UtcNow;
-        Update(user);
-        await SaveChangesAsync();
-        return true;
+            user.IsDeleted = true;
+            user.UpdatedDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        return false;
     }
 
-    public async Task<bool> ExistsAsync(int id)
+    // Override ExistsAsync to apply business logic
+    public override async Task<bool> ExistsAsync(object id)
     {
-        return await _context.Users
-            .AnyAsync(u => u.Id == id && !u.IsDeleted);
+        if (id is int intId)
+        {
+            return await _context.Users
+                .AnyAsync(u => u.Id == intId && !u.IsDeleted);
+        }
+        return false;
     }
 
     public async Task<bool> ExistsByEmailAsync(string email)

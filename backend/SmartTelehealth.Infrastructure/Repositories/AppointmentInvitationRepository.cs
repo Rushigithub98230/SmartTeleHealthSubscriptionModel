@@ -13,33 +13,52 @@ public class AppointmentInvitationRepository : RepositoryBase<AppointmentInvitat
         _context = context;
     }
 
-    public async Task<IEnumerable<AppointmentInvitation>> GetAllAsync()
+    /// <summary>
+    /// Retrieves all appointment invitations
+    /// </summary>
+    public override async Task<IEnumerable<AppointmentInvitation>> GetAllAsync()
     {
         return await _context.AppointmentInvitations.ToListAsync();
     }
 
-    public async Task<AppointmentInvitation?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves an appointment invitation by its unique identifier
+    /// </summary>
+    public override async Task<AppointmentInvitation?> GetByIdAsync(object id)
     {
-        return await _context.AppointmentInvitations.FindAsync(id);
+        if (id is not Guid invitationId)
+            return null;
+
+        return await _context.AppointmentInvitations.FindAsync(invitationId);
     }
 
-    public async Task<AppointmentInvitation> CreateAsync(AppointmentInvitation entity)
+    /// <summary>
+    /// Creates a new appointment invitation
+    /// </summary>
+    public override async Task<AppointmentInvitation> CreateAsync(AppointmentInvitation entity)
     {
-        _context.AppointmentInvitations.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
+        entity.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(entity);
     }
 
-    public async Task<AppointmentInvitation> UpdateAsync(AppointmentInvitation entity)
+    /// <summary>
+    /// Updates an existing appointment invitation
+    /// </summary>
+    public override async Task<AppointmentInvitation> UpdateAsync(AppointmentInvitation entity)
     {
-        _context.AppointmentInvitations.Update(entity);
-        await _context.SaveChangesAsync();
-        return entity;
+        entity.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(entity);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes an appointment invitation by its unique identifier (hard delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var entity = await _context.AppointmentInvitations.FindAsync(id);
+        if (id is not Guid invitationId)
+            return false;
+
+        var entity = await _context.AppointmentInvitations.FindAsync(invitationId);
         if (entity != null)
         {
             _context.AppointmentInvitations.Remove(entity);
@@ -49,10 +68,17 @@ public class AppointmentInvitationRepository : RepositoryBase<AppointmentInvitat
         return false;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    /// <summary>
+    /// Checks if an appointment invitation exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
     {
-        return await _context.AppointmentInvitations.AnyAsync(e => e.Id == id);
+        if (id is not Guid invitationId)
+            return false;
+
+        return await _context.AppointmentInvitations.AnyAsync(x => x.Id == invitationId);
     }
+
 
     public async Task<IEnumerable<AppointmentInvitation>> GetByAppointmentAsync(Guid appointmentId)
     {

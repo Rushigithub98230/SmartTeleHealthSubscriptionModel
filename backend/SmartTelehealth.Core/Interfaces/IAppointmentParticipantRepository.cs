@@ -4,12 +4,10 @@ namespace SmartTelehealth.Core.Interfaces;
 
 public interface IAppointmentParticipantRepository : IRepositoryBase<AppointmentParticipant>
 {
-    Task<AppointmentParticipant?> GetByIdAsync(Guid id);
-    Task<IEnumerable<AppointmentParticipant>> GetAllAsync();
-    Task<AppointmentParticipant> CreateAsync(AppointmentParticipant participant);
-    Task<AppointmentParticipant> UpdateAsync(AppointmentParticipant participant);
-    Task<bool> DeleteAsync(Guid id);
-    Task<bool> ExistsAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<AppointmentParticipant>
+    // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync
+
+    // Specialized methods for AppointmentParticipant entity
     Task<IEnumerable<AppointmentParticipant>> GetByAppointmentAsync(Guid appointmentId);
     Task<IEnumerable<AppointmentParticipant>> GetByUserAsync(int userId);
     Task<AppointmentParticipant?> GetByAppointmentAndUserAsync(Guid appointmentId, int? userId);

@@ -13,33 +13,52 @@ public class AppointmentPaymentLogRepository : RepositoryBase<AppointmentPayment
         _context = context;
     }
 
-    public async Task<IEnumerable<AppointmentPaymentLog>> GetAllAsync()
+    /// <summary>
+    /// Retrieves all appointment payment logs
+    /// </summary>
+    public override async Task<IEnumerable<AppointmentPaymentLog>> GetAllAsync()
     {
         return await _context.AppointmentPaymentLogs.ToListAsync();
     }
 
-    public async Task<AppointmentPaymentLog?> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves an appointment payment log by its unique identifier
+    /// </summary>
+    public override async Task<AppointmentPaymentLog?> GetByIdAsync(object id)
     {
-        return await _context.AppointmentPaymentLogs.FindAsync(id);
+        if (id is not Guid logId)
+            return null;
+
+        return await _context.AppointmentPaymentLogs.FindAsync(logId);
     }
 
-    public async Task<AppointmentPaymentLog> CreateAsync(AppointmentPaymentLog entity)
+    /// <summary>
+    /// Creates a new appointment payment log
+    /// </summary>
+    public override async Task<AppointmentPaymentLog> CreateAsync(AppointmentPaymentLog entity)
     {
-        _context.AppointmentPaymentLogs.Add(entity);
-        await _context.SaveChangesAsync();
-        return entity;
+        entity.CreatedDate = DateTime.UtcNow;
+        return await base.CreateAsync(entity);
     }
 
-    public async Task<AppointmentPaymentLog> UpdateAsync(AppointmentPaymentLog entity)
+    /// <summary>
+    /// Updates an existing appointment payment log
+    /// </summary>
+    public override async Task<AppointmentPaymentLog> UpdateAsync(AppointmentPaymentLog entity)
     {
-        _context.AppointmentPaymentLogs.Update(entity);
-        await _context.SaveChangesAsync();
-        return entity;
+        entity.UpdatedDate = DateTime.UtcNow;
+        return await base.UpdateAsync(entity);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes an appointment payment log by its unique identifier (hard delete)
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var entity = await _context.AppointmentPaymentLogs.FindAsync(id);
+        if (id is not Guid logId)
+            return false;
+
+        var entity = await _context.AppointmentPaymentLogs.FindAsync(logId);
         if (entity != null)
         {
             _context.AppointmentPaymentLogs.Remove(entity);
@@ -47,6 +66,17 @@ public class AppointmentPaymentLogRepository : RepositoryBase<AppointmentPayment
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Checks if an appointment payment log exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
+    {
+        if (id is not Guid logId)
+            return false;
+
+        return await _context.AppointmentPaymentLogs.AnyAsync(x => x.Id == logId);
     }
 
     public async Task<bool> ExistsAsync(Guid id)

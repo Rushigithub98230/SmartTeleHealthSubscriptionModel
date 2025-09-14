@@ -1,18 +1,16 @@
 using SmartTelehealth.Core.Entities;
+using SmartTelehealth.Core.DTOs;
 
 namespace SmartTelehealth.Core.Interfaces;
 
 public interface IBillingRepository : IRepositoryBase<BillingRecord>
 {
-    Task<BillingRecord?> GetByIdAsync(Guid id);
+    // Basic CRUD methods are inherited from IRepositoryBase<BillingRecord>
+    
     Task<IEnumerable<BillingRecord>> GetByUserIdAsync(int userId);
     Task<IEnumerable<BillingRecord>> GetBySubscriptionIdAsync(Guid subscriptionId);
     Task<IEnumerable<BillingRecord>> GetByDateRangeAsync(DateTime startDate, DateTime endDate);
     Task<IEnumerable<BillingRecord>> GetByStatusAsync(BillingRecord.BillingStatus status);
-    Task<BillingRecord> CreateAsync(BillingRecord billingRecord);
-    Task<BillingRecord> UpdateAsync(BillingRecord billingRecord);
-    Task<bool> DeleteAsync(Guid id);
-    Task<bool> ExistsAsync(Guid id);
     
     // New methods for InvoiceService
     Task<BillingRecord?> GetByInvoiceNumberAsync(string invoiceNumber);
@@ -29,4 +27,8 @@ public interface IBillingRepository : IRepositoryBase<BillingRecord>
     // Webhook support methods
     Task<BillingRecord?> GetByStripePaymentIntentIdAsync(string stripePaymentIntentId);
     Task<BillingRecord?> GetByStripeInvoiceIdAsync(string stripeInvoiceId);
+    Task<BillingRecord?> GetByTransactionIdAsync(string transactionId);
+    
+    // Comprehensive filtering method
+    Task<(IEnumerable<BillingRecord> BillingRecords, int TotalCount)> GetBillingRecordsWithAdvancedFilteringAsync(BillingFilterDto filter);
 } 

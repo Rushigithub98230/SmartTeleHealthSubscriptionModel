@@ -14,11 +14,17 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
         _context = context;
     }
 
-    public async Task<SubscriptionPayment> GetByIdAsync(Guid id)
+    /// <summary>
+    /// Retrieves a subscription payment by its unique identifier with related entities
+    /// </summary>
+    public override async Task<SubscriptionPayment?> GetByIdAsync(object id)
     {
+        if (id is not Guid paymentId)
+            return null;
+
         return await _context.SubscriptionPayments
             .Include(sp => sp.Subscription)
-            .FirstOrDefaultAsync(sp => sp.Id == id);
+            .FirstOrDefaultAsync(sp => sp.Id == paymentId);
     }
 
     public async Task<IEnumerable<SubscriptionPayment>> GetBySubscriptionIdAsync(Guid subscriptionId)
@@ -48,28 +54,45 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
             .ToListAsync();
     }
 
-    public async Task<SubscriptionPayment> CreateAsync(SubscriptionPayment payment)
+    /// <summary>
+    /// Retrieves all subscription payments with related entities
+    /// </summary>
+    public override async Task<IEnumerable<SubscriptionPayment>> GetAllAsync()
+    {
+        return await _context.SubscriptionPayments
+            .Include(sp => sp.Subscription)
+            .OrderByDescending(sp => sp.CreatedDate)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Creates a new subscription payment
+    /// </summary>
+    public override async Task<SubscriptionPayment> CreateAsync(SubscriptionPayment payment)
     {
         payment.CreatedDate = DateTime.UtcNow;
         payment.UpdatedDate = DateTime.UtcNow;
-        
-        _context.SubscriptionPayments.Add(payment);
-        await _context.SaveChangesAsync();
-        return payment;
+        return await base.CreateAsync(payment);
     }
 
-    public async Task<SubscriptionPayment> UpdateAsync(SubscriptionPayment payment)
+    /// <summary>
+    /// Updates an existing subscription payment
+    /// </summary>
+    public override async Task<SubscriptionPayment> UpdateAsync(SubscriptionPayment payment)
     {
         payment.UpdatedDate = DateTime.UtcNow;
-        
-        _context.SubscriptionPayments.Update(payment);
-        await _context.SaveChangesAsync();
-        return payment;
+        return await base.UpdateAsync(payment);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    /// <summary>
+    /// Deletes a subscription payment by its unique identifier
+    /// </summary>
+    public override async Task<bool> DeleteAsync(object id)
     {
-        var payment = await _context.SubscriptionPayments.FindAsync(id);
+        if (id is not Guid paymentId)
+            return false;
+
+        var payment = await _context.SubscriptionPayments.FindAsync(paymentId);
         if (payment == null)
             return false;
 
@@ -78,9 +101,15 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
         return true;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    /// <summary>
+    /// Checks if a subscription payment exists
+    /// </summary>
+    public override async Task<bool> ExistsAsync(object id)
     {
-        return await _context.SubscriptionPayments.AnyAsync(sp => sp.Id == id);
+        if (id is not Guid paymentId)
+            return false;
+
+        return await _context.SubscriptionPayments.AnyAsync(sp => sp.Id == paymentId);
     }
 
     public async Task<IEnumerable<SubscriptionPayment>> GetPendingPaymentsAsync()

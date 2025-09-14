@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Application.DTOs;
 using System.Threading.Tasks;
+using System;
 
 namespace SmartTelehealth.API.Controllers
 {
@@ -16,14 +17,17 @@ namespace SmartTelehealth.API.Controllers
     public class StripeController : BaseController
     {
         private readonly IStripeService _stripeService;
+        private readonly ISubscriptionPlanService _subscriptionPlanService;
 
         /// <summary>
-        /// Initializes a new instance of the StripeController with the required Stripe service.
+        /// Initializes a new instance of the StripeController with the required services.
         /// </summary>
         /// <param name="stripeService">Service for handling Stripe-related business logic</param>
-        public StripeController(IStripeService stripeService)
+        /// <param name="subscriptionPlanService">Service for handling subscription plan operations</param>
+        public StripeController(IStripeService stripeService, ISubscriptionPlanService subscriptionPlanService)
         {
             _stripeService = stripeService;
+            _subscriptionPlanService = subscriptionPlanService;
         }
 
         /// <summary>
@@ -77,23 +81,70 @@ namespace SmartTelehealth.API.Controllers
         [HttpPost("create-checkout-session")]
         public async Task<JsonModel> CreateCheckoutSession([FromBody] CheckoutSessionRequest request)
         {
-            // Use your actual Stripe test price ID here:
-            var priceId = "price_12345"; // <-- Replace with your Stripe test price ID
-            var successUrl = request.SuccessUrl;
-            var cancelUrl = request.CancelUrl;
-            var sessionUrl = await _stripeService.CreateCheckoutSessionAsync(priceId, successUrl, cancelUrl, GetToken(HttpContext));
-            return new JsonModel 
-            { 
-                data = new { url = sessionUrl }, 
-                Message = "Checkout session created successfully", 
-                StatusCode = 200 
+            try
+            {
+                // Validate request
+                if (string.IsNullOrEmpty(request.PlanId))
+                    return new JsonModel { data = new object(), Message = "Plan ID is required", StatusCode = 400 };
+                
+                if (string.IsNullOrEmpty(request.BillingCycleId))
+                    return new JsonModel { data = new object(), Message = "Billing cycle ID is required", StatusCode = 400 };
+
+                // Get the subscription plan to retrieve Stripe price IDs
+                var planResult = await _subscriptionPlanService.GetPlanByIdAsync(request.PlanId, GetToken(HttpContext));
+                if (planResult.StatusCode != 200)
+                    return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
+
+                var plan = planResult.data as dynamic;
+                if (plan == null)
+                    return new JsonModel { data = new object(), Message = "Invalid plan data", StatusCode = 500 };
+
+                // Get the appropriate Stripe price ID based on billing cycle
+                string priceId = GetStripePriceIdForBillingCycle(plan, request.BillingCycleId);
+                if (string.IsNullOrEmpty(priceId))
+                    return new JsonModel { data = new object(), Message = "Price not available for selected billing cycle", StatusCode = 400 };
+
+                // Create checkout session with dynamic price ID
+                var sessionUrl = await _stripeService.CreateCheckoutSessionAsync(priceId, request.SuccessUrl, request.CancelUrl, GetToken(HttpContext));
+                
+                return new JsonModel 
+                { 
+                    data = new { url = sessionUrl, sessionId = Guid.NewGuid().ToString() }, 
+                    Message = "Checkout session created successfully", 
+                    StatusCode = 200 
+                };
+            }
+            catch (Exception ex)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Error creating checkout session: {ex.Message}", 
+                    StatusCode = 500 
+                };
+            }
+        }
+
+        /// <summary>
+        /// Gets the appropriate Stripe price ID based on billing cycle
+        /// </summary>
+        private string GetStripePriceIdForBillingCycle(dynamic plan, string billingCycleId)
+        {
+            return billingCycleId.ToLower() switch
+            {
+                "monthly" => plan.StripeMonthlyPriceId,
+                "quarterly" => plan.StripeQuarterlyPriceId,
+                "annual" => plan.StripeAnnualPriceId,
+                _ => plan.StripeMonthlyPriceId // Default to monthly
             };
         }
     }
 
     public class CheckoutSessionRequest
     {
-        public string SuccessUrl { get; set; }
-        public string CancelUrl { get; set; }
+        public string PlanId { get; set; } = string.Empty;
+        public string BillingCycleId { get; set; } = string.Empty;
+        public string SuccessUrl { get; set; } = string.Empty;
+        public string CancelUrl { get; set; } = string.Empty;
     }
 } 

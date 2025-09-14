@@ -18,9 +18,10 @@ public class CategoriesController : BaseController
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<JsonModel> GetAllCategories()
     {
-        return await _categoryService.GetAllCategoriesAsync(GetToken(HttpContext));
+        return await _categoryService.GetActiveCategoriesAsync(GetToken(HttpContext));
     }
 
     [HttpGet("{id}")]

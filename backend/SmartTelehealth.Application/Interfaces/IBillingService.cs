@@ -11,7 +11,7 @@ public interface IBillingService
     Task<JsonModel> GetBillingRecordAsync(Guid id, TokenModel tokenModel);
     Task<JsonModel> GetUserBillingHistoryAsync(int userId, TokenModel tokenModel);
     Task<JsonModel> GetSubscriptionBillingHistoryAsync(Guid subscriptionId, TokenModel tokenModel);
-    Task<JsonModel> GetAllBillingRecordsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? type, string[]? userId, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
+    Task<JsonModel> GetBillingRecordsWithFilteringAsync(BillingFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false);
     Task<JsonModel> ProcessPaymentAsync(Guid billingRecordId, TokenModel tokenModel);
     Task<JsonModel> ProcessRefundAsync(Guid billingRecordId, decimal amount, TokenModel tokenModel);
     Task<JsonModel> ProcessRefundAsync(Guid billingRecordId, decimal amount, string reason, TokenModel tokenModel);
@@ -59,4 +59,8 @@ public interface IBillingService
     Task<JsonModel> GenerateInvoiceAsync(Guid billingRecordId, TokenModel tokenModel);
     Task<JsonModel> GetInvoiceAsync(string invoiceNumber, TokenModel tokenModel);
     Task<JsonModel> UpdateInvoiceStatusAsync(string invoiceNumber, string newStatus, TokenModel tokenModel);
+    
+    // Additional billing methods
+    Task<JsonModel> GetAllBillingRecordsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? type, string[]? userId, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
+    Task<IEnumerable<PaymentHistoryDto>> GetPaymentHistoryAsync(string userId, DateTime? startDate = null, DateTime? endDate = null);
 } 

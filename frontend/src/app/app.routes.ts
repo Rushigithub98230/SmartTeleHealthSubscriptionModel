@@ -20,34 +20,10 @@ export const routes: Routes = [
     loadComponent: () => import('./admin/admin-layout.component').then(m => m.AdminLayoutComponent),
     canActivate: [AuthGuard],
     children: [
-      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-      { 
-        path: 'dashboard', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
-      },
+      { path: '', redirectTo: 'subscriptions', pathMatch: 'full' },
       { 
         path: 'subscriptions', 
         loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
-      },
-      { 
-        path: 'analytics', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
-      },
-      { 
-        path: 'manual-actions', 
-        loadComponent: () => import('./admin/manual-actions/manual-actions.component').then(m => m.ManualActionsComponent) 
-      },
-      { 
-        path: 'reports', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
-      },
-      { 
-        path: 'settings', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
-      },
-      { 
-        path: 'profile', 
-        loadComponent: () => import('./admin/analytics-dashboard/analytics-dashboard').then(m => m.AnalyticsDashboardComponent) 
       }
     ]
   },

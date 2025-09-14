@@ -60,7 +60,7 @@ public class SubscriptionBackgroundService : BackgroundService
         try
         {
             using var scope = _serviceProvider.CreateScope();
-            var automatedBillingService = scope.ServiceProvider.GetRequiredService<AutomatedBillingService>();
+            var automatedBillingService = scope.ServiceProvider.GetRequiredService<IAutomatedBillingService>();
 
             _logger.LogInformation("Starting automated billing process");
             
@@ -71,7 +71,14 @@ public class SubscriptionBackgroundService : BackgroundService
                 RoleID = 1  // Admin role
             };
             
-            await automatedBillingService.ProcessRecurringBillingAsync(systemToken);
+            // Process recurring billing for today
+            await automatedBillingService.ProcessBillingForDateAsync(DateTime.UtcNow, systemToken);
+            
+            // Process failed payment retries
+            await automatedBillingService.ProcessAllFailedPaymentRetriesAsync(systemToken);
+            
+            // Process subscription renewals
+            await automatedBillingService.ProcessAllSubscriptionRenewalsAsync(systemToken);
 
             _logger.LogInformation("Automated billing completed");
         }

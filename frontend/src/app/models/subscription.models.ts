@@ -56,11 +56,8 @@ export interface SubscriptionPlanDto {
   discountedPrice?: number;
   discountValidUntil?: Date;
   billingCycleId: string;
-  billingCycleName?: string;
   currencyId: string;
-  currencyName?: string;
   categoryId: string;
-  categoryName?: string;
   isActive: boolean;
   isFeatured: boolean;
   isTrialAllowed: boolean;
@@ -77,7 +74,7 @@ export interface SubscriptionPlanDto {
   isCurrentlyAvailable: boolean;
   createdDate: Date;
   updatedDate?: Date;
-  // Additional fields for plan configuration
+  // Plan configuration fields (from backend entity)
   messagingCount: number;
   includesMedicationDelivery: boolean;
   includesFollowUpCare: boolean;
@@ -90,9 +87,6 @@ export interface SubscriptionPlanDto {
   stripeMonthlyPriceId?: string;
   stripeQuarterlyPriceId?: string;
   stripeAnnualPriceId?: string;
-  // Privilege information
-  privileges?: PlanPrivilegeDto[];
-  totalActiveSubscriptions?: number;
 }
 
 export interface CreateSubscriptionPlanDto {
@@ -166,8 +160,6 @@ export interface UpdateSubscriptionPlanDto {
   stripeMonthlyPriceId?: string;
   stripeQuarterlyPriceId?: string;
   stripeAnnualPriceId?: string;
-  // Privilege configuration
-  privileges?: PlanPrivilegeDto[];
 }
 
 export interface ApiResponse<T> {
