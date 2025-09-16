@@ -130,6 +130,10 @@ public class PlanPrivilegeDto
     [Range(0, int.MaxValue, ErrorMessage = "Monthly limit must be 0 or positive")]
     public int? MonthlyLimit { get; set; }      // Max per month (null = no limit)
     
+    // Unit cost for overage billing
+    [Range(0, double.MaxValue, ErrorMessage = "Unit cost must be 0 or positive")]
+    public decimal UnitCost { get; set; } = 0;  // Cost per unit when used beyond limits
+    
     public static ValidationResult? ValidateExpirationDate(DateTime? expirationDate, ValidationContext validationContext)
     {
         if (expirationDate.HasValue && expirationDate.Value < DateTime.UtcNow)

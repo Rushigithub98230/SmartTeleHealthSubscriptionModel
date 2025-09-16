@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SmartTelehealth.Core.Enums;
 
 namespace SmartTelehealth.Core.Entities;
 
@@ -87,6 +88,14 @@ public class SubscriptionPlan : BaseEntity
     /// Lower numbers are displayed first in the plan selection interface.
     /// </summary>
     public int DisplayOrder { get; set; }
+    
+    /// <summary>
+    /// Type of subscription plan that determines the billing model and pricing structure.
+    /// Used to categorize plans and apply appropriate billing logic (standard, usage-based, premium, enterprise).
+    /// Required for billing calculations and plan management.
+    /// </summary>
+    [Required]
+    public PlanType PlanType { get; set; } = PlanType.Standard;
     
     /// <summary>
     /// Base price of the subscription plan in the specified currency.

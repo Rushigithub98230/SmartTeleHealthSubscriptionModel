@@ -37,11 +37,23 @@ public static class DependencyInjection
         services.AddScoped<IHealthAssessmentService, HealthAssessmentService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IUserService, UserService>();
+        // Register Payment Service
+        services.AddScoped<IPaymentService, PaymentService>(provider =>
+            new PaymentService(
+                provider.GetRequiredService<IStripeBillingService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
+                provider.GetRequiredService<IStripeService>(),
+                provider.GetRequiredService<AutoMapper.IMapper>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PaymentService>>()
+            )
+        );
+
+        // Register Billing Service (updated to use PaymentService)
         services.AddScoped<IBillingService, BillingService>(provider =>
             new BillingService(
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
-                provider.GetRequiredService<IStripeBillingService>(),
+                provider.GetRequiredService<IPaymentService>(), // Changed from IStripeBillingService to IPaymentService
                 provider.GetRequiredService<AutoMapper.IMapper>(),
                 provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BillingService>>()
             )
@@ -53,13 +65,13 @@ public static class DependencyInjection
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         
         // Register Webhook Idempotency Service
-        services.AddScoped<WebhookIdempotencyService>();
+        services.AddScoped<IWebhookIdempotencyService, WebhookIdempotencyService>();
         
         // Register Chat Services
         services.AddScoped<IChatStorageService, ChatStorageService>();
         services.AddScoped<IMessagingService, MessagingService>();
-        services.AddScoped<ChatService>();
-        services.AddScoped<ChatRoomService>();
+        services.AddScoped<IChatService, ChatService>();
+        services.AddScoped<IChatRoomService, ChatRoomService>();
         
         // Register Video Call Services
         services.AddScoped<IVideoCallService, VideoCallService>();
@@ -89,7 +101,6 @@ public static class DependencyInjection
             )
         );
         services.AddScoped<ISubscriptionAutomationService, SubscriptionAutomationService>();
-        services.AddHostedService<Services.BackgroundServices.SubscriptionBackgroundService>();
         
         // Register Provider Payout Services
         services.AddScoped<IProviderPayoutService, ProviderPayoutService>();

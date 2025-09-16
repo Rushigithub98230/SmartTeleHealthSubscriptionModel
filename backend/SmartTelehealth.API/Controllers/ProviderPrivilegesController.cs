@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.Services;
+using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Application.DTOs;
@@ -20,7 +21,7 @@ namespace SmartTelehealth.API.Controllers;
 public class ProviderPrivilegesController : BaseController
 {
     private readonly ISubscriptionRepository _subscriptionRepo;
-    private readonly PrivilegeService _privilegeService;
+    private readonly IPrivilegeService _privilegeService;
 
     /// <summary>
     /// Initializes a new instance of the ProviderPrivilegesController with required services.
@@ -29,7 +30,7 @@ public class ProviderPrivilegesController : BaseController
     /// <param name="privilegeService">Service for privilege management operations</param>
     public ProviderPrivilegesController(
         ISubscriptionRepository subscriptionRepo,
-        PrivilegeService privilegeService)
+        IPrivilegeService privilegeService)
     {
         _subscriptionRepo = subscriptionRepo;
         _privilegeService = privilegeService;

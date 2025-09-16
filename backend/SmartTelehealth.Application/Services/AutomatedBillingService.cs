@@ -4,6 +4,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.Enums;
 
 namespace SmartTelehealth.Application.Services;
 
@@ -31,6 +32,7 @@ public class AutomatedBillingService : IAutomatedBillingService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IBillingService _billingService;
     private readonly IStripeService _stripeService;
+    private readonly IPrivilegeUsageHistoryRepository _privilegeUsageHistoryRepository;
       
     private readonly ILogger<AutomatedBillingService> _logger;
 
@@ -40,18 +42,19 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
     /// <param name="billingService">Service for billing record management and processing</param>
     /// <param name="stripeService">Service for Stripe payment processing integration</param>
+    /// <param name="privilegeUsageHistoryRepository">Repository for privilege usage history tracking</param>
     /// <param name="logger">Logger instance for recording service operations and errors</param>
     public AutomatedBillingService(
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         IStripeService stripeService,
-          
+        IPrivilegeUsageHistoryRepository privilegeUsageHistoryRepository,
         ILogger<AutomatedBillingService> logger)
     {
         _subscriptionRepository = subscriptionRepository;
         _billingService = billingService;
         _stripeService = stripeService;
-          
+        _privilegeUsageHistoryRepository = privilegeUsageHistoryRepository;
         _logger = logger;
     }
 
@@ -1202,10 +1205,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             if (subscription.SubscriptionPlan != null)
             {
                 // Overage charges for usage-based plans
-                // Note: PlanType property doesn't exist in SubscriptionPlan entity, using a placeholder for future implementation
-                // TODO: Add PlanType property to SubscriptionPlan entity when needed
-                /*
-                if (subscription.SubscriptionPlan.PlanType == "usage_based")
+                if (subscription.SubscriptionPlan.PlanType == PlanType.UsageBased)
                 {
                     var overageCharge = await CalculateOverageChargeAsync(subscription);
                     totalAdjustment += overageCharge;
@@ -1215,7 +1215,6 @@ public class AutomatedBillingService : IAutomatedBillingService
                             overageCharge, subscription.Id);
                     }
                 }
-                */
                 
                 // Late payment fees
                 if (subscription.Status == Subscription.SubscriptionStatuses.PaymentFailed)
@@ -1227,17 +1226,13 @@ public class AutomatedBillingService : IAutomatedBillingService
                 }
                 
                 // Service charges for premium features
-                // Note: PlanType property doesn't exist in SubscriptionPlan entity, using a placeholder for future implementation
-                // TODO: Add PlanType property to SubscriptionPlan entity when needed
-                /*
-                if (subscription.SubscriptionPlan.PlanType == "premium")
+                if (subscription.SubscriptionPlan.PlanType == PlanType.Premium)
                 {
                     var serviceCharge = subscription.CurrentPrice * 0.02m; // 2% service charge
                     totalAdjustment += serviceCharge;
                     _logger.LogInformation("Applied service charge of {Charge} for premium subscription {SubscriptionId}", 
                         serviceCharge, subscription.Id);
                 }
-                */
             }
             
             // Check for manual adjustments in subscription plan features (if available)
@@ -1275,12 +1270,39 @@ public class AutomatedBillingService : IAutomatedBillingService
     {
         try
         {
-            // This is a simplified overage calculation
-            // In a real implementation, you would check actual usage against limits
-            
-            // For now, return 0 as we don't have usage tracking entities yet
-            // TODO: Implement actual usage tracking when entities are available
-            return 0;
+            // Get plan privileges to determine limits
+            var planPrivileges = subscription.SubscriptionPlan?.PlanPrivileges;
+            if (planPrivileges == null || !planPrivileges.Any())
+            {
+                return 0;
+            }
+
+            decimal totalOverageCharge = 0;
+
+            foreach (var privilege in planPrivileges)
+            {
+                if (!privilege.HasOverageCharges || privilege.MonthlyLimit == null)
+                {
+                    continue; // No overage charges for unlimited privileges or privileges without unit costs
+                }
+
+                // Get actual usage for this privilege (this would need to be implemented with actual usage tracking)
+                var actualUsage = await GetActualUsageForPrivilegeAsync(subscription.Id, privilege.PrivilegeId);
+                var monthlyLimit = privilege.MonthlyLimit.Value;
+
+                if (actualUsage > monthlyLimit)
+                {
+                    var overage = actualUsage - monthlyLimit;
+                    var unitCost = privilege.UnitCost;
+                    var overageCharge = overage * unitCost;
+                    totalOverageCharge += overageCharge;
+
+                    _logger.LogInformation("Overage charge for privilege {PrivilegeId}: {Overage} units × ${UnitCost} = ${Charge}", 
+                        privilege.PrivilegeId, overage, unitCost, overageCharge);
+                }
+            }
+
+            return totalOverageCharge;
         }
         catch (Exception ex)
         {
@@ -1288,6 +1310,74 @@ public class AutomatedBillingService : IAutomatedBillingService
             return 0;
         }
     }
+
+    private async Task<int> GetActualUsageForPrivilegeAsync(Guid subscriptionId, Guid privilegeId)
+    {
+        try
+        {
+            // Get current billing period dates
+            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            if (subscription == null)
+            {
+                _logger.LogWarning("Subscription {SubscriptionId} not found for usage calculation", subscriptionId);
+                return 0;
+            }
+
+            // Calculate billing period start and end dates
+            var billingPeriodStart = GetBillingPeriodStart(subscription);
+            var billingPeriodEnd = GetBillingPeriodEnd(subscription);
+
+            // Get actual usage count for this privilege in the current billing period
+            var usageHistory = await _privilegeUsageHistoryRepository.GetByDateRangeAsync(
+                subscriptionId, 
+                billingPeriodStart, 
+                billingPeriodEnd
+            );
+
+            // Filter by specific privilege and sum up the usage
+            var totalUsage = usageHistory
+                .Where(uh => uh.UserSubscriptionPrivilegeUsage?.SubscriptionPlanPrivilege?.PrivilegeId == privilegeId)
+                .Sum(uh => uh.UsedValue);
+
+            _logger.LogInformation("Usage for subscription {SubscriptionId}, privilege {PrivilegeId}: {Usage} units in period {Start} to {End}", 
+                subscriptionId, privilegeId, totalUsage, billingPeriodStart, billingPeriodEnd);
+
+            return totalUsage;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting actual usage for subscription {SubscriptionId}, privilege {PrivilegeId}", 
+                subscriptionId, privilegeId);
+            return 0;
+        }
+    }
+
+    private DateTime GetBillingPeriodStart(Subscription subscription)
+    {
+        // Calculate the start of the current billing period
+        var currentDate = DateTime.UtcNow;
+        var subscriptionStart = subscription.StartDate;
+        
+        // If subscription started this month, use subscription start date
+        if (subscriptionStart.Month == currentDate.Month && subscriptionStart.Year == currentDate.Year)
+        {
+            return subscriptionStart;
+        }
+        
+        // Otherwise, use the first day of current month
+        return new DateTime(currentDate.Year, currentDate.Month, 1);
+    }
+
+    private DateTime GetBillingPeriodEnd(Subscription subscription)
+    {
+        // Calculate the end of the current billing period
+        var currentDate = DateTime.UtcNow;
+        
+        // Use the last day of current month
+        return new DateTime(currentDate.Year, currentDate.Month, 
+            DateTime.DaysInMonth(currentDate.Year, currentDate.Month));
+    }
+
 
     /// <summary>
     /// Calculates renewal discount for a subscription

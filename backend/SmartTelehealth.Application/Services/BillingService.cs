@@ -22,7 +22,7 @@ namespace SmartTelehealth.Application.Services
     {
         private readonly IBillingRepository _billingRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
-        private readonly IStripeBillingService _stripeBillingService;
+        private readonly IPaymentService _paymentService;
         private readonly IMapper _mapper;
         private readonly ILogger<BillingService> _logger;
 
@@ -31,19 +31,19 @@ namespace SmartTelehealth.Application.Services
         /// </summary>
         /// <param name="billingRepository">Repository for billing record data access operations</param>
         /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
-        /// <param name="stripeBillingService">Service for Stripe-specific billing operations</param>
+        /// <param name="paymentService">Service for payment processing operations</param>
         /// <param name="mapper">AutoMapper instance for entity-DTO mapping</param>
         /// <param name="logger">Logger instance for logging operations and errors</param>
         public BillingService(
             IBillingRepository billingRepository,
             ISubscriptionRepository subscriptionRepository,
-            IStripeBillingService stripeBillingService,
+            IPaymentService paymentService,
             IMapper mapper,
             ILogger<BillingService> logger)
         {
             _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
             _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
-            _stripeBillingService = stripeBillingService ?? throw new ArgumentNullException(nameof(stripeBillingService));
+            _paymentService = paymentService ?? throw new ArgumentNullException(nameof(paymentService));
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -314,8 +314,8 @@ namespace SmartTelehealth.Application.Services
 
                 _logger.LogInformation("Processing payment for billing record {BillingRecordId}", billingRecordId);
 
-                // Delegate to StripeBillingService for payment processing
-                var paymentResult = await _stripeBillingService.ProcessStripePaymentAsync(billingRecordId, tokenModel);
+                // Delegate to PaymentService for payment processing
+                var paymentResult = await _paymentService.ProcessPaymentAsync(billingRecordId, tokenModel);
                 
                 if (paymentResult.StatusCode == 200)
                 {
@@ -376,8 +376,8 @@ namespace SmartTelehealth.Application.Services
 
                 _logger.LogInformation("Processing refund for billing record {BillingRecordId}, amount: {Amount}", billingRecordId, amount);
 
-                // Delegate to StripeBillingService for refund processing
-                var refundResult = await _stripeBillingService.ProcessStripeRefundAsync(billingRecordId, amount, tokenModel);
+                // Delegate to PaymentService for refund processing
+                var refundResult = await _paymentService.ProcessRefundAsync(billingRecordId, amount, tokenModel);
                 
                 if (refundResult.StatusCode == 200)
                 {
@@ -446,18 +446,8 @@ namespace SmartTelehealth.Application.Services
         /// </remarks>
         public async Task<JsonModel> GetPendingPaymentsAsync(TokenModel tokenModel)
         {
-            try
-            {
-                // Placeholder implementation - in real app, this would be a repository method
-                var pendingRecords = new List<BillingRecord>(); // await _billingRepository.GetPendingRecordsAsync();
-                var billingRecordDtos = _mapper.Map<IEnumerable<BillingRecordDto>>(pendingRecords);
-                return new JsonModel { data = billingRecordDtos, Message = "Pending payments retrieved successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting pending payments");
-                return new JsonModel { data = new object(), Message = "Error retrieving pending payments", StatusCode = 500 };
-            }
+            // Delegate to PaymentService for pending payments
+            return await _paymentService.GetPendingPaymentsAsync(tokenModel);
         }
 
         /// <summary>
@@ -585,25 +575,8 @@ namespace SmartTelehealth.Application.Services
         /// </remarks>
         public async Task<JsonModel> IsPaymentOverdueAsync(Guid billingRecordId, TokenModel tokenModel)
         {
-            try
-            {
-                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
-                if (billingRecord == null)
-                {
-                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
-                }
-
-                var isOverdue = billingRecord.DueDate.HasValue && 
-                               billingRecord.DueDate.Value < DateTime.UtcNow && 
-                               billingRecord.Status == BillingRecord.BillingStatus.Pending;
-
-                return new JsonModel { data = isOverdue, Message = "Payment overdue status checked successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error checking if payment is overdue for billing record {BillingRecordId}", billingRecordId);
-                return new JsonModel { data = new object(), Message = "Error checking payment status", StatusCode = 500 };
-            }
+            // Delegate to PaymentService for payment overdue check
+            return await _paymentService.IsPaymentOverdueAsync(billingRecordId, tokenModel);
         }
 
         /// <summary>
@@ -659,21 +632,22 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
-                if (subscription == null)
-                {
-                    return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-                }
-
-                // TODO: Implement recurring billing cancellation
-                var result = new BillingCancellationDto
-                {
-                    SubscriptionId = subscriptionId,
-                    CancelledAt = DateTime.UtcNow,
-                    Status = "Cancelled"
-                };
+                _logger.LogInformation("Cancelling recurring billing for subscription {SubscriptionId}", subscriptionId);
                 
-                return new JsonModel { data = result, Message = "Recurring billing cancelled successfully", StatusCode = 200 };
+                // Delegate to PaymentService for recurring billing cancellation
+                var cancellationResult = await _paymentService.CancelRecurringBillingAsync(subscriptionId, tokenModel);
+                
+                if (cancellationResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Recurring billing cancelled successfully for subscription {SubscriptionId}", subscriptionId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to cancel recurring billing for subscription {SubscriptionId}: {Message}", 
+                        subscriptionId, cancellationResult.Message);
+                }
+                
+                return cancellationResult;
             }
             catch (Exception ex)
             {
@@ -702,18 +676,26 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = _mapper.Map<BillingRecord>(createDto);
-                billingRecord.CreatedDate = DateTime.UtcNow;
-                billingRecord.Status = BillingRecord.BillingStatus.Pending;
-
-                var createdRecord = await _billingRepository.CreateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
+                _logger.LogInformation("Creating upfront payment for user {UserId}", createDto.UserId);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Upfront payment created successfully", StatusCode = 201 };
+                // Delegate to PaymentService for upfront payment creation
+                var paymentResult = await _paymentService.CreateUpfrontPaymentAsync(createDto, tokenModel);
+                
+                if (paymentResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Upfront payment created successfully for user {UserId}", createDto.UserId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to create upfront payment for user {UserId}: {Message}", 
+                        createDto.UserId, paymentResult.Message);
+                }
+                
+                return paymentResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating upfront payment");
+                _logger.LogError(ex, "Error creating upfront payment for user {UserId}", createDto.UserId);
                 return new JsonModel { data = new object(), Message = "Error creating upfront payment", StatusCode = 500 };
             }
         }
@@ -738,20 +720,26 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                // TODO: Implement bundle payment processing
-                var result = new BundlePaymentResultDto
-                {
-                    BundleId = Guid.NewGuid(),
-                    TotalAmount = createDto.Items.Sum(item => item.Amount),
-                    ProcessedAt = DateTime.UtcNow,
-                    Status = "Completed"
-                };
+                _logger.LogInformation("Processing bundle payment for user {UserId}", createDto.UserId);
                 
-                return new JsonModel { data = result, Message = "Bundle payment processed successfully", StatusCode = 200 };
+                // Delegate to PaymentService for bundle payment processing
+                var paymentResult = await _paymentService.ProcessBundlePaymentAsync(createDto, tokenModel);
+                
+                if (paymentResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Bundle payment processed successfully for user {UserId}", createDto.UserId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to process bundle payment for user {UserId}: {Message}", 
+                        createDto.UserId, paymentResult.Message);
+                }
+                
+                return paymentResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing bundle payment");
+                _logger.LogError(ex, "Error processing bundle payment for user {UserId}", createDto.UserId);
                 return new JsonModel { data = new object(), Message = "Error processing bundle payment", StatusCode = 500 };
             }
         }
@@ -895,19 +883,22 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
-                if (billingRecord == null)
-                {
-                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
-                }
-
-                // TODO: Implement partial payment logic
-                billingRecord.UpdatedBy = tokenModel.UserID;
-                billingRecord.UpdatedDate = DateTime.UtcNow;
-                var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(updatedRecord);
+                _logger.LogInformation("Processing partial payment for billing record {BillingRecordId}, amount: {Amount}", billingRecordId, amount);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Partial payment processed successfully", StatusCode = 200 };
+                // Delegate to PaymentService for partial payment processing
+                var paymentResult = await _paymentService.ProcessPartialPaymentAsync(billingRecordId, amount, tokenModel);
+                
+                if (paymentResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Partial payment processed successfully for billing record {BillingRecordId}", billingRecordId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to process partial payment for billing record {BillingRecordId}: {Message}", 
+                        billingRecordId, paymentResult.Message);
+                }
+                
+                return paymentResult;
             }
             catch (Exception ex)
             {
@@ -936,31 +927,26 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = new BillingRecord
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = createDto.UserId,
-                    Amount = createDto.TotalAmount,
-                    Description = "Invoice",
-                    BillingDate = DateTime.UtcNow,
-                    DueDate = createDto.DueDate,
-                    Status = BillingRecord.BillingStatus.Pending,
-                    Type = BillingRecord.BillingType.Subscription, // No Invoice type, use Subscription
-                    InvoiceNumber = createDto.InvoiceNumber,
-                    // Set audit properties for creation
-                    IsActive = true,
-                    CreatedBy = tokenModel.UserID,
-                    CreatedDate = DateTime.UtcNow
-                };
-
-                var createdRecord = await _billingRepository.CreateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
+                _logger.LogInformation("Creating invoice for user {UserId}", createDto.UserId);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Invoice created successfully", StatusCode = 201 };
+                // Delegate to PaymentService for invoice creation
+                var invoiceResult = await _paymentService.CreateInvoiceAsync(createDto, tokenModel);
+                
+                if (invoiceResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Invoice created successfully for user {UserId}", createDto.UserId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to create invoice for user {UserId}: {Message}", 
+                        createDto.UserId, invoiceResult.Message);
+                }
+                
+                return invoiceResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating invoice");
+                _logger.LogError(ex, "Error creating invoice for user {UserId}", createDto.UserId);
                 return new JsonModel { data = new object(), Message = "Error creating invoice", StatusCode = 500 };
             }
         }
@@ -985,9 +971,22 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                // TODO: Implement PDF generation
-                var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // PDF header
-                return new JsonModel { data = pdfBytes, Message = "Invoice PDF generated successfully", StatusCode = 200 };
+                _logger.LogInformation("Generating invoice PDF for billing record {BillingRecordId}", billingRecordId);
+                
+                // Delegate to PaymentService for PDF generation
+                var pdfResult = await _paymentService.GenerateInvoicePdfAsync(billingRecordId, tokenModel);
+                
+                if (pdfResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Invoice PDF generated successfully for billing record {BillingRecordId}", billingRecordId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to generate invoice PDF for billing record {BillingRecordId}: {Message}", 
+                        billingRecordId, pdfResult.Message);
+                }
+                
+                return pdfResult;
             }
             catch (Exception ex)
             {
@@ -1131,31 +1130,8 @@ namespace SmartTelehealth.Application.Services
         /// </remarks>
         public async Task<JsonModel> GetPaymentScheduleAsync(Guid subscriptionId, TokenModel tokenModel)
         {
-            try
-            {
-                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
-                if (subscription == null)
-                {
-                    return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-                }
-
-                var paymentSchedule = new PaymentScheduleDto
-                {
-                    SubscriptionId = subscriptionId,
-                    NextPaymentDate = subscription.NextBillingDate,
-                    BillingCycle = subscription.BillingCycle?.Name ?? string.Empty,
-                    Amount = subscription.Amount,
-                    Currency = subscription.Currency,
-                    Status = subscription.Status
-                };
-
-                return new JsonModel { data = paymentSchedule, Message = "Payment schedule retrieved successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting payment schedule for subscription {SubscriptionId}", subscriptionId);
-                return new JsonModel { data = new object(), Message = "Error retrieving payment schedule", StatusCode = 500 };
-            }
+            // Delegate to PaymentService for payment schedule
+            return await _paymentService.GetPaymentScheduleAsync(subscriptionId, tokenModel);
         }
 
         /// <summary>
@@ -1179,19 +1155,22 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
-                if (billingRecord == null)
-                {
-                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
-                }
-
-                billingRecord.PaymentMethod = paymentMethodId;
-                billingRecord.UpdatedBy = tokenModel.UserID;
-                billingRecord.UpdatedDate = DateTime.UtcNow;
-                var updatedRecord = await _billingRepository.UpdateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(updatedRecord);
+                _logger.LogInformation("Updating payment method for billing record {BillingRecordId}", billingRecordId);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Payment method updated successfully", StatusCode = 200 };
+                // Delegate to PaymentService for payment method update
+                var updateResult = await _paymentService.UpdatePaymentMethodAsync(billingRecordId, paymentMethodId, tokenModel);
+                
+                if (updateResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Payment method updated successfully for billing record {BillingRecordId}", billingRecordId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to update payment method for billing record {BillingRecordId}: {Message}", 
+                        billingRecordId, updateResult.Message);
+                }
+                
+                return updateResult;
             }
             catch (Exception ex)
             {
@@ -1378,40 +1357,8 @@ namespace SmartTelehealth.Application.Services
         /// </remarks>
         public async Task<JsonModel> GetPaymentHistoryAsync(int userId, DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
         {
-            try
-            {
-                var billingRecords = await _billingRepository.GetByUserIdAsync(userId);
-                
-                // Filter by date range if provided
-                if (startDate.HasValue || endDate.HasValue)
-                {
-                    billingRecords = billingRecords.Where(br => 
-                        (!startDate.HasValue || br.CreatedDate >= startDate.Value) &&
-                        (!endDate.HasValue || br.CreatedDate <= endDate.Value));
-                }
-
-                var paymentHistory = billingRecords.Select(br => new PaymentHistoryDto
-                {
-                    Id = br.Id,
-                    UserId = br.UserId,
-                    SubscriptionId = br.SubscriptionId?.ToString() ?? string.Empty,
-                    Amount = br.Amount,
-                    Currency = "USD",
-                    PaymentMethod = br.PaymentMethod ?? "Unknown",
-                    Status = br.Status.ToString(),
-                    TransactionId = br.TransactionId,
-                    ErrorMessage = br.ErrorMessage,
-                    CreatedDate = br.CreatedDate ?? DateTime.UtcNow,
-                    ProcessedAt = br.ProcessedAt
-                });
-
-                return new JsonModel { data = paymentHistory, Message = "Payment history retrieved successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting payment history for user {UserId}", userId);
-                return new JsonModel { data = new object(), Message = "Error retrieving payment history", StatusCode = 500 };
-            }
+            // Delegate to PaymentService for payment history
+            return await _paymentService.GetPaymentHistoryAsync(userId, startDate, endDate, tokenModel);
         }
 
         /// <summary>
@@ -1433,92 +1380,8 @@ namespace SmartTelehealth.Application.Services
         /// </remarks>
         public async Task<JsonModel> GetPaymentAnalyticsAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
         {
-            try
-            {
-                var allBillingRecords = await _billingRepository.GetAllAsync();
-                
-                // Filter by date range if provided
-                if (startDate.HasValue || endDate.HasValue)
-                {
-                                    allBillingRecords = allBillingRecords.Where(br => 
-                    (!startDate.HasValue || br.CreatedDate >= startDate.Value) &&
-                    (!endDate.HasValue || br.CreatedDate <= endDate.Value));
-                }
-
-                var analytics = new PaymentAnalyticsDto
-                {
-                    TotalPayments = allBillingRecords.Sum(br => br.Amount),
-                    SuccessfulPayments = allBillingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.Amount),
-                    FailedPayments = allBillingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Failed).Sum(br => br.Amount),
-                    TotalTransactions = allBillingRecords.Count(),
-                    SuccessfulTransactions = allBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Paid),
-                    FailedTransactions = allBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Failed),
-                    TotalRefunds = allBillingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Refunded).Sum(br => br.Amount)
-                };
-
-                // Calculate success rate
-                if (analytics.TotalTransactions > 0)
-                {
-                    analytics.PaymentSuccessRate = (decimal)analytics.SuccessfulTransactions / analytics.TotalTransactions * 100;
-                }
-
-                // Calculate average payment amount
-                if (analytics.SuccessfulTransactions > 0)
-                {
-                    analytics.AveragePaymentAmount = analytics.SuccessfulPayments / analytics.SuccessfulTransactions;
-                }
-
-                // Generate monthly payments data
-                var monthlyPayments = allBillingRecords
-                    .Where(br => br.CreatedDate.HasValue)
-                    .GroupBy(br => new { br.CreatedDate.Value.Year, br.CreatedDate.Value.Month })
-                    .Select(g => new MonthlyPaymentDto
-                    {
-                        Month = $"{g.Key.Year}-{g.Key.Month:D2}",
-                        TotalAmount = g.Sum(br => br.Amount),
-                        TransactionCount = g.Count(),
-                        SuccessfulCount = g.Count(br => br.Status == BillingRecord.BillingStatus.Paid),
-                        FailedCount = g.Count(br => br.Status == BillingRecord.BillingStatus.Failed)
-                    })
-                    .OrderBy(mp => mp.Month)
-                    .ToList();
-
-                analytics.MonthlyPayments = monthlyPayments;
-
-                // Generate payment method analytics
-                var paymentMethods = allBillingRecords
-                    .GroupBy(br => br.PaymentMethod ?? "Unknown")
-                    .Select(g => new PaymentMethodAnalyticsDto
-                    {
-                        Method = g.Key,
-                        UsageCount = g.Count(),
-                        TotalAmount = g.Sum(br => br.Amount),
-                        SuccessRate = g.Count() > 0 ? (decimal)g.Count(br => br.Status == BillingRecord.BillingStatus.Paid) / g.Count() * 100 : 0
-                    })
-                    .ToList();
-
-                analytics.PaymentMethods = paymentMethods;
-
-                // Generate payment status analytics
-                var paymentStatuses = allBillingRecords
-                    .GroupBy(br => br.Status)
-                    .Select(g => new PaymentStatusAnalyticsDto
-                    {
-                        Status = g.Key.ToString(),
-                        Count = g.Count(),
-                        TotalAmount = g.Sum(br => br.Amount)
-                    })
-                    .ToList();
-
-                analytics.PaymentStatuses = paymentStatuses;
-
-                return new JsonModel { data = analytics, Message = "Payment analytics retrieved successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting payment analytics");
-                return new JsonModel { data = new object(), Message = "Error retrieving payment analytics", StatusCode = 500 };
-            }
+            // Delegate to PaymentService for payment analytics
+            return await _paymentService.GetPaymentAnalyticsAsync(startDate, endDate, tokenModel);
         }
 
         private string ConvertToCsv(RevenueSummaryDto revenueData)
@@ -1550,23 +1413,22 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
-                if (billingRecord == null)
+                _logger.LogInformation("Retrying payment for billing record {BillingRecordId}", billingRecordId);
+                
+                // Delegate to PaymentService for payment retry
+                var retryResult = await _paymentService.RetryPaymentAsync(billingRecordId, tokenModel);
+                
+                if (retryResult.StatusCode == 200)
                 {
-                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+                    _logger.LogInformation("Payment retry successful for billing record {BillingRecordId}", billingRecordId);
                 }
-
-                // Retry payment logic
-                var paymentResult = new PaymentResultDto
+                else
                 {
-                    Status = "succeeded",
-                    PaymentIntentId = Guid.NewGuid().ToString(),
-                    Amount = billingRecord.Amount,
-                    Currency = "usd",
-                    ProcessedAt = DateTime.UtcNow
-                };
-
-                return new JsonModel { data = paymentResult, Message = "Payment retry initiated successfully", StatusCode = 200 };
+                    _logger.LogWarning("Payment retry failed for billing record {BillingRecordId}: {Message}", 
+                        billingRecordId, retryResult.Message);
+                }
+                
+                return retryResult;
             }
             catch (Exception ex)
             {
@@ -1600,8 +1462,8 @@ namespace SmartTelehealth.Application.Services
                 _logger.LogInformation("Processing refund for billing record {BillingRecordId}, amount: {Amount}, reason: {Reason}", 
                     billingRecordId, amount, reason);
 
-                // Delegate to StripeBillingService for refund processing
-                var refundResult = await _stripeBillingService.ProcessStripeRefundAsync(billingRecordId, amount, tokenModel);
+                // Delegate to PaymentService for refund processing
+                var refundResult = await _paymentService.ProcessRefundAsync(billingRecordId, amount, tokenModel);
                 
                 if (refundResult.StatusCode == 200)
                 {
@@ -1642,47 +1504,8 @@ namespace SmartTelehealth.Application.Services
         /// </remarks>
         public async Task<JsonModel> GetPaymentAnalyticsAsync(int userId, DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
         {
-            try
-            {
-                var userBillingRecords = await _billingRepository.GetByUserIdAsync(userId);
-                
-                // Filter by date range if provided
-                if (startDate.HasValue || endDate.HasValue)
-                {
-                    userBillingRecords = userBillingRecords.Where(br => 
-                        (!startDate.HasValue || br.CreatedDate >= startDate.Value) &&
-                        (!endDate.HasValue || br.CreatedDate <= endDate.Value));
-                }
-
-                var analytics = new PaymentAnalyticsDto
-                {
-                    TotalSpent = userBillingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.Amount),
-                    TotalPayments = userBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Paid),
-                    SuccessfulPayments = userBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Paid),
-                    FailedPayments = userBillingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Failed),
-                    AveragePaymentAmount = userBillingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Any() 
-                        ? userBillingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Average(br => br.Amount) 
-                        : 0,
-                    MonthlyPayments = userBillingRecords
-                        .Where(br => br.CreatedDate.HasValue)
-                        .GroupBy(br => new { br.CreatedDate.Value.Year, br.CreatedDate.Value.Month })
-                        .Select(g => new MonthlyPaymentDto
-                        {
-                            Month = $"{g.Key.Year}-{g.Key.Month:D2}",
-                            Amount = g.Sum(br => br.Amount),
-                            Count = g.Count()
-                        })
-                        .OrderBy(mp => mp.Month)
-                        .ToList()
-                };
-
-                return new JsonModel { data = analytics, Message = "Payment analytics retrieved successfully", StatusCode = 200 };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting payment analytics for user {UserId}", userId);
-                return new JsonModel { data = new object(), Message = "Error retrieving payment analytics", StatusCode = 500 };
-            }
+            // Delegate to PaymentService for user-specific payment analytics
+            return await _paymentService.GetPaymentAnalyticsAsync(userId, startDate, endDate, tokenModel);
         }
 
         /// <summary>
@@ -2012,24 +1835,26 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecord = _mapper.Map<BillingRecord>(createDto);
-                billingRecord.Status = BillingRecord.BillingStatus.Pending;
-                billingRecord.IsRecurring = true;
-                // Set audit properties for creation
-                billingRecord.IsActive = true;
-                billingRecord.CreatedBy = tokenModel.UserID;
-                billingRecord.CreatedDate = DateTime.UtcNow;
-                // For now, use a default 30-day billing cycle since BillingCycleId doesn't contain days
-                billingRecord.NextBillingDate = CalculateNextBillingDate(DateTime.UtcNow, 30);
-
-                var createdRecord = await _billingRepository.CreateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
+                _logger.LogInformation("Creating recurring billing for user {UserId}", createDto.UserId);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Recurring billing created successfully", StatusCode = 200 };
+                // Delegate to PaymentService for recurring billing creation
+                var recurringResult = await _paymentService.CreateRecurringBillingAsync(createDto, tokenModel);
+                
+                if (recurringResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Recurring billing created successfully for user {UserId}", createDto.UserId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to create recurring billing for user {UserId}: {Message}", 
+                        createDto.UserId, recurringResult.Message);
+                }
+                
+                return recurringResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating recurring billing");
+                _logger.LogError(ex, "Error creating recurring billing for user {UserId}", createDto.UserId);
                 return new JsonModel { data = new object(), Message = "Error creating recurring billing", StatusCode = 500 };
             }
         }
@@ -2054,38 +1879,22 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                // Get subscription details
-                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
-                if (subscription == null)
-                {
-                    return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-                }
-
-                // Create billing record for recurring payment
-                var billingRecord = new BillingRecord
-                {
-                    UserId = subscription.UserId,
-                    SubscriptionId = subscription.Id,
-                    Amount = subscription.CurrentPrice,
-                    // Use a default currency ID since Subscription doesn't have CurrencyId
-                    CurrencyId = Guid.Empty, // This should be replaced with actual currency logic
-                    Status = BillingRecord.BillingStatus.Pending,
-                    Type = BillingRecord.BillingType.Subscription,
-                    Description = $"Recurring payment for subscription {subscription.Id}",
-                    BillingDate = DateTime.UtcNow,
-                    DueDate = subscription.NextBillingDate,
-                    IsRecurring = true,
-                    NextBillingDate = CalculateNextBillingDate(subscription.NextBillingDate, 30), // Default to monthly
-                    // Set audit properties for creation
-                    IsActive = true,
-                    CreatedBy = tokenModel.UserID,
-                    CreatedDate = DateTime.UtcNow
-                };
-
-                var createdRecord = await _billingRepository.CreateAsync(billingRecord);
-                var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
+                _logger.LogInformation("Processing recurring payment for subscription {SubscriptionId}", subscriptionId);
                 
-                return new JsonModel { data = billingRecordDto, Message = "Recurring payment processed successfully", StatusCode = 200 };
+                // Delegate to PaymentService for recurring payment processing
+                var paymentResult = await _paymentService.ProcessRecurringPaymentAsync(subscriptionId, tokenModel);
+                
+                if (paymentResult.StatusCode == 200)
+                {
+                    _logger.LogInformation("Recurring payment processed successfully for subscription {SubscriptionId}", subscriptionId);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to process recurring payment for subscription {SubscriptionId}: {Message}", 
+                        subscriptionId, paymentResult.Message);
+                }
+                
+                return paymentResult;
             }
             catch (Exception ex)
             {

@@ -124,6 +124,15 @@ public class SubscriptionPlanPrivilege : BaseEntity
     /// </summary>
     public int? MonthlyLimit { get; set; }
     
+    /// <summary>
+    /// Cost per unit for this privilege when used beyond the plan limits (overage).
+    /// Used for calculating overage charges when users exceed their plan limits.
+    /// This allows different plans to charge different rates for the same privilege.
+    /// Example: Basic plan charges $2 per teleconsultation overage, Premium plan charges $4.
+    /// </summary>
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal UnitCost { get; set; } = 0;
+    
     // Computed Properties
     /// <summary>
     /// Computed property that indicates whether this privilege has unlimited usage.
@@ -166,5 +175,13 @@ public class SubscriptionPlanPrivilege : BaseEntity
     /// </summary>
     [NotMapped]
     public bool HasTimeRestrictions => DailyLimit.HasValue || WeeklyLimit.HasValue || MonthlyLimit.HasValue;
+    
+    /// <summary>
+    /// Computed property that indicates whether this privilege has overage charges.
+    /// Returns true if the privilege has a unit cost greater than 0 and is not unlimited.
+    /// Used for overage billing calculations and user notifications.
+    /// </summary>
+    [NotMapped]
+    public bool HasOverageCharges => UnitCost > 0 && !IsUnlimited;
 }
 #endregion 

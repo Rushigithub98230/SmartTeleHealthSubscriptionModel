@@ -52,6 +52,21 @@ public class UserSubscriptionPrivilegeUsage : BaseEntity
     public virtual SubscriptionPlanPrivilege SubscriptionPlanPrivilege { get; set; } = null!;
     
     /// <summary>
+    /// Foreign key reference to the Privilege that this usage record tracks.
+    /// Links this usage record directly to the specific privilege.
+    /// Required for direct privilege-based queries and analytics.
+    /// </summary>
+    [Required]
+    public Guid PrivilegeId { get; set; }
+    
+    /// <summary>
+    /// Navigation property to the Privilege that this usage record tracks.
+    /// Provides direct access to privilege information for queries and analytics.
+    /// Used for privilege-based filtering, reporting, and performance optimization.
+    /// </summary>
+    public virtual Privilege Privilege { get; set; } = null!;
+    
+    /// <summary>
     /// Number of times this privilege has been used by the user.
     /// Used for usage tracking and limit enforcement.
     /// Incremented each time the user uses the privilege.

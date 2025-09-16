@@ -30,7 +30,7 @@ public class StripeWebhookController : BaseController
       
     private readonly IStripeService _stripeService;
     private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
-    private readonly WebhookIdempotencyService _webhookIdempotencyService;
+    private readonly IWebhookIdempotencyService _webhookIdempotencyService;
     private readonly ILogger<StripeWebhookController> _logger;
     private readonly IConfiguration _configuration;
     private readonly int _maxRetries;
@@ -55,7 +55,7 @@ public class StripeWebhookController : BaseController
         ICommunicationService communicationService,
         IStripeService stripeService,
         ISubscriptionLifecycleService subscriptionLifecycleService,
-        WebhookIdempotencyService webhookIdempotencyService,
+        IWebhookIdempotencyService webhookIdempotencyService,
         ILogger<StripeWebhookController> logger,
         IConfiguration configuration)
     {

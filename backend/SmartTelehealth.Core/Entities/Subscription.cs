@@ -444,12 +444,6 @@ public class Subscription : BaseEntity
     /// </summary>
     public virtual ICollection<Consultation> Consultations { get; set; } = new List<Consultation>();
     
-    /// <summary>
-    /// Collection of all messages associated with this subscription.
-    /// Represents the messaging history for this subscription.
-    /// Used for communication tracking and subscription usage analytics.
-    /// </summary>
-    public virtual ICollection<Message> Messages { get; set; } = new List<Message>();
     
     /// <summary>
     /// Collection of all medication deliveries associated with this subscription.

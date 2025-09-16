@@ -23,8 +23,8 @@ public class UserSubscriptionsController : BaseController
 {
     private readonly ISubscriptionRepository _subscriptionRepo;
     private readonly ISubscriptionPlanRepository _planRepo;
-    private readonly PrivilegeService _privilegeService;
-    private readonly SubscriptionService _subscriptionService;
+    private readonly IPrivilegeService _privilegeService;
+    private readonly ISubscriptionService _subscriptionService;
     private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
 
     /// <summary>
@@ -38,8 +38,8 @@ public class UserSubscriptionsController : BaseController
     public UserSubscriptionsController(
         ISubscriptionRepository subscriptionRepo,
         ISubscriptionPlanRepository planRepo,
-        PrivilegeService privilegeService,
-        SubscriptionService subscriptionService,
+        IPrivilegeService privilegeService,
+        ISubscriptionService subscriptionService,
         ISubscriptionLifecycleService subscriptionLifecycleService)
     {
         _subscriptionRepo = subscriptionRepo;

@@ -103,11 +103,12 @@ public static class DependencyInjection
         // Register Master Data Service
         services.AddScoped<IMasterDataService, MasterDataService>();
 
-        // Register Automated Billing Service as a hosted service
-        services.AddHostedService<AutomatedBillingService>();
+        // Register Automated Billing Background Service as a hosted service
+        services.AddHostedService<AutomatedBillingBackgroundService>();
+        services.AddScoped<IAutomatedBillingBackgroundService, AutomatedBillingBackgroundService>();
 
         // Register Application AutomatedBillingService as a scoped service
-        services.AddScoped<SmartTelehealth.Application.Services.AutomatedBillingService>();
+        services.AddScoped<IAutomatedBillingService, SmartTelehealth.Application.Services.AutomatedBillingService>();
 
         // Cloud Storage Services (temporarily removed for focused testing)
         // services.AddScoped<AzureBlobStorageService>();

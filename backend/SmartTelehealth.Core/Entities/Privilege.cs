@@ -66,4 +66,5 @@ public class Privilege : BaseEntity
     /// Used for usage tracking, analytics, and privilege management.
     /// </summary>
     public virtual ICollection<UserSubscriptionPrivilegeUsage> UsageRecords { get; set; } = new List<UserSubscriptionPrivilegeUsage>();
+    
 } 

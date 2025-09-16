@@ -265,6 +265,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                         DailyLimit = privilege.DailyLimit,
                         WeeklyLimit = privilege.WeeklyLimit,
                         MonthlyLimit = privilege.MonthlyLimit,
+                        UnitCost = privilege.UnitCost,  // Set unit cost for overage billing
                         // Set audit properties for creation
                         IsActive = true,
                         CreatedBy = tokenModel.UserID,
@@ -533,6 +534,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             planPrivilege.UsagePeriodId = updatedPrivilegeDto.UsagePeriodId;
             planPrivilege.DurationMonths = updatedPrivilegeDto.DurationMonths;
             planPrivilege.ExpirationDate = updatedPrivilegeDto.ExpirationDate;
+            planPrivilege.UnitCost = updatedPrivilegeDto.UnitCost;  // Update unit cost for overage billing
             planPrivilege.UpdatedBy = tokenModel.UserID;
             planPrivilege.UpdatedDate = DateTime.UtcNow;
 

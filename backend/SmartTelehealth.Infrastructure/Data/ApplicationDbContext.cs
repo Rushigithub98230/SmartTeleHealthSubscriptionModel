@@ -107,8 +107,12 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
     {
         base.OnModelCreating(builder);
         
-        // Configure master tables
-        ConfigureMasterTables(builder);
+        // Configure individual master data entities for subscription management
+        ConfigureMasterBillingCycle(builder);
+        ConfigureMasterCurrency(builder);
+        ConfigureMasterPrivilegeType(builder);
+        ConfigurePaymentStatus(builder);
+        ConfigureRefundStatus(builder);
         
         // Configure entity relationships and constraints
         ConfigureUser(builder);
@@ -125,6 +129,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         ConfigureMessageReadReceipt(builder);
         ConfigureMedicationDelivery(builder);
         ConfigureBillingRecord(builder);
+        ConfigureBillingAdjustment(builder);
         ConfigureProviderCategory(builder);
         ConfigureNotification(builder);
         ConfigureAuditLog(builder);
@@ -146,6 +151,17 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         ConfigureDocument(builder);
         ConfigureQuestionnaireSystem(builder);
         ConfigurePrivilegeUsageHistory(builder);
+        
+        // Add missing subscription management configurations
+        ConfigurePrivilege(builder);
+        ConfigureSubscriptionPlanPrivilege(builder);
+        ConfigureUserSubscriptionPrivilegeUsage(builder);
+        
+        // Add missing entity configurations
+        ConfigureProcessedWebhookEvent(builder);
+        
+        // Configure BaseEntity relationships for all entities
+        ConfigureBaseEntityRelationships(builder);
     }
     
     private void ConfigureMasterTables(ModelBuilder builder)
@@ -156,7 +172,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("UserRoles");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
         });
         
@@ -166,7 +181,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("AppointmentStatuses");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
             entity.Property(e => e.Icon).HasMaxLength(50);
@@ -178,7 +192,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("PaymentStatuses");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
         });
@@ -189,7 +202,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("RefundStatuses");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
         });
@@ -200,7 +212,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("ParticipantStatuses");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
         });
@@ -211,7 +222,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("ParticipantRoles");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
         });
@@ -222,7 +232,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("InvitationStatuses");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
         });
@@ -233,7 +242,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("AppointmentTypes");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
         });
@@ -244,7 +252,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("ConsultationModes");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.Color).HasMaxLength(50);
         });
@@ -255,7 +262,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("DocumentTypes");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
             entity.Property(e => e.Icon).HasMaxLength(50);
         });
@@ -266,7 +272,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("ReminderTypes");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
         });
         
@@ -276,7 +281,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("ReminderTimings");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.MinutesBeforeAppointment).HasDefaultValue(0);
         });
@@ -287,7 +291,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("EventTypes");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
         });
 
@@ -297,7 +300,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("MasterBillingCycles");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
         });
         // MasterCurrency
@@ -307,7 +309,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Code).IsRequired().HasMaxLength(10);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Symbol).HasMaxLength(10);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
         });
         // MasterPrivilegeType
@@ -316,8 +317,134 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("MasterPrivilegeTypes");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Description).HasMaxLength(200);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
+        });
+    }
+    
+    // Individual Master Data Configuration Methods
+    private void ConfigureMasterBillingCycle(ModelBuilder builder)
+    {
+        builder.Entity<MasterBillingCycle>(entity =>
+        {
+            entity.ToTable("MasterBillingCycles");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(200);
+            entity.Property(e => e.DurationInDays).IsRequired();
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            
+            // Collection Relationships
+            entity.HasMany(e => e.SubscriptionPlans)
+                .WithOne(sp => sp.BillingCycle)
+                .HasForeignKey(sp => sp.BillingCycleId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.Subscriptions)
+                .WithOne(s => s.BillingCycle)
+                .HasForeignKey(s => s.BillingCycleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Indexes for Performance
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.DurationInDays);
+            entity.HasIndex(e => e.SortOrder);
+        });
+    }
+    
+    private void ConfigureMasterCurrency(ModelBuilder builder)
+    {
+        builder.Entity<MasterCurrency>(entity =>
+        {
+            entity.ToTable("MasterCurrencies");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
+            entity.Property(e => e.Code).IsRequired().HasMaxLength(10);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Symbol).HasMaxLength(10);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            
+            // Collection Relationships
+            entity.HasMany(e => e.SubscriptionPlans)
+                .WithOne(sp => sp.Currency)
+                .HasForeignKey(sp => sp.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.BillingRecords)
+                .WithOne(br => br.Currency)
+                .HasForeignKey(br => br.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Indexes for Performance
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.Symbol);
+            entity.HasIndex(e => e.SortOrder);
+        });
+    }
+    
+    private void ConfigureMasterPrivilegeType(ModelBuilder builder)
+    {
+        builder.Entity<MasterPrivilegeType>(entity =>
+        {
+            entity.ToTable("MasterPrivilegeTypes");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(200);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            
+            // Collection Relationships
+            entity.HasMany(e => e.Privileges)
+                .WithOne(p => p.PrivilegeType)
+                .HasForeignKey(p => p.PrivilegeTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Indexes for Performance
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.Description);
+            entity.HasIndex(e => e.SortOrder);
+        });
+    }
+    
+    private void ConfigurePaymentStatus(ModelBuilder builder)
+    {
+        builder.Entity<PaymentStatus>(entity =>
+        {
+            entity.ToTable("PaymentStatuses");
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(200);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            entity.Property(e => e.Color).HasMaxLength(50);
+            
+            // Indexes for Performance
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.SortOrder);
+        });
+    }
+    
+    private void ConfigureRefundStatus(ModelBuilder builder)
+    {
+        builder.Entity<RefundStatus>(entity =>
+        {
+            entity.ToTable("RefundStatuses");
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(200);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            entity.Property(e => e.Color).HasMaxLength(50);
+            
+            // Indexes for Performance
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.SortOrder);
         });
     }
     
@@ -329,13 +456,56 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.DateOfBirth).IsRequired();
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.StripeCustomerId).HasMaxLength(100);
+            entity.Property(e => e.RefreshToken).HasMaxLength(500);
+            entity.Property(e => e.RefreshTokenExpiry);
+            entity.Property(e => e.PasswordResetToken).HasMaxLength(500);
+            entity.Property(e => e.PasswordResetTokenExpires);
             
             // UserRole relationship
             entity.HasOne(e => e.UserRole)
                 .WithMany(e => e.Users)
                 .HasForeignKey(e => e.UserRoleId)
                 .OnDelete(DeleteBehavior.Restrict);
+                
+            // Collection Relationships
+            entity.HasMany(e => e.Subscriptions)
+                .WithOne(s => s.User)
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.Consultations)
+                .WithOne(c => c.User)
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.HealthAssessments)
+                .WithOne(h => h.User)
+                .HasForeignKey(h => h.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.Messages)
+                .WithOne(m => m.Sender)
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.PatientAppointments)
+                .WithOne(a => a.Patient)
+                .HasForeignKey(a => a.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.AppointmentParticipants)
+                .WithOne(ap => ap.User)
+                .HasForeignKey(ap => ap.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.PaymentLogs)
+                .WithOne(pl => pl.User)
+                .HasForeignKey(pl => pl.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Note: UploadedDocuments and AppointmentEvents relationships 
+            // will be configured when their respective entities are properly defined
         });
     }
     
@@ -350,7 +520,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.LicenseNumber).IsRequired().HasMaxLength(100);
             entity.Property(e => e.State).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Specialty).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.IsAvailable).HasDefaultValue(true);
             entity.Property(e => e.ConsultationFee).HasPrecision(18, 2);
         });
@@ -362,13 +531,41 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         {
             entity.ToTable("Categories");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.BasePrice).HasPrecision(18, 2);
             entity.Property(e => e.ConsultationFee).HasPrecision(18, 2);
             entity.Property(e => e.OneTimeConsultationFee).HasPrecision(18, 2);
             entity.Property(e => e.RequiresHealthAssessment).HasDefaultValue(true);
             entity.Property(e => e.AllowsMedicationDelivery).HasDefaultValue(true);
             entity.Property(e => e.AllowsFollowUpMessaging).HasDefaultValue(true);
+            entity.Property(e => e.AllowsOneTimeConsultation).HasDefaultValue(true);
+            entity.Property(e => e.OneTimeConsultationDurationMinutes).HasDefaultValue(30);
+            entity.Property(e => e.IsMostPopular).HasDefaultValue(false);
+            entity.Property(e => e.IsTrending).HasDefaultValue(false);
+            entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
+            entity.Property(e => e.Icon).HasMaxLength(100);
+            entity.Property(e => e.Color).HasMaxLength(50);
+            
+            // Collection Relationships
+            entity.HasMany(e => e.SubscriptionPlans)
+                .WithOne(sp => sp.Category)
+                .HasForeignKey(sp => sp.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.ProviderCategories)
+                .WithOne(pc => pc.Category)
+                .HasForeignKey(pc => pc.CategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasMany(e => e.HealthAssessments)
+                .WithOne(ha => ha.Category)
+                .HasForeignKey(ha => ha.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.Consultations)
+                .WithOne(c => c.Category)
+                .HasForeignKey(c => c.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
     
@@ -377,16 +574,53 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<SubscriptionPlan>(entity =>
         {
             entity.ToTable("SubscriptionPlans");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Basic Properties
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.ShortDescription).HasMaxLength(200);
+            
+            // Boolean Properties with Default Values
+            entity.Property(e => e.IsFeatured).HasDefaultValue(false);
+            entity.Property(e => e.IsTrialAllowed).HasDefaultValue(false);
+            entity.Property(e => e.IsMostPopular).HasDefaultValue(false);
+            entity.Property(e => e.IsTrending).HasDefaultValue(false);
+            entity.Property(e => e.IncludesMedicationDelivery).HasDefaultValue(true);
+            entity.Property(e => e.IncludesFollowUpCare).HasDefaultValue(true);
+            
+            // Numeric Properties with Default Values
+            entity.Property(e => e.DisplayOrder).HasDefaultValue(0);
+            entity.Property(e => e.TrialDurationInDays).HasDefaultValue(0);
+            entity.Property(e => e.MessagingCount).HasDefaultValue(10);
+            entity.Property(e => e.DeliveryFrequencyDays).HasDefaultValue(30);
+            entity.Property(e => e.MaxPauseDurationDays).HasDefaultValue(90);
+            
+            // Price Properties with Precision
             entity.Property(e => e.Price).HasPrecision(18, 2);
-            entity.Property(e => e.IsActive).HasDefaultValue(true);
-            entity.Property(e => e.DisplayOrder);
-            // Remove old price fields and category reference
-            // entity.Property(e => e.MonthlyPrice).HasPrecision(18, 2); // Removed
-            // entity.Property(e => e.QuarterlyPrice).HasPrecision(18, 2); // Removed
-            // entity.Property(e => e.AnnualPrice).HasPrecision(18, 2); // Removed
-            // entity.HasOne(e => e.Category).WithMany(e => e.SubscriptionPlans).HasForeignKey(e => e.CategoryId).OnDelete(DeleteBehavior.Restrict); // Removed
-
+            entity.Property(e => e.DiscountedPrice).HasPrecision(18, 2);
+            
+            // Enum Properties
+            entity.Property(e => e.PlanType).HasConversion<string>();
+            
+            // DateTime Properties
+            entity.Property(e => e.DiscountValidUntil);
+            entity.Property(e => e.EffectiveDate);
+            entity.Property(e => e.ExpirationDate);
+            
+            // Stripe Integration Properties
+            entity.Property(e => e.StripeProductId).HasMaxLength(100);
+            entity.Property(e => e.StripeMonthlyPriceId).HasMaxLength(100);
+            entity.Property(e => e.StripeQuarterlyPriceId).HasMaxLength(100);
+            entity.Property(e => e.StripeAnnualPriceId).HasMaxLength(100);
+            
+            // Text Properties
+            entity.Property(e => e.Features).HasMaxLength(1000);
+            entity.Property(e => e.Terms).HasMaxLength(500);
+            
+            // Foreign Key Relationships
             entity.HasOne(e => e.BillingCycle)
                 .WithMany()
                 .HasForeignKey(e => e.BillingCycleId)
@@ -401,6 +635,27 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
                 .WithMany(c => c.SubscriptionPlans)
                 .HasForeignKey(e => e.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+                
+            // Collection Relationships
+            entity.HasMany(e => e.PlanPrivileges)
+                .WithOne(p => p.SubscriptionPlan)
+                .HasForeignKey(p => p.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasMany(e => e.Subscriptions)
+                .WithOne(s => s.SubscriptionPlan)
+                .HasForeignKey(s => s.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.IsFeatured);
+            entity.HasIndex(e => e.PlanType);
+            entity.HasIndex(e => e.CategoryId);
+            entity.HasIndex(e => e.BillingCycleId);
+            entity.HasIndex(e => e.CurrencyId);
+            entity.HasIndex(e => e.StripeProductId);
         });
     }
     
@@ -409,12 +664,51 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<Subscription>(entity =>
         {
             entity.ToTable("Subscriptions");
-            entity.Property(e => e.Status).HasConversion<string>();
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Core Properties
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasConversion<string>();
+            entity.Property(e => e.StatusReason).HasMaxLength(500);
+            entity.Property(e => e.StartDate).IsRequired();
+            entity.Property(e => e.EndDate);
+            entity.Property(e => e.NextBillingDate).IsRequired();
             entity.Property(e => e.CurrentPrice).HasPrecision(18, 2);
             entity.Property(e => e.AutoRenew).HasDefaultValue(true);
-            // Remove BillingFrequency
-            // entity.Property(e => e.BillingFrequency).HasConversion<string>(); // Removed
+            entity.Property(e => e.Notes).HasMaxLength(1000);
+            
+            // Status-Specific Properties
+            entity.Property(e => e.PausedDate);
+            entity.Property(e => e.ResumedDate);
+            entity.Property(e => e.CancelledDate);
+            entity.Property(e => e.ExpirationDate);
+            entity.Property(e => e.SuspendedDate);
+            entity.Property(e => e.LastBillingDate);
+            entity.Property(e => e.CancellationReason).HasMaxLength(500);
+            entity.Property(e => e.PauseReason).HasMaxLength(500);
+            
+            // Stripe Integration Properties
+            entity.Property(e => e.StripeSubscriptionId).HasMaxLength(100);
+            entity.Property(e => e.StripeCustomerId).HasMaxLength(100);
+            entity.Property(e => e.StripePriceId).HasMaxLength(100);
+            entity.Property(e => e.PaymentMethodId).HasMaxLength(100);
+            entity.Property(e => e.LastPaymentDate);
+            entity.Property(e => e.LastPaymentFailedDate);
+            entity.Property(e => e.LastPaymentError).HasMaxLength(500);
+            entity.Property(e => e.FailedPaymentAttempts).HasDefaultValue(0);
+            
+            // Trial Properties
+            entity.Property(e => e.IsTrialSubscription).HasDefaultValue(false);
+            entity.Property(e => e.TrialStartDate);
+            entity.Property(e => e.TrialEndDate);
+            entity.Property(e => e.TrialDurationInDays).HasDefaultValue(0);
+            
+            // Usage Tracking Properties
+            entity.Property(e => e.LastUsedDate);
+            entity.Property(e => e.TotalUsageCount).HasDefaultValue(0);
 
+            // Foreign Key Relationships
             entity.HasOne(e => e.User)
                 .WithMany(e => e.Subscriptions)
                 .HasForeignKey(e => e.UserId)
@@ -434,6 +728,50 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
                 .WithMany()
                 .HasForeignKey(e => e.BillingCycleId)
                 .OnDelete(DeleteBehavior.Restrict);
+                
+            // Collection Relationships
+            entity.HasMany(e => e.Consultations)
+                .WithOne(c => c.Subscription)
+                .HasForeignKey(c => c.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.MedicationDeliveries)
+                .WithOne(md => md.Subscription)
+                .HasForeignKey(md => md.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.BillingRecords)
+                .WithOne(br => br.Subscription)
+                .HasForeignKey(br => br.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasMany(e => e.PrivilegeUsages)
+                .WithOne(pu => pu.Subscription)
+                .HasForeignKey(pu => pu.SubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasMany(e => e.StatusHistory)
+                .WithOne(ssh => ssh.Subscription)
+                .HasForeignKey(ssh => ssh.SubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasMany(e => e.Payments)
+                .WithOne(sp => sp.Subscription)
+                .HasForeignKey(sp => sp.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Performance Indexes
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.SubscriptionPlanId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.StartDate);
+            entity.HasIndex(e => e.NextBillingDate);
+            entity.HasIndex(e => e.StripeSubscriptionId);
+            entity.HasIndex(e => e.StripeCustomerId);
+            entity.HasIndex(e => e.ProviderId);
+            entity.HasIndex(e => e.BillingCycleId);
+            entity.HasIndex(e => e.IsTrialSubscription);
+            entity.HasIndex(e => e.AutoRenew);
         });
     }
     
@@ -720,22 +1058,52 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<BillingRecord>(entity =>
         {
             entity.ToTable("BillingRecords");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
             entity.Property(e => e.Status).HasConversion<string>();
             entity.Property(e => e.Type).HasConversion<string>();
+            
+            // Decimal Properties with Precision
             entity.Property(e => e.Amount).HasPrecision(18, 2);
             entity.Property(e => e.TaxAmount).HasPrecision(18, 2);
             entity.Property(e => e.ShippingAmount).HasPrecision(18, 2);
             entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
-            entity.Property(e => e.IsRecurring).HasDefaultValue(false);
             entity.Property(e => e.AccruedAmount).HasPrecision(18, 2);
             
+            // String Properties with MaxLength
+            entity.Property(e => e.InvoiceNumber).HasMaxLength(100);
+            entity.Property(e => e.StripePaymentIntentId).HasMaxLength(100);
+            entity.Property(e => e.StripeInvoiceId).HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.FailureReason).HasMaxLength(500);
+            entity.Property(e => e.PaymentMethod).HasMaxLength(100);
+            entity.Property(e => e.TransactionId).HasMaxLength(100);
+            entity.Property(e => e.ErrorMessage).HasMaxLength(500);
+            entity.Property(e => e.PaymentIntentId).HasMaxLength(100);
+            
+            // Boolean Properties with Default Values
+            entity.Property(e => e.IsRecurring).HasDefaultValue(false);
+            
+            // DateTime Properties
+            entity.Property(e => e.BillingDate).IsRequired();
+            entity.Property(e => e.PaidAt);
+            entity.Property(e => e.DueDate);
+            entity.Property(e => e.ProcessedAt);
+            entity.Property(e => e.NextBillingDate);
+            entity.Property(e => e.AccrualStartDate);
+            entity.Property(e => e.AccrualEndDate);
+            
+            // Foreign Key Relationships
             entity.HasOne(e => e.User)
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
                 
             entity.HasOne(e => e.Subscription)
-                .WithMany(e => e.BillingRecords)
+                .WithMany(s => s.BillingRecords)
                 .HasForeignKey(e => e.SubscriptionId)
                 .OnDelete(DeleteBehavior.SetNull);
                 
@@ -748,22 +1116,84 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
                 .WithMany()
                 .HasForeignKey(e => e.MedicationDeliveryId)
                 .OnDelete(DeleteBehavior.SetNull);
+                
+            entity.HasOne(e => e.Currency)
+                .WithMany()
+                .HasForeignKey(e => e.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Collection Relationships
+            entity.HasMany(e => e.Adjustments)
+                .WithOne(a => a.BillingRecord)
+                .HasForeignKey(a => a.BillingRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.SubscriptionId);
+            entity.HasIndex(e => e.ConsultationId);
+            entity.HasIndex(e => e.MedicationDeliveryId);
+            entity.HasIndex(e => e.CurrencyId);
+            entity.HasIndex(e => e.BillingCycleId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.Type);
+            entity.HasIndex(e => e.BillingDate);
+            entity.HasIndex(e => e.DueDate);
+            entity.HasIndex(e => e.PaidAt);
+            entity.HasIndex(e => e.IsRecurring);
+            entity.HasIndex(e => e.InvoiceNumber);
+            entity.HasIndex(e => e.StripePaymentIntentId);
+            entity.HasIndex(e => e.StripeInvoiceId);
+            entity.HasIndex(e => e.PaymentIntentId);
         });
-        
+    }
+    
+    private void ConfigureBillingAdjustment(ModelBuilder builder)
+    {
         builder.Entity<BillingAdjustment>(entity =>
         {
             entity.ToTable("BillingAdjustments");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
             entity.Property(e => e.Type).HasConversion<string>();
+            
+            // Decimal Properties with Precision
             entity.Property(e => e.Amount).HasPrecision(18, 2);
             entity.Property(e => e.Percentage).HasPrecision(5, 2);
+            
+            // String Properties with MaxLength
             entity.Property(e => e.Description).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.Reason).HasMaxLength(500);
+            entity.Property(e => e.ApprovalNotes).HasMaxLength(500);
+            
+            // Boolean Properties with Default Values
             entity.Property(e => e.IsPercentage).HasDefaultValue(false);
             entity.Property(e => e.IsApproved).HasDefaultValue(true);
             
+            // DateTime Properties
+            entity.Property(e => e.AppliedAt).IsRequired();
+            
+            // Foreign Key Relationships
             entity.HasOne(e => e.BillingRecord)
                 .WithMany(e => e.Adjustments)
                 .HasForeignKey(e => e.BillingRecordId)
                 .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.AppliedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.AppliedBy)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.BillingRecordId);
+            entity.HasIndex(e => e.Type);
+            entity.HasIndex(e => e.AppliedAt);
+            entity.HasIndex(e => e.AppliedBy);
+            entity.HasIndex(e => e.IsApproved);
+            entity.HasIndex(e => e.IsPercentage);
         });
     }
     
@@ -977,7 +1407,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.ToTable("AppointmentParticipants");
             entity.Property(e => e.ExternalEmail).HasMaxLength(256);
             entity.Property(e => e.ExternalPhone).HasMaxLength(32);
-            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             
             entity.HasOne(e => e.Appointment)
                 .WithMany(e => e.Participants)
@@ -1053,7 +1482,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.FailureReason).HasMaxLength(1000);
             entity.Property(e => e.RefundReason).HasMaxLength(1000);
-            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             
             entity.HasOne(e => e.Appointment)
                 .WithMany(e => e.PaymentLogs)
@@ -1125,7 +1553,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Message).HasMaxLength(1000);
             entity.Property(e => e.RecipientEmail).HasMaxLength(100);
             entity.Property(e => e.RecipientPhone).HasMaxLength(20);
-            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             
             entity.HasOne(e => e.Appointment)
                 .WithMany(e => e.Reminders)
@@ -1152,7 +1579,6 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.OccurredAt).IsRequired();
             entity.Property(e => e.Description).HasMaxLength(1000);
             entity.Property(e => e.Metadata).HasMaxLength(500);
-            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             
             entity.HasOne(e => e.Appointment)
                 .WithMany(e => e.Events)
@@ -1182,8 +1608,65 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<SubscriptionPayment>(entity =>
         {
             entity.ToTable("SubscriptionPayments");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
+            entity.Property(e => e.Description).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.FailureReason).HasMaxLength(1000);
+            entity.Property(e => e.StripePaymentIntentId).HasMaxLength(100);
+            entity.Property(e => e.StripeInvoiceId).HasMaxLength(100);
+            entity.Property(e => e.ReceiptUrl).HasMaxLength(500);
+            entity.Property(e => e.PaymentIntentId).HasMaxLength(100);
+            entity.Property(e => e.InvoiceId).HasMaxLength(100);
+            
+            // Decimal Properties with Precision
             entity.Property(e => e.Amount).HasPrecision(18, 2);
-            // ... existing property and relationship configuration ...
+            entity.Property(e => e.TaxAmount).HasPrecision(18, 2);
+            entity.Property(e => e.NetAmount).HasPrecision(18, 2);
+            entity.Property(e => e.RefundedAmount).HasPrecision(18, 2);
+            
+            // Enum Properties
+            entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.Type).HasConversion<string>();
+            
+            // DateTime Properties
+            entity.Property(e => e.DueDate).IsRequired();
+            entity.Property(e => e.PaidAt);
+            entity.Property(e => e.FailedAt);
+            entity.Property(e => e.BillingPeriodStart).IsRequired();
+            entity.Property(e => e.BillingPeriodEnd).IsRequired();
+            entity.Property(e => e.NextRetryAt);
+            
+            // Integer Properties with Default Values
+            entity.Property(e => e.AttemptCount).HasDefaultValue(0);
+            
+            // Foreign Key Relationships
+            entity.HasOne(e => e.Subscription)
+                .WithMany(s => s.Payments)
+                .HasForeignKey(e => e.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            entity.HasOne(e => e.Currency)
+                .WithMany()
+                .HasForeignKey(e => e.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Collection Relationships
+            entity.HasMany(e => e.Refunds)
+                .WithOne(r => r.SubscriptionPayment)
+                .HasForeignKey(r => r.SubscriptionPaymentId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.SubscriptionId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.Type);
+            entity.HasIndex(e => e.DueDate);
+            entity.HasIndex(e => e.PaidAt);
+            entity.HasIndex(e => e.StripePaymentIntentId);
+            entity.HasIndex(e => e.StripeInvoiceId);
         });
     }
 
@@ -1192,15 +1675,34 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<SubscriptionStatusHistory>(entity =>
         {
             entity.ToTable("SubscriptionStatusHistories");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
             entity.Property(e => e.FromStatus).HasMaxLength(50);
             entity.Property(e => e.ToStatus).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Reason).HasMaxLength(500);
-            entity.Property(e => e.ChangedByUserId).HasMaxLength(100);
+            entity.Property(e => e.ChangedByUserId); // Integer property, no MaxLength needed
+            entity.Property(e => e.ChangedAt).IsRequired();
             entity.Property(e => e.Metadata).HasMaxLength(1000);
+            
+            // Foreign Key Relationships
             entity.HasOne(e => e.Subscription)
                 .WithMany(s => s.StatusHistory)
                 .HasForeignKey(e => e.SubscriptionId)
                 .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.ChangedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.ChangedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.SubscriptionId);
+            entity.HasIndex(e => e.ChangedAt);
+            entity.HasIndex(e => e.ToStatus);
+            entity.HasIndex(e => e.ChangedByUserId);
         });
     }
     private void ConfigurePaymentRefund(ModelBuilder builder)
@@ -1208,17 +1710,32 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<PaymentRefund>(entity =>
         {
             entity.ToTable("PaymentRefunds");
-            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
             entity.Property(e => e.Reason).IsRequired().HasMaxLength(500);
             entity.Property(e => e.StripeRefundId).HasMaxLength(100);
+            entity.Property(e => e.RefundedAt).IsRequired();
+            
+            // Foreign Key Relationships
             entity.HasOne(e => e.SubscriptionPayment)
                 .WithMany(p => p.Refunds)
                 .HasForeignKey(e => e.SubscriptionPaymentId)
                 .OnDelete(DeleteBehavior.Cascade);
+                
             entity.HasOne(e => e.ProcessedByUser)
                 .WithMany()
                 .HasForeignKey(e => e.ProcessedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.SubscriptionPaymentId);
+            entity.HasIndex(e => e.ProcessedByUserId);
+            entity.HasIndex(e => e.RefundedAt);
+            entity.HasIndex(e => e.StripeRefundId);
         });
     }
 
@@ -1637,6 +2154,223 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.HasIndex(e => new { e.UserSubscriptionPrivilegeUsageId, e.UsageDate });
         });
     }
+
+    private void ConfigurePrivilege(ModelBuilder builder)
+    {
+        builder.Entity<Privilege>(entity =>
+        {
+            entity.ToTable("Privileges");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            
+            // Foreign Key Relationships
+            entity.HasOne(e => e.PrivilegeType)
+                .WithMany()
+                .HasForeignKey(e => e.PrivilegeTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Collection Relationships
+            entity.HasMany(e => e.PlanPrivileges)
+                .WithOne(pp => pp.Privilege)
+                .HasForeignKey(pp => pp.PrivilegeId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasMany(e => e.UsageRecords)
+                .WithOne(uspu => uspu.Privilege)
+                .HasForeignKey(uspu => uspu.PrivilegeId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.PrivilegeTypeId);
+            entity.HasIndex(e => e.IsActive);
+        });
+    }
+
+    private void ConfigureSubscriptionPlanPrivilege(ModelBuilder builder)
+    {
+        builder.Entity<SubscriptionPlanPrivilege>(entity =>
+        {
+            entity.ToTable("SubscriptionPlanPrivileges");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Basic Properties
+            entity.Property(e => e.Value).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.DurationMonths).HasDefaultValue(1);
+            entity.Property(e => e.UnitCost).HasPrecision(18, 2);
+            
+            // DateTime Properties
+            entity.Property(e => e.EffectiveDate);
+            entity.Property(e => e.ExpirationDate);
+            
+            // Time-based Usage Limits
+            entity.Property(e => e.DailyLimit);
+            entity.Property(e => e.WeeklyLimit);
+            entity.Property(e => e.MonthlyLimit);
+            
+            // Foreign Key Relationships
+            entity.HasOne(e => e.SubscriptionPlan)
+                .WithMany(sp => sp.PlanPrivileges)
+                .HasForeignKey(e => e.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.Privilege)
+                .WithMany(p => p.PlanPrivileges)
+                .HasForeignKey(e => e.PrivilegeId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.UsagePeriod)
+                .WithMany()
+                .HasForeignKey(e => e.UsagePeriodId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Performance Indexes
+            entity.HasIndex(e => e.SubscriptionPlanId);
+            entity.HasIndex(e => e.PrivilegeId);
+            entity.HasIndex(e => e.UsagePeriodId);
+            entity.HasIndex(e => e.EffectiveDate);
+            entity.HasIndex(e => e.ExpirationDate);
+        });
+    }
+
+    private void ConfigureUserSubscriptionPrivilegeUsage(ModelBuilder builder)
+    {
+        builder.Entity<UserSubscriptionPrivilegeUsage>(entity =>
+        {
+            entity.ToTable("UserSubscriptionPrivilegeUsages");
+            
+            // Primary Key
+            entity.HasKey(e => e.Id);
+            
+            // Property Configurations
+            entity.Property(e => e.UsedValue).IsRequired();
+            entity.Property(e => e.AllowedValue).IsRequired();
+            entity.Property(e => e.UsagePeriodStart).IsRequired();
+            entity.Property(e => e.UsagePeriodEnd).IsRequired();
+            entity.Property(e => e.ResetAt);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            
+            // Foreign Key Relationships
+            entity.HasOne(e => e.Subscription)
+                .WithMany(s => s.PrivilegeUsages)
+                .HasForeignKey(e => e.SubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.SubscriptionPlanPrivilege)
+                .WithMany()
+                .HasForeignKey(e => e.SubscriptionPlanPrivilegeId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.Privilege)
+                .WithMany()
+                .HasForeignKey(e => e.PrivilegeId)
+                .OnDelete(DeleteBehavior.Restrict);
+                
+            // Collection Relationships
+            entity.HasMany(e => e.UsageHistory)
+                .WithOne(uh => uh.UserSubscriptionPrivilegeUsage)
+                .HasForeignKey(uh => uh.UserSubscriptionPrivilegeUsageId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            // Indexes for Performance
+            entity.HasIndex(e => e.SubscriptionId);
+            entity.HasIndex(e => e.SubscriptionPlanPrivilegeId);
+            entity.HasIndex(e => e.PrivilegeId);
+            entity.HasIndex(e => e.UsagePeriodStart);
+            entity.HasIndex(e => e.UsagePeriodEnd);
+            entity.HasIndex(e => e.LastUsedAt);
+        });
+    }
+
+    #region Missing Entity Configurations
+    
+    private void ConfigureProcessedWebhookEvent(ModelBuilder builder)
+    {
+        builder.Entity<ProcessedWebhookEvent>(entity =>
+        {
+            entity.ToTable("ProcessedWebhookEvents");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.StripeEventId).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.EventType).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.ReceivedAt).IsRequired();
+            entity.Property(e => e.ProcessedAt);
+            entity.Property(e => e.IsSuccess).IsRequired();
+            entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
+            entity.Property(e => e.RetryCount).IsRequired().HasDefaultValue(0);
+            entity.Property(e => e.MaxRetries).IsRequired().HasDefaultValue(3);
+            entity.Property(e => e.LastAttemptAt);
+            entity.Property(e => e.Metadata).HasMaxLength(4000);
+            entity.Property(e => e.ProcessingDurationMs);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.StripeEventId).IsUnique();
+            entity.HasIndex(e => e.EventType);
+            entity.HasIndex(e => e.ReceivedAt);
+            entity.HasIndex(e => e.ProcessedAt);
+            entity.HasIndex(e => e.IsSuccess);
+            entity.HasIndex(e => new { e.EventType, e.IsSuccess });
+        });
+    }
+    
+    
+    #endregion
+
+    #region BaseEntity Configuration
+    
+    /// <summary>
+    /// Configures BaseEntity relationships for all entities that inherit from BaseEntity.
+    /// This method sets up the foreign key relationships for CreatedBy, UpdatedBy, and DeletedBy properties.
+    /// </summary>
+    private void ConfigureBaseEntityRelationships(ModelBuilder builder)
+    {
+        // Get all entity types that inherit from BaseEntity
+        var baseEntityTypes = builder.Model.GetEntityTypes()
+            .Where(e => typeof(BaseEntity).IsAssignableFrom(e.ClrType))
+            .Select(e => e.ClrType)
+            .ToList();
+
+        foreach (var entityType in baseEntityTypes)
+        {
+            var entityBuilder = builder.Entity(entityType);
+            
+            // Configure BaseEntity Properties with Default Values
+            entityBuilder.Property("IsActive").HasDefaultValue(true);
+            entityBuilder.Property("IsDeleted").HasDefaultValue(false);
+            entityBuilder.Property("CreatedDate").HasDefaultValueSql("GETUTCDATE()");
+            
+            // Configure CreatedBy relationship
+            entityBuilder
+                .HasOne(typeof(User), "CreatedByUser")
+                .WithMany()
+                .HasForeignKey("CreatedBy")
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure UpdatedBy relationship
+            entityBuilder
+                .HasOne(typeof(User), "UpdatedByUser")
+                .WithMany()
+                .HasForeignKey("UpdatedBy")
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure DeletedBy relationship
+            entityBuilder
+                .HasOne(typeof(User), "DeletedByUser")
+                .WithMany()
+                .HasForeignKey("DeletedBy")
+                .OnDelete(DeleteBehavior.Restrict);
+        }
+    }
+    
+    #endregion
 
     #region Audit Functionality
 

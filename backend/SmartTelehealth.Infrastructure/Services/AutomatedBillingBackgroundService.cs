@@ -10,17 +10,17 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SmartTelehealth.Infrastructure.Services;
 
-public class AutomatedBillingService : BackgroundService
+public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBillingBackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<AutomatedBillingService> _logger;
+    private readonly ILogger<AutomatedBillingBackgroundService> _logger;
     private readonly TimeSpan _billingInterval = TimeSpan.FromHours(1); // Run every hour
     private readonly int _maxRetryAttempts = 3;
     private readonly TimeSpan _retryDelay = TimeSpan.FromHours(6);
 
-    public AutomatedBillingService(
+    public AutomatedBillingBackgroundService(
         IServiceProvider serviceProvider,
-        ILogger<AutomatedBillingService> logger)
+        ILogger<AutomatedBillingBackgroundService> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;

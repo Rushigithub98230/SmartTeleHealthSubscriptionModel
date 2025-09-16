@@ -19,8 +19,8 @@ namespace SmartTelehealth.API.Controllers;
 public class ChatController : BaseController
 {
     private readonly IMessagingService _messagingService;
-    private readonly ChatService _chatService;
-    private readonly ChatRoomService _chatRoomService;
+    private readonly IChatService _chatService;
+    private readonly IChatRoomService _chatRoomService;
 
     /// <summary>
     /// Initializes a new instance of the ChatController with required services.
@@ -30,8 +30,8 @@ public class ChatController : BaseController
     /// <param name="chatRoomService">Service for chat room management</param>
     public ChatController(
         IMessagingService messagingService,
-        ChatService chatService,
-        ChatRoomService chatRoomService)
+        IChatService chatService,
+        IChatRoomService chatRoomService)
     {
         _messagingService = messagingService;
         _chatService = chatService;

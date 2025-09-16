@@ -1,13 +1,15 @@
 using Microsoft.Extensions.Logging;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.DTOs;
+using SmartTelehealth.Application.Interfaces;
 
 namespace SmartTelehealth.Application.Services
 {
     /// <summary>
     /// Service responsible for ensuring webhook idempotency and preventing duplicate processing
     /// </summary>
-    public class WebhookIdempotencyService
+    public class WebhookIdempotencyService : IWebhookIdempotencyService
     {
         private readonly IProcessedWebhookEventRepository _webhookEventRepository;
         private readonly ILogger<WebhookIdempotencyService> _logger;
@@ -209,30 +211,5 @@ namespace SmartTelehealth.Application.Services
                 return new WebhookProcessingStats();
             }
         }
-    }
-
-    /// <summary>
-    /// Result of an idempotency check
-    /// </summary>
-    public class IdempotencyCheckResult
-    {
-        public bool ShouldProcess { get; set; }
-        public bool IsNewEvent { get; set; }
-        public ProcessedWebhookEvent? WebhookEvent { get; set; }
-        public string? Reason { get; set; }
-    }
-
-    /// <summary>
-    /// Statistics about webhook event processing
-    /// </summary>
-    public class WebhookProcessingStats
-    {
-        public int TotalEvents { get; set; }
-        public int SuccessfulEvents { get; set; }
-        public int FailedEvents { get; set; }
-        public int PermanentlyFailedEvents { get; set; }
-        public int RetryableEvents { get; set; }
-        public double AverageProcessingTimeMs { get; set; }
-        public Dictionary<string, int> EventTypes { get; set; } = new();
     }
 }
