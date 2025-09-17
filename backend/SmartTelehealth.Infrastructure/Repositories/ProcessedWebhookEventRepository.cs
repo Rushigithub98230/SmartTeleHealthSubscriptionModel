@@ -141,5 +141,87 @@ namespace SmartTelehealth.Infrastructure.Repositories
 
             return oldEvents.Count;
         }
+
+        /// <summary>
+        /// Retrieves processed webhook events with database-level filtering, pagination, and sorting
+        /// </summary>
+        public async Task<(IEnumerable<ProcessedWebhookEvent> Events, int TotalCount)> GetEventsWithFilteringAsync(
+            int page, int pageSize, string? eventType = null, bool? isSuccess = null, 
+            string? search = null, DateTime? startDate = null, DateTime? endDate = null, 
+            string? sortBy = "ReceivedAt", string? sortOrder = "desc")
+        {
+            var query = _context.ProcessedWebhookEvents.AsQueryable();
+
+            // Apply filters
+            if (!string.IsNullOrWhiteSpace(eventType))
+            {
+                query = query.Where(e => e.EventType == eventType);
+            }
+
+            if (isSuccess.HasValue)
+            {
+                query = query.Where(e => e.IsSuccess == isSuccess.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.ToLower();
+                query = query.Where(e =>
+                    e.StripeEventId.ToLower().Contains(term) ||
+                    e.EventType.ToLower().Contains(term) ||
+                    (e.ErrorMessage != null && e.ErrorMessage.ToLower().Contains(term)));
+            }
+
+            if (startDate.HasValue)
+            {
+                query = query.Where(e => e.ReceivedAt >= startDate.Value);
+            }
+
+            if (endDate.HasValue)
+            {
+                query = query.Where(e => e.ReceivedAt <= endDate.Value);
+            }
+
+            // Get total count before pagination
+            var totalCount = await query.CountAsync();
+
+            // Apply sorting
+            query = ApplySorting(query, sortBy, sortOrder);
+
+            // Apply pagination
+            var skip = (page - 1) * pageSize;
+            var events = await query
+                .Skip(skip)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return (events, totalCount);
+        }
+
+        private static IQueryable<ProcessedWebhookEvent> ApplySorting(IQueryable<ProcessedWebhookEvent> query, string sortBy, string sortOrder)
+        {
+            return sortBy.ToLower() switch
+            {
+                "eventtype" => sortOrder.ToLower() == "desc"
+                    ? query.OrderByDescending(e => e.EventType)
+                    : query.OrderBy(e => e.EventType),
+                "stripeeventid" => sortOrder.ToLower() == "desc"
+                    ? query.OrderByDescending(e => e.StripeEventId)
+                    : query.OrderBy(e => e.StripeEventId),
+                "receivedat" => sortOrder.ToLower() == "desc"
+                    ? query.OrderByDescending(e => e.ReceivedAt)
+                    : query.OrderBy(e => e.ReceivedAt),
+                "processedat" => sortOrder.ToLower() == "desc"
+                    ? query.OrderByDescending(e => e.ProcessedAt)
+                    : query.OrderBy(e => e.ProcessedAt),
+                "issuccess" => sortOrder.ToLower() == "desc"
+                    ? query.OrderByDescending(e => e.IsSuccess)
+                    : query.OrderBy(e => e.IsSuccess),
+                "retrycount" => sortOrder.ToLower() == "desc"
+                    ? query.OrderByDescending(e => e.RetryCount)
+                    : query.OrderBy(e => e.RetryCount),
+                _ => query.OrderByDescending(e => e.ReceivedAt)
+            };
+        }
     }
 }

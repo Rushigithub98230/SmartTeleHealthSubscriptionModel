@@ -24,6 +24,7 @@ public interface IStripeService
     Task<string> CreateProductAsync(string name, string description, TokenModel tokenModel);
     Task<bool> UpdateProductAsync(string productId, string name, string description, TokenModel tokenModel);
     Task<bool> DeleteProductAsync(string productId, TokenModel tokenModel);
+    Task<bool> ArchiveProductAsync(string productId, string originalName, string originalDescription, TokenModel tokenModel);
     
     // Price Management
     Task<string> CreatePriceAsync(string productId, decimal amount, string currency, string interval, int intervalCount, TokenModel tokenModel);

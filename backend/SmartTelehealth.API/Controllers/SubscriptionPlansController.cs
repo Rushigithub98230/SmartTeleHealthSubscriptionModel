@@ -31,29 +31,49 @@ public class SubscriptionPlansController : BaseController
 
 
     /// <summary>
-    /// Retrieves all active subscription plans available for public viewing.
+    /// Retrieves all active subscription plans available for public viewing with comprehensive filtering and pagination.
     /// This endpoint returns only active subscription plans that are suitable for
-    /// public display and user subscription, excluding administrative or draft plans.
+    /// public display and user subscription, excluding administrative or draft plans, with advanced filtering capabilities.
     /// </summary>
-    /// <returns>JsonModel containing active subscription plans for public consumption</returns>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 50)</param>
+    /// <param name="searchTerm">Search term for filtering plans</param>
+    /// <param name="categoryId">Filter plans by category ID</param>
+    /// <param name="sortBy">Field to sort by</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
+    /// <returns>JsonModel containing paginated active subscription plans with filtering applied</returns>
     /// <remarks>
     /// This endpoint:
     /// - Returns only active subscription plans
+    /// - Supports pagination for large datasets
+    /// - Includes advanced filtering by search term and category
+    /// - Provides sorting capabilities for data organization
     /// - Includes public-facing plan information and pricing
     /// - No authentication required - accessible to all users
     /// - Used for plan selection and comparison by potential subscribers
     /// - Optimized for public consumption with marketing-friendly information
     /// - Excludes administrative details and internal configurations
+    /// - Supports advanced filtering for plan discovery
     /// </remarks>
     [HttpGet("active")]
     [AllowAnonymous]
-    public async Task<JsonModel> GetActivePlans()
+    public async Task<JsonModel> GetActivePlans(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? categoryId = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
     {
         var filter = new SubscriptionPlanFilterDto
         {
-            Page = 1,
-            PageSize = 1000, // Get all active plans
-            IsActive = true
+            Page = page,
+            PageSize = pageSize,
+            SearchTerm = searchTerm,
+            CategoryId = !string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out var catId) ? catId : null,
+            IsActive = true,
+            SortColumn = sortBy ?? "CreatedDate",
+            SortOrder = sortOrder ?? "desc"
         };
         return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, null, adminOnly: false);
     }
@@ -163,31 +183,6 @@ public class SubscriptionPlansController : BaseController
         return await _subscriptionPlanService.ActivatePlanAsync(planId, GetToken(HttpContext));
     }
 
-    /// <summary>
-    /// Deactivates a subscription plan to prevent new user subscriptions.
-    /// This endpoint handles subscription plan deactivation including validation, status updates,
-    /// and notification processes. It ensures that existing subscribers are properly notified
-    /// and maintains proper audit trails for plan status changes.
-    /// </summary>
-    /// <param name="planId">The unique identifier (GUID) of the subscription plan to deactivate</param>
-    /// <returns>JsonModel containing deactivation confirmation or error information</returns>
-    /// <remarks>
-    /// Access Control:
-    /// - Admin access required for plan deactivation
-    /// - Returns 403 Forbidden for non-admin users
-    /// - Returns 404 Not Found if plan doesn't exist
-    /// 
-    /// Business Logic:
-    /// - Validates plan exists and is currently active
-    /// - Updates plan status to inactive
-    /// - Notifies existing subscribers of plan deactivation
-    /// - Maintains plan deactivation audit trails and status history
-    /// </remarks>
-    [HttpPost("{planId}/deactivate")]
-    public async Task<JsonModel> DeactivatePlan(string planId)
-    {
-        return await _subscriptionPlanService.DeactivatePlanAsync(planId, GetToken(HttpContext).UserID.ToString(), GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retrieves all subscription plans with comprehensive filtering and pagination for administrative management.
@@ -239,11 +234,17 @@ public class SubscriptionPlansController : BaseController
     }
 
     /// <summary>
-    /// Retrieves all active subscription plans for administrative management.
+    /// Retrieves all active subscription plans for administrative management with comprehensive filtering and pagination.
     /// This endpoint provides administrators with access to all currently active subscription plans
-    /// in the system. It's used for administrative oversight and plan management operations.
+    /// in the system with advanced filtering capabilities for administrative oversight and plan management operations.
     /// </summary>
-    /// <returns>JsonModel containing active subscription plans or error information</returns>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 50)</param>
+    /// <param name="searchTerm">Search term for filtering plans</param>
+    /// <param name="categoryId">Filter plans by category ID</param>
+    /// <param name="sortBy">Field to sort by</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
+    /// <returns>JsonModel containing paginated active subscription plans with filtering applied</returns>
     /// <remarks>
     /// Access Control:
     /// - Admin access required for administrative plan management
@@ -251,18 +252,32 @@ public class SubscriptionPlansController : BaseController
     /// 
     /// Business Logic:
     /// - Retrieves only active subscription plans (IsActive = true)
+    /// - Supports pagination for large datasets
+    /// - Includes advanced filtering by search term and category
+    /// - Provides sorting capabilities for data organization
     /// - Returns comprehensive plan information including pricing and features
     /// - Used for administrative plan oversight and management
     /// - Handles plan validation and error responses
+    /// - Supports advanced filtering for plan analysis
     /// </remarks>
     [HttpGet("admin/active")]
-    public async Task<JsonModel> GetActiveSubscriptionPlans()
+    public async Task<JsonModel> GetActiveSubscriptionPlans(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? categoryId = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
     {
         var filter = new SubscriptionPlanFilterDto
         {
-            Page = 1,
-            PageSize = 1000,
-            IsActive = true
+            Page = page,
+            PageSize = pageSize,
+            SearchTerm = searchTerm,
+            CategoryId = !string.IsNullOrEmpty(categoryId) && Guid.TryParse(categoryId, out var catId) ? catId : null,
+            IsActive = true,
+            SortColumn = sortBy ?? "CreatedDate",
+            SortOrder = sortOrder ?? "desc"
         };
         return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: true);
     }
@@ -396,7 +411,50 @@ public class SubscriptionPlansController : BaseController
     /// - Performs cleanup operations and integrations
     /// - Maintains plan deletion audit trails and removal history
     /// </remarks>
+    /// <summary>
+    /// Deactivates a subscription plan (soft delete) - RECOMMENDED APPROACH.
+    /// This endpoint provides administrators with the ability to deactivate
+    /// subscription plans while preserving data integrity and business continuity.
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan to deactivate</param>
+    /// <returns>JsonModel containing the deactivation result and any relevant information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates admin access and plan existence
+    /// - Checks for active subscriptions before deactivation
+    /// - Deactivates Stripe resources instead of deleting them
+    /// - Preserves historical data for reporting and analytics
+    /// - Maintains referential integrity with existing subscriptions
+    /// - Allows for plan reactivation if needed
+    /// </remarks>
+    [HttpPost("admin/{planId}/deactivate")]
+    public async Task<JsonModel> DeactivateSubscriptionPlan(string planId)
+    {
+        return await _subscriptionPlanService.DeactivatePlanAsync(planId, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Reactivates a deactivated subscription plan.
+    /// This endpoint allows administrators to restore previously deactivated
+    /// subscription plans back to active status.
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan to reactivate</param>
+    /// <returns>JsonModel containing the reactivation result and any relevant information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates admin access and plan existence
+    /// - Checks if plan is already active
+    /// - Restores plan to active status
+    /// - Maintains audit trail of reactivation
+    /// </remarks>
+    [HttpPost("admin/{planId}/reactivate")]
+    public async Task<JsonModel> ReactivateSubscriptionPlan(string planId)
+    {
+        return await _subscriptionPlanService.ReactivatePlanAsync(planId, GetToken(HttpContext));
+    }
+
     [HttpDelete("admin/{planId}")]
+    [Obsolete("Use DeactivateSubscriptionPlan instead for better data integrity and business continuity")]
     public async Task<JsonModel> DeleteSubscriptionPlan(string planId)
     {
         return await _subscriptionPlanService.DeletePlanAsync(planId, GetToken(HttpContext));
@@ -485,4 +543,128 @@ public class SubscriptionPlansController : BaseController
         };
         return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, null, adminOnly: false);
     }
+
+    #region Additional Admin Endpoints (Consolidated from other controllers)
+
+    /// <summary>
+    /// Retrieves subscription plans with comprehensive filtering for admin management.
+    /// This endpoint supports advanced filtering, pagination, sorting, and search capabilities
+    /// for administrative purposes with full access to all plan data and configurations.
+    /// </summary>
+    /// <param name="filter">Comprehensive filter DTO containing all filter parameters</param>
+    /// <returns>JsonModel containing filtered, paginated, and sorted subscription plans with metadata</returns>
+    /// <remarks>
+    /// This endpoint supports:
+    /// - Advanced search by name, description, or short description
+    /// - Filtering by category, pricing, billing cycle, and status
+    /// - Date range filtering for creation, update, and effective dates
+    /// - Trial duration and display order filtering
+    /// - Stripe integration status filtering
+    /// - Subscription status filtering (has active subscriptions, etc.)
+    /// - Comprehensive pagination with metadata
+    /// - Dynamic sorting by multiple columns
+    /// - Admin-only access with full plan data visibility
+    /// </remarks>
+    [HttpPost("admin/filter")]
+    public async Task<JsonModel> GetPlansWithAdvancedFiltering([FromBody] SubscriptionPlanFilterDto filter)
+    {
+        return await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(filter, GetToken(HttpContext), adminOnly: true);
+    }
+
+    /// <summary>
+    /// Assigns privileges to a subscription plan for administrative management.
+    /// This endpoint allows administrators to configure which privileges are available
+    /// within a specific subscription plan, including usage limits and restrictions.
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan</param>
+    /// <param name="privileges">List of privileges to assign to the plan</param>
+    /// <returns>JsonModel containing the assignment result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Assigns multiple privileges to a subscription plan
+    /// - Configures privilege usage limits and restrictions
+    /// - Validates privilege and plan existence
+    /// - Access restricted to administrators only
+    /// - Used for plan privilege configuration and management
+    /// - Includes comprehensive validation and error handling
+    /// - Maintains privilege assignment audit trails
+    /// </remarks>
+    [HttpPost("admin/{planId}/privileges")]
+    public async Task<JsonModel> AssignPrivilegesToPlan(string planId, [FromBody] List<PlanPrivilegeDto> privileges)
+    {
+        return await _subscriptionPlanService.AssignPrivilegesToPlanAsync(Guid.Parse(planId), privileges, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Removes a privilege from a subscription plan for administrative management.
+    /// This endpoint allows administrators to remove specific privileges from
+    /// subscription plans, affecting future subscriptions but not existing ones.
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan</param>
+    /// <param name="privilegeId">The unique identifier of the privilege to remove</param>
+    /// <returns>JsonModel containing the removal result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Removes a specific privilege from a subscription plan
+    /// - Validates plan and privilege existence
+    /// - Access restricted to administrators only
+    /// - Used for plan privilege management and cleanup
+    /// - Includes comprehensive validation and error handling
+    /// - Maintains privilege removal audit trails
+    /// </remarks>
+    [HttpDelete("admin/{planId}/privileges/{privilegeId}")]
+    public async Task<JsonModel> RemovePrivilegeFromPlan(string planId, string privilegeId)
+    {
+        return await _subscriptionPlanService.RemovePrivilegeFromPlanAsync(Guid.Parse(planId), Guid.Parse(privilegeId), GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Updates a privilege configuration within a subscription plan for administrative management.
+    /// This endpoint allows administrators to modify privilege settings such as usage limits,
+    /// restrictions, and availability within specific subscription plans.
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan</param>
+    /// <param name="privilegeId">The unique identifier of the privilege to update</param>
+    /// <param name="privilegeDto">Updated privilege configuration</param>
+    /// <returns>JsonModel containing the update result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Updates privilege configuration within a subscription plan
+    /// - Modifies usage limits, restrictions, and availability
+    /// - Validates plan and privilege existence
+    /// - Access restricted to administrators only
+    /// - Used for plan privilege configuration updates
+    /// - Includes comprehensive validation and error handling
+    /// - Maintains privilege update audit trails
+    /// </remarks>
+    [HttpPut("admin/{planId}/privileges/{privilegeId}")]
+    public async Task<JsonModel> UpdatePlanPrivilege(string planId, string privilegeId, [FromBody] PlanPrivilegeDto privilegeDto)
+    {
+        return await _subscriptionPlanService.UpdatePlanPrivilegeAsync(Guid.Parse(planId), Guid.Parse(privilegeId), privilegeDto, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves all privileges associated with a specific subscription plan for administrative management.
+    /// This endpoint provides administrators with a comprehensive list of privileges
+    /// configured for a particular subscription plan, including their settings and limits.
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan</param>
+    /// <returns>JsonModel containing the plan's privileges and their configurations</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all privileges associated with a subscription plan
+    /// - Includes privilege configurations, limits, and restrictions
+    /// - Shows privilege availability and usage settings
+    /// - Access restricted to administrators only
+    /// - Used for plan privilege management and oversight
+    /// - Includes comprehensive privilege information and metadata
+    /// - Provides data for privilege analysis and management
+    /// </remarks>
+    [HttpGet("admin/{planId}/privileges")]
+    public async Task<JsonModel> GetPlanPrivileges(string planId)
+    {
+        return await _subscriptionPlanService.GetPlanPrivilegesAsync(Guid.Parse(planId), GetToken(HttpContext));
+    }
+
+    #endregion
 } 

@@ -66,43 +66,32 @@ public class CategoryService : ICategoryService
     {
         try
         {
-            var categories = await _categoryRepository.GetAllActiveAsync();
+            _logger.LogInformation("Retrieving categories with database-level filtering - Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, IsActive: {IsActive}",
+                page, pageSize, searchTerm, isActive);
+
+            // Use database-level filtering, pagination, and sorting
+            var (categories, totalCount) = await _categoryRepository.GetCategoriesWithFilteringAsync(
+                page, pageSize, searchTerm, isActive, "DisplayOrder", "asc");
+
             var categoryDtos = _mapper.Map<IEnumerable<CategoryDto>>(categories);
-            
-            // Apply search filter if provided
-            if (!string.IsNullOrEmpty(searchTerm))
-            {
-                categoryDtos = categoryDtos.Where(c => c.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
-            }
-            
-            // Apply active filter if provided
-            if (isActive.HasValue)
-            {
-                categoryDtos = categoryDtos.Where(c => c.IsActive == isActive.Value);
-            }
-            
-            // Apply pagination
-            var totalCount = categoryDtos.Count();
-            var pagedCategories = categoryDtos
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
             
             var paginationMeta = new Meta
             {
                 TotalRecords = totalCount,
                 CurrentPage = page,
                 PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                HasNextPage = page < (int)Math.Ceiling((double)totalCount / pageSize),
+                HasPreviousPage = page > 1
             };
             
-            _logger.LogInformation("Paginated categories retrieved by user {UserId}: page {Page}, pageSize {PageSize}", 
-                tokenModel.UserID, page, pageSize);
+            _logger.LogInformation("Categories retrieved by user {UserId}: {CategoryCount} categories (page {Page} of {TotalPages})",
+                tokenModel.UserID, categoryDtos.Count(), page, paginationMeta.TotalPages);
             return new JsonModel 
             { 
-                data = pagedCategories, 
+                data = categoryDtos, 
                 meta = paginationMeta,
-                Message = "Categories retrieved successfully", 
+                Message = "Categories retrieved successfully with database-level filtering", 
                 StatusCode = 200 
             };
         }

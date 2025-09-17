@@ -94,4 +94,90 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
     {
         await CreateAsync(planPrivilege);
     }
+
+    #region Advanced Query Operations
+
+    /// <summary>
+    /// Retrieves subscription plan privileges with comprehensive filtering, pagination, and sorting
+    /// </summary>
+    public async Task<(IEnumerable<SubscriptionPlanPrivilege> Privileges, int TotalCount)> GetPlanPrivilegesWithFilteringAsync(
+        int page, int pageSize, Guid? planId = null, Guid? privilegeId = null, 
+        string? search = null, bool? isActive = null, string? sortBy = "CreatedDate", string? sortOrder = "desc")
+    {
+        var query = _context.SubscriptionPlanPrivileges
+            .Include(spp => spp.SubscriptionPlan)
+            .Include(spp => spp.Privilege)
+            .AsQueryable();
+
+        // Apply filters
+        if (planId.HasValue)
+        {
+            query = query.Where(spp => spp.SubscriptionPlanId == planId.Value);
+        }
+
+        if (privilegeId.HasValue)
+        {
+            query = query.Where(spp => spp.PrivilegeId == privilegeId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.ToLower();
+            query = query.Where(spp => 
+                spp.Privilege.Name.ToLower().Contains(term) ||
+                (spp.Privilege.Description != null && spp.Privilege.Description.ToLower().Contains(term)) ||
+                spp.SubscriptionPlan.Name.ToLower().Contains(term));
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(spp => spp.IsActive == isActive.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        // Apply pagination
+        var skip = (page - 1) * pageSize;
+        var privileges = await query
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (privileges, totalCount);
+    }
+
+    /// <summary>
+    /// Applies dynamic sorting to the query
+    /// </summary>
+    private static IQueryable<SubscriptionPlanPrivilege> ApplySorting(IQueryable<SubscriptionPlanPrivilege> query, string sortBy, string sortOrder)
+    {
+        return sortBy.ToLower() switch
+        {
+            "privilegename" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(spp => spp.Privilege.Name)
+                : query.OrderBy(spp => spp.Privilege.Name),
+            "planname" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(spp => spp.SubscriptionPlan.Name)
+                : query.OrderBy(spp => spp.SubscriptionPlan.Name),
+            "value" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(spp => spp.Value)
+                : query.OrderBy(spp => spp.Value),
+            "createddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(spp => spp.CreatedDate)
+                : query.OrderBy(spp => spp.CreatedDate),
+            "updateddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(spp => spp.UpdatedDate)
+                : query.OrderBy(spp => spp.UpdatedDate),
+            "isactive" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(spp => spp.IsActive)
+                : query.OrderBy(spp => spp.IsActive),
+            _ => query.OrderByDescending(spp => spp.CreatedDate)
+        };
+    }
+
+    #endregion
 } 

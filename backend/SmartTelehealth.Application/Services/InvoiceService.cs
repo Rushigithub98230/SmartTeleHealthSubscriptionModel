@@ -4,6 +4,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.Enums;
 using System.Text;
 
 namespace SmartTelehealth.Application.Services;
@@ -141,7 +142,7 @@ public class InvoiceService : IInvoiceService
             }
 
             // Check access permissions
-            if (tokenModel.RoleID != 1 && tokenModel.UserID != billingRecord.UserId)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != billingRecord.UserId)
             {
                 return new JsonModel
                 {
@@ -188,7 +189,7 @@ public class InvoiceService : IInvoiceService
         try
         {
             // Check access permissions
-            if (tokenModel != null && tokenModel.RoleID != 1 && tokenModel.UserID != userId)
+            if (tokenModel != null && tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
             {
                 return new JsonModel
                 {
@@ -246,7 +247,7 @@ public class InvoiceService : IInvoiceService
             }
 
             // Check access permissions
-            if (tokenModel.RoleID != 1 && tokenModel.UserID != billingRecord.UserId)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != billingRecord.UserId)
             {
                 return new JsonModel
                 {
@@ -330,7 +331,7 @@ public class InvoiceService : IInvoiceService
             }
 
             // Check access permissions
-            if (tokenModel.RoleID != 1 && tokenModel.UserID != billingRecord.UserId)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != billingRecord.UserId)
             {
                 return new JsonModel
                 {

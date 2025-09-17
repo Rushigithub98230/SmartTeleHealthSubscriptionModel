@@ -460,7 +460,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.RefreshToken).HasMaxLength(500);
             entity.Property(e => e.RefreshTokenExpiry);
             entity.Property(e => e.PasswordResetToken).HasMaxLength(500);
-            entity.Property(e => e.PasswordResetTokenExpires);
+            // PasswordResetTokenExpires is a computed property (alias for ResetTokenExpires) - not mapped to DB
             
             // UserRole relationship
             entity.HasOne(e => e.UserRole)

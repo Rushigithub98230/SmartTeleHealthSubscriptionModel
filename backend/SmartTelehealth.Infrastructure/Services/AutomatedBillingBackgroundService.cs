@@ -6,6 +6,7 @@ using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartTelehealth.Infrastructure.Services;
@@ -94,7 +95,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
             var systemToken = new TokenModel
             {
                 UserID = 0, // System user ID
-                RoleID = 1  // Admin role
+                RoleID = (int)RoleId.Admin  // Admin role
             };
             
             var dueSubscriptions = await subscriptionRepository.GetSubscriptionsDueForBillingAsync(DateTime.UtcNow);
@@ -134,7 +135,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
             var systemToken = new TokenModel
             {
                 UserID = 0, // System user ID
-                RoleID = 1  // Admin role
+                RoleID = (int)RoleId.Admin  // Admin role
             };
             
             // Create billing record
@@ -215,7 +216,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
         var systemToken = new TokenModel
         {
             UserID = 0, // System user ID
-            RoleID = 1  // Admin role
+            RoleID = (int)RoleId.Admin  // Admin role
         };
         
         for (int attempt = 1; attempt <= _maxRetryAttempts; attempt++)
@@ -283,7 +284,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
             await subscriptionRepository.UpdateAsync(subscription);
 
             // Send immediate suspension notification
-            var userResult = await userService.GetUserByIdAsync(subscription.UserId, new TokenModel { UserID = 0, RoleID = 1 });
+            var userResult = await userService.GetUserByIdAsync(subscription.UserId, new TokenModel { UserID = 0, RoleID = (int)RoleId.Admin });
             if (userResult.StatusCode == 200 && userResult.data != null)
             {
                 var userData = userResult.data as dynamic;
@@ -295,7 +296,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
                     Description = $"Subscription billing for {subscription.SubscriptionPlan.Name}",
                     DueDate = DateTime.UtcNow
                 };
-                var tokenModel = new TokenModel { UserID = 0, RoleID = 1 };
+                var tokenModel = new TokenModel { UserID = 0, RoleID = (int)RoleId.Admin };
                 
                 // Create the billing record first
                 var billingResult = await billingService.CreateBillingRecordAsync(billingRecordDto, tokenModel);
@@ -341,7 +342,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
             var systemToken = new TokenModel
             {
                 UserID = 0, // System user ID
-                RoleID = 1  // Admin role
+                RoleID = (int)RoleId.Admin  // Admin role
             };
             
             var suspendedSubscriptions = await subscriptionRepository.GetSuspendedSubscriptionsAsync();
@@ -458,7 +459,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
             var systemToken = new TokenModel
             {
                 UserID = 0, // System user ID
-                RoleID = 1  // Admin role
+                RoleID = (int)RoleId.Admin  // Admin role
             };
             
             var subscriptionsWithResetUsage = await subscriptionRepository.GetSubscriptionsWithResetUsageAsync();
@@ -525,7 +526,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
             var systemToken = new TokenModel
             {
                 UserID = 0, // System user ID
-                RoleID = 1  // Admin role
+                RoleID = (int)RoleId.Admin  // Admin role
             };
 
             var start = startDate ?? DateTime.UtcNow.AddDays(-30);

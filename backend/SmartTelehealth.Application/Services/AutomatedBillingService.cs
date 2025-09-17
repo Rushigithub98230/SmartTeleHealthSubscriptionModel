@@ -33,7 +33,7 @@ public class AutomatedBillingService : IAutomatedBillingService
     private readonly IBillingService _billingService;
     private readonly IStripeService _stripeService;
     private readonly IPrivilegeUsageHistoryRepository _privilegeUsageHistoryRepository;
-      
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<AutomatedBillingService> _logger;
 
     /// <summary>
@@ -43,18 +43,21 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// <param name="billingService">Service for billing record management and processing</param>
     /// <param name="stripeService">Service for Stripe payment processing integration</param>
     /// <param name="privilegeUsageHistoryRepository">Repository for privilege usage history tracking</param>
+    /// <param name="unitOfWork">Unit of work for transaction management</param>
     /// <param name="logger">Logger instance for recording service operations and errors</param>
     public AutomatedBillingService(
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         IStripeService stripeService,
         IPrivilegeUsageHistoryRepository privilegeUsageHistoryRepository,
+        IUnitOfWork unitOfWork,
         ILogger<AutomatedBillingService> logger)
     {
         _subscriptionRepository = subscriptionRepository;
         _billingService = billingService;
         _stripeService = stripeService;
         _privilegeUsageHistoryRepository = privilegeUsageHistoryRepository;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -252,10 +255,47 @@ public class AutomatedBillingService : IAutomatedBillingService
 
             if (paymentResult.Status == "succeeded")
             {
-                // Update subscription status
+                // Update subscription status in transaction
                 subscription.Status = Subscription.SubscriptionStatuses.Active;
                 subscription.UpdatedDate = DateTime.UtcNow;
-                await _subscriptionRepository.UpdateAsync(subscription);
+                
+                // Use transaction to ensure atomicity
+                await _unitOfWork.BeginTransactionAsync();
+                try
+                {
+                    await _subscriptionRepository.UpdateAsync(subscription);
+                    await _unitOfWork.CommitTransactionAsync();
+                }
+                catch (Exception ex)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    
+                    // CRITICAL: If database update fails, we need to refund the Stripe payment
+                    try
+                    {
+                        _logger.LogWarning("Refunding Stripe payment due to database update failure for subscription {SubscriptionId}", subscriptionId);
+                        
+                        var refundResult = await _stripeService.ProcessRefundAsync(
+                            paymentResult.PaymentIntentId ?? "", 
+                            amount, 
+                            tokenModel);
+                        
+                        if (refundResult)
+                        {
+                            _logger.LogInformation("Successfully refunded Stripe payment for failed subscription update {SubscriptionId}", subscriptionId);
+                        }
+                        else
+                        {
+                            _logger.LogError("Failed to refund Stripe payment for subscription {SubscriptionId}. Manual refund may be required.", subscriptionId);
+                        }
+                    }
+                    catch (Exception refundEx)
+                    {
+                        _logger.LogError(refundEx, "Error refunding Stripe payment for subscription {SubscriptionId}. Manual refund may be required.", subscriptionId);
+                    }
+                    
+                    throw;
+                }
                 
                 // Log audit trail
                 if (tokenModel != null)

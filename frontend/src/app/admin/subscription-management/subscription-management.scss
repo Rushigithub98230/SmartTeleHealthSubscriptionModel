@@ -4,7 +4,7 @@
   margin: 0 auto;
 }
 
-.tab-content {
+.content-view {
   padding: 24px 0;
 }
 
@@ -15,7 +15,7 @@
   margin-bottom: 24px;
   gap: 16px;
   flex-wrap: wrap;
-  min-height: 56px; /* Ensure minimum height */
+  min-height: 56px;
 }
 
 .search-field {
@@ -31,7 +31,7 @@
   overflow: hidden;
   margin-bottom: 16px;
   width: 100%;
-  min-height: 200px; /* Ensure minimum height */
+  min-height: 200px;
 }
 
 .plans-table,
@@ -359,22 +359,24 @@
   }
 }
 
+// Additional styling for action buttons
+.danger-action {
+  color: #f44336 !important;
+  
+  mat-icon {
+    color: #f44336 !important;
+  }
+}
+
+.info-action {
+  color: #2196f3 !important;
+  
+  mat-icon {
+    color: #2196f3 !important;
+  }
+}
+
 // Animation classes
-.fade-in {
-  animation: fadeIn 0.3s ease-in;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .slide-up {
   animation: slideUp 0.3s ease-out;
 }

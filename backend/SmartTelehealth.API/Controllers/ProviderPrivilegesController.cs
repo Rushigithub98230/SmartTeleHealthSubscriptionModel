@@ -36,45 +36,6 @@ public class ProviderPrivilegesController : BaseController
         _privilegeService = privilegeService;
     }
 
-    /// <summary>
-    /// Retrieves all privileges and usage information for a specific user.
-    /// This endpoint provides comprehensive privilege information including subscription-based privileges,
-    /// remaining usage counts, and privilege status for provider access control and user management.
-    /// </summary>
-    /// <param name="userId">The unique identifier of the user</param>
-    /// <returns>JsonModel containing user privileges and usage information</returns>
-    /// <remarks>
-    /// This endpoint:
-    /// - Returns all privileges for the specified user across all subscriptions
-    /// - Includes privilege usage counts and remaining allowances
-    /// - Shows subscription-based privilege information
-    /// - Access restricted to providers and authorized users
-    /// - Used for provider user privilege management and access control
-    /// - Includes comprehensive privilege information and usage data
-    /// - Provides data for provider service access decisions
-    /// - Handles privilege validation and error responses
-    /// </remarks>
-    [HttpGet("{userId}/privileges")]
-    public async Task<JsonModel> GetUserPrivileges(int userId)
-    {
-        var subs = await _subscriptionRepo.GetByUserIdAsync(userId);
-        var usageList = new List<UserPrivilegeUsageDto>();
-        foreach (var sub in subs)
-        {
-            var planPrivileges = await _privilegeService.GetPrivilegesForPlanAsync(sub.SubscriptionPlanId, GetToken(HttpContext));
-            foreach (var priv in planPrivileges)
-            {
-                var remaining = await _privilegeService.GetRemainingPrivilegeAsync(sub.Id, priv.Name, GetToken(HttpContext));
-                usageList.Add(new UserPrivilegeUsageDto
-                {
-                    SubscriptionId = sub.Id,
-                    PrivilegeName = priv.Name,
-                    Remaining = remaining
-                });
-            }
-        }
-        return new JsonModel { data = usageList, Message = "User privileges retrieved successfully", StatusCode = 200 };
-    }
 
     /// <summary>
     /// Checks if a user has a specific privilege and returns usage information.

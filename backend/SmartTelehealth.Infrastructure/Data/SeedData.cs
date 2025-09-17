@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmartTelehealth.Core.Entities;
 using Microsoft.AspNetCore.Identity;
+using SmartTelehealth.Core.Enums;
 
 namespace SmartTelehealth.Infrastructure.Data;
 
@@ -12,9 +13,9 @@ public static class SeedData
         {
             var userRoles = new List<UserRole>
             {
-                new UserRole { Name = "Client", Description = "Patient/Client users", SortOrder = 1 },
-                new UserRole { Name = "Provider", Description = "Healthcare providers", SortOrder = 2 },
-                new UserRole { Name = "Admin", Description = "System administrators", SortOrder = 3 }
+                new UserRole { Id = (int)RoleId.Client, Name = "Client", Description = "Patient/Client users", SortOrder = 1 },
+                new UserRole { Id = (int)RoleId.Provider, Name = "Provider", Description = "Healthcare providers", SortOrder = 2 },
+                new UserRole { Id = (int)RoleId.Admin, Name = "Admin", Description = "System administrators", SortOrder = 3 }
             };
             context.UserRoles.AddRange(userRoles);
             context.SaveChanges();
@@ -126,8 +127,7 @@ public static class SeedData
             context.ConsultationModes.AddRange(consultationModes);
         }
 
-        // Create a system user for seeding purposes
-        var systemUserId = 1; // System user ID as int
+        // Create admin user with specific ID
         var adminRole = context.UserRoles.FirstOrDefault(r => r.Name == "Admin");
         if (adminRole == null)
         {
@@ -136,28 +136,28 @@ public static class SeedData
 
         if (!context.Users.Any())
         {
-            var systemUser = new User
+            var adminUser = new User
             {
-                FirstName = "System",
-                LastName = "Admin",
-                Email = "system@smarttelehealth.com",
-                UserName = "system@smarttelehealth.com",
-                PhoneNumber = "0000000000",
+                Id = 1, // Specific admin user ID
+                FirstName = "Admin",
+                LastName = "User",
+                Email = "admin@smarttelehealth.com",
+                UserName = "admin@smarttelehealth.com",
+                PhoneNumber = "1234567890",
                 DateOfBirth = DateTime.UtcNow.AddYears(-30),
                 Gender = "Other",
-                Address = "System Address",
-                City = "System City",
-                State = "System State",
-                ZipCode = "00000",
+                Address = "Admin Address",
+                City = "Admin City",
+                State = "Admin State",
+                ZipCode = "12345",
                 IsActive = true,
-                UserRoleId = adminRole.Id
+                UserRoleId = adminRole.Id,
+                UserType = "Admin",
+                EmailConfirmed = true,
+                LockoutEnabled = false
             };
-            context.Users.Add(systemUser);
+            context.Users.Add(adminUser);
             context.SaveChanges();
-        }
-        else
-        {
-            systemUserId = context.Users.First().Id;
         }
 
         // Temporarily disabled DocumentTypes seeding due to foreign key constraint issues
@@ -522,7 +522,7 @@ public static class SeedData
                 State = "Admin State",
                 ZipCode = "12345",
                 IsActive = true,
-                UserRoleId = adminRole?.Id ?? 1,
+                UserRoleId = adminRole?.Id ?? (int)RoleId.Admin,
                 UserType = "Admin"
             };
             

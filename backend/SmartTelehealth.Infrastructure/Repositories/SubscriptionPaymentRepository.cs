@@ -136,4 +136,94 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
             .Include(sp => sp.Subscription)
             .FirstOrDefaultAsync(sp => sp.PaymentIntentId == paymentIntentId);
     }
+
+    /// <summary>
+    /// Retrieves subscription payments with database-level filtering, pagination, and sorting
+    /// </summary>
+    public async Task<(IEnumerable<SubscriptionPayment> Payments, int TotalCount)> GetPaymentsWithFilteringAsync(
+        int page, int pageSize, Guid? subscriptionId = null, int? userId = null, 
+        string? status = null, string? search = null, DateTime? startDate = null, 
+        DateTime? endDate = null, string? sortBy = "CreatedDate", string? sortOrder = "desc")
+    {
+        var query = _context.SubscriptionPayments
+            .Include(sp => sp.Subscription)
+                .ThenInclude(s => s.User)
+            .AsQueryable();
+
+        // Apply filters
+        if (subscriptionId.HasValue)
+        {
+            query = query.Where(sp => sp.SubscriptionId == subscriptionId.Value);
+        }
+
+        if (userId.HasValue)
+        {
+            query = query.Where(sp => sp.Subscription.UserId == userId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (Enum.TryParse<SubscriptionPayment.PaymentStatus>(status, out var paymentStatus))
+            {
+                query = query.Where(sp => sp.Status == paymentStatus);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.ToLower();
+            query = query.Where(sp =>
+                sp.PaymentIntentId.ToLower().Contains(term) ||
+                sp.Subscription.User.Email.ToLower().Contains(term) ||
+                sp.StripePaymentIntentId.ToLower().Contains(term));
+        }
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(sp => sp.CreatedDate >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            query = query.Where(sp => sp.CreatedDate <= endDate.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        // Apply pagination
+        var skip = (page - 1) * pageSize;
+        var payments = await query
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (payments, totalCount);
+    }
+
+    private static IQueryable<SubscriptionPayment> ApplySorting(IQueryable<SubscriptionPayment> query, string sortBy, string sortOrder)
+    {
+        return sortBy.ToLower() switch
+        {
+            "amount" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(sp => sp.Amount)
+                : query.OrderBy(sp => sp.Amount),
+            "status" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(sp => sp.Status)
+                : query.OrderBy(sp => sp.Status),
+            "duedate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(sp => sp.DueDate)
+                : query.OrderBy(sp => sp.DueDate),
+            "createddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(sp => sp.CreatedDate)
+                : query.OrderBy(sp => sp.CreatedDate),
+            "updateddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(sp => sp.UpdatedDate)
+                : query.OrderBy(sp => sp.UpdatedDate),
+            _ => query.OrderByDescending(sp => sp.CreatedDate)
+        };
+    }
 } 

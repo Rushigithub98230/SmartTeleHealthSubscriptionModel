@@ -5,6 +5,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.Enums;
 
 namespace SmartTelehealth.Application.Services;
 
@@ -26,6 +27,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     private readonly INotificationService _notificationService;
     private readonly IUserService _userService;
     private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionPlanService with required dependencies
@@ -40,6 +42,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// <param name="notificationService">Service for sending notifications</param>
     /// <param name="userService">Service for user management operations</param>
     /// <param name="subscriptionRepository">Repository for subscription data access</param>
+    /// <param name="unitOfWork">Unit of work for transaction management</param>
     public SubscriptionPlanService(
         ISubscriptionPlanRepository subscriptionPlanRepository,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepository,
@@ -50,7 +53,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         IPrivilegeRepository privilegeRepository,
         INotificationService notificationService,
         IUserService userService,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository,
+        IUnitOfWork unitOfWork)
     {
         _subscriptionPlanRepository = subscriptionPlanRepository ?? throw new ArgumentNullException(nameof(subscriptionPlanRepository));
         _planPrivilegeRepository = planPrivilegeRepository ?? throw new ArgumentNullException(nameof(planPrivilegeRepository));
@@ -62,6 +66,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _userService = userService ?? throw new ArgumentNullException(nameof(userService));
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
     #region Core Plan Management
@@ -105,7 +110,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         try
         {
             // Validate admin access if required
-            if (adminOnly && (tokenModel?.RoleID != 1 && tokenModel?.RoleID != 3))
+            if (adminOnly && (tokenModel?.RoleID != (int)RoleId.Admin))
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -166,7 +171,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -179,6 +184,26 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Plan name is required", StatusCode = 400 };
             }
 
+            if (createDto.Price <= 0)
+            {
+                return new JsonModel { data = new object(), Message = "Price must be greater than 0", StatusCode = 400 };
+            }
+
+            if (createDto.IsTrialAllowed && createDto.TrialDurationInDays <= 0)
+            {
+                return new JsonModel { data = new object(), Message = "Trial duration must be greater than 0 when trial is allowed", StatusCode = 400 };
+            }
+
+            // Validate category exists if provided
+            if (createDto.CategoryId != Guid.Empty)
+            {
+                var categoryResult = await _categoryService.GetCategoryAsync(createDto.CategoryId, tokenModel);
+                if (categoryResult.StatusCode != 200)
+                {
+                    return new JsonModel { data = new object(), Message = "Invalid category ID", StatusCode = 400 };
+                }
+            }
+
             // Check if plan with same name already exists
             var existingPlans = await _subscriptionPlanRepository.GetAllAsync();
             if (existingPlans.Any(p => p.Name.Equals(createDto.Name, StringComparison.OrdinalIgnoreCase)))
@@ -186,93 +211,150 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "A plan with this name already exists", StatusCode = 400 };
             }
 
-            // Create plan entity with all properties
-            var plan = new SubscriptionPlan
-            {
-                Name = createDto.Name,
-                Description = createDto.Description,
-                Price = createDto.Price,
-                BillingCycleId = createDto.BillingCycleId,
-                CurrencyId = createDto.CurrencyId,
-                CategoryId = createDto.CategoryId,
-                IsActive = createDto.IsActive,
-                DisplayOrder = createDto.DisplayOrder,
-                // Trial configuration
-                IsTrialAllowed = createDto.IsTrialAllowed,
-                TrialDurationInDays = createDto.TrialDurationInDays,
-                // Set audit properties for creation
-                CreatedBy = tokenModel.UserID,
-                CreatedDate = DateTime.UtcNow
-            };
-
-            var createdPlan = await _subscriptionPlanRepository.CreateAsync(plan);
-
-            // Create Stripe product and prices for the plan
+            // BEGIN TRANSACTION - Ensure database and Stripe operations are atomic
+            await _unitOfWork.BeginTransactionAsync();
+            
+            SubscriptionPlan createdPlan = null;
+            string stripeProductId = null;
+            string monthlyPriceId = null;
+            string quarterlyPriceId = null;
+            string annualPriceId = null;
+            
             try
             {
+                // STEP 1: Create plan entity in database first
+                var plan = new SubscriptionPlan
+                {
+                    Name = createDto.Name,
+                    Description = createDto.Description,
+                    Price = createDto.Price,
+                    BillingCycleId = createDto.BillingCycleId,
+                    CurrencyId = createDto.CurrencyId,
+                    CategoryId = createDto.CategoryId,
+                    IsActive = createDto.IsActive,
+                    DisplayOrder = createDto.DisplayOrder,
+                    // Trial configuration
+                    IsTrialAllowed = createDto.IsTrialAllowed,
+                    TrialDurationInDays = createDto.TrialDurationInDays,
+                    // Set audit properties for creation
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow
+                };
+
+                createdPlan = await _subscriptionPlanRepository.CreateAsync(plan);
+
+                // STEP 2: Create Stripe resources
+                _logger.LogInformation("Creating Stripe resources for plan {PlanName}", createdPlan.Name);
+                
                 // Create Stripe product
-                var stripeProductId = await _stripeService.CreateProductAsync(createdPlan.Name, createdPlan.Description ?? "", tokenModel);
+                stripeProductId = await _stripeService.CreateProductAsync(createdPlan.Name, createdPlan.Description ?? "", tokenModel);
                 createdPlan.StripeProductId = stripeProductId;
 
                 // Create Stripe prices for different billing cycles
-                var monthlyPriceId = await _stripeService.CreatePriceAsync(
+                monthlyPriceId = await _stripeService.CreatePriceAsync(
                     stripeProductId, createdPlan.Price, "usd", "month", 1, tokenModel);
                 createdPlan.StripeMonthlyPriceId = monthlyPriceId;
 
-                var quarterlyPriceId = await _stripeService.CreatePriceAsync(
+                quarterlyPriceId = await _stripeService.CreatePriceAsync(
                     stripeProductId, createdPlan.Price * 3, "usd", "month", 3, tokenModel);
                 createdPlan.StripeQuarterlyPriceId = quarterlyPriceId;
 
-                var annualPriceId = await _stripeService.CreatePriceAsync(
+                annualPriceId = await _stripeService.CreatePriceAsync(
                     stripeProductId, createdPlan.Price * 12, "usd", "month", 12, tokenModel);
                 createdPlan.StripeAnnualPriceId = annualPriceId;
 
-                // Update plan with Stripe IDs
+                // STEP 3: Update plan with Stripe IDs (CRITICAL STEP)
                 await _subscriptionPlanRepository.UpdateAsync(createdPlan);
 
                 _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Prices {MonthlyId}, {QuarterlyId}, {AnnualId}", 
                     createdPlan.Name, stripeProductId, monthlyPriceId, quarterlyPriceId, annualPriceId);
+
+                // COMMIT TRANSACTION - All operations successful
+                await _unitOfWork.CommitTransactionAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create Stripe resources for plan {PlanName}. Plan created but Stripe integration failed.", createdPlan.Name);
-                // Don't fail the entire operation, just log the error
+                // ROLLBACK TRANSACTION - Something failed, ensure data consistency
+                await _unitOfWork.RollbackTransactionAsync();
+                
+                // CRITICAL: Clean up Stripe resources if they were created but database failed
+                if (!string.IsNullOrEmpty(stripeProductId))
+                {
+                    try
+                    {
+                        _logger.LogWarning("Cleaning up Stripe resources due to database failure for plan {PlanName}", createDto.Name);
+                        
+                        // Deactivate all prices
+                        if (!string.IsNullOrEmpty(monthlyPriceId))
+                            await _stripeService.DeactivatePriceAsync(monthlyPriceId, tokenModel);
+                        if (!string.IsNullOrEmpty(quarterlyPriceId))
+                            await _stripeService.DeactivatePriceAsync(quarterlyPriceId, tokenModel);
+                        if (!string.IsNullOrEmpty(annualPriceId))
+                            await _stripeService.DeactivatePriceAsync(annualPriceId, tokenModel);
+                        
+                        // Delete the product
+                        await _stripeService.DeleteProductAsync(stripeProductId, tokenModel);
+                        
+                        _logger.LogInformation("Successfully cleaned up Stripe resources for failed plan {PlanName}", createDto.Name);
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        _logger.LogError(cleanupEx, "Failed to cleanup Stripe resources for plan {PlanName}. Manual cleanup may be required.", createDto.Name);
+                    }
+                }
+                
+                _logger.LogError(ex, "Failed to create subscription plan {PlanName}. Database and Stripe operations rolled back.", createDto.Name);
+                return new JsonModel { data = new object(), Message = $"Failed to create plan: {ex.Message}", StatusCode = 500 };
             }
 
-            // Process privileges if provided
+            // Process privileges if provided (in separate transaction for data integrity)
             if (createDto.Privileges != null && createDto.Privileges.Any())
             {
-                foreach (var privilege in createDto.Privileges)
+                await _unitOfWork.BeginTransactionAsync();
+                try
                 {
-                    // Validate privilege exists
-                    var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
-                    if (privilegeEntity == null)
+                    foreach (var privilege in createDto.Privileges)
                     {
-                        _logger.LogWarning("Privilege {PrivilegeId} not found, skipping privilege assignment", privilege.PrivilegeId);
-                        continue; // Skip this privilege and continue with others
+                        // Validate privilege exists
+                        var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
+                        if (privilegeEntity == null)
+                        {
+                            _logger.LogWarning("Privilege {PrivilegeId} not found, skipping privilege assignment", privilege.PrivilegeId);
+                            continue; // Skip this privilege and continue with others
+                        }
+
+                        // Create plan privilege
+                        var planPrivilege = new SubscriptionPlanPrivilege
+                        {
+                            Id = Guid.NewGuid(),
+                            SubscriptionPlanId = createdPlan.Id,
+                            PrivilegeId = privilege.PrivilegeId,
+                            Value = privilege.Value,
+                            UsagePeriodId = privilege.UsagePeriodId,
+                            DurationMonths = privilege.DurationMonths,
+                            ExpirationDate = privilege.ExpirationDate,
+                            DailyLimit = privilege.DailyLimit,
+                            WeeklyLimit = privilege.WeeklyLimit,
+                            MonthlyLimit = privilege.MonthlyLimit,
+                            UnitCost = privilege.UnitCost,  // Set unit cost for overage billing
+                            // Set audit properties for creation
+                            IsActive = true,
+                            CreatedBy = tokenModel.UserID,
+                            CreatedDate = DateTime.UtcNow
+                        };
+
+                        await _planPrivilegeRepository.AddAsync(planPrivilege);
                     }
-
-                    // Create plan privilege
-                    var planPrivilege = new SubscriptionPlanPrivilege
-                    {
-                        Id = Guid.NewGuid(),
-                        SubscriptionPlanId = createdPlan.Id,
-                        PrivilegeId = privilege.PrivilegeId,
-                        Value = privilege.Value,
-                        UsagePeriodId = privilege.UsagePeriodId,
-                        DurationMonths = privilege.DurationMonths,
-                        ExpirationDate = privilege.ExpirationDate,
-                        DailyLimit = privilege.DailyLimit,
-                        WeeklyLimit = privilege.WeeklyLimit,
-                        MonthlyLimit = privilege.MonthlyLimit,
-                        UnitCost = privilege.UnitCost,  // Set unit cost for overage billing
-                        // Set audit properties for creation
-                        IsActive = true,
-                        CreatedBy = tokenModel.UserID,
-                        CreatedDate = DateTime.UtcNow
-                    };
-
-                    await _planPrivilegeRepository.AddAsync(planPrivilege);
+                    
+                    await _unitOfWork.CommitTransactionAsync();
+                    _logger.LogInformation("Successfully assigned {PrivilegeCount} privileges to plan {PlanName}", 
+                        createDto.Privileges.Count, createdPlan.Name);
+                }
+                catch (Exception ex)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError(ex, "Failed to assign privileges to plan {PlanName}. Privilege assignment rolled back.", createdPlan.Name);
+                    // Don't fail the entire operation, just log the error
                 }
             }
 
@@ -304,7 +386,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -351,7 +433,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -416,7 +498,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             _logger.LogInformation("Assigning privileges to plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
 
             // Check admin access
-            if (tokenModel?.RoleID != 1)
+            if (tokenModel?.RoleID != (int)RoleId.Admin && tokenModel?.RoleID != (int)RoleId.Provider)
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
 
             // Check if plan exists
@@ -471,7 +553,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             _logger.LogInformation("Removing privilege {PrivilegeId} from plan {PlanId} by user {UserId}", privilegeId, planId, tokenModel?.UserID ?? 0);
 
             // Check admin access
-            if (tokenModel?.RoleID != 1)
+            if (tokenModel?.RoleID != (int)RoleId.Admin && tokenModel?.RoleID != (int)RoleId.Provider)
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
 
             // Check if plan exists
@@ -514,7 +596,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             _logger.LogInformation("Updating privilege {PrivilegeId} in plan {PlanId} by user {UserId}", privilegeId, planId, tokenModel?.UserID ?? 0);
 
             // Check admin access
-            if (tokenModel?.RoleID != 1)
+            if (tokenModel?.RoleID != (int)RoleId.Admin && tokenModel?.RoleID != (int)RoleId.Provider)
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
 
             // Check if plan exists
@@ -596,7 +678,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -618,20 +700,31 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             var originalName = existingPlan.Name;
             var originalDescription = existingPlan.Description;
 
-            // Update plan properties
-            if (!string.IsNullOrEmpty(updateDto.Name))
-                existingPlan.Name = updateDto.Name;
+            // BEGIN TRANSACTION - Ensure database and Stripe operations are atomic
+            await _unitOfWork.BeginTransactionAsync();
             
-            if (!string.IsNullOrEmpty(updateDto.Description))
-                existingPlan.Description = updateDto.Description;
+            // Track Stripe changes for potential cleanup
+            string newMonthlyPriceId = null;
+            string newQuarterlyPriceId = null;
+            string newAnnualPriceId = null;
+            bool stripeProductUpdated = false;
             
-            if (updateDto.CategoryId != Guid.Empty)
-                existingPlan.CategoryId = updateDto.CategoryId;
-            
-            existingPlan.IsActive = updateDto.IsActive;
-            
-            if (updateDto.DisplayOrder.HasValue)
-                existingPlan.DisplayOrder = updateDto.DisplayOrder.Value;
+            try
+            {
+                // Update plan properties
+                if (!string.IsNullOrEmpty(updateDto.Name))
+                    existingPlan.Name = updateDto.Name;
+                
+                if (!string.IsNullOrEmpty(updateDto.Description))
+                    existingPlan.Description = updateDto.Description;
+                
+                if (updateDto.CategoryId != Guid.Empty)
+                    existingPlan.CategoryId = updateDto.CategoryId;
+                
+                existingPlan.IsActive = updateDto.IsActive;
+                
+                if (updateDto.DisplayOrder.HasValue)
+                    existingPlan.DisplayOrder = updateDto.DisplayOrder.Value;
 
             // NEW: Handle price updates with Stripe synchronization
             if (updateDto.Price > 0 && updateDto.Price != originalPrice)
@@ -649,7 +742,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                         // Update monthly price
                         if (!string.IsNullOrEmpty(existingPlan.StripeMonthlyPriceId))
                         {
-                            var newMonthlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
+                            newMonthlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
                                 existingPlan.StripeMonthlyPriceId, 
                                 existingPlan.StripeProductId, 
                                 updateDto.Price, 
@@ -664,7 +757,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                         // Update quarterly price (3x monthly)
                         if (!string.IsNullOrEmpty(existingPlan.StripeQuarterlyPriceId))
                         {
-                            var newQuarterlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
+                            newQuarterlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
                                 existingPlan.StripeQuarterlyPriceId, 
                                 existingPlan.StripeProductId, 
                                 updateDto.Price * 3, 
@@ -679,7 +772,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                         // Update annual price (12x monthly)
                         if (!string.IsNullOrEmpty(existingPlan.StripeAnnualPriceId))
                         {
-                            var newAnnualPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
+                            newAnnualPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
                                 existingPlan.StripeAnnualPriceId, 
                                 existingPlan.StripeProductId, 
                                 updateDto.Price * 12, 
@@ -722,6 +815,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                             tokenModel
                         );
                         
+                        stripeProductUpdated = true;
                         _logger.LogInformation("Successfully updated Stripe product for plan {PlanName}", existingPlan.Name);
                     }
                     catch (Exception ex)
@@ -733,14 +827,61 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 }
             }
 
-            existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
-            existingPlan.UpdatedDate = DateTime.UtcNow;
+                existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
+                existingPlan.UpdatedDate = DateTime.UtcNow;
 
-            var updatedPlan = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
-            var planDto = _mapper.Map<SubscriptionPlanDto>(updatedPlan);
+                var updatedPlan = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                
+                // COMMIT TRANSACTION - All operations successful
+                await _unitOfWork.CommitTransactionAsync();
+                
+                var planDto = _mapper.Map<SubscriptionPlanDto>(updatedPlan);
 
-            _logger.LogInformation("Successfully updated subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
-            return new JsonModel { data = planDto, Message = "Subscription plan updated successfully with Stripe synchronization", StatusCode = 200 };
+                _logger.LogInformation("Successfully updated subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
+                return new JsonModel { data = planDto, Message = "Subscription plan updated successfully with Stripe synchronization", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                // ROLLBACK TRANSACTION - Something failed, ensure data consistency
+                await _unitOfWork.RollbackTransactionAsync();
+                
+                // CRITICAL: Clean up Stripe changes if they were made but database failed
+                if (!string.IsNullOrEmpty(existingPlan.StripeProductId))
+                {
+                    try
+                    {
+                        _logger.LogWarning("Cleaning up Stripe changes due to database failure for plan {PlanName}", existingPlan.Name);
+                        
+                        // Revert product changes if they were made
+                        if (stripeProductUpdated)
+                        {
+                            await _stripeService.UpdateProductAsync(
+                                existingPlan.StripeProductId, 
+                                originalName, 
+                                originalDescription ?? "", 
+                                tokenModel
+                            );
+                        }
+                        
+                        // Clean up new prices if they were created
+                        if (!string.IsNullOrEmpty(newMonthlyPriceId))
+                            await _stripeService.DeactivatePriceAsync(newMonthlyPriceId, tokenModel);
+                        if (!string.IsNullOrEmpty(newQuarterlyPriceId))
+                            await _stripeService.DeactivatePriceAsync(newQuarterlyPriceId, tokenModel);
+                        if (!string.IsNullOrEmpty(newAnnualPriceId))
+                            await _stripeService.DeactivatePriceAsync(newAnnualPriceId, tokenModel);
+                        
+                        _logger.LogInformation("Successfully cleaned up Stripe changes for failed plan update {PlanName}", existingPlan.Name);
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        _logger.LogError(cleanupEx, "Failed to cleanup Stripe changes for plan {PlanName}. Manual cleanup may be required.", existingPlan.Name);
+                    }
+                }
+                
+                _logger.LogError(ex, "Failed to update subscription plan {PlanId}. Database and Stripe operations rolled back.", planId);
+                return new JsonModel { data = new object(), Message = "Failed to update subscription plan", StatusCode = 500 };
+            }
         }
         catch (Exception ex)
         {
@@ -750,19 +891,19 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     }
     
     /// <summary>
-    /// Deletes a subscription plan with comprehensive validation (for backward compatibility)
+    /// Deactivates a subscription plan (soft delete) - RECOMMENDED APPROACH
     /// </summary>
-    public async Task<JsonModel> DeletePlanAsync(string planId, TokenModel tokenModel)
+    public async Task<JsonModel> DeactivatePlanAsync(string planId, TokenModel tokenModel)
     {
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            _logger.LogInformation("Deleting subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
+            _logger.LogInformation("Deactivating subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
 
             if (!Guid.TryParse(planId, out var planGuid))
             {
@@ -775,54 +916,368 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
             }
 
+            // Check if plan is already deactivated
+            if (!existingPlan.IsActive)
+            {
+                return new JsonModel { data = new object(), Message = "Plan is already deactivated", StatusCode = 400 };
+            }
+
             // Check if plan has active subscriptions
             var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
             if (activeSubscriptions.Any(s => s.SubscriptionPlanId == existingPlan.Id))
             {
-                return new JsonModel { data = new object(), Message = "Cannot delete plan with active subscriptions", StatusCode = 400 };
+                return new JsonModel { data = new object(), Message = "Cannot deactivate plan with active subscriptions. Please wait for all subscriptions to end or cancel them first.", StatusCode = 400 };
             }
 
-            // NEW: Clean up Stripe resources before deleting the plan
-            if (!string.IsNullOrEmpty(existingPlan.StripeProductId))
+            // BEGIN TRANSACTION - Ensure database and Stripe operations are atomic
+            await _unitOfWork.BeginTransactionAsync();
+            
+            try
             {
-                try
+                // Deactivate Stripe resources instead of deleting them
+                if (!string.IsNullOrEmpty(existingPlan.StripeProductId))
+                {
+                    _logger.LogInformation("Deactivating Stripe resources for plan {PlanName}", existingPlan.Name);
+                    
+                    try
+                    {
+                        // Deactivate all prices
+                        if (!string.IsNullOrEmpty(existingPlan.StripeMonthlyPriceId))
+                        {
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeMonthlyPriceId, tokenModel);
+                        }
+                        if (!string.IsNullOrEmpty(existingPlan.StripeQuarterlyPriceId))
+                        {
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeQuarterlyPriceId, tokenModel);
+                        }
+                        if (!string.IsNullOrEmpty(existingPlan.StripeAnnualPriceId))
+                        {
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeAnnualPriceId, tokenModel);
+                        }
+                        
+                        // Archive the product instead of deleting it
+                        await _stripeService.ArchiveProductAsync(existingPlan.StripeProductId, existingPlan.Name, existingPlan.Description ?? "", tokenModel);
+                        
+                        _logger.LogInformation("Successfully deactivated Stripe resources for plan {PlanName}", existingPlan.Name);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error deactivating Stripe resources for plan {PlanName}: {Message}", existingPlan.Name, ex.Message);
+                        // Continue with database deactivation even if Stripe operations fail
+                    }
+                }
+
+                // Soft delete: Deactivate the plan instead of hard delete
+                existingPlan.IsActive = false;
+                existingPlan.UpdatedDate = DateTime.UtcNow;
+                existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
+                
+                var result = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                if (result == null)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return new JsonModel { data = new object(), Message = "Failed to deactivate subscription plan", StatusCode = 500 };
+                }
+
+                await _unitOfWork.CommitTransactionAsync();
+                
+                _logger.LogInformation("Successfully deactivated subscription plan {PlanName} by user {UserId}", existingPlan.Name, tokenModel?.UserID ?? 0);
+                
+                return new JsonModel 
+                { 
+                    data = new { planId = planId, planName = existingPlan.Name, isActive = false }, 
+                    Message = "Subscription plan deactivated successfully", 
+                    StatusCode = 200 
+                };
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error deactivating subscription plan {PlanId}: {Message}", planId, ex.Message);
+                
+                return new JsonModel { data = new object(), Message = "An error occurred while deactivating the subscription plan", StatusCode = 500 };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in DeactivatePlanAsync for plan {PlanId}: {Message}", planId, ex.Message);
+            return new JsonModel { data = new object(), Message = "An unexpected error occurred", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Reactivates a deactivated subscription plan
+    /// </summary>
+    public async Task<JsonModel> ReactivatePlanAsync(string planId, TokenModel tokenModel)
+    {
+        try
+        {
+            // Admin only method - validate admin role
+            if (tokenModel.RoleID != (int)RoleId.Admin)
+            {
+                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
+
+            _logger.LogInformation("Reactivating subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
+
+            if (!Guid.TryParse(planId, out var planGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
+            }
+
+            var existingPlan = await _subscriptionPlanRepository.GetByIdAsync(planGuid);
+            if (existingPlan == null)
+            {
+                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
+            }
+
+            // Check if plan is already active
+            if (existingPlan.IsActive)
+            {
+                return new JsonModel { data = new object(), Message = "Plan is already active", StatusCode = 400 };
+            }
+
+            // BEGIN TRANSACTION
+            await _unitOfWork.BeginTransactionAsync();
+            
+            try
+            {
+                // Reactivate the plan
+                existingPlan.IsActive = true;
+                existingPlan.UpdatedDate = DateTime.UtcNow;
+                existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
+                
+                var result = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                if (result == null)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return new JsonModel { data = new object(), Message = "Failed to reactivate subscription plan", StatusCode = 500 };
+                }
+
+                await _unitOfWork.CommitTransactionAsync();
+                
+                _logger.LogInformation("Successfully reactivated subscription plan {PlanName} by user {UserId}", existingPlan.Name, tokenModel?.UserID ?? 0);
+                
+                return new JsonModel 
+                { 
+                    data = new { planId = planId, planName = existingPlan.Name, isActive = true }, 
+                    Message = "Subscription plan reactivated successfully", 
+                    StatusCode = 200 
+                };
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error reactivating subscription plan {PlanId}: {Message}", planId, ex.Message);
+                
+                return new JsonModel { data = new object(), Message = "An error occurred while reactivating the subscription plan", StatusCode = 500 };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in ReactivatePlanAsync for plan {PlanId}: {Message}", planId, ex.Message);
+            return new JsonModel { data = new object(), Message = "An unexpected error occurred", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Deletes a subscription plan with comprehensive validation (DEPRECATED - Use DeactivatePlanAsync instead)
+    /// </summary>
+    [Obsolete("Use DeactivatePlanAsync instead for better data integrity and business continuity")]
+    public async Task<JsonModel> DeletePlanAsync(string planId, TokenModel tokenModel)
+    {
+        try
+        {
+            // Admin only method - validate admin role
+            if (tokenModel.RoleID != (int)RoleId.Admin)
+            {
+                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
+
+            _logger.LogInformation("Deactivating subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
+
+            if (!Guid.TryParse(planId, out var planGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
+            }
+
+            var existingPlan = await _subscriptionPlanRepository.GetByIdAsync(planGuid);
+            if (existingPlan == null)
+            {
+                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
+            }
+
+            // Check if plan is already deactivated
+            if (!existingPlan.IsActive)
+            {
+                return new JsonModel { data = new object(), Message = "Plan is already deactivated", StatusCode = 400 };
+            }
+
+            // Check if plan has active subscriptions
+            var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
+            if (activeSubscriptions.Any(s => s.SubscriptionPlanId == existingPlan.Id))
+            {
+                return new JsonModel { data = new object(), Message = "Cannot deactivate plan with active subscriptions. Please wait for all subscriptions to end or cancel them first.", StatusCode = 400 };
+            }
+
+            // BEGIN TRANSACTION - Ensure database and Stripe operations are atomic
+            await _unitOfWork.BeginTransactionAsync();
+            
+            // Track Stripe cleanup for potential recovery
+            bool stripeCleanedUp = false;
+            string originalProductId = existingPlan.StripeProductId;
+            string originalMonthlyPriceId = existingPlan.StripeMonthlyPriceId;
+            string originalQuarterlyPriceId = existingPlan.StripeQuarterlyPriceId;
+            string originalAnnualPriceId = existingPlan.StripeAnnualPriceId;
+            
+            try
+            {
+                // Clean up Stripe resources before deleting the plan
+                if (!string.IsNullOrEmpty(existingPlan.StripeProductId))
                 {
                     _logger.LogInformation("Cleaning up Stripe resources for plan {PlanName}", existingPlan.Name);
                     
-                    // Deactivate all prices
-                    if (!string.IsNullOrEmpty(existingPlan.StripeMonthlyPriceId))
+                    try
                     {
-                        await _stripeService.DeactivatePriceAsync(existingPlan.StripeMonthlyPriceId, tokenModel);
+                        // First, deactivate all prices
+                        if (!string.IsNullOrEmpty(existingPlan.StripeMonthlyPriceId))
+                        {
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeMonthlyPriceId, tokenModel);
+                        }
+                        if (!string.IsNullOrEmpty(existingPlan.StripeQuarterlyPriceId))
+                        {
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeQuarterlyPriceId, tokenModel);
+                        }
+                        if (!string.IsNullOrEmpty(existingPlan.StripeAnnualPriceId))
+                        {
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeAnnualPriceId, tokenModel);
+                        }
+                        
+                        // Wait a moment for Stripe to process the deactivations
+                        await Task.Delay(1000);
+                        
+                        // Try to delete the product
+                        await _stripeService.DeleteProductAsync(existingPlan.StripeProductId, tokenModel);
+                        
+                        stripeCleanedUp = true;
+                        _logger.LogInformation("Successfully cleaned up Stripe resources for plan {PlanName}", existingPlan.Name);
                     }
-                    if (!string.IsNullOrEmpty(existingPlan.StripeQuarterlyPriceId))
+                    catch (Exception ex) when (ex.Message.Contains("cannot be deleted because it has one or more user-created prices"))
                     {
-                        await _stripeService.DeactivatePriceAsync(existingPlan.StripeQuarterlyPriceId, tokenModel);
+                        _logger.LogWarning("Cannot delete Stripe product {ProductId} due to active prices. Product will be archived in Stripe instead.", existingPlan.StripeProductId);
+                        
+                        // Instead of deleting, we'll archive the product
+                        try
+                        {
+                            await _stripeService.ArchiveProductAsync(existingPlan.StripeProductId, existingPlan.Name, existingPlan.Description ?? "", tokenModel);
+                            stripeCleanedUp = true;
+                            _logger.LogInformation("Archived Stripe product {ProductId} instead of deleting it", existingPlan.StripeProductId);
+                        }
+                        catch (Exception archiveEx)
+                        {
+                            _logger.LogError(archiveEx, "Failed to archive Stripe product {ProductId} after deletion attempt", existingPlan.StripeProductId);
+                            // Continue with database deletion even if Stripe archiving fails
+                            stripeCleanedUp = true;
+                        }
                     }
-                    if (!string.IsNullOrEmpty(existingPlan.StripeAnnualPriceId))
+                    catch (Exception ex)
                     {
-                        await _stripeService.DeactivatePriceAsync(existingPlan.StripeAnnualPriceId, tokenModel);
+                        _logger.LogError(ex, "Error cleaning up Stripe resources for plan {PlanName}: {Message}", existingPlan.Name, ex.Message);
+                        // Continue with database deletion even if Stripe cleanup fails
+                        stripeCleanedUp = true;
                     }
-                    
-                    // Delete the product (this will also deactivate all associated prices)
-                    await _stripeService.DeleteProductAsync(existingPlan.StripeProductId, tokenModel);
-                    
-                    _logger.LogInformation("Successfully cleaned up Stripe resources for plan {PlanName}", existingPlan.Name);
                 }
-                catch (Exception ex)
+
+                var result = await _subscriptionPlanRepository.DeleteAsync(planGuid);
+                if (!result)
                 {
-                    _logger.LogError(ex, "Error cleaning up Stripe resources for plan {PlanName}. Proceeding with local deletion.", existingPlan.Name);
-                    // Don't fail the entire operation if Stripe cleanup fails
+                    await _unitOfWork.RollbackTransactionAsync();
+                    
+                    // CRITICAL: If Stripe was cleaned up but database deletion failed, we need to recover
+                    if (stripeCleanedUp && !string.IsNullOrEmpty(originalProductId))
+                    {
+                        try
+                        {
+                            _logger.LogWarning("Attempting to recover Stripe resources for plan {PlanName} due to database deletion failure", existingPlan.Name);
+                            
+                            // Recreate the Stripe product
+                            var recoveredProductId = await _stripeService.CreateProductAsync(existingPlan.Name, existingPlan.Description ?? "", tokenModel);
+                            
+                            // Recreate the prices
+                            var recoveredMonthlyPriceId = await _stripeService.CreatePriceAsync(
+                                recoveredProductId, existingPlan.Price, "usd", "month", 1, tokenModel);
+                            var recoveredQuarterlyPriceId = await _stripeService.CreatePriceAsync(
+                                recoveredProductId, existingPlan.Price * 3, "usd", "month", 3, tokenModel);
+                            var recoveredAnnualPriceId = await _stripeService.CreatePriceAsync(
+                                recoveredProductId, existingPlan.Price * 12, "usd", "month", 12, tokenModel);
+                            
+                            // Update the plan with recovered Stripe IDs
+                            existingPlan.StripeProductId = recoveredProductId;
+                            existingPlan.StripeMonthlyPriceId = recoveredMonthlyPriceId;
+                            existingPlan.StripeQuarterlyPriceId = recoveredQuarterlyPriceId;
+                            existingPlan.StripeAnnualPriceId = recoveredAnnualPriceId;
+                            
+                            await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                            
+                            _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
+                        }
+                        catch (Exception recoveryEx)
+                        {
+                            _logger.LogError(recoveryEx, "Failed to recover Stripe resources for plan {PlanName}. Manual recovery may be required.", existingPlan.Name);
+                        }
+                    }
+                    
+                    return new JsonModel { data = new object(), Message = "Failed to delete subscription plan", StatusCode = 500 };
                 }
-            }
 
-            var result = await _subscriptionPlanRepository.DeleteAsync(planGuid);
-            if (!result)
+                // COMMIT TRANSACTION - All operations successful
+                await _unitOfWork.CommitTransactionAsync();
+
+                _logger.LogInformation("Successfully deleted subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
+                return new JsonModel { data = true, Message = "Subscription plan deleted successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
             {
-                return new JsonModel { data = new object(), Message = "Failed to delete subscription plan", StatusCode = 500 };
+                // ROLLBACK TRANSACTION - Something failed, ensure data consistency
+                await _unitOfWork.RollbackTransactionAsync();
+                
+                // CRITICAL: If Stripe was cleaned up but database deletion failed, we need to recover
+                if (stripeCleanedUp && !string.IsNullOrEmpty(originalProductId))
+                {
+                    try
+                    {
+                        _logger.LogWarning("Attempting to recover Stripe resources for plan {PlanName} due to deletion failure", existingPlan.Name);
+                        
+                        // Recreate the Stripe product
+                        var recoveredProductId = await _stripeService.CreateProductAsync(existingPlan.Name, existingPlan.Description ?? "", tokenModel);
+                        
+                        // Recreate the prices
+                        var recoveredMonthlyPriceId = await _stripeService.CreatePriceAsync(
+                            recoveredProductId, existingPlan.Price, "usd", "month", 1, tokenModel);
+                        var recoveredQuarterlyPriceId = await _stripeService.CreatePriceAsync(
+                            recoveredProductId, existingPlan.Price * 3, "usd", "month", 3, tokenModel);
+                        var recoveredAnnualPriceId = await _stripeService.CreatePriceAsync(
+                            recoveredProductId, existingPlan.Price * 12, "usd", "month", 12, tokenModel);
+                        
+                        // Update the plan with recovered Stripe IDs
+                        existingPlan.StripeProductId = recoveredProductId;
+                        existingPlan.StripeMonthlyPriceId = recoveredMonthlyPriceId;
+                        existingPlan.StripeQuarterlyPriceId = recoveredQuarterlyPriceId;
+                        existingPlan.StripeAnnualPriceId = recoveredAnnualPriceId;
+                        
+                        await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                        
+                        _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
+                    }
+                    catch (Exception recoveryEx)
+                    {
+                        _logger.LogError(recoveryEx, "Failed to recover Stripe resources for plan {PlanName}. Manual recovery may be required.", existingPlan.Name);
+                    }
+                }
+                
+                _logger.LogError(ex, "Failed to delete subscription plan {PlanId}. Database and Stripe operations rolled back.", planId);
+                return new JsonModel { data = new object(), Message = "Error deleting subscription plan", StatusCode = 500 };
             }
-
-            _logger.LogInformation("Successfully deleted subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
-            return new JsonModel { data = true, Message = "Subscription plan deleted successfully", StatusCode = 200 };
         }
         catch (Exception ex)
         {
@@ -831,43 +1286,6 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         }
     }
     
-    /// <summary>
-    /// Deactivates a subscription plan with admin user tracking (for backward compatibility)
-    /// </summary>
-    public async Task<JsonModel> DeactivatePlanAsync(string planId, string adminUserId, TokenModel tokenModel)
-    {
-        try
-        {
-            // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
-
-            _logger.LogInformation("Deactivating subscription plan {PlanId} by admin {AdminUserId}", planId, adminUserId);
-
-            if (!Guid.TryParse(planId, out var planGuid))
-            {
-                return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
-            }
-
-            var result = await _subscriptionPlanRepository.DeactivateAsync(planGuid);
-            if (result)
-            {
-                _logger.LogInformation("Successfully deactivated subscription plan {PlanId} by admin {AdminUserId}", planId, adminUserId);
-                return new JsonModel { data = true, Message = "Subscription plan deactivated successfully", StatusCode = 200 };
-            }
-            else
-            {
-                return new JsonModel { data = false, Message = "Failed to deactivate subscription plan", StatusCode = 500 };
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deactivating subscription plan {PlanId} by admin {AdminUserId}", planId, adminUserId);
-            return new JsonModel { data = new object(), Message = "Error deactivating subscription plan", StatusCode = 500 };
-        }
-    }
     
     #endregion
 

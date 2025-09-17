@@ -44,6 +44,59 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .ToListAsync();
     }
 
+    public async Task<(IEnumerable<Subscription> subscriptions, int totalCount)> GetUserSubscriptionsWithFilteringAsync(int userId, SubscriptionFilterDto filter)
+    {
+        var query = _context.Subscriptions
+            .Include(s => s.SubscriptionPlan)
+            .Include(s => s.BillingCycle)
+            .Where(s => s.UserId == userId);
+
+        // Apply search term filter
+        if (!string.IsNullOrEmpty(filter.SearchTerm))
+        {
+            query = query.Where(s => 
+                s.SubscriptionPlan.Name.Contains(filter.SearchTerm) ||
+                s.SubscriptionPlan.Description.Contains(filter.SearchTerm) ||
+                s.Status.Contains(filter.SearchTerm));
+        }
+
+        // Apply status filter
+        if (filter.Statuses != null && filter.Statuses.Any())
+        {
+            query = query.Where(s => filter.Statuses.Contains(s.Status));
+        }
+
+        // Apply date range filter
+        if (filter.CreatedDateFrom.HasValue)
+        {
+            query = query.Where(s => s.CreatedDate >= filter.CreatedDateFrom.Value);
+        }
+        if (filter.CreatedDateTo.HasValue)
+        {
+            query = query.Where(s => s.CreatedDate <= filter.CreatedDateTo.Value);
+        }
+
+        // Apply plan filter
+        if (filter.PlanIds != null && filter.PlanIds.Any())
+        {
+            query = query.Where(s => filter.PlanIds.Contains(s.SubscriptionPlanId));
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, filter.SortColumn, filter.SortOrder);
+
+        // Apply pagination
+        var subscriptions = await query
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync();
+
+        return (subscriptions, totalCount);
+    }
+
     public async Task<Subscription?> GetByStripeSubscriptionIdAsync(string stripeSubscriptionId, TokenModel tokenModel)
     {
         return await _context.Subscriptions
@@ -73,6 +126,61 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .Where(s => s.Status == "Active" || s.Status == "TrialActive")
             .OrderByDescending(s => s.CreatedDate)
             .ToListAsync();
+    }
+
+    public async Task<(IEnumerable<Subscription> subscriptions, int totalCount)> GetActiveSubscriptionsWithFilteringAsync(SubscriptionFilterDto filter)
+    {
+        var query = _context.Subscriptions
+            .Include(s => s.SubscriptionPlan)
+            .Include(s => s.BillingCycle)
+            .Include(s => s.User)
+            .Where(s => s.Status == "Active" || s.Status == "TrialActive");
+
+        // Apply search term filter
+        if (!string.IsNullOrEmpty(filter.SearchTerm))
+        {
+            query = query.Where(s => 
+                s.User.FirstName.Contains(filter.SearchTerm) ||
+                s.User.LastName.Contains(filter.SearchTerm) ||
+                s.SubscriptionPlan.Name.Contains(filter.SearchTerm) ||
+                s.SubscriptionPlan.Description.Contains(filter.SearchTerm));
+        }
+
+        // Apply date range filter
+        if (filter.CreatedDateFrom.HasValue)
+        {
+            query = query.Where(s => s.CreatedDate >= filter.CreatedDateFrom.Value);
+        }
+        if (filter.CreatedDateTo.HasValue)
+        {
+            query = query.Where(s => s.CreatedDate <= filter.CreatedDateTo.Value);
+        }
+
+        // Apply plan filter
+        if (filter.PlanIds != null && filter.PlanIds.Any())
+        {
+            query = query.Where(s => filter.PlanIds.Contains(s.SubscriptionPlanId));
+        }
+
+        // Apply user filter
+        if (filter.UserIds != null && filter.UserIds.Any())
+        {
+            query = query.Where(s => filter.UserIds.Contains(s.UserId));
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, filter.SortColumn, filter.SortOrder);
+
+        // Apply pagination
+        var subscriptions = await query
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync();
+
+        return (subscriptions, totalCount);
     }
 
     public async Task<IEnumerable<Subscription>> GetSubscriptionsDueForBillingAsync(DateTime billingDate)

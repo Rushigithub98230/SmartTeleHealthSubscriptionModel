@@ -107,7 +107,7 @@ import { AuthService } from './auth/auth.service';
             </a>
             <a mat-list-item routerLink="/admin/subscriptions" routerLinkActive="active-link" class="nav-item">
               <mat-icon matListItemIcon>subscriptions</mat-icon>
-              <span matListItemTitle>Subscriptions</span>
+              <span matListItemTitle>User Subscriptions</span>
             </a>
             <a mat-list-item routerLink="/admin/categories" routerLinkActive="active-link" class="nav-item">
               <mat-icon matListItemIcon>category</mat-icon>
@@ -115,11 +115,7 @@ import { AuthService } from './auth/auth.service';
             </a>
             <a mat-list-item routerLink="/admin/plans" routerLinkActive="active-link" class="nav-item">
               <mat-icon matListItemIcon>assignment</mat-icon>
-              <span matListItemTitle>Plans</span>
-            </a>
-            <a mat-list-item routerLink="/admin/billing" routerLinkActive="active-link" class="nav-item">
-              <mat-icon matListItemIcon>payment</mat-icon>
-              <span matListItemTitle>Billing</span>
+              <span matListItemTitle>Subscription Plans</span>
             </a>
             <a mat-list-item routerLink="/admin/analytics" routerLinkActive="active-link" class="nav-item">
               <mat-icon matListItemIcon>analytics</mat-icon>

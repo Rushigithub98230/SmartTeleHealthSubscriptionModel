@@ -294,35 +294,6 @@
   },
   {
     "ContainingType": "SmartTelehealth.API.Controllers.AdminSubscriptionController",
-    "Method": "ChangeSubscriptionPlan",
-    "RelativePath": "api/admin/AdminSubscription/{id}/change-plan",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      },
-      {
-        "Name": "request",
-        "Type": "SmartTelehealth.Application.DTOs.ChangePlanRequest",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.AdminSubscriptionController",
     "Method": "PauseSubscription",
     "RelativePath": "api/admin/AdminSubscription/{id}/pause",
     "HttpMethod": "POST",
@@ -674,30 +645,6 @@
       {
         "Name": "request",
         "Type": "SmartTelehealth.API.Controllers.BulkStatusUpdateRequest",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.AdminSubscriptionController",
-    "Method": "CreateSubscriptionPlanWithTimeLimits",
-    "RelativePath": "api/admin/AdminSubscription/plans",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "request",
-        "Type": "SmartTelehealth.Application.DTOs.CreateSubscriptionPlanWithTimeLimitsDto",
         "IsRequired": true
       }
     ],
@@ -9457,373 +9404,6 @@
     ]
   },
   {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "GetAll",
-    "RelativePath": "api/Privileges",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "page",
-        "Type": "System.Int32",
-        "IsRequired": false
-      },
-      {
-        "Name": "pageSize",
-        "Type": "System.Int32",
-        "IsRequired": false
-      },
-      {
-        "Name": "search",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "category",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "status",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "format",
-        "Type": "System.String",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "Create",
-    "RelativePath": "api/Privileges",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "createDto",
-        "Type": "SmartTelehealth.Application.DTOs.CreatePrivilegeDto",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "GetById",
-    "RelativePath": "api/Privileges/{id}",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "Update",
-    "RelativePath": "api/Privileges/{id}",
-    "HttpMethod": "PUT",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      },
-      {
-        "Name": "updateDto",
-        "Type": "SmartTelehealth.Application.DTOs.UpdatePrivilegeDto",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "Delete",
-    "RelativePath": "api/Privileges/{id}",
-    "HttpMethod": "DELETE",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "GetCategories",
-    "RelativePath": "api/Privileges/categories",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "GetTypes",
-    "RelativePath": "api/Privileges/types",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "ExportUsageData",
-    "RelativePath": "api/Privileges/usage-export",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "format",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "privilegeId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "userId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "subscriptionId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "startDate",
-        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "endDate",
-        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "GetUsageHistory",
-    "RelativePath": "api/Privileges/usage-history",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "page",
-        "Type": "System.Int32",
-        "IsRequired": false
-      },
-      {
-        "Name": "pageSize",
-        "Type": "System.Int32",
-        "IsRequired": false
-      },
-      {
-        "Name": "privilegeId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "userId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "subscriptionId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "startDate",
-        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "endDate",
-        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "sortBy",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "sortOrder",
-        "Type": "System.String",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegesController",
-    "Method": "GetUsageSummary",
-    "RelativePath": "api/Privileges/usage-summary",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "privilegeId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "userId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "subscriptionId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "startDate",
-        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "endDate",
-        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.ProviderPrivilegesController",
-    "Method": "GetUserPrivileges",
-    "RelativePath": "api/provider/user/{userId}/privileges",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "userId",
-        "Type": "System.Int32",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
     "ContainingType": "SmartTelehealth.API.Controllers.ProviderPrivilegesController",
     "Method": "CheckUserPrivilege",
     "RelativePath": "api/provider/user/{userId}/privileges/{privilegeName}",
@@ -12115,6 +11695,349 @@
   },
   {
     "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "GetAllPrivileges",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "search",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "category",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "format",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "CreatePrivilege",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "createDto",
+        "Type": "SmartTelehealth.Application.DTOs.CreatePrivilegeDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "GetPrivilegeById",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "UpdatePrivilege",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "updateDto",
+        "Type": "SmartTelehealth.Application.DTOs.UpdatePrivilegeDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "DeletePrivilege",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "GetPrivilegeCategories",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/categories",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "GetPrivilegeTypes",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/types",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "ExportPrivilegeUsageData",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/usage-export",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "format",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "privilegeId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "subscriptionId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "startDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "endDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "GetPrivilegeUsageHistory",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/usage-history",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "privilegeId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "subscriptionId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "startDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "endDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortBy",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortOrder",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "GetPrivilegeUsageSummary",
+    "RelativePath": "api/SubscriptionPlanPrivileges/privileges/usage-summary",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "privilegeId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "userId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "subscriptionId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "startDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "endDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
     "Method": "UpdateTimeBasedLimits",
     "RelativePath": "api/SubscriptionPlanPrivileges/time-based-limits",
     "HttpMethod": "PUT",
@@ -12124,6 +12047,30 @@
       {
         "Name": "request",
         "Type": "SmartTelehealth.API.Controllers.UpdateTimeBasedLimitsRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlanPrivilegesController",
+    "Method": "GetUserPrivileges",
+    "RelativePath": "api/SubscriptionPlanPrivileges/users/{userId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Int32",
         "IsRequired": true
       }
     ],
@@ -12216,7 +12163,38 @@
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [],
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "searchTerm",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "categoryId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortBy",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortOrder",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
     "ReturnTypes": [
       {
         "Type": "SmartTelehealth.Application.DTOs.JsonModel",
@@ -12379,12 +12357,159 @@
   },
   {
     "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "AssignPrivilegesToPlan",
+    "RelativePath": "api/SubscriptionPlans/admin/{planId}/privileges",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "privileges",
+        "Type": "System.Collections.Generic.List\u00601[[SmartTelehealth.Application.DTOs.PlanPrivilegeDto, SmartTelehealth.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "GetPlanPrivileges",
+    "RelativePath": "api/SubscriptionPlans/admin/{planId}/privileges",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "RemovePrivilegeFromPlan",
+    "RelativePath": "api/SubscriptionPlans/admin/{planId}/privileges/{privilegeId}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "privilegeId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "UpdatePlanPrivilege",
+    "RelativePath": "api/SubscriptionPlans/admin/{planId}/privileges/{privilegeId}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "privilegeId",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "privilegeDto",
+        "Type": "SmartTelehealth.Application.DTOs.PlanPrivilegeDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
     "Method": "GetActiveSubscriptionPlans",
     "RelativePath": "api/SubscriptionPlans/admin/active",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [],
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "searchTerm",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "categoryId",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortBy",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortOrder",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
     "ReturnTypes": [
       {
         "Type": "SmartTelehealth.Application.DTOs.JsonModel",
@@ -12406,6 +12531,30 @@
       {
         "Name": "category",
         "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "GetPlansWithAdvancedFiltering",
+    "RelativePath": "api/SubscriptionPlans/admin/filter",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "filter",
+        "Type": "SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto",
         "IsRequired": true
       }
     ],
@@ -12565,7 +12714,58 @@
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [],
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "searchTerm",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "status",
+        "Type": "System.String[]",
+        "IsRequired": false
+      },
+      {
+        "Name": "planId",
+        "Type": "System.String[]",
+        "IsRequired": false
+      },
+      {
+        "Name": "userId",
+        "Type": "System.String[]",
+        "IsRequired": false
+      },
+      {
+        "Name": "startDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "endDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortBy",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortOrder",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
     "ReturnTypes": [
       {
         "Type": "SmartTelehealth.Application.DTOs.JsonModel",
@@ -12867,7 +13067,53 @@
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [],
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "searchTerm",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "planId",
+        "Type": "System.String[]",
+        "IsRequired": false
+      },
+      {
+        "Name": "userId",
+        "Type": "System.String[]",
+        "IsRequired": false
+      },
+      {
+        "Name": "startDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "endDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortBy",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortOrder",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
     "ReturnTypes": [
       {
         "Type": "SmartTelehealth.Application.DTOs.JsonModel",
@@ -13295,7 +13541,53 @@
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [],
+    "Parameters": [
+      {
+        "Name": "page",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "searchTerm",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "status",
+        "Type": "System.String[]",
+        "IsRequired": false
+      },
+      {
+        "Name": "planId",
+        "Type": "System.String[]",
+        "IsRequired": false
+      },
+      {
+        "Name": "startDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "endDate",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortBy",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "sortOrder",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
     "ReturnTypes": [
       {
         "Type": "SmartTelehealth.Application.DTOs.JsonModel",
@@ -15208,315 +15500,6 @@
       {
         "Name": "id",
         "Type": "System.Guid",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "GetAllPlans",
-    "RelativePath": "webadmin/subscription-management/plans",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "page",
-        "Type": "System.Int32",
-        "IsRequired": false
-      },
-      {
-        "Name": "pageSize",
-        "Type": "System.Int32",
-        "IsRequired": false
-      },
-      {
-        "Name": "searchTerm",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "categoryId",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "isActive",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "CreatePlan",
-    "RelativePath": "webadmin/subscription-management/plans",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "createDto",
-        "Type": "SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "UpdatePlan",
-    "RelativePath": "webadmin/subscription-management/plans/{id}",
-    "HttpMethod": "PUT",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      },
-      {
-        "Name": "updateDto",
-        "Type": "SmartTelehealth.Application.DTOs.UpdateSubscriptionPlanDto",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "DeletePlan",
-    "RelativePath": "webadmin/subscription-management/plans/{id}",
-    "HttpMethod": "DELETE",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "ActivatePlan",
-    "RelativePath": "webadmin/subscription-management/plans/{id}/activate",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "DeactivatePlan",
-    "RelativePath": "webadmin/subscription-management/plans/{id}/deactivate",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.String",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "AssignPrivilegesToPlan",
-    "RelativePath": "webadmin/subscription-management/plans/{planId}/privileges",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "planId",
-        "Type": "System.String",
-        "IsRequired": true
-      },
-      {
-        "Name": "privileges",
-        "Type": "System.Collections.Generic.List\u00601[[SmartTelehealth.Application.DTOs.PlanPrivilegeDto, SmartTelehealth.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "GetPlanPrivileges",
-    "RelativePath": "webadmin/subscription-management/plans/{planId}/privileges",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "planId",
-        "Type": "System.String",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "RemovePrivilegeFromPlan",
-    "RelativePath": "webadmin/subscription-management/plans/{planId}/privileges/{privilegeId}",
-    "HttpMethod": "DELETE",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "planId",
-        "Type": "System.String",
-        "IsRequired": true
-      },
-      {
-        "Name": "privilegeId",
-        "Type": "System.String",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "UpdatePlanPrivilege",
-    "RelativePath": "webadmin/subscription-management/plans/{planId}/privileges/{privilegeId}",
-    "HttpMethod": "PUT",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "planId",
-        "Type": "System.String",
-        "IsRequired": true
-      },
-      {
-        "Name": "privilegeId",
-        "Type": "System.String",
-        "IsRequired": true
-      },
-      {
-        "Name": "privilegeDto",
-        "Type": "SmartTelehealth.Application.DTOs.PlanPrivilegeDto",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
-        "MediaTypes": [
-          "application/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionManagementController",
-    "Method": "GetPlansWithAdvancedFiltering",
-    "RelativePath": "webadmin/subscription-management/plans/filter",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "filter",
-        "Type": "SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto",
         "IsRequired": true
       }
     ],

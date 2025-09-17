@@ -46,7 +46,8 @@ const routes: Routes = [
       },
       { 
         path: 'subscriptions', 
-        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
+        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent),
+        data: { view: 'subscriptions' }
       },
       { 
         path: 'categories', 
@@ -54,11 +55,8 @@ const routes: Routes = [
       },
       { 
         path: 'plans', 
-        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
-      },
-      { 
-        path: 'billing', 
-        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
+        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent),
+        data: { view: 'plans' }
       },
       { 
         path: 'analytics', 

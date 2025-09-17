@@ -30,6 +30,7 @@ public class StripeBillingService : IStripeBillingService
     private readonly IStripeService _stripeService;
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<StripeBillingService> _logger;
     
     // Retry configuration
@@ -44,6 +45,7 @@ public class StripeBillingService : IStripeBillingService
     /// <param name="stripeService">Stripe service for payment processing operations</param>
     /// <param name="notificationService">Service for sending Stripe-related notifications</param>
     /// <param name="userRepository">Repository for user data access operations</param>
+    /// <param name="unitOfWork">Unit of work for transaction management</param>
     /// <param name="logger">Logger instance for recording service operations and errors</param>
     public StripeBillingService(
         IBillingRepository billingRepository,
@@ -51,6 +53,7 @@ public class StripeBillingService : IStripeBillingService
         IStripeService stripeService,
         INotificationService notificationService,
         IUserRepository userRepository,
+        IUnitOfWork unitOfWork,
         ILogger<StripeBillingService> logger)
     {
         _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
@@ -58,6 +61,7 @@ public class StripeBillingService : IStripeBillingService
         _stripeService = stripeService ?? throw new ArgumentNullException(nameof(stripeService));
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -106,7 +110,7 @@ public class StripeBillingService : IStripeBillingService
 
             if (paymentResult.Success)
             {
-                // CRITICAL FIX: Update billing record with Stripe correlation data
+                // CRITICAL FIX: Update billing record with Stripe correlation data in transaction
                 billingRecord.Status = BillingRecord.BillingStatus.Paid;
                 billingRecord.PaidAt = DateTime.UtcNow;
                 billingRecord.PaymentMethod = paymentMethods.First().Type;
@@ -114,7 +118,47 @@ public class StripeBillingService : IStripeBillingService
                 billingRecord.StripePaymentIntentId = paymentResult.PaymentIntentId; // Link to Stripe payment intent
                 billingRecord.ProcessedAt = DateTime.UtcNow;
 
-                await _billingRepository.UpdateAsync(billingRecord);
+                // Use transaction to ensure atomicity
+                await _unitOfWork.BeginTransactionAsync();
+                try
+                {
+                    await _billingRepository.UpdateAsync(billingRecord);
+                    await _unitOfWork.CommitTransactionAsync();
+                }
+                catch (Exception ex)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    
+                    // CRITICAL: If database update fails, we need to refund the Stripe payment
+                    try
+                    {
+                        _logger.LogWarning("Refunding Stripe payment {PaymentIntentId} due to database update failure for billing record {BillingRecordId}", 
+                            paymentResult.PaymentIntentId, billingRecordId);
+                        
+                        var refundResult = await _stripeService.ProcessRefundAsync(
+                            paymentResult.PaymentIntentId, 
+                            billingRecord.TotalAmount, 
+                            tokenModel);
+                        
+                        if (refundResult)
+                        {
+                            _logger.LogInformation("Successfully refunded Stripe payment {PaymentIntentId} for failed billing record {BillingRecordId}", 
+                                paymentResult.PaymentIntentId, billingRecordId);
+                        }
+                        else
+                        {
+                            _logger.LogError("Failed to refund Stripe payment {PaymentIntentId} for billing record {BillingRecordId}. Manual refund may be required.", 
+                                paymentResult.PaymentIntentId, billingRecordId);
+                        }
+                    }
+                    catch (Exception refundEx)
+                    {
+                        _logger.LogError(refundEx, "Error refunding Stripe payment {PaymentIntentId} for billing record {BillingRecordId}. Manual refund may be required.", 
+                            paymentResult.PaymentIntentId, billingRecordId);
+                    }
+                    
+                    throw;
+                }
 
                 _logger.LogInformation("Successfully processed Stripe payment for billing record {BillingRecordId}", billingRecordId);
 

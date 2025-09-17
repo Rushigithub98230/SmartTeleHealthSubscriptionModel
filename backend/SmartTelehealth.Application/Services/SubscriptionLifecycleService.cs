@@ -5,6 +5,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartTelehealth.Application.Services;
@@ -164,7 +165,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             // Step 6: Create Stripe Subscription with proper billing cycle logic
-            string stripeSubscriptionId;
+            string stripeSubscriptionId = null;
             // Get the appropriate Stripe price ID based on the selected billing cycle
             string stripePriceId = await GetStripePriceIdForBillingCycleAsync(plan, createDto.BillingCycleId);
             
@@ -254,6 +255,28 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 // ROLLBACK TRANSACTION on any error
                 await _unitOfWork.RollbackTransactionAsync();
+                
+                // CRITICAL: Clean up Stripe subscription if it was created but database failed
+                if (!string.IsNullOrEmpty(stripeSubscriptionId))
+                {
+                    try
+                    {
+                        _logger.LogWarning("Cleaning up Stripe subscription {StripeSubscriptionId} due to database failure for user {UserId}", 
+                            stripeSubscriptionId, createDto.UserId);
+                        
+                        // Cancel the Stripe subscription
+                        await _stripeService.CancelSubscriptionAsync(stripeSubscriptionId, tokenModel);
+                        
+                        _logger.LogInformation("Successfully cleaned up Stripe subscription {StripeSubscriptionId} for failed subscription creation", 
+                            stripeSubscriptionId);
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        _logger.LogError(cleanupEx, "Failed to cleanup Stripe subscription {StripeSubscriptionId} for user {UserId}. Manual cleanup may be required.", 
+                            stripeSubscriptionId, createDto.UserId);
+                    }
+                }
+                
                 _logger.LogError(ex, "Failed to create subscription in transaction, rolling back");
                 throw;
             }
@@ -293,7 +316,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -314,6 +337,10 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             
             var oldStatus = entity.Status;
             
+            // Track Stripe cancellation for potential recovery
+            bool stripeCancelled = false;
+            string originalStripeSubscriptionId = entity.StripeSubscriptionId;
+            
             // NEW: Cancel Stripe subscription first
             if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
             {
@@ -326,6 +353,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     
                     if (stripeCancelResult)
                     {
+                        stripeCancelled = true;
                         _logger.LogInformation("Successfully cancelled Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}", 
                             entity.StripeSubscriptionId, subscriptionId);
                     }
@@ -378,6 +406,41 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 // ROLLBACK TRANSACTION on any error
                 await _unitOfWork.RollbackTransactionAsync();
+                
+                // CRITICAL: If Stripe was cancelled but database update failed, we need to recover
+                if (stripeCancelled && !string.IsNullOrEmpty(originalStripeSubscriptionId))
+                {
+                    try
+                    {
+                        _logger.LogWarning("Attempting to recover Stripe subscription {StripeSubscriptionId} due to database cancellation failure for subscription {SubscriptionId}", 
+                            originalStripeSubscriptionId, subscriptionId);
+                        
+                        // Reactivate the Stripe subscription by updating to active price
+                        // Note: This is a simplified recovery - in production you might need more sophisticated logic
+                        var reactivateResult = await _stripeService.UpdateSubscriptionAsync(
+                            originalStripeSubscriptionId,
+                            entity.StripePriceId ?? "", // Use the original price ID
+                            tokenModel
+                        );
+                        
+                        if (reactivateResult)
+                        {
+                            _logger.LogInformation("Successfully recovered Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}", 
+                                originalStripeSubscriptionId, subscriptionId);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Failed to recover Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Manual recovery may be required.", 
+                                originalStripeSubscriptionId, subscriptionId);
+                        }
+                    }
+                    catch (Exception recoveryEx)
+                    {
+                        _logger.LogError(recoveryEx, "Failed to recover Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}. Manual recovery may be required.", 
+                            originalStripeSubscriptionId, subscriptionId);
+                    }
+                }
+                
                 _logger.LogError(ex, "Failed to cancel subscription in transaction, rolling back");
                 throw;
             }
@@ -410,7 +473,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -529,7 +592,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -651,7 +714,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -759,7 +822,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -847,7 +910,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -945,7 +1008,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -1031,7 +1094,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -1210,7 +1273,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }

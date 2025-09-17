@@ -13,4 +13,13 @@ public interface IPrivilegeUsageHistoryRepository : IRepositoryBase<PrivilegeUsa
     Task<int> GetWeeklyUsageAsync(Guid subscriptionId, Guid privilegeId, DateTime weekStart);
     Task<int> GetMonthlyUsageAsync(Guid subscriptionId, Guid privilegeId, DateTime monthStart);
     Task AddAsync(PrivilegeUsageHistory usageHistory); // Legacy method
+    
+    // Database-level filtering, pagination, and sorting
+    Task<(IEnumerable<PrivilegeUsageHistory> History, int TotalCount)> GetUsageHistoryWithFilteringAsync(
+        int page, int pageSize, string? privilegeId, string? userId, string? subscriptionId, 
+        DateTime? startDate, DateTime? endDate, string? sortBy = "UsedAt", string? sortOrder = "desc");
+    
+    // Database-level aggregation
+    Task<object> GetUsageSummaryAsync(string? privilegeId, string? userId, string? subscriptionId, 
+        DateTime? startDate, DateTime? endDate);
 }

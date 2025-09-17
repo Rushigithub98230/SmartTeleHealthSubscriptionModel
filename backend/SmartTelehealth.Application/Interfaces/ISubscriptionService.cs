@@ -7,17 +7,18 @@ namespace SmartTelehealth.Application.Interfaces
     {
         Task<JsonModel> GetSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
         Task<JsonModel> GetUserSubscriptionsAsync(int userId, TokenModel tokenModel);
+        Task<JsonModel> GetUserSubscriptionsWithFilteringAsync(int userId, int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
         Task<JsonModel> GetSubscriptionByPlanIdAsync(string planId, TokenModel tokenModel);
         Task<JsonModel> GetPaymentMethodsAsync(int userId, TokenModel tokenModel);
         Task<JsonModel> AddPaymentMethodAsync(int userId, string paymentMethodId, TokenModel tokenModel);
         
         // Missing methods from controllers
-        Task<JsonModel> GetActiveSubscriptionsAsync(TokenModel tokenModel);
+        Task<JsonModel> GetActiveSubscriptionsAsync(int page, int pageSize, string? searchTerm, string[]? planId, string[]? userId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
         Task<JsonModel> GetSubscriptionByIdAsync(string subscriptionId, TokenModel tokenModel);
         Task<JsonModel> GetBillingHistoryAsync(string subscriptionId, TokenModel tokenModel);
         Task<JsonModel> ProcessPaymentAsync(string subscriptionId, PaymentRequestDto paymentRequest, TokenModel tokenModel);
         Task<JsonModel> GetUsageStatisticsAsync(string subscriptionId, TokenModel tokenModel);
-        Task<JsonModel> GetAllSubscriptionsAsync(TokenModel tokenModel);
+        Task<JsonModel> GetAllSubscriptionsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, string[]? userId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
         // Admin management methods
         Task<JsonModel> GetAllUserSubscriptionsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, string[]? userId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
         Task<JsonModel> GetByStripeSubscriptionIdAsync(string stripeSubscriptionId, TokenModel tokenModel);

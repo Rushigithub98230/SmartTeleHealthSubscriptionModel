@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { 
@@ -25,6 +26,7 @@ import {
 } from '../../models/subscription.models';
 import { MasterDataService } from '../../services/master-data.service';
 import { SubscriptionService } from '../../services/subscription.service';
+import { CommonService } from '../../services/common.service';
 
 @Component({
   selector: 'app-plan-stepper',
@@ -42,7 +44,8 @@ import { SubscriptionService } from '../../services/subscription.service';
     MatIconModule,
     MatCardModule,
     MatChipsModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatProgressSpinnerModule
   ],
   templateUrl: './plan-stepper.component.html',
   styleUrls: ['./plan-stepper.component.scss']
@@ -71,29 +74,33 @@ export class PlanStepperComponent implements OnInit {
   // Privilege management
   selectedPrivileges: PlanPrivilegeDto[] = [];
 
+  // Validation error handling
+  backendValidationErrors: { [key: string]: string[] } = {};
+  isSubmitting = false;
+  
+  // Make Object available in template
+  Object = Object;
+
   // Services
   private fb = inject(FormBuilder);
   private masterDataService = inject(MasterDataService);
   private subscriptionService = inject(SubscriptionService);
   private snackBar = inject(MatSnackBar);
+  private commonService = inject(CommonService);
 
   ngOnInit() {
     this.initializeForms();
     this.loadMasterData();
-    
-    if (this.editingPlan) {
-      this.populateFormsForEdit();
-    }
   }
 
   private initializeForms() {
     // Step 1: Basic Information
     this.basicInfoForm = this.fb.group({
       name: ['', [Validators.required, Validators.maxLength(100)]],
-      description: ['', Validators.maxLength(500)],
-      shortDescription: ['', Validators.maxLength(200)],
-      features: [''],
-      terms: [''],
+      description: ['', [Validators.maxLength(500)]],
+      shortDescription: ['', [Validators.maxLength(200)]],
+      features: ['', [Validators.maxLength(1000)]],
+      terms: ['', [Validators.maxLength(500)]],
       categoryId: ['', Validators.required]
     });
 
@@ -147,15 +154,31 @@ export class PlanStepperComponent implements OnInit {
   }
 
   private loadMasterData() {
+    let loadedCount = 0;
+    const totalLoads = 5; // billing cycles, currencies, categories, privilege types, privileges
+
+    const checkIfAllLoaded = () => {
+      loadedCount++;
+      if (loadedCount === totalLoads && this.editingPlan) {
+        // All master data loaded, now populate forms
+        setTimeout(() => {
+          console.log('All master data loaded, populating forms...');
+          this.populateFormsForEdit();
+        }, 200); // Increased delay to ensure forms are ready
+      }
+    };
+
     // Load billing cycles
     this.masterDataService.getBillingCycles().subscribe({
       next: (response) => {
         if (response.statusCode === 200) {
           this.billingCycles = response.data;
         }
+        checkIfAllLoaded();
       },
       error: (err) => {
         this.snackBar.open('Failed to load billing cycles', 'Close', { duration: 3000 });
+        checkIfAllLoaded();
       }
     });
 
@@ -165,14 +188,16 @@ export class PlanStepperComponent implements OnInit {
         if (response.statusCode === 200) {
           this.currencies = response.data;
         }
+        checkIfAllLoaded();
       },
       error: (err) => {
         this.snackBar.open('Failed to load currencies', 'Close', { duration: 3000 });
+        checkIfAllLoaded();
       }
     });
 
     // Load categories
-    this.subscriptionService.getCategories().subscribe({
+    this.commonService.getWithAuth<any[]>('/api/Categories').subscribe({
       next: (response: any) => {
         if (response.statusCode === 200 && response.data) {
           this.categories = Array.isArray(response.data) ? response.data : [];
@@ -180,11 +205,13 @@ export class PlanStepperComponent implements OnInit {
           this.categories = [];
           this.snackBar.open('No categories found', 'Close', { duration: 3000 });
         }
+        checkIfAllLoaded();
       },
       error: (err) => {
         console.error('Error loading categories:', err);
         this.snackBar.open('Failed to load categories', 'Close', { duration: 3000 });
         this.categories = [];
+        checkIfAllLoaded();
       }
     });
 
@@ -194,9 +221,11 @@ export class PlanStepperComponent implements OnInit {
         if (response.statusCode === 200) {
           this.privilegeTypes = response.data;
         }
+        checkIfAllLoaded();
       },
       error: (err) => {
         this.snackBar.open('Failed to load privilege types', 'Close', { duration: 3000 });
+        checkIfAllLoaded();
       }
     });
 
@@ -214,16 +243,32 @@ export class PlanStepperComponent implements OnInit {
           }
           console.log('Loaded privileges:', this.privileges);
         }
+        checkIfAllLoaded();
       },
       error: (err) => {
         console.error('Error loading privileges:', err);
         this.snackBar.open('Failed to load privileges', 'Close', { duration: 3000 });
+        checkIfAllLoaded();
       }
     });
   }
 
   private populateFormsForEdit() {
-    if (!this.editingPlan) return;
+    if (!this.editingPlan) {
+      console.log('No editing plan provided');
+      return;
+    }
+
+    // Check if forms are initialized
+    if (!this.basicInfoForm || !this.pricingForm || !this.featuresForm || !this.trialMarketingForm || !this.stripeForm) {
+      console.log('Forms not initialized yet, retrying in 100ms...');
+      setTimeout(() => {
+        this.populateFormsForEdit();
+      }, 100);
+      return;
+    }
+
+    console.log('Populating forms for edit with plan:', this.editingPlan);
 
     // Populate basic info
     this.basicInfoForm.patchValue({
@@ -236,6 +281,10 @@ export class PlanStepperComponent implements OnInit {
       isActive: this.editingPlan.isActive
     });
 
+    console.log('Basic info form values after patch:', this.basicInfoForm.value);
+    console.log('Basic info form valid:', this.basicInfoForm.valid);
+    console.log('Basic info form touched:', this.basicInfoForm.touched);
+
     // Populate pricing
     this.pricingForm.patchValue({
       price: this.editingPlan.price,
@@ -244,6 +293,8 @@ export class PlanStepperComponent implements OnInit {
       billingCycleId: this.editingPlan.billingCycleId,
       currencyId: this.editingPlan.currencyId
     });
+
+    console.log('Pricing form values after patch:', this.pricingForm.value);
 
     // Populate features
     this.featuresForm.patchValue({
@@ -255,6 +306,8 @@ export class PlanStepperComponent implements OnInit {
       maxConcurrentUsers: this.editingPlan.maxConcurrentUsers,
       gracePeriodDays: this.editingPlan.gracePeriodDays
     });
+
+    console.log('Features form values after patch:', this.featuresForm.value);
 
     // Populate trial & marketing
     this.trialMarketingForm.patchValue({
@@ -268,6 +321,8 @@ export class PlanStepperComponent implements OnInit {
       expirationDate: this.editingPlan.expirationDate
     });
 
+    console.log('Trial & marketing form values after patch:', this.trialMarketingForm.value);
+
     // Populate Stripe
     this.stripeForm.patchValue({
       stripeProductId: this.editingPlan.stripeProductId,
@@ -276,8 +331,35 @@ export class PlanStepperComponent implements OnInit {
       stripeAnnualPriceId: this.editingPlan.stripeAnnualPriceId
     });
 
-    // Populate privileges (privileges will be loaded separately)
-    this.selectedPrivileges = [];
+    console.log('Stripe form values after patch:', this.stripeForm.value);
+
+    // Load privileges for this plan
+    this.loadPlanPrivileges();
+
+    // Force form update and mark as touched to show values
+    this.basicInfoForm.markAsTouched();
+    this.pricingForm.markAsTouched();
+    this.featuresForm.markAsTouched();
+    this.trialMarketingForm.markAsTouched();
+    this.stripeForm.markAsTouched();
+
+    console.log('All forms populated and marked as touched');
+  }
+
+  private loadPlanPrivileges() {
+    if (!this.editingPlan?.id) return;
+    
+    this.subscriptionService.getPlanPrivileges(this.editingPlan.id).subscribe({
+      next: (response) => {
+        if (response.statusCode === 200 && response.data) {
+          this.selectedPrivileges = response.data;
+        }
+      },
+      error: (error) => {
+        console.error('Error loading plan privileges:', error);
+        this.snackBar.open('Failed to load plan privileges', 'Close', { duration: 3000 });
+      }
+    });
   }
 
   addPrivilege() {
@@ -358,7 +440,10 @@ export class PlanStepperComponent implements OnInit {
   }
 
   onSubmit(stepper: MatStepper) {
+    this.clearBackendValidationErrors();
+    
     if (this.isFormValid()) {
+      this.isSubmitting = true;
       const planData = this.buildPlanData();
       
       if (this.editingPlan) {
@@ -367,11 +452,12 @@ export class PlanStepperComponent implements OnInit {
         this.planCreated.emit(planData as CreateSubscriptionPlanDto);
       }
     } else {
-      this.snackBar.open('Please fill in all required fields', 'Close', { duration: 3000 });
+      this.showFormValidationErrors();
+      this.snackBar.open('Please fix the validation errors before proceeding', 'Close', { duration: 5000 });
     }
   }
 
-  private isFormValid(): boolean {
+  isFormValid(): boolean {
     return this.basicInfoForm.valid && 
            this.pricingForm.valid && 
            this.featuresForm.valid && 
@@ -396,6 +482,32 @@ export class PlanStepperComponent implements OnInit {
       privileges: this.selectedPrivileges
     };
 
+    // Ensure string fields are properly handled (convert null/undefined to empty string)
+    planData.description = planData.description || '';
+    planData.shortDescription = planData.shortDescription || '';
+    planData.features = planData.features || '';
+    planData.terms = planData.terms || '';
+    planData.stripeProductId = planData.stripeProductId || '';
+    planData.stripeMonthlyPriceId = planData.stripeMonthlyPriceId || '';
+    planData.stripeQuarterlyPriceId = planData.stripeQuarterlyPriceId || '';
+    planData.stripeAnnualPriceId = planData.stripeAnnualPriceId || '';
+
+    // Convert privilege data to match backend expectations
+    if (planData.privileges && Array.isArray(planData.privileges)) {
+      planData.privileges = planData.privileges.map((privilege: any) => ({
+        privilegeId: privilege.privilegeId || '',
+        value: privilege.value || 1,
+        usagePeriodId: privilege.usagePeriodId || '',
+        durationMonths: privilege.durationMonths || 1,
+        description: privilege.description || '',
+        effectiveDate: privilege.effectiveDate || null,
+        expirationDate: privilege.expirationDate || null,
+        dailyLimit: privilege.dailyLimit || null,
+        weeklyLimit: privilege.weeklyLimit || null,
+        monthlyLimit: privilege.monthlyLimit || null
+      }));
+    }
+
     if (this.editingPlan) {
       planData.id = this.editingPlan.id;
     }
@@ -411,5 +523,113 @@ export class PlanStepperComponent implements OnInit {
     // This would typically navigate to a privileges management page
     // For now, we'll show a message
     this.snackBar.open('Privilege management feature coming soon. Please contact admin to create privileges.', 'Close', { duration: 5000 });
+  }
+
+  // Validation error handling methods
+  clearBackendValidationErrors() {
+    this.backendValidationErrors = {};
+  }
+
+  setBackendValidationErrors(errors: { [key: string]: string[] }) {
+    this.backendValidationErrors = errors;
+  }
+
+  getBackendValidationError(fieldName: string): string[] {
+    return this.backendValidationErrors[fieldName] || [];
+  }
+
+  hasBackendValidationError(fieldName: string): boolean {
+    return this.backendValidationErrors[fieldName] && this.backendValidationErrors[fieldName].length > 0;
+  }
+
+  showFormValidationErrors() {
+    // Mark all forms as touched to show validation errors
+    this.basicInfoForm.markAllAsTouched();
+    this.pricingForm.markAllAsTouched();
+    this.featuresForm.markAllAsTouched();
+    this.trialMarketingForm.markAllAsTouched();
+    this.stripeForm.markAllAsTouched();
+  }
+
+  getFieldErrorMessage(form: FormGroup, fieldName: string): string {
+    const field = form.get(fieldName);
+    if (!field || !field.errors || !field.touched) {
+      return '';
+    }
+
+    const errors = field.errors;
+    
+    if (errors['required']) {
+      return `${this.getFieldDisplayName(fieldName)} is required`;
+    }
+    if (errors['maxlength']) {
+      return `${this.getFieldDisplayName(fieldName)} must be no more than ${errors['maxlength'].requiredLength} characters`;
+    }
+    if (errors['minlength']) {
+      return `${this.getFieldDisplayName(fieldName)} must be at least ${errors['minlength'].requiredLength} characters`;
+    }
+    if (errors['min']) {
+      return `${this.getFieldDisplayName(fieldName)} must be at least ${errors['min'].min}`;
+    }
+    if (errors['max']) {
+      return `${this.getFieldDisplayName(fieldName)} must be no more than ${errors['max'].max}`;
+    }
+    if (errors['email']) {
+      return 'Please enter a valid email address';
+    }
+    if (errors['pattern']) {
+      return `${this.getFieldDisplayName(fieldName)} format is invalid`;
+    }
+
+    return 'Invalid value';
+  }
+
+  getFieldDisplayName(fieldName: string): string {
+    const displayNames: { [key: string]: string } = {
+      'name': 'Plan Name',
+      'description': 'Description',
+      'shortDescription': 'Short Description',
+      'features': 'Features',
+      'terms': 'Terms & Conditions',
+      'categoryId': 'Category',
+      'price': 'Price',
+      'discountedPrice': 'Discounted Price',
+      'billingCycleId': 'Billing Cycle',
+      'currencyId': 'Currency',
+      'messagingCount': 'Messaging Count',
+      'deliveryFrequencyDays': 'Delivery Frequency',
+      'maxPauseDurationDays': 'Max Pause Duration',
+      'maxConcurrentUsers': 'Max Concurrent Users',
+      'gracePeriodDays': 'Grace Period',
+      'trialDurationInDays': 'Trial Duration',
+      'displayOrder': 'Display Order'
+    };
+    return displayNames[fieldName] || fieldName;
+  }
+
+  getPrivilegeErrorMessage(privilege: PlanPrivilegeDto): string {
+    if (!privilege.privilegeId) {
+      return 'Please select a privilege';
+    }
+    if (privilege.value < -1) {
+      return 'Value must be -1 (unlimited), 0 (disabled), or positive number';
+    }
+    if (!privilege.usagePeriodId) {
+      return 'Please select a usage period';
+    }
+    if (privilege.durationMonths <= 0) {
+      return 'Duration must be at least 1 month';
+    }
+    return '';
+  }
+
+  isFieldInvalid(form: FormGroup, fieldName: string): boolean {
+    const field = form.get(fieldName);
+    return !!(field && field.invalid && field.touched);
+  }
+
+  isFieldValid(form: FormGroup, fieldName: string): boolean {
+    const field = form.get(fieldName);
+    return !!(field && field.valid && field.touched);
   }
 }

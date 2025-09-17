@@ -1050,15 +1050,20 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                var billingRecords = await _billingRepository.GetByUserIdAsync(userId);
-                
-                // Filter by date range if provided
-                if (startDate.HasValue || endDate.HasValue)
+                _logger.LogInformation("Retrieving billing summary with database-level filtering - UserId: {UserId}, StartDate: {StartDate}, EndDate: {EndDate}",
+                    userId, startDate, endDate);
+
+                // Use database-level filtering for date range
+                var filter = new BillingFilterDto
                 {
-                    billingRecords = billingRecords.Where(br => 
-                        (!startDate.HasValue || br.CreatedDate >= startDate.Value) &&
-                        (!endDate.HasValue || br.CreatedDate <= endDate.Value));
-                }
+                    Page = 1,
+                    PageSize = int.MaxValue, // Get all records for summary
+                    UserIds = new List<int> { userId },
+                    CreatedDateFrom = startDate,
+                    CreatedDateTo = endDate
+                };
+
+                var (billingRecords, _) = await _billingRepository.GetBillingRecordsWithAdvancedFilteringAsync(filter);
 
                 var summary = new BillingSummaryDto
                 {

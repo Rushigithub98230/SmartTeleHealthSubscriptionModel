@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { CommonService, ApiResponse } from './common.service';
 
 export interface SubscriptionPlan {
   id: string;
@@ -96,17 +97,17 @@ export class SubscriptionService {
   public plans$ = this.plansSubject.asObservable();
   public categories$ = this.categoriesSubject.asObservable();
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private commonService: CommonService) {}
 
   getActivePlans(): Observable<SubscriptionPlan[]> {
-    const url = `${this.apiUrl}/SubscriptionPlans/active`;
+    const url = `/api/SubscriptionPlans/active`;
     console.log('Fetching plans from:', url);
     
-    return this.http.get<{data: SubscriptionPlan[], statusCode: number, message: string}>(url).pipe(
+    return this.commonService.getWithAuth<SubscriptionPlan[]>(url).pipe(
       tap(response => console.log('Plans API response:', response)),
       map(response => {
         if (response.statusCode === 200) {
-          const plans = response.data.map(plan => ({
+          const plans = response.data.map((plan: any) => ({
             ...plan,
             popular: plan.isMostPopular,
             trending: plan.isTrending
@@ -121,10 +122,10 @@ export class SubscriptionService {
   }
 
   getCategories(): Observable<Category[]> {
-    const url = `${this.apiUrl}/Categories`;
+    const url = `/api/Categories`;
     console.log('Fetching categories from:', url);
     
-    return this.http.get<{data: Category[], statusCode: number, message: string}>(url).pipe(
+    return this.commonService.getWithAuth<Category[]>(url).pipe(
       tap(response => console.log('Categories API response:', response)),
       map(response => {
         if (response.statusCode === 200) {
@@ -138,10 +139,7 @@ export class SubscriptionService {
   }
 
   createCheckoutSession(request: CheckoutSessionRequest): Observable<{url: string}> {
-    return this.http.post<{data: {url: string}, statusCode: number, message: string}>(
-      `${this.apiUrl}/stripe/create-checkout-session`,
-      request
-    ).pipe(
+    return this.commonService.postWithAuth<{url: string}>('/api/stripe/create-checkout-session', request).pipe(
       map(response => {
         if (response.statusCode === 200) {
           return { url: response.data.url };
@@ -165,31 +163,38 @@ export class SubscriptionService {
     if (categoryId) params.categoryId = categoryId;
     if (isActive !== undefined) params.isActive = isActive;
 
-    return this.http.get<any>(`${this.apiUrl}/SubscriptionPlans/admin/paged`, { params });
+    return this.commonService.getWithAuth<any>('/api/SubscriptionPlans/admin', params);
   }
 
   getSubscriptionHistory(subscriptionId: string): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/Subscriptions/${subscriptionId}/analytics`);
+    return this.commonService.getWithAuth<any>(`/api/Subscriptions/${subscriptionId}/analytics`);
   }
 
   createPlan(planData: any): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/SubscriptionPlans/admin`, planData);
+    return this.commonService.postWithAuth<any>('/api/SubscriptionPlans/admin', planData);
   }
 
   updatePlan(planId: string, planData: any): Observable<any> {
-    return this.http.put<any>(`${this.apiUrl}/SubscriptionPlans/${planId}`, planData);
+    return this.commonService.putWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}`, planData);
   }
 
-  deletePlan(planId: string): Observable<any> {
-    return this.http.delete<any>(`${this.apiUrl}/SubscriptionPlans/${planId}`);
+  // RECOMMENDED: Use deactivatePlan instead of deletePlan for better data integrity
+  deactivatePlan(planId: string): Observable<any> {
+    return this.commonService.postWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}/deactivate`, {});
+  }
+
+  reactivatePlan(planId: string): Observable<any> {
+    return this.commonService.postWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}/reactivate`, {});
   }
 
   activatePlan(planId: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/SubscriptionPlans/${planId}/activate`, {});
+    return this.commonService.postWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}/activate`, {});
   }
 
-  deactivatePlan(planId: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/SubscriptionPlans/${planId}/deactivate`, {});
+  // DEPRECATED: Use deactivatePlan instead for better data integrity and business continuity
+  deletePlan(planId: string): Observable<any> {
+    console.warn('deletePlan is deprecated. Use deactivatePlan instead for better data integrity.');
+    return this.deactivatePlan(planId);
   }
 
   // Subscription Management Methods
@@ -198,42 +203,63 @@ export class SubscriptionService {
     if (searchTerm) params.searchTerm = searchTerm;
     if (status) params.status = status;
 
-    return this.http.get<any>(`${this.apiUrl}/Subscriptions/admin/user-subscriptions`, { params });
+    return this.commonService.getWithAuth<any>('/webadmin/subscription-management/subscriptions', params);
   }
 
   upgradeSubscription(subscriptionId: string, newPlanId: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/Subscriptions/admin/${subscriptionId}/upgrade`, { newPlanId });
+    return this.commonService.postWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/upgrade`, { newPlanId });
   }
 
   downgradeSubscription(subscriptionId: string, newPlanId: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/Subscriptions/admin/${subscriptionId}/downgrade`, { newPlanId });
+    return this.commonService.postWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/downgrade`, { newPlanId });
   }
 
   extendSubscription(subscriptionId: string, additionalDays: number): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/Subscriptions/admin/${subscriptionId}/extend`, additionalDays);
+    return this.commonService.postWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/extend`, { newEndDate: new Date(Date.now() + additionalDays * 24 * 60 * 60 * 1000) });
   }
 
   reactivateSubscription(subscriptionId: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/Subscriptions/admin/${subscriptionId}/reactivate`, {});
+    return this.commonService.postWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/reactivate`, {});
   }
 
   getBillingHistory(subscriptionId: string): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/Subscriptions/${subscriptionId}/billing-history`);
+    return this.commonService.getWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/billing-history`);
   }
 
   getPrivilegeUsage(subscriptionId: string): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/Subscriptions/${subscriptionId}/usage-statistics`);
+    return this.commonService.getWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/privilege-usage`);
   }
 
   pauseSubscription(subscriptionId: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/Subscriptions/admin/${subscriptionId}/pause`, {});
+    return this.commonService.postWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/pause`, {});
   }
 
   resumeSubscription(subscriptionId: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/Subscriptions/admin/${subscriptionId}/resume`, {});
+    return this.commonService.postWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/resume`, {});
   }
 
   cancelSubscription(subscriptionId: string, reason: string): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/Subscriptions/admin/${subscriptionId}/cancel`, reason);
+    return this.commonService.postWithAuth<any>(`/webadmin/subscription-management/subscriptions/${subscriptionId}/cancel`, reason);
+  }
+
+  // Additional Plan Management Methods
+  getPlanById(planId: string): Observable<any> {
+    return this.commonService.getWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}`);
+  }
+
+  getPlanPrivileges(planId: string): Observable<any> {
+    return this.commonService.getWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}/privileges`);
+  }
+
+  assignPrivilegesToPlan(planId: string, privileges: any[]): Observable<any> {
+    return this.commonService.postWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}/privileges`, privileges);
+  }
+
+  removePrivilegeFromPlan(planId: string, privilegeId: string): Observable<any> {
+    return this.commonService.deleteWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}/privileges/${privilegeId}`);
+  }
+
+  updatePlanPrivilege(planId: string, privilegeId: string, privilege: any): Observable<any> {
+    return this.commonService.putWithAuth<any>(`/api/SubscriptionPlans/admin/${planId}/privileges/${privilegeId}`, privilege);
   }
 }

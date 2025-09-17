@@ -12,4 +12,10 @@ public interface ISubscriptionPaymentRepository : IRepositoryBase<SubscriptionPa
     Task<IEnumerable<SubscriptionPayment>> GetPendingPaymentsAsync();
     Task<IEnumerable<SubscriptionPayment>> GetFailedPaymentsAsync();
     Task<SubscriptionPayment?> GetByPaymentIntentIdAsync(string paymentIntentId);
+    
+    // Database-level filtering, pagination, and sorting
+    Task<(IEnumerable<SubscriptionPayment> Payments, int TotalCount)> GetPaymentsWithFilteringAsync(
+        int page, int pageSize, Guid? subscriptionId = null, int? userId = null, 
+        string? status = null, string? search = null, DateTime? startDate = null, 
+        DateTime? endDate = null, string? sortBy = "CreatedDate", string? sortOrder = "desc");
 } 

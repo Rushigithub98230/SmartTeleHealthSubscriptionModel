@@ -123,7 +123,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
                 provider.GetRequiredService<INotificationService>(),
                 provider.GetRequiredService<IUserService>(),
-                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>()
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
             )
         );
         

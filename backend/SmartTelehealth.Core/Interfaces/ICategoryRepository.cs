@@ -13,4 +13,8 @@ public interface ICategoryRepository : IRepositoryBase<Category>
     Task<bool> ExistsByNameAsync(string name);
     Task<int> GetActiveCategoryCountAsync();
     Task<IEnumerable<Category>> SearchCategoriesAsync(string searchTerm);
+    
+    // Database-level filtering, pagination, and sorting
+    Task<(IEnumerable<Category> Categories, int TotalCount)> GetCategoriesWithFilteringAsync(
+        int page, int pageSize, string? search, bool? isActive, string? sortBy = "DisplayOrder", string? sortOrder = "asc");
 } 

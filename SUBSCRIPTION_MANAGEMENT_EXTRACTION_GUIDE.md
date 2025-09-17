@@ -29,7 +29,8 @@ The subscription management system includes:
 - **User Subscription Management** - User-specific subscription handling
 - **Privileges Management** - Feature access control and usage tracking
 - **Categories Management** - Service category organization
-- **Questionnaire Management** - Health assessment questionnaires
+- **Advanced Filtering & Pagination** - Database-level filtering, pagination, and sorting
+- **Analytics & Reporting** - Comprehensive subscription analytics and reporting
 
 ---
 
@@ -62,7 +63,13 @@ The subscription management system includes:
 ├── Category.cs                       # Service categories
 ├── CategoryFeeRange.cs               # Category pricing
 ├── PaymentRefund.cs                  # Refund records
-└── MasterTables.cs                   # Reference data (billing cycles, currencies, etc.)
+├── ProcessedWebhookEvent.cs          # Webhook idempotency tracking
+├── MasterBillingCycle.cs             # Billing cycle master data
+├── MasterCurrency.cs                 # Currency master data
+├── MasterPrivilegeType.cs            # Privilege type master data
+├── PaymentStatus.cs                  # Payment status master data
+├── RefundStatus.cs                   # Refund status master data
+└── User.cs                           # User entity (required for subscriptions)
 ```
 
 ### **2. Interfaces (Core Layer)**
@@ -78,7 +85,11 @@ The subscription management system includes:
 ├── IBillingRepository.cs
 ├── IBillingAdjustmentRepository.cs
 ├── ICategoryRepository.cs
-└── IStripeService.cs
+├── IProcessedWebhookEventRepository.cs
+├── IStripeService.cs
+├── IWebhookIdempotencyService.cs
+├── IStripeSynchronizationService.cs
+└── IStripeBillingService.cs
 ```
 
 ### **3. DTOs (Application Layer)**
@@ -104,13 +115,22 @@ The subscription management system includes:
 ├── CreateBillingAdjustmentDto.cs
 ├── BillingCycleProcessResultDto.cs
 ├── CategoryDto.cs
-└── AnalyticsDtos.cs
+├── AnalyticsDtos.cs
+├── SubscriptionFilterDto.cs          # Advanced subscription filtering
+├── SubscriptionPlanFilterDto.cs      # Advanced plan filtering
+├── BillingFilterDto.cs               # Advanced billing filtering
+├── BillingDtos.cs                    # Additional billing DTOs
+├── WebhookProcessingStats.cs         # Webhook statistics
+├── PaymentRequestDto.cs              # Payment processing
+├── RefundRequestDto.cs               # Refund processing
+└── JsonModel.cs                      # Standard API response wrapper
 ```
 
 ### **4. Services (Application Layer)**
 ```
 📁 SmartTelehealth.Application/Services/
 ├── SubscriptionService.cs                    # Core subscription logic
+├── SubscriptionPlanService.cs                # Subscription plan management
 ├── SubscriptionLifecycleService.cs          # Lifecycle management
 ├── SubscriptionAnalyticsService.cs          # Analytics and reporting
 ├── SubscriptionNotificationService.cs       # User notifications
@@ -119,42 +139,153 @@ The subscription management system includes:
 ├── BillingService.cs                        # Billing operations
 ├── PrivilegeService.cs                      # Privilege management
 ├── CategoryService.cs                       # Category management
-└── BackgroundServices/
-    └── SubscriptionBackgroundService.cs     # Background processing
+├── WebhookIdempotencyService.cs             # Webhook idempotency
+├── StripeSynchronizationService.cs          # Stripe data sync
+└── StripeBillingService.cs                  # Stripe billing operations
 ```
 
-### **5. Controllers (API Layer)**
+### **5. Controllers (API Layer) - UPDATED STRUCTURE**
+
+#### **5.1. Core Subscription Controllers**
 ```
 📁 SmartTelehealth.API/Controllers/
-├── SubscriptionsController.cs               # Main subscription endpoints
-├── SubscriptionManagementController.cs      # Admin management
-├── UserSubscriptionsController.cs           # User-specific endpoints
-├── SubscriptionPlansController.cs           # Plan management
-├── SubscriptionPlanPrivilegesController.cs  # Plan-privilege management
-├── StripeController.cs                      # Stripe operations (payments, products, prices)
-├── StripeWebhookController.cs               # Stripe webhook ingestion
-├── SubscriptionAnalyticsController.cs       # Analytics endpoints
-├── SubscriptionAutomationController.cs      # Automation endpoints
-├── AdminSubscriptionController.cs           # Admin operations
-├── PrivilegesController.cs                  # Privilege management
-├── BillingController.cs                     # Billing operations
-└── ProviderPrivilegesController.cs          # Provider privilege management
+├── SubscriptionsController.cs               # Main subscription endpoints (api/subscriptions)
+│   ├── GET /api/subscriptions              # Get all subscriptions with filtering
+│   ├── GET /api/subscriptions/{id}         # Get subscription by ID
+│   ├── GET /api/subscriptions/active       # Get active subscriptions
+│   ├── POST /api/subscriptions             # Create subscription
+│   ├── PUT /api/subscriptions/{id}         # Update subscription
+│   ├── DELETE /api/subscriptions/{id}      # Cancel subscription
+│   └── POST /api/subscriptions/{id}/pause  # Pause subscription
+│
+├── UserSubscriptionsController.cs           # User-specific endpoints (api/user/usersubscriptions)
+│   ├── GET /api/user/usersubscriptions/subscriptions  # Get user's subscriptions
+│   ├── GET /api/user/usersubscriptions/privilege-usage # Get privilege usage
+│   └── POST /api/user/usersubscriptions/purchase      # Purchase subscription
+│
+└── SubscriptionManagementController.cs      # Web admin management (webadmin/subscription-management)
+    ├── GET /webadmin/subscription-management/subscriptions  # Admin subscription management
+    ├── GET /webadmin/subscription-management/categories     # Admin category management
+    ├── GET /webadmin/subscription-management/analytics      # Admin analytics
+    └── POST /webadmin/subscription-management/bulk-operations # Bulk operations
+```
+
+#### **5.2. Subscription Plan Controllers**
+```
+├── SubscriptionPlansController.cs           # Plan management (api/subscriptionplans)
+│   ├── GET /api/subscriptionplans          # Get all plans (public)
+│   ├── GET /api/subscriptionplans/{id}     # Get plan by ID
+│   ├── GET /api/subscriptionplans/active   # Get active plans
+│   ├── POST /api/subscriptionplans         # Create plan (admin)
+│   ├── PUT /api/subscriptionplans/{id}     # Update plan (admin)
+│   └── DELETE /api/subscriptionplans/{id}  # Delete plan (admin)
+│
+└── SubscriptionPlanPrivilegesController.cs  # Plan-privilege management (api/subscriptionplanprivileges)
+    ├── GET /api/subscriptionplanprivileges/privileges        # Get all privileges
+    ├── GET /api/subscriptionplanprivileges/privileges/{id}   # Get privilege by ID
+    ├── POST /api/subscriptionplanprivileges/privileges      # Create privilege
+    ├── PUT /api/subscriptionplanprivileges/privileges/{id}  # Update privilege
+    ├── DELETE /api/subscriptionplanprivileges/privileges/{id} # Delete privilege
+    ├── GET /api/subscriptionplanprivileges/users/{userId}   # Get user privileges
+    └── PUT /api/subscriptionplanprivileges/time-based-limits # Update time-based limits
+```
+
+#### **5.3. Admin & Analytics Controllers**
+```
+├── AdminSubscriptionController.cs           # Admin operations (api/admin/adminsubscription)
+│   ├── GET /api/admin/adminsubscription    # Get all subscriptions (admin)
+│   ├── GET /api/admin/adminsubscription/analytics # Get analytics
+│   ├── GET /api/admin/adminsubscription/analytics/revenue # Get revenue analytics
+│   ├── GET /api/admin/adminsubscription/analytics/churn # Get churn analytics
+│   └── POST /api/admin/adminsubscription/bulk/* # Bulk operations
+│
+├── SubscriptionAnalyticsController.cs       # Analytics endpoints (api/subscriptionanalytics)
+│   ├── GET /api/subscriptionanalytics      # Get subscription analytics
+│   ├── GET /api/subscriptionanalytics/revenue # Get revenue analytics
+│   ├── GET /api/subscriptionanalytics/churn # Get churn analytics
+│   ├── GET /api/subscriptionanalytics/usage/{subscriptionId} # Get usage analytics
+│   └── GET /api/subscriptionanalytics/export # Export analytics data
+│
+└── SubscriptionAutomationController.cs      # Automation endpoints (api/subscriptionautomation)
+    ├── POST /api/subscriptionautomation/billing/trigger # Trigger billing
+    ├── POST /api/subscriptionautomation/renew/{subscriptionId} # Renew subscription
+    ├── POST /api/subscriptionautomation/change-plan/{subscriptionId} # Change plan
+    ├── POST /api/subscriptionautomation/state-transition/{subscriptionId} # State transition
+    ├── GET /api/subscriptionautomation/status # Get automation status
+    └── GET /api/subscriptionautomation/logs # Get automation logs
+```
+
+#### **5.4. Billing & Payment Controllers**
+```
+├── BillingController.cs                     # Billing operations (api/billing)
+│   ├── GET /api/billing                    # Get all billing records
+│   ├── GET /api/billing/{id}               # Get billing record by ID
+│   ├── GET /api/billing/user/{userId}      # Get user billing history
+│   ├── GET /api/billing/subscription/{subscriptionId} # Get subscription billing
+│   ├── POST /api/billing                   # Create billing record
+│   ├── POST /api/billing/{id}/process-payment # Process payment
+│   ├── POST /api/billing/{id}/process-refund # Process refund
+│   └── GET /api/billing/analytics          # Get billing analytics
+│
+└── CategoriesController.cs                  # Category management (api/categories)
+    ├── GET /api/categories                 # Get all categories
+    ├── GET /api/categories/{id}            # Get category by ID
+    ├── GET /api/categories/active          # Get active categories
+    ├── GET /api/categories/paged           # Get paginated categories
+    ├── POST /api/categories                # Create category
+    ├── PUT /api/categories/{id}            # Update category
+    └── DELETE /api/categories/{id}         # Delete category
+```
+
+#### **5.5. Stripe Integration Controllers**
+```
+├── StripeController.cs                      # Stripe operations (api/stripe)
+│   ├── POST /api/stripe/create-customer    # Create Stripe customer
+│   ├── POST /api/stripe/create-payment-method # Create payment method
+│   ├── POST /api/stripe/create-subscription # Create Stripe subscription
+│   └── GET /api/stripe/customer/{customerId} # Get customer details
+│
+├── StripeWebhookController.cs               # Stripe webhook ingestion (api/stripewebhook)
+│   └── POST /api/stripewebhook             # Process Stripe webhooks
+│
+├── AdminStripeSyncController.cs             # Stripe synchronization (api/admin/adminstripesync)
+│   ├── POST /api/admin/adminstripesync/sync-customers # Sync customers
+│   ├── POST /api/admin/adminstripesync/sync-subscriptions # Sync subscriptions
+│   └── GET /api/admin/adminstripesync/sync-status # Get sync status
+│
+└── StripeTestController.cs                  # Stripe testing (api/stripetest)
+    ├── POST /api/stripetest/create-test-customer # Create test customer
+    └── POST /api/stripetest/create-test-subscription # Create test subscription
 ```
 
 ### **6. Repositories (Infrastructure Layer)**
 ```
 📁 SmartTelehealth.Infrastructure/Repositories/
-├── SubscriptionRepository.cs
-├── SubscriptionPlanRepository.cs
-├── SubscriptionPlanPrivilegeRepository.cs
-├── SubscriptionPaymentRepository.cs
-├── SubscriptionStatusHistoryRepository.cs
-├── UserSubscriptionPrivilegeUsageRepository.cs
-├── PrivilegeUsageHistoryRepository.cs
-├── BillingRepository.cs
-├── BillingAdjustmentRepository.cs
-├── CategoryRepository.cs
-└── StripeService.cs
+├── SubscriptionRepository.cs                # Subscription data access
+├── SubscriptionPlanRepository.cs            # Subscription plan data access
+├── SubscriptionPlanPrivilegeRepository.cs   # Plan-privilege data access
+├── SubscriptionPaymentRepository.cs         # Payment data access
+├── SubscriptionStatusHistoryRepository.cs   # Status history data access
+├── UserSubscriptionPrivilegeUsageRepository.cs # Usage tracking data access
+├── PrivilegeUsageHistoryRepository.cs       # Usage history data access
+├── BillingRepository.cs                     # Billing data access
+├── BillingAdjustmentRepository.cs           # Billing adjustment data access
+├── CategoryRepository.cs                    # Category data access
+├── ProcessedWebhookEventRepository.cs       # Webhook idempotency data access
+├── UserRepository.cs                        # User data access
+└── RepositoryBase.cs                        # Base repository implementation
+```
+
+### **7. Infrastructure Services**
+```
+📁 SmartTelehealth.Infrastructure/Services/
+├── StripeService.cs                      # Stripe API integration
+├── WebhookIdempotencyService.cs          # Webhook processing
+├── StripeSynchronizationService.cs       # Stripe data sync
+├── StripeBillingService.cs               # Stripe billing operations
+├── NotificationService.cs                # Email notifications
+├── PdfService.cs                         # PDF generation for invoices
+└── AutomatedBillingBackgroundService.cs  # Background billing processing
 ```
 
 ---
@@ -348,6 +479,7 @@ public void ConfigureServices(IServiceCollection services)
 {
     // Add subscription-related services
     services.AddScoped<ISubscriptionService, SubscriptionService>();
+    services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
     services.AddScoped<ISubscriptionLifecycleService, SubscriptionLifecycleService>();
     services.AddScoped<ISubscriptionAnalyticsService, SubscriptionAnalyticsService>();
     services.AddScoped<ISubscriptionNotificationService, SubscriptionNotificationService>();
@@ -356,7 +488,6 @@ public void ConfigureServices(IServiceCollection services)
     services.AddScoped<IBillingService, BillingService>();
     services.AddScoped<IPrivilegeService, PrivilegeService>();
     services.AddScoped<ICategoryService, CategoryService>();
-    services.AddScoped<IProviderFeeService, ProviderFeeService>();
     
     // Add repositories
     services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
@@ -369,7 +500,6 @@ public void ConfigureServices(IServiceCollection services)
     services.AddScoped<IBillingRepository, BillingRepository>();
     services.AddScoped<IBillingAdjustmentRepository, BillingAdjustmentRepository>();
     services.AddScoped<ICategoryRepository, CategoryRepository>();
-    services.AddScoped<IProviderFeeRepository, ProviderFeeRepository>();
     
     // Add Stripe service
     services.AddScoped<IStripeService, StripeService>();
@@ -378,7 +508,7 @@ public void ConfigureServices(IServiceCollection services)
     services.AddAutoMapper(typeof(MappingProfile));
     
     // Add background services
-    services.AddHostedService<SubscriptionBackgroundService>();
+    services.AddHostedService<AutomatedBillingBackgroundService>();
 
     // Add MVC filters/utilities
     services.AddControllers(options =>
@@ -429,7 +559,7 @@ VALUES
 # From backend folder
 ./RunDataUpdater.ps1
 ```
-- Option B: seed minimal categories manually if your project doesn’t have them yet.
+- Option B: seed minimal categories manually if your project doesn't have them yet.
 ```sql
 INSERT INTO Categories (Id, Name, Description, BasePrice, ConsultationFee, OneTimeConsultationFee, IsActive, RequiresHealthAssessment, AllowsMedicationDelivery, AllowsFollowUpMessaging, CreatedDate)
 VALUES
@@ -440,6 +570,49 @@ VALUES
 
 ### **Step 6.4: Seed Privileges Data**
 Execute `backend/seed-privileges.sql` after inserting MasterPrivilegeTypes to populate commonly used privileges.
+
+### **Step 6.5: Seed Master Data for Subscription Management**
+```sql
+-- Insert Master Billing Cycles
+INSERT INTO MasterBillingCycles (Id, Name, Description, DurationInDays, IsActive, SortOrder, CreatedDate, UpdatedDate)
+VALUES 
+    (NEWID(), 'Monthly', 'Monthly billing cycle', 30, 1, 1, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Quarterly', 'Quarterly billing cycle', 90, 1, 2, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Annual', 'Annual billing cycle', 365, 1, 3, GETUTCDATE(), GETUTCDATE());
+
+-- Insert Master Currencies
+INSERT INTO MasterCurrencies (Id, Code, Name, Symbol, IsActive, SortOrder, CreatedDate, UpdatedDate)
+VALUES 
+    (NEWID(), 'USD', 'US Dollar', '$', 1, 1, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'EUR', 'Euro', '€', 1, 2, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'GBP', 'British Pound', '£', 1, 3, GETUTCDATE(), GETUTCDATE());
+
+-- Insert Master Privilege Types
+INSERT INTO MasterPrivilegeTypes (Id, Name, Description, IsActive, SortOrder, CreatedDate, UpdatedDate)
+VALUES 
+    (NEWID(), 'Consultation', 'Medical consultation privilege', 1, 1, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Messaging', 'Messaging privilege', 1, 2, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Video Call', 'Video call privilege', 1, 3, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Medication', 'Medication delivery privilege', 1, 4, GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Document', 'Document access privilege', 1, 5, GETUTCDATE(), GETUTCDATE());
+
+-- Insert Payment Statuses
+INSERT INTO PaymentStatuses (Id, Name, Description, IsActive, SortOrder, Color, CreatedDate, UpdatedDate)
+VALUES 
+    (NEWID(), 'Pending', 'Payment is pending', 1, 1, '#FFA500', GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Paid', 'Payment completed successfully', 1, 2, '#008000', GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Failed', 'Payment failed', 1, 3, '#FF0000', GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Cancelled', 'Payment was cancelled', 1, 4, '#808080', GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Refunded', 'Payment was refunded', 1, 5, '#FFC0CB', GETUTCDATE(), GETUTCDATE());
+
+-- Insert Refund Statuses
+INSERT INTO RefundStatuses (Id, Name, Description, IsActive, SortOrder, Color, CreatedDate, UpdatedDate)
+VALUES 
+    (NEWID(), 'Pending', 'Refund is pending', 1, 1, '#FFA500', GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Processed', 'Refund processed successfully', 1, 2, '#008000', GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Failed', 'Refund failed', 1, 3, '#FF0000', GETUTCDATE(), GETUTCDATE()),
+    (NEWID(), 'Cancelled', 'Refund was cancelled', 1, 4, '#808080', GETUTCDATE(), GETUTCDATE());
+```
 
 ---
 
@@ -465,11 +638,35 @@ Execute `backend/seed-privileges.sql` after inserting MasterPrivilegeTypes to po
 }
 ```
 
-### **Step 7.3: Webhook Endpoint**
+### **Step 7.3: Webhook Processing Configuration**
+```csharp
+// Add webhook processing services
+services.AddScoped<IWebhookIdempotencyService, WebhookIdempotencyService>();
+services.AddScoped<IProcessedWebhookEventRepository, ProcessedWebhookEventRepository>();
+services.AddScoped<IStripeSynchronizationService, StripeSynchronizationService>();
+services.AddScoped<IStripeBillingService, StripeBillingService>();
+
+// Add webhook processing background service
+services.AddHostedService<AutomatedBillingBackgroundService>();
+```
+
+### **Step 7.4: Webhook Endpoint Configuration**
 - Ensure your API exposes the webhook endpoint (controller included above) and your Stripe dashboard points to it, e.g.: `/api/StripeWebhook`.
 - Set `Stripe:WebhookSecret` in environment configuration for signature verification.
+- Configure webhook retry and idempotency settings:
 
-### **Step 7.2: Add Required Middleware**
+```json
+{
+  "StripeSettings": {
+    "WebhookRetryAttempts": 3,
+    "WebhookRetryDelaySeconds": 5,
+    "WebhookIdempotencyEnabled": true,
+    "WebhookProcessingTimeoutMinutes": 10
+  }
+}
+```
+
+### **Step 7.5: Add Required Middleware**
 ```csharp
 // In Program.cs
 public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -512,6 +709,19 @@ dotnet test YourHealthcareProject.Tests
 - Charge → verify `SubscriptionPayment` and `BillingRecord` updated.
 - Trigger Stripe webhook events (invoice.paid, invoice.payment_failed) → verify webhook processing updates local state idempotently.
 
+### **Step 8.5: Webhook Processing Validation**
+- Test webhook idempotency by sending duplicate events
+- Verify webhook retry logic for failed processing
+- Test webhook signature validation
+- Validate webhook event processing statistics
+- Test webhook processing timeout handling
+
+### **Step 8.6: Advanced Filtering Validation**
+- Test subscription filtering with complex criteria
+- Validate plan filtering with multiple parameters
+- Test billing record filtering and pagination
+- Verify sorting and search functionality
+
 ---
 
 ## ✅ **Post-Migration Checklist**
@@ -523,10 +733,17 @@ dotnet test YourHealthcareProject.Tests
 - [ ] Privilege management works
 - [ ] Category management works
 - [ ] Stripe integration works
+- [ ] Webhook processing works
+- [ ] Webhook idempotency works
+- [ ] Stripe synchronization works
 - [ ] Background services are running
 
 ### **Step 9.2: Verify API Endpoints**
 - [ ] All subscription endpoints respond correctly
+- [ ] All billing endpoints respond correctly
+- [ ] All plan management endpoints respond correctly
+- [ ] All webhook endpoints respond correctly
+- [ ] Advanced filtering endpoints work correctly
 - [ ] Authentication and authorization work
 - [ ] Error handling works properly
 - [ ] Validation works correctly
@@ -535,12 +752,18 @@ dotnet test YourHealthcareProject.Tests
 - [ ] All tables are created correctly
 - [ ] Relationships are working
 - [ ] Master data is seeded
+- [ ] Webhook processing table is created
+- [ ] All foreign key relationships work
 - [ ] Migrations run successfully
 
 ### **Step 9.4: Verify External Integrations**
 - [ ] Stripe webhooks are working
+- [ ] Stripe webhook idempotency is working
+- [ ] Stripe synchronization is working
 - [ ] Payment processing works
+- [ ] Refund processing works
 - [ ] Email notifications work (if implemented)
+- [ ] PDF invoice generation works
 
 ---
 
@@ -580,6 +803,31 @@ if (string.IsNullOrEmpty(stripeConfig["SecretKey"]))
 }
 ```
 
+#### **Issue 5: Webhook Processing Issues**
+```csharp
+// Solution: Check webhook processing configuration
+var webhookConfig = configuration.GetSection("StripeSettings");
+if (!webhookConfig.GetValue<bool>("WebhookIdempotencyEnabled"))
+{
+    _logger.LogWarning("Webhook idempotency is disabled - duplicate events may be processed");
+}
+```
+
+#### **Issue 6: Filtering and Pagination Issues**
+```csharp
+// Solution: Verify filter DTOs are properly configured
+if (filter.Page < 1) filter.Page = 1;
+if (filter.PageSize < 1 || filter.PageSize > 200) filter.PageSize = 50;
+```
+
+#### **Issue 7: Master Data Missing**
+```sql
+-- Solution: Check if master data is seeded
+SELECT COUNT(*) FROM MasterBillingCycles;
+SELECT COUNT(*) FROM MasterCurrencies;
+SELECT COUNT(*) FROM MasterPrivilegeTypes;
+```
+
 ---
 
 ## 📚 **Additional Resources**
@@ -596,6 +844,11 @@ if (string.IsNullOrEmpty(stripeConfig["SecretKey"]))
 - `SmartTelehealth.API/GlobalExceptionMiddleware.cs` – uniform error responses
 - `SmartTelehealth.API/Middleware/InputValidationMiddleware.cs` – request validation
 - `SmartTelehealth.API/Middleware/RateLimitingMiddleware.cs` – request throttling
+- `SmartTelehealth.Core/DTOs/TokenModel.cs` – user authentication context
+- `SmartTelehealth.Core/DTOs/WebhookProcessingStats.cs` – webhook statistics
+- `SmartTelehealth.Application/DTOs/SubscriptionFilterDto.cs` – advanced filtering
+- `SmartTelehealth.Application/DTOs/SubscriptionPlanFilterDto.cs` – plan filtering
+- `SmartTelehealth.Application/DTOs/BillingFilterDto.cs` – billing filtering
 
 ### **Important Notes**
 1. **Preserve Audit Fields**: Ensure all entities maintain audit fields (CreatedBy, UpdatedBy, etc.)
@@ -603,6 +856,11 @@ if (string.IsNullOrEmpty(stripeConfig["SecretKey"]))
 3. **Test Thoroughly**: Run comprehensive tests before going live
 4. **Monitor Logs**: Check logs for any issues during migration
 5. **Backup Data**: Always backup existing data before migration
+6. **Webhook Security**: Ensure webhook signature validation is properly configured
+7. **Idempotency**: Test webhook idempotency to prevent duplicate processing
+8. **Master Data**: Ensure all master data is properly seeded before testing
+9. **Filtering**: Test advanced filtering capabilities thoroughly
+10. **Stripe Sync**: Verify Stripe synchronization is working correctly
 
 ---
 
@@ -613,6 +871,11 @@ The migration is successful when:
 - ✅ Database schema is correctly migrated
 - ✅ All API endpoints respond correctly
 - ✅ Stripe integration works properly
+- ✅ Webhook processing works correctly
+- ✅ Webhook idempotency is functioning
+- ✅ Stripe synchronization is working
+- ✅ Advanced filtering works correctly
+- ✅ Master data is properly seeded
 - ✅ Background services are running
 - ✅ All tests pass
 - ✅ No critical errors in logs
@@ -621,6 +884,107 @@ The migration is successful when:
 
 **📝 Note**: This guide covers the complete subscription management functionality. For additional features like chat, video calls, or other non-subscription features, refer to their respective extraction guides.
 
-**🔄 Version**: 1.0  
+**🔄 Version**: 3.0  
 **📅 Last Updated**: [Current Date]  
 **👨‍💻 Maintained By**: Development Team
+
+---
+
+## 🔄 **Webhook Processing Deep Dive**
+
+### **Webhook Processing Architecture**
+The subscription management system includes comprehensive webhook processing for Stripe integration:
+
+#### **1. Webhook Idempotency**
+- `ProcessedWebhookEvent` entity tracks processed webhooks
+- Prevents duplicate processing of Stripe events
+- Supports retry logic for failed webhooks
+- Maintains processing statistics
+
+#### **2. Webhook Event Types Supported**
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_succeeded`
+- `invoice.payment_failed`
+- `payment_intent.succeeded`
+- `payment_intent.payment_failed`
+- `customer.created`
+- `customer.updated`
+- `customer.deleted`
+
+#### **3. Webhook Processing Flow**
+1. **Receive Webhook** → Validate signature
+2. **Check Idempotency** → Prevent duplicate processing
+3. **Process Event** → Update local database
+4. **Update Statistics** → Track processing metrics
+5. **Handle Errors** → Retry logic and error logging
+
+#### **4. Webhook Configuration**
+```json
+{
+  "StripeSettings": {
+    "WebhookSecret": "whsec_...",
+    "WebhookRetryAttempts": 3,
+    "WebhookRetryDelaySeconds": 5,
+    "WebhookIdempotencyEnabled": true,
+    "WebhookProcessingTimeoutMinutes": 10
+  }
+}
+```
+
+#### **5. Webhook Testing**
+- Use Stripe CLI for local webhook testing
+- Test webhook signature validation
+- Verify idempotency with duplicate events
+- Test error handling and retry logic
+- Validate webhook processing statistics
+
+---
+
+## 🎯 **Complete Feature Matrix**
+
+### **Core Subscription Management**
+- ✅ Subscription lifecycle management
+- ✅ Subscription plan management
+- ✅ Billing and payment processing
+- ✅ Privilege management and usage tracking
+- ✅ Category management
+- ✅ Stripe integration
+- ✅ Webhook processing with idempotency
+- ✅ Advanced filtering and pagination
+- ✅ Analytics and reporting
+- ✅ Background processing
+- ✅ Email notifications
+- ✅ PDF invoice generation
+- ✅ Refund processing
+- ✅ Master data management
+- ✅ Audit logging
+- ✅ Error handling and retry logic
+
+### **Controller Consolidation Summary**
+- **SubscriptionsController**: Main subscription endpoints (api/subscriptions)
+- **UserSubscriptionsController**: User-specific endpoints (api/user/usersubscriptions)
+- **SubscriptionManagementController**: Web admin management (webadmin/subscription-management)
+- **SubscriptionPlansController**: Plan management (api/subscriptionplans)
+- **SubscriptionPlanPrivilegesController**: Plan-privilege management (api/subscriptionplanprivileges)
+- **AdminSubscriptionController**: Admin operations (api/admin/adminsubscription)
+- **SubscriptionAnalyticsController**: Analytics endpoints (api/subscriptionanalytics)
+- **SubscriptionAutomationController**: Automation endpoints (api/subscriptionautomation)
+- **BillingController**: Billing operations (api/billing)
+- **CategoriesController**: Category management (api/categories)
+- **StripeController**: Stripe operations (api/stripe)
+- **StripeWebhookController**: Stripe webhook ingestion (api/stripewebhook)
+- **AdminStripeSyncController**: Stripe synchronization (api/admin/adminstripesync)
+- **StripeTestController**: Stripe testing (api/stripetest)
+
+### **Advanced Filtering & Pagination Features**
+- ✅ Database-level filtering for all GET endpoints
+- ✅ Comprehensive pagination with metadata
+- ✅ Advanced sorting capabilities
+- ✅ Search functionality across all entities
+- ✅ Date range filtering
+- ✅ Status-based filtering
+- ✅ Category-based filtering
+- ✅ User-based filtering
+- ✅ Performance optimized queries

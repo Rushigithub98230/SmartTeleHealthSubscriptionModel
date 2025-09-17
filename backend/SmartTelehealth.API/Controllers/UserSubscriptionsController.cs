@@ -57,27 +57,48 @@ public class UserSubscriptionsController : BaseController
     private int GetCurrentUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     /// <summary>
-    /// Retrieves all subscriptions for the current authenticated user.
+    /// Retrieves all subscriptions for the current authenticated user with comprehensive filtering and pagination.
     /// This endpoint provides a comprehensive list of the user's active and inactive subscriptions
-    /// including subscription details, plan information, and current status.
+    /// including subscription details, plan information, and current status with advanced filtering capabilities.
     /// </summary>
-    /// <returns>JsonModel containing the user's subscriptions</returns>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 10)</param>
+    /// <param name="searchTerm">Search term for filtering subscriptions</param>
+    /// <param name="status">Filter subscriptions by status array</param>
+    /// <param name="planId">Filter subscriptions by plan ID array</param>
+    /// <param name="startDate">Start date for date range filtering</param>
+    /// <param name="endDate">End date for date range filtering</param>
+    /// <param name="sortBy">Field to sort by</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
+    /// <returns>JsonModel containing paginated user subscriptions with filtering applied</returns>
     /// <remarks>
     /// This endpoint:
     /// - Returns all subscriptions for the authenticated user
-    /// - Includes subscription details, plan information, and status
+    /// - Supports pagination for large datasets
+    /// - Includes advanced filtering by search term, status, plan, and date range
+    /// - Provides sorting capabilities for data organization
     /// - Shows subscription history and current active subscriptions
     /// - Access restricted to authenticated users
     /// - Used for user subscription overview and management
     /// - Includes comprehensive subscription information and metadata
     /// - Provides secure access to user subscription data
     /// - Handles authentication validation and error responses
+    /// - Supports advanced filtering for subscription analysis
     /// </remarks>
     [HttpGet("subscriptions")]
-    public async Task<JsonModel> GetUserSubscriptions()
+    public async Task<JsonModel> GetUserSubscriptions(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string[]? status = null,
+        [FromQuery] string[]? planId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
     {
         var userId = GetCurrentUserId();
-        return await _subscriptionService.GetUserSubscriptionsAsync(userId, GetToken(HttpContext));
+        return await _subscriptionService.GetUserSubscriptionsWithFilteringAsync(userId, page, pageSize, searchTerm, status, planId, startDate, endDate, sortBy, sortOrder, GetToken(HttpContext));
     }
 
     /// <summary>

@@ -656,3 +656,25 @@ a:hover {
     font-size: 24px;
   }
 }
+
+
+
+@media (min-width: 769px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-container {
+    padding: 12px;
+  }
+  
+  .page-title {
+    font-size: 24px;
+  }
+  
+  .stats-card .mat-card-content {
+    font-size: 24px;
+  }
+}

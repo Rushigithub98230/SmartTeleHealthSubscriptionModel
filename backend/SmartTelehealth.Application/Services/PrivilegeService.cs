@@ -426,53 +426,29 @@ public class PrivilegeService : IPrivilegeService
     {
         try
         {
-            // Retrieve all privileges from repository
-            var privileges = await _privilegeRepo.GetAllAsync();
-            
-            // Apply search filter (name and description)
-            if (!string.IsNullOrEmpty(search))
-            {
-                privileges = privileges.Where(p => p.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                                                 p.Description?.Contains(search, StringComparison.OrdinalIgnoreCase) == true);
-            }
+            _logger.LogInformation("Retrieving privileges with database-level filtering - Page: {Page}, PageSize: {PageSize}, Search: {Search}, Category: {Category}, Status: {Status}", 
+                page, pageSize, search, category, status);
 
-            // Apply category filter (currently not implemented)
-            if (!string.IsNullOrEmpty(category))
-            {
-                // Filter by category logic would go here
-            }
-
-            // Apply status filter (active/inactive)
-            if (!string.IsNullOrEmpty(status))
-            {
-                if (bool.TryParse(status, out var isActive))
-                {
-                    privileges = privileges.Where(p => p.IsActive == isActive);
-                }
-            }
-
-            // Apply pagination
-            var totalCount = privileges.Count();
-            var pagedPrivileges = privileges
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
+            // Use database-level filtering, pagination, and sorting
+            var (privileges, totalCount) = await _privilegeRepo.GetPrivilegesWithFilteringAsync(page, pageSize, search, category, status);
 
             var paginationMeta = new Meta
             {
                 TotalRecords = totalCount,
                 CurrentPage = page,
                 PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                HasNextPage = page < (int)Math.Ceiling((double)totalCount / pageSize),
+                HasPreviousPage = page > 1
             };
             
             _logger.LogInformation("Privileges retrieved by user {UserId}: {PrivilegeCount} privileges (page {Page} of {TotalPages})", 
-                tokenModel.UserID, pagedPrivileges.Count, page, paginationMeta.TotalPages);
+                tokenModel.UserID, privileges.Count(), page, paginationMeta.TotalPages);
             return new JsonModel 
             { 
-                data = pagedPrivileges, 
+                data = privileges, 
                 meta = paginationMeta,
-                Message = "Privileges retrieved successfully", 
+                Message = "Privileges retrieved successfully with database-level filtering", 
                 StatusCode = 200 
             };
         }
@@ -844,23 +820,28 @@ public class PrivilegeService : IPrivilegeService
     {
         try
         {
-            // This would typically query the PrivilegeUsageHistory table
-            // For now, return a placeholder response
-            var usageHistory = new[]
+            _logger.LogInformation("Retrieving privilege usage history with database-level filtering - Page: {Page}, PageSize: {PageSize}, PrivilegeId: {PrivilegeId}, UserId: {UserId}, SubscriptionId: {SubscriptionId}", 
+                page, pageSize, privilegeId, userId, subscriptionId);
+
+            // Use database-level filtering, pagination, and sorting
+            var (history, totalCount) = await _usageHistoryRepo.GetUsageHistoryWithFilteringAsync(
+                page, pageSize, privilegeId, userId, subscriptionId, startDate, endDate, sortBy, sortOrder);
+
+            var paginationMeta = new Meta
             {
-                new { 
-                    PrivilegeName = "Teleconsultation",
-                    UserName = "John Doe",
-                    UsedValue = 1,
-                    UsedAt = DateTime.UtcNow.AddDays(-1),
-                    UsageDate = DateTime.UtcNow.AddDays(-1).Date
-                }
+                TotalRecords = totalCount,
+                CurrentPage = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                HasNextPage = page < (int)Math.Ceiling((double)totalCount / pageSize),
+                HasPreviousPage = page > 1
             };
 
             return new JsonModel
             {
-                data = usageHistory,
-                Message = "Usage history retrieved successfully",
+                data = history,
+                meta = paginationMeta,
+                Message = "Usage history retrieved successfully with database-level filtering",
                 StatusCode = 200
             };
         }
@@ -881,20 +862,17 @@ public class PrivilegeService : IPrivilegeService
     {
         try
         {
-            // This would typically aggregate data from PrivilegeUsageHistory table
-            // For now, return a placeholder response
-            var summary = new
-            {
-                TotalUsage = 150,
-                AverageDailyUsage = 5,
-                MostUsedPrivilege = "Teleconsultation",
-                UsageTrend = "Increasing"
-            };
+            _logger.LogInformation("Retrieving privilege usage summary with database-level aggregation - PrivilegeId: {PrivilegeId}, UserId: {UserId}, SubscriptionId: {SubscriptionId}", 
+                privilegeId, userId, subscriptionId);
+
+            // Use database-level aggregation
+            var summary = await _usageHistoryRepo.GetUsageSummaryAsync(
+                privilegeId, userId, subscriptionId, startDate, endDate);
 
             return new JsonModel
             {
                 data = summary,
-                Message = "Usage summary retrieved successfully",
+                Message = "Usage summary retrieved successfully with database-level aggregation",
                 StatusCode = 200
             };
         }

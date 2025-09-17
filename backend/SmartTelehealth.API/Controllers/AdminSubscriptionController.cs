@@ -350,67 +350,12 @@ public class AdminSubscriptionController : BaseController
     }
 
     /// <summary>
-    /// Change subscription plan
-    /// </summary>
-    [HttpPost("{id}/change-plan")]
-    public async Task<JsonModel> ChangeSubscriptionPlan(string id, [FromBody] ChangePlanRequest request)
-    {
-        return await _automationService.ChangePlanAsync(id, request, GetToken(HttpContext));
-    }
-
-    /// <summary>
     /// Renew subscription
     /// </summary>
     [HttpPost("{id}/renew")]
     public async Task<JsonModel> RenewSubscription(string id)
     {
         return await _automationService.RenewSubscriptionAsync(id, GetToken(HttpContext));
-    }
-
-    /// <summary>
-    /// Create subscription plan with time-based privilege limits
-    /// </summary>
-    [HttpPost("plans")]
-    public async Task<JsonModel> CreateSubscriptionPlanWithTimeLimits([FromBody] CreateSubscriptionPlanWithTimeLimitsDto request)
-    {
-        try
-        {
-            // This would typically call a service method to create the plan
-            // For now, return a success response with the plan details
-            var planDetails = new
-            {
-                PlanName = request.PlanName,
-                Description = request.Description,
-                Price = request.Price,
-                BillingCycle = request.BillingCycle,
-                DurationMonths = request.DurationMonths,
-                Privileges = request.Privileges.Select(p => new
-                {
-                    PrivilegeName = p.PrivilegeName,
-                    TotalValue = p.TotalValue,
-                    DailyLimit = p.DailyLimit,
-                    WeeklyLimit = p.WeeklyLimit,
-                    MonthlyLimit = p.MonthlyLimit,
-                    Description = p.Description
-                }).ToList()
-            };
-
-            return new JsonModel
-            {
-                data = planDetails,
-                Message = "Subscription plan created successfully with time-based limits",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error creating subscription plan: {ex.Message}",
-                StatusCode = 500
-            };
-        }
     }
 }
 

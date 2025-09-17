@@ -127,4 +127,88 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
             .OrderByDescending(h => h.ChangedAt)
             .FirstOrDefaultAsync();
     }
+
+    /// <summary>
+    /// Retrieves subscription status history with database-level filtering, pagination, and sorting
+    /// </summary>
+    public async Task<(IEnumerable<SubscriptionStatusHistory> History, int TotalCount)> GetHistoryWithFilteringAsync(
+        int page, int pageSize, Guid? subscriptionId = null, string? status = null, 
+        string? search = null, DateTime? startDate = null, DateTime? endDate = null, 
+        string? sortBy = "ChangedAt", string? sortOrder = "desc")
+    {
+        var query = _context.SubscriptionStatusHistories
+            .Include(h => h.Subscription)
+                .ThenInclude(s => s.User)
+            .Where(h => !h.IsDeleted)
+            .AsQueryable();
+
+        // Apply filters
+        if (subscriptionId.HasValue)
+        {
+            query = query.Where(h => h.SubscriptionId == subscriptionId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(h => h.ToStatus == status);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.ToLower();
+            query = query.Where(h =>
+                h.FromStatus.ToLower().Contains(term) ||
+                h.ToStatus.ToLower().Contains(term) ||
+                h.Reason.ToLower().Contains(term) ||
+                h.Subscription.User.Email.ToLower().Contains(term));
+        }
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(h => h.ChangedAt >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            query = query.Where(h => h.ChangedAt <= endDate.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        // Apply pagination
+        var skip = (page - 1) * pageSize;
+        var history = await query
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (history, totalCount);
+    }
+
+    private static IQueryable<SubscriptionStatusHistory> ApplySorting(IQueryable<SubscriptionStatusHistory> query, string sortBy, string sortOrder)
+    {
+        return sortBy.ToLower() switch
+        {
+            "fromstatus" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(h => h.FromStatus)
+                : query.OrderBy(h => h.FromStatus),
+            "tostatus" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(h => h.ToStatus)
+                : query.OrderBy(h => h.ToStatus),
+            "changedat" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(h => h.ChangedAt)
+                : query.OrderBy(h => h.ChangedAt),
+            "createddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(h => h.CreatedDate)
+                : query.OrderBy(h => h.CreatedDate),
+            "updateddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(h => h.UpdatedDate)
+                : query.OrderBy(h => h.UpdatedDate),
+            _ => query.OrderByDescending(h => h.ChangedAt)
+        };
+    }
 } 

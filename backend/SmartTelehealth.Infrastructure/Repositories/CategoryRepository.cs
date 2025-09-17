@@ -123,4 +123,72 @@ public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
             .OrderBy(c => c.DisplayOrder)
             .ToListAsync();
     }
+
+    /// <summary>
+    /// Retrieves categories with database-level filtering, pagination, and sorting
+    /// </summary>
+    public async Task<(IEnumerable<Category> Categories, int TotalCount)> GetCategoriesWithFilteringAsync(
+        int page, int pageSize, string? search, bool? isActive, string? sortBy = "DisplayOrder", string? sortOrder = "asc")
+    {
+        var query = _context.Categories
+            .Include(c => c.SubscriptionPlans.Where(sp => sp.IsActive))
+            .Where(c => !c.IsDeleted)
+            .AsQueryable();
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.ToLower();
+            query = query.Where(c =>
+                c.Name.ToLower().Contains(term) ||
+                (c.Description != null && c.Description.ToLower().Contains(term)));
+        }
+
+        // Apply active filter
+        if (isActive.HasValue)
+        {
+            query = query.Where(c => c.IsActive == isActive.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        // Apply pagination
+        var skip = (page - 1) * pageSize;
+        var categories = await query
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (categories, totalCount);
+    }
+
+    private static IQueryable<Category> ApplySorting(IQueryable<Category> query, string sortBy, string sortOrder)
+    {
+        return sortBy.ToLower() switch
+        {
+            "name" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(c => c.Name)
+                : query.OrderBy(c => c.Name),
+            "description" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(c => c.Description)
+                : query.OrderBy(c => c.Description),
+            "displayorder" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(c => c.DisplayOrder)
+                : query.OrderBy(c => c.DisplayOrder),
+            "createddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(c => c.CreatedDate)
+                : query.OrderBy(c => c.CreatedDate),
+            "updateddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(c => c.UpdatedDate)
+                : query.OrderBy(c => c.UpdatedDate),
+            "isactive" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(c => c.IsActive)
+                : query.OrderBy(c => c.IsActive),
+            _ => query.OrderBy(c => c.DisplayOrder)
+        };
+    }
 } 

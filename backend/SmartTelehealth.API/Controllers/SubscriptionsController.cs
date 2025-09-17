@@ -297,23 +297,45 @@ public class SubscriptionsController : BaseController
     }
 
     /// <summary>
-    /// Retrieves all currently active subscriptions.
-    /// This endpoint returns a list of all subscriptions that are currently in "Active"
-    /// status, providing an overview of active subscriptions in the system.
+    /// Retrieves all currently active subscriptions with comprehensive filtering and pagination.
+    /// This endpoint returns a list of all subscriptions that are currently in "Active" or "TrialActive"
+    /// status with advanced filtering capabilities including search, plan, user, date range, and sorting options.
     /// </summary>
-    /// <returns>JsonModel containing the list of active subscriptions</returns>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 10)</param>
+    /// <param name="searchTerm">Search term for filtering subscriptions</param>
+    /// <param name="planId">Filter subscriptions by plan ID array</param>
+    /// <param name="userId">Filter subscriptions by user ID array</param>
+    /// <param name="startDate">Start date for date range filtering</param>
+    /// <param name="endDate">End date for date range filtering</param>
+    /// <param name="sortBy">Field to sort by</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
+    /// <returns>JsonModel containing paginated active subscriptions with filtering applied</returns>
     /// <remarks>
     /// This endpoint:
-    /// - Returns all subscriptions with "Active" status
+    /// - Returns all subscriptions with "Active" or "TrialActive" status
+    /// - Supports pagination for large datasets
+    /// - Includes advanced filtering by search term, plan, user, and date range
+    /// - Provides sorting capabilities for data organization
+    /// - Access restricted to admins only
     /// - Includes subscription details and user information
     /// - Used for system monitoring and analytics
-    /// - Access restricted to admins only
     /// - Provides real-time view of active subscriptions
+    /// - Supports advanced filtering for subscription analysis
     /// </remarks>
     [HttpGet("active")]
-    public async Task<JsonModel> GetActiveSubscriptions()
+    public async Task<JsonModel> GetActiveSubscriptions(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string[]? planId = null,
+        [FromQuery] string[]? userId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
     {
-        return await _subscriptionService.GetActiveSubscriptionsAsync(GetToken(HttpContext));
+        return await _subscriptionService.GetActiveSubscriptionsAsync(page, pageSize, searchTerm, planId, userId, startDate, endDate, sortBy, sortOrder, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -385,24 +407,47 @@ public class SubscriptionsController : BaseController
     }
 
     /// <summary>
-    /// Retrieves all subscriptions in the system (admin only).
-    /// This endpoint returns a comprehensive list of all subscriptions across all users,
-    /// providing system-wide subscription management capabilities.
+    /// Retrieves all subscriptions in the system with comprehensive filtering and pagination (admin only).
+    /// This endpoint returns a comprehensive list of all subscriptions across all users
+    /// with advanced filtering capabilities including status, plan, user, date range, and sorting options.
     /// </summary>
-    /// <returns>JsonModel containing all subscriptions in the system</returns>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 10)</param>
+    /// <param name="searchTerm">Search term for filtering subscriptions</param>
+    /// <param name="status">Filter subscriptions by status array</param>
+    /// <param name="planId">Filter subscriptions by plan ID array</param>
+    /// <param name="userId">Filter subscriptions by user ID array</param>
+    /// <param name="startDate">Start date for date range filtering</param>
+    /// <param name="endDate">End date for date range filtering</param>
+    /// <param name="sortBy">Field to sort by</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
+    /// <returns>JsonModel containing paginated subscriptions with filtering applied</returns>
     /// <remarks>
     /// This endpoint:
-    /// - Returns all subscriptions regardless of status
-    /// - Includes user and plan information
-    /// - Provides system-wide subscription overview
+    /// - Returns all subscriptions with comprehensive filtering options
+    /// - Supports pagination for large datasets
+    /// - Includes advanced filtering by status, plan, user, and date range
+    /// - Provides sorting capabilities for data organization
     /// - Access restricted to admins only
     /// - Used for administrative management and reporting
-    /// - Supports pagination for large datasets
+    /// - Includes user and plan information
+    /// - Provides system-wide subscription overview
+    /// - Supports advanced filtering for subscription analysis
     /// </remarks>
     [HttpGet]
-    public async Task<JsonModel> GetAllSubscriptions()
+    public async Task<JsonModel> GetAllSubscriptions(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string[]? status = null,
+        [FromQuery] string[]? planId = null,
+        [FromQuery] string[]? userId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
     {
-        return await _subscriptionService.GetAllSubscriptionsAsync(GetToken(HttpContext));
+        return await _subscriptionService.GetAllSubscriptionsAsync(page, pageSize, searchTerm, status, planId, userId, startDate, endDate, sortBy, sortOrder, GetToken(HttpContext));
     }
 
     /// <summary>

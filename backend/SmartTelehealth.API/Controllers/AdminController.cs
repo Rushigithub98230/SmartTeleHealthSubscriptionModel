@@ -110,7 +110,7 @@ public class AdminController : BaseController
     [HttpGet("subscriptions")]
     public async Task<JsonModel> GetAllSubscriptions()
     {
-        return await _subscriptionService.GetActiveSubscriptionsAsync(GetToken(HttpContext));
+        return await _subscriptionService.GetActiveSubscriptionsAsync(1, int.MaxValue, null, null, null, null, null, null, null, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -178,13 +178,13 @@ public class AdminController : BaseController
     // Helper methods for dashboard
     private async Task<int> GetTotalSubscriptions()
     {
-        var response = await _subscriptionService.GetActiveSubscriptionsAsync(GetToken(HttpContext));
+        var response = await _subscriptionService.GetActiveSubscriptionsAsync(1, int.MaxValue, null, null, null, null, null, null, null, GetToken(HttpContext));
         return ((IEnumerable<SubscriptionDto>)response.data)?.Count() ?? 0;
     }
 
     private async Task<int> GetActiveSubscriptions()
     {
-        var response = await _subscriptionService.GetActiveSubscriptionsAsync(GetToken(HttpContext));
+        var response = await _subscriptionService.GetActiveSubscriptionsAsync(1, int.MaxValue, null, null, null, null, null, null, null, GetToken(HttpContext));
         return ((IEnumerable<SubscriptionDto>)response.data)?.Count(s => s.IsActive) ?? 0;
     }
 
@@ -214,7 +214,7 @@ public class AdminController : BaseController
 
     private async Task<IEnumerable<SubscriptionDto>> GetRecentSubscriptions()
     {
-        var response = await _subscriptionService.GetActiveSubscriptionsAsync(GetToken(HttpContext));
+        var response = await _subscriptionService.GetActiveSubscriptionsAsync(1, int.MaxValue, null, null, null, null, null, null, null, GetToken(HttpContext));
         return ((IEnumerable<SubscriptionDto>)response.data)?.OrderByDescending(s => s.CreatedDate).Take(10) ?? new List<SubscriptionDto>();
     }
 

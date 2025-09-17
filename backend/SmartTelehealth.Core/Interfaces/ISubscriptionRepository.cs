@@ -10,9 +10,11 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     
     // Subscription-specific methods
     Task<IEnumerable<Subscription>> GetByUserIdAsync(int userId);
+    Task<(IEnumerable<Subscription> subscriptions, int totalCount)> GetUserSubscriptionsWithFilteringAsync(int userId, SubscriptionFilterDto filter);
     Task<Subscription?> GetByStripeSubscriptionIdAsync(string stripeSubscriptionId, TokenModel tokenModel);
     Task<IEnumerable<Subscription>> GetByStatusAsync(string status);
     Task<IEnumerable<Subscription>> GetActiveSubscriptionsAsync();
+    Task<(IEnumerable<Subscription> subscriptions, int totalCount)> GetActiveSubscriptionsWithFilteringAsync(SubscriptionFilterDto filter);
     Task<IEnumerable<Subscription>> GetSubscriptionsDueForBillingAsync(DateTime billingDate);
     Task<IEnumerable<Subscription>> GetSubscriptionsByDateRangeAsync(DateTime startDate, DateTime endDate);
     

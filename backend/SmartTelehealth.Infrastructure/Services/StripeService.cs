@@ -906,6 +906,43 @@ public class StripeService : IStripeService
         });
     }
 
+    public async Task<bool> ArchiveProductAsync(string productId, string originalName, string originalDescription, TokenModel tokenModel)
+    {
+        if (string.IsNullOrEmpty(productId))
+            throw new ArgumentException("Product ID is required", nameof(productId));
+
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                var productUpdateOptions = new ProductUpdateOptions
+                {
+                    Name = $"{originalName} (ARCHIVED - {DateTime.UtcNow:yyyy-MM-dd})",
+                    Description = $"{originalDescription}\n\n[ARCHIVED] This product has been deleted from the system and is no longer available for new subscriptions.",
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "archived_by_user_id", tokenModel.UserID.ToString() },
+                        { "archived_by_role_id", tokenModel.RoleID.ToString() },
+                        { "archived_at", DateTime.UtcNow.ToString("O") },
+                        { "original_name", originalName },
+                        { "status", "archived" }
+                    }
+                };
+
+                var productService = new ProductService();
+                await productService.UpdateAsync(productId, productUpdateOptions);
+
+                _logger.LogInformation("Archived Stripe product {ProductId} by user {UserId}", productId, tokenModel.UserID);
+                return true;
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "Stripe error archiving product {ProductId}: {Message}", productId, ex.Message);
+                throw new InvalidOperationException($"Failed to archive product: {ex.Message}", ex);
+            }
+        });
+    }
+
     // Price Management
     public async Task<string> CreatePriceAsync(string productId, decimal amount, string currency, string interval, int intervalCount, TokenModel tokenModel)
     {

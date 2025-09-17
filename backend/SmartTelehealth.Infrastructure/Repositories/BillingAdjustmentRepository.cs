@@ -90,4 +90,90 @@ public class BillingAdjustmentRepository : RepositoryBase<BillingAdjustment>, IB
 
         return await _context.BillingAdjustments.AnyAsync(ba => ba.Id == adjustmentId);
     }
+
+    /// <summary>
+    /// Retrieves billing adjustments with database-level filtering, pagination, and sorting
+    /// </summary>
+    public async Task<(IEnumerable<BillingAdjustment> Adjustments, int TotalCount)> GetAdjustmentsWithFilteringAsync(
+        int page, int pageSize, Guid? billingRecordId = null, string? type = null, 
+        string? search = null, DateTime? startDate = null, DateTime? endDate = null, 
+        string? sortBy = "CreatedDate", string? sortOrder = "desc")
+    {
+        var query = _context.BillingAdjustments
+            .Include(ba => ba.BillingRecord)
+                .ThenInclude(br => br.User)
+            .AsQueryable();
+
+        // Apply filters
+        if (billingRecordId.HasValue)
+        {
+            query = query.Where(ba => ba.BillingRecordId == billingRecordId.Value);
+        }
+
+           if (!string.IsNullOrWhiteSpace(type))
+           {
+               if (Enum.TryParse<BillingAdjustment.AdjustmentType>(type, out var adjustmentType))
+               {
+                   query = query.Where(ba => ba.Type == adjustmentType);
+               }
+           }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.ToLower();
+            query = query.Where(ba =>
+                (ba.Reason != null && ba.Reason.ToLower().Contains(term)) ||
+                ba.Type.ToString().ToLower().Contains(term) ||
+                (ba.ApprovalNotes != null && ba.ApprovalNotes.ToLower().Contains(term)) ||
+                ba.BillingRecord.User.Email.ToLower().Contains(term));
+        }
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(ba => ba.CreatedDate >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            query = query.Where(ba => ba.CreatedDate <= endDate.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        // Apply pagination
+        var skip = (page - 1) * pageSize;
+        var adjustments = await query
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (adjustments, totalCount);
+    }
+
+    private static IQueryable<BillingAdjustment> ApplySorting(IQueryable<BillingAdjustment> query, string sortBy, string sortOrder)
+    {
+        return sortBy.ToLower() switch
+        {
+            "amount" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(ba => ba.Amount)
+                : query.OrderBy(ba => ba.Amount),
+            "type" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(ba => ba.Type)
+                : query.OrderBy(ba => ba.Type),
+            "reason" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(ba => ba.Reason)
+                : query.OrderBy(ba => ba.Reason),
+            "createddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(ba => ba.CreatedDate)
+                : query.OrderBy(ba => ba.CreatedDate),
+            "updateddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(ba => ba.UpdatedDate)
+                : query.OrderBy(ba => ba.UpdatedDate),
+            _ => query.OrderByDescending(ba => ba.CreatedDate)
+        };
+    }
 } 

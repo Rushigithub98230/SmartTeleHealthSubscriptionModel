@@ -27,7 +27,7 @@ export interface PaginatedResponse<T> {
   providedIn: 'root'
 })
 export class CommonService {
-  private readonly baseUrl = 'http://localhost:61376'; // Updated to match backend port
+  private readonly baseUrl = 'http://localhost:61376'; // Backend running port
 
   constructor(private http: HttpClient) {}
 

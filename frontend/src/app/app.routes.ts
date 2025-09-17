@@ -23,7 +23,21 @@ export const routes: Routes = [
       { path: '', redirectTo: 'subscriptions', pathMatch: 'full' },
       { 
         path: 'subscriptions', 
-        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent) 
+        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent),
+        data: { view: 'subscriptions' }
+      },
+      { 
+        path: 'plans', 
+        loadComponent: () => import('./admin/subscription-management/subscription-management').then(m => m.SubscriptionManagementComponent),
+        data: { view: 'plans' }
+      },
+      { 
+        path: 'categories', 
+        loadComponent: () => import('./admin/category-management/category-management').then(m => m.CategoryManagementComponent)
+      },
+      { 
+        path: 'analytics', 
+        loadComponent: () => import('./admin/dashboard/dashboard').then(m => m.DashboardComponent)
       }
     ]
   },

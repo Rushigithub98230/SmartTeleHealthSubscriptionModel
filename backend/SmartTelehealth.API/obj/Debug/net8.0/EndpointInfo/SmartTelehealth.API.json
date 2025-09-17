@@ -1047,55 +1047,6 @@
         }
       }
     },
-    "/api/admin/AdminSubscription/{id}/change-plan": {
-      "post": {
-        "tags": [
-          "AdminSubscription"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.ChangePlanRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.ChangePlanRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.ChangePlanRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/admin/AdminSubscription/{id}/renew": {
       "post": {
         "tags": [
@@ -1112,44 +1063,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/AdminSubscription/plans": {
-      "post": {
-        "tags": [
-          "AdminSubscription"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanWithTimeLimitsDto"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanWithTimeLimitsDto"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanWithTimeLimitsDto"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Success",
@@ -13316,492 +13229,6 @@
         }
       }
     },
-    "/api/Privileges": {
-      "get": {
-        "tags": [
-          "Privileges"
-        ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 1
-            }
-          },
-          {
-            "name": "pageSize",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 10
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "category",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "format",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Privileges"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreatePrivilegeDto"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreatePrivilegeDto"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreatePrivilegeDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Privileges/{id}": {
-      "get": {
-        "tags": [
-          "Privileges"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Privileges"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdatePrivilegeDto"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdatePrivilegeDto"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdatePrivilegeDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Privileges"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Privileges/categories": {
-      "get": {
-        "tags": [
-          "Privileges"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Privileges/types": {
-      "get": {
-        "tags": [
-          "Privileges"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Privileges/usage-history": {
-      "get": {
-        "tags": [
-          "Privileges"
-        ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 1
-            }
-          },
-          {
-            "name": "pageSize",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 10
-            }
-          },
-          {
-            "name": "privilegeId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "subscriptionId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "startDate",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "endDate",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "sortBy",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "sortOrder",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Privileges/usage-summary": {
-      "get": {
-        "tags": [
-          "Privileges"
-        ],
-        "parameters": [
-          {
-            "name": "privilegeId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "subscriptionId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "startDate",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "endDate",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Privileges/usage-export": {
-      "get": {
-        "tags": [
-          "Privileges"
-        ],
-        "parameters": [
-          {
-            "name": "format",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string",
-              "default": "csv"
-            }
-          },
-          {
-            "name": "privilegeId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "subscriptionId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "startDate",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "endDate",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/ProviderFee": {
       "post": {
         "tags": [
@@ -15406,37 +14833,6 @@
         }
       }
     },
-    "/api/provider/user/{userId}/privileges": {
-      "get": {
-        "tags": [
-          "ProviderPrivileges"
-        ],
-        "parameters": [
-          {
-            "name": "userId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/provider/user/{userId}/privileges/{privilegeName}": {
       "get": {
         "tags": [
@@ -16947,282 +16343,6 @@
         }
       }
     },
-    "/webadmin/subscription-management/plans": {
-      "get": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 1
-            }
-          },
-          {
-            "name": "pageSize",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 10
-            }
-          },
-          {
-            "name": "searchTerm",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "categoryId",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "isActive",
-            "in": "query",
-            "style": "form",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreateSubscriptionPlanDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/webadmin/subscription-management/plans/filter": {
-      "post": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/webadmin/subscription-management/plans/{id}": {
-      "put": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdateSubscriptionPlanDto"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdateSubscriptionPlanDto"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdateSubscriptionPlanDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/webadmin/subscription-management/plans/{id}/activate": {
-      "post": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/webadmin/subscription-management/plans/{id}/deactivate": {
-      "post": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/webadmin/subscription-management/subscriptions": {
       "get": {
         "tags": [
@@ -17961,187 +17081,6 @@
         }
       }
     },
-    "/webadmin/subscription-management/plans/{planId}/privileges": {
-      "post": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "planId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
-                }
-              }
-            },
-            "text/json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
-                }
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "planId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/webadmin/subscription-management/plans/{planId}/privileges/{privilegeId}": {
-      "delete": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "planId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "privilegeId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "SubscriptionManagement"
-        ],
-        "parameters": [
-          {
-            "name": "planId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "privilegeId",
-            "in": "path",
-            "required": true,
-            "style": "simple",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/SubscriptionPlanPrivileges/time-based-limits": {
       "put": {
         "tags": [
@@ -18210,10 +17149,581 @@
         }
       }
     },
+    "/api/SubscriptionPlanPrivileges/privileges": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreatePrivilegeDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreatePrivilegeDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.CreatePrivilegeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlanPrivileges/privileges/{id}": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdatePrivilegeDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdatePrivilegeDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.UpdatePrivilegeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlanPrivileges/privileges/categories": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlanPrivileges/privileges/types": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlanPrivileges/privileges/usage-history": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          },
+          {
+            "name": "privilegeId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlanPrivileges/privileges/usage-summary": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "privilegeId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlanPrivileges/privileges/usage-export": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "default": "csv"
+            }
+          },
+          {
+            "name": "privilegeId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subscriptionId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlanPrivileges/users/{userId}": {
+      "get": {
+        "tags": [
+          "SubscriptionPlanPrivileges"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/SubscriptionPlans/active": {
       "get": {
         "tags": [
           "SubscriptionPlans"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -18501,6 +18011,60 @@
         "tags": [
           "SubscriptionPlans"
         ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -18743,6 +18307,225 @@
         }
       }
     },
+    "/api/SubscriptionPlans/admin/filter": {
+      "post": {
+        "tags": [
+          "SubscriptionPlans"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Core.DTOs.SubscriptionPlanFilterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlans/admin/{planId}/privileges": {
+      "post": {
+        "tags": [
+          "SubscriptionPlans"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+                }
+              }
+            },
+            "text/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+                }
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "SubscriptionPlans"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/SubscriptionPlans/admin/{planId}/privileges/{privilegeId}": {
+      "delete": {
+        "tags": [
+          "SubscriptionPlans"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "privilegeId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "SubscriptionPlans"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "privilegeId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PlanPrivilegeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Subscriptions/{id}": {
       "get": {
         "tags": [
@@ -18891,6 +18674,103 @@
       "get": {
         "tags": [
           "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "planId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -19237,6 +19117,92 @@
       "get": {
         "tags": [
           "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "planId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -21304,6 +21270,92 @@
       "get": {
         "tags": [
           "UserSubscriptions"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          },
+          {
+            "name": "searchTerm",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "planId",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "style": "form",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -24956,51 +25008,6 @@
         },
         "additionalProperties": false
       },
-      "SmartTelehealth.Application.DTOs.CreateSubscriptionPlanWithTimeLimitsDto": {
-        "required": [
-          "billingCycle",
-          "description",
-          "durationMonths",
-          "planName",
-          "price",
-          "privileges"
-        ],
-        "type": "object",
-        "properties": {
-          "planName": {
-            "maxLength": 100,
-            "minLength": 1,
-            "type": "string"
-          },
-          "description": {
-            "maxLength": 500,
-            "minLength": 1,
-            "type": "string"
-          },
-          "price": {
-            "minimum": 0,
-            "type": "number",
-            "format": "double"
-          },
-          "billingCycle": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "durationMonths": {
-            "maximum": 120,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32"
-          },
-          "privileges": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.PrivilegeTimeLimitDto"
-            }
-          }
-        },
-        "additionalProperties": false
-      },
       "SmartTelehealth.Application.DTOs.CreateUpfrontPaymentDto": {
         "type": "object",
         "properties": {
@@ -25725,45 +25732,11 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "SmartTelehealth.Application.DTOs.PrivilegeTimeLimitDto": {
-        "required": [
-          "privilegeName",
-          "totalValue"
-        ],
-        "type": "object",
-        "properties": {
-          "privilegeName": {
-            "maxLength": 100,
-            "minLength": 1,
-            "type": "string"
           },
-          "totalValue": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "dailyLimit": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "weeklyLimit": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "monthlyLimit": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "description": {
-            "maxLength": 500,
-            "type": "string",
-            "nullable": true
+          "unitCost": {
+            "minimum": 0,
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false

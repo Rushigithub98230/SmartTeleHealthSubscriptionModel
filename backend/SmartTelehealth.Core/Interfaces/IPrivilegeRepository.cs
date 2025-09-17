@@ -13,4 +13,8 @@ public interface IPrivilegeRepository : IRepositoryBase<Privilege>
     
     // Legacy method for backward compatibility
     Task AddAsync(Privilege privilege);
+    
+    // Database-level filtering, pagination, and sorting
+    Task<(IEnumerable<Privilege> Privileges, int TotalCount)> GetPrivilegesWithFilteringAsync(
+        int page, int pageSize, string? search, string? category, string? status, string? sortBy = "Name", string? sortOrder = "asc");
 } 

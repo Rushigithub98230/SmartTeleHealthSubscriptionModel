@@ -92,4 +92,115 @@ public class UserSubscriptionPrivilegeUsageRepository : RepositoryBase<UserSubsc
     {
         await CreateAsync(usage);
     }
+
+    #region Advanced Query Operations
+
+    /// <summary>
+    /// Retrieves user subscription privilege usages with comprehensive filtering, pagination, and sorting
+    /// </summary>
+    public async Task<(IEnumerable<UserSubscriptionPrivilegeUsage> Usages, int TotalCount)> GetUsagesWithFilteringAsync(
+        int page, int pageSize, Guid? subscriptionId = null, Guid? privilegeId = null, 
+        int? userId = null, string? search = null, bool? isActive = null, 
+        DateTime? startDate = null, DateTime? endDate = null, string? sortBy = "LastUsedAt", string? sortOrder = "desc")
+    {
+        var query = _context.UserSubscriptionPrivilegeUsages
+            .Include(uspu => uspu.Subscription)
+                .ThenInclude(s => s.User)
+            .Include(uspu => uspu.SubscriptionPlanPrivilege)
+                .ThenInclude(spp => spp.Privilege)
+            .Include(uspu => uspu.Privilege)
+            .AsQueryable();
+
+        // Apply filters
+        if (subscriptionId.HasValue)
+        {
+            query = query.Where(uspu => uspu.SubscriptionId == subscriptionId.Value);
+        }
+
+        if (privilegeId.HasValue)
+        {
+            query = query.Where(uspu => uspu.PrivilegeId == privilegeId.Value);
+        }
+
+        if (userId.HasValue)
+        {
+            query = query.Where(uspu => uspu.Subscription.UserId == userId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.ToLower();
+            query = query.Where(uspu => 
+                uspu.Privilege.Name.ToLower().Contains(term) ||
+                (uspu.Privilege.Description != null && uspu.Privilege.Description.ToLower().Contains(term)) ||
+                uspu.Subscription.User.UserName.ToLower().Contains(term));
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(uspu => uspu.IsActive == isActive.Value);
+        }
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(uspu => uspu.LastUsedAt >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            query = query.Where(uspu => uspu.LastUsedAt <= endDate.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply sorting
+        query = ApplySorting(query, sortBy, sortOrder);
+
+        // Apply pagination
+        var skip = (page - 1) * pageSize;
+        var usages = await query
+            .Skip(skip)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (usages, totalCount);
+    }
+
+    /// <summary>
+    /// Applies dynamic sorting to the query
+    /// </summary>
+    private static IQueryable<UserSubscriptionPrivilegeUsage> ApplySorting(IQueryable<UserSubscriptionPrivilegeUsage> query, string sortBy, string sortOrder)
+    {
+        return sortBy.ToLower() switch
+        {
+            "privilegename" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.Privilege.Name)
+                : query.OrderBy(uspu => uspu.Privilege.Name),
+            "username" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.Subscription.User.UserName)
+                : query.OrderBy(uspu => uspu.Subscription.User.UserName),
+            "usedvalue" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.UsedValue)
+                : query.OrderBy(uspu => uspu.UsedValue),
+            "allowedvalue" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.AllowedValue)
+                : query.OrderBy(uspu => uspu.AllowedValue),
+            "lastusedat" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.LastUsedAt)
+                : query.OrderBy(uspu => uspu.LastUsedAt),
+            "createddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.CreatedDate)
+                : query.OrderBy(uspu => uspu.CreatedDate),
+            "updateddate" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.UpdatedDate)
+                : query.OrderBy(uspu => uspu.UpdatedDate),
+            "isactive" => sortOrder.ToLower() == "desc"
+                ? query.OrderByDescending(uspu => uspu.IsActive)
+                : query.OrderBy(uspu => uspu.IsActive),
+            _ => query.OrderByDescending(uspu => uspu.LastUsedAt)
+        };
+    }
+
+    #endregion
 } 

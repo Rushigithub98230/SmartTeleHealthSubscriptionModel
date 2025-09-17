@@ -342,7 +342,7 @@ public class AuthController : BaseController
                 new Claim(ClaimTypes.Name, $"{user.FirstName} {user.LastName}"),
                 new Claim(ClaimTypes.Role, "Admin"),
                 new Claim("UserId", user.Id.ToString()),
-                new Claim("RoleId", "1")
+                new Claim("RoleId", user.UserRoleId.ToString())
             }),
             Expires = DateTime.UtcNow.AddHours(expirationHours),
             Issuer = issuer,

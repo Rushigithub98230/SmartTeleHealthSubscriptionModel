@@ -127,21 +127,30 @@ public interface ISubscriptionPlanService
     Task<JsonModel> UpdatePlanAsync(string planId, UpdateSubscriptionPlanDto updateDto, TokenModel tokenModel);
     
     /// <summary>
-    /// Deletes a subscription plan with comprehensive validation (for backward compatibility)
+    /// Deactivates a subscription plan (soft delete) - RECOMMENDED APPROACH
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan to deactivate</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing the deactivation result</returns>
+    Task<JsonModel> DeactivatePlanAsync(string planId, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Reactivates a deactivated subscription plan
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan to reactivate</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing the reactivation result</returns>
+    Task<JsonModel> ReactivatePlanAsync(string planId, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Deletes a subscription plan (DEPRECATED - Use DeactivatePlanAsync instead)
     /// </summary>
     /// <param name="planId">The unique identifier of the subscription plan to delete</param>
     /// <param name="tokenModel">Token containing user authentication information</param>
     /// <returns>JsonModel containing the deletion result</returns>
+    [Obsolete("Use DeactivatePlanAsync instead for better data integrity and business continuity")]
     Task<JsonModel> DeletePlanAsync(string planId, TokenModel tokenModel);
     
-    /// <summary>
-    /// Deactivates a subscription plan with admin user tracking (for backward compatibility)
-    /// </summary>
-    /// <param name="planId">The unique identifier of the subscription plan to deactivate</param>
-    /// <param name="adminUserId">The ID of the admin user performing the action</param>
-    /// <param name="tokenModel">Token containing user authentication information</param>
-    /// <returns>JsonModel containing the deactivation result</returns>
-    Task<JsonModel> DeactivatePlanAsync(string planId, string adminUserId, TokenModel tokenModel);
     
     #endregion
 }

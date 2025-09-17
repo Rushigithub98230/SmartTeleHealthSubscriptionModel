@@ -11,4 +11,10 @@ public interface ISubscriptionStatusHistoryRepository : IRepositoryBase<Subscrip
     Task<IEnumerable<SubscriptionStatusHistory>> GetByDateRangeAsync(DateTime startDate, DateTime endDate);
     Task<int> GetCountBySubscriptionIdAsync(Guid subscriptionId);
     Task<SubscriptionStatusHistory?> GetLatestBySubscriptionIdAsync(Guid subscriptionId);
+    
+    // Database-level filtering, pagination, and sorting
+    Task<(IEnumerable<SubscriptionStatusHistory> History, int TotalCount)> GetHistoryWithFilteringAsync(
+        int page, int pageSize, Guid? subscriptionId = null, string? status = null, 
+        string? search = null, DateTime? startDate = null, DateTime? endDate = null, 
+        string? sortBy = "ChangedAt", string? sortOrder = "desc");
 } 

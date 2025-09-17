@@ -67,5 +67,23 @@ namespace SmartTelehealth.Core.Interfaces
         /// <param name="olderThanDays">Delete events older than this many days</param>
         /// <returns>Number of events deleted</returns>
         Task<int> CleanupOldEventsAsync(int olderThanDays = 30);
+
+        /// <summary>
+        /// Retrieves processed webhook events with database-level filtering, pagination, and sorting
+        /// </summary>
+        /// <param name="page">Page number for pagination</param>
+        /// <param name="pageSize">Number of items per page</param>
+        /// <param name="eventType">Filter by event type</param>
+        /// <param name="isSuccess">Filter by success status</param>
+        /// <param name="search">Search term for filtering</param>
+        /// <param name="startDate">Start date for filtering</param>
+        /// <param name="endDate">End date for filtering</param>
+        /// <param name="sortBy">Field to sort by</param>
+        /// <param name="sortOrder">Sort order (asc/desc)</param>
+        /// <returns>Tuple containing filtered events and total count</returns>
+        Task<(IEnumerable<ProcessedWebhookEvent> Events, int TotalCount)> GetEventsWithFilteringAsync(
+            int page, int pageSize, string? eventType = null, bool? isSuccess = null, 
+            string? search = null, DateTime? startDate = null, DateTime? endDate = null, 
+            string? sortBy = "ReceivedAt", string? sortOrder = "desc");
     }
 }

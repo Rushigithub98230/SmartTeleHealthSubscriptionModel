@@ -5,6 +5,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartTelehealth.Application.Services;
@@ -92,7 +93,7 @@ public class SubscriptionService : ISubscriptionService
     /// <returns>JsonModel containing the subscription data or error information</returns>
     /// <remarks>
     /// Access Control:
-    /// - Admins (RoleID = 1) can access any subscription
+    /// - Admins (RoleID = 332) can access any subscription
     /// - Regular users can only access their own subscriptions
     /// - Returns 403 Forbidden if user doesn't have access
     /// - Returns 404 Not Found if subscription doesn't exist
@@ -102,7 +103,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Validate token permissions - ensure user has access to this subscription
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -130,7 +131,7 @@ public class SubscriptionService : ISubscriptionService
     /// <returns>JsonModel containing the list of user subscriptions or error information</returns>
     /// <remarks>
     /// Access Control:
-    /// - Admins (RoleID = 1) can access any user's subscriptions
+    /// - Admins (RoleID = 332) can access any user's subscriptions
     /// - Regular users can only access their own subscriptions
     /// - Returns 403 Forbidden if user doesn't have access
     /// - Returns all subscriptions (active, paused, cancelled, etc.) for the user
@@ -140,7 +141,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Validate token permissions - user can only access their own subscriptions unless admin
-            if (tokenModel.RoleID != 1 && tokenModel.UserID != userId)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -155,6 +156,61 @@ public class SubscriptionService : ISubscriptionService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting subscriptions for user {UserId}", userId);
+            return new JsonModel { data = new object(), Message = "Failed to retrieve user subscriptions", StatusCode = 500 };
+        }
+    }
+
+    public async Task<JsonModel> GetUserSubscriptionsWithFilteringAsync(int userId, int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
+    {
+        try
+        {
+            // Validate token permissions - user can only access their own subscriptions unless admin
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
+            {
+                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
+            }
+
+            _logger.LogInformation("Retrieving user subscriptions with database-level filtering - UserId: {UserId}, Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}",
+                userId, page, pageSize, searchTerm);
+
+            // Create filter DTO for database-level filtering
+            var filter = new SubscriptionFilterDto
+            {
+                Page = page,
+                PageSize = pageSize,
+                SearchTerm = searchTerm,
+                Statuses = status?.ToList(),
+                PlanIds = planId?.Where(id => Guid.TryParse(id, out _)).Select(Guid.Parse).ToList(),
+                CreatedDateFrom = startDate,
+                CreatedDateTo = endDate,
+                SortColumn = sortBy ?? "CreatedDate",
+                SortOrder = sortOrder ?? "desc"
+            };
+
+            // Use database-level filtering, pagination, and sorting
+            var (subscriptions, totalCount) = await _subscriptionRepository.GetUserSubscriptionsWithFilteringAsync(userId, filter);
+            var dtos = _mapper.Map<IEnumerable<SubscriptionDto>>(subscriptions);
+
+            // Return with pagination metadata
+            return new JsonModel
+            {
+                data = dtos,
+                meta = new Meta
+                {
+                    TotalRecords = totalCount,
+                    PageSize = pageSize,
+                    CurrentPage = page,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                    HasNextPage = page < (int)Math.Ceiling((double)totalCount / pageSize),
+                    HasPreviousPage = page > 1
+                },
+                Message = "User subscriptions retrieved successfully with database-level filtering",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user subscriptions with filtering for user {UserId}", userId);
             return new JsonModel { data = new object(), Message = "Failed to retrieve user subscriptions", StatusCode = 500 };
         }
     }
@@ -395,7 +451,7 @@ public class SubscriptionService : ISubscriptionService
     public async Task<JsonModel> GetPaymentMethodsAsync(int userId, TokenModel tokenModel)
     {
         // Validate token permissions - user can only access their own payment methods unless admin
-        if (tokenModel.RoleID != 1 && tokenModel.UserID != userId)
+        if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
         {
             return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
         }
@@ -428,7 +484,7 @@ public class SubscriptionService : ISubscriptionService
     public async Task<JsonModel> AddPaymentMethodAsync(int userId, string paymentMethodId, TokenModel tokenModel)
     {
         // Validate token permissions - user can only add payment methods to their own account unless admin
-        if (tokenModel.RoleID != 1 && tokenModel.UserID != userId)
+        if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
         {
             return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
         }
@@ -447,7 +503,7 @@ public class SubscriptionService : ISubscriptionService
     /// <returns>JsonModel containing the subscription data or error information</returns>
     /// <remarks>
     /// This method:
-    /// - Validates admin access (RoleID 1 or 3)
+    /// - Validates admin access (RoleID 332 or 2)
     /// - Retrieves subscription associated with the specified plan ID
     /// - Maps entity to DTO for response
     /// - Used for administrative subscription management
@@ -455,7 +511,7 @@ public class SubscriptionService : ISubscriptionService
     /// - Logs errors for troubleshooting
     /// 
     /// Access Control:
-    /// - Admin only (RoleID = 1 or 3)
+    /// - Admin only (RoleID = 332 or 2)
     /// - Returns 403 Forbidden for non-admin users
     /// </remarks>
     public async Task<JsonModel> GetSubscriptionByPlanIdAsync(string planId, TokenModel tokenModel)
@@ -463,7 +519,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -490,7 +546,7 @@ public class SubscriptionService : ISubscriptionService
     /// <returns>JsonModel containing the list of active subscriptions or error information</returns>
     /// <remarks>
     /// This method:
-    /// - Validates admin access (RoleID 1 or 3)
+    /// - Validates admin access (RoleID 332 or 2)
     /// - Retrieves all active subscriptions from the repository
     /// - Maps entities to DTOs for response
     /// - Used for administrative monitoring and management
@@ -498,25 +554,56 @@ public class SubscriptionService : ISubscriptionService
     /// - Logs errors for troubleshooting
     /// 
     /// Access Control:
-    /// - Admin only (RoleID = 1 or 3)
+    /// - Admin only (RoleID = 332 or 2)
     /// - Returns 403 Forbidden for non-admin users
     /// </remarks>
-    public async Task<JsonModel> GetActiveSubscriptionsAsync(TokenModel tokenModel)
+    public async Task<JsonModel> GetActiveSubscriptionsAsync(int page, int pageSize, string? searchTerm, string[]? planId, string[]? userId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
     {
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            // Retrieve all active subscriptions from repository
-            var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
-            
-            // Map entities to DTOs and return success response
+            _logger.LogInformation("Retrieving active subscriptions with database-level filtering - Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, UserId: {UserId}",
+                page, pageSize, searchTerm, tokenModel.UserID);
+
+            // Create filter DTO for database-level filtering
+            var filter = new SubscriptionFilterDto
+            {
+                Page = page,
+                PageSize = pageSize,
+                SearchTerm = searchTerm,
+                PlanIds = planId?.Where(id => Guid.TryParse(id, out _)).Select(Guid.Parse).ToList(),
+                UserIds = userId?.Where(id => int.TryParse(id, out _)).Select(int.Parse).ToList(),
+                CreatedDateFrom = startDate,
+                CreatedDateTo = endDate,
+                SortColumn = sortBy ?? "CreatedDate",
+                SortOrder = sortOrder ?? "desc"
+            };
+
+            // Use database-level filtering, pagination, and sorting
+            var (activeSubscriptions, totalCount) = await _subscriptionRepository.GetActiveSubscriptionsWithFilteringAsync(filter);
             var dtos = _mapper.Map<IEnumerable<SubscriptionDto>>(activeSubscriptions);
-            return new JsonModel { data = dtos, Message = "Active subscriptions retrieved successfully", StatusCode = 200 };
+
+            // Return with pagination metadata
+            return new JsonModel
+            {
+                data = dtos,
+                meta = new Meta
+                {
+                    TotalRecords = totalCount,
+                    PageSize = pageSize,
+                    CurrentPage = page,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                    HasNextPage = page < (int)Math.Ceiling((double)totalCount / pageSize),
+                    HasPreviousPage = page > 1
+                },
+                Message = "Active subscriptions retrieved successfully with database-level filtering",
+                StatusCode = 200
+            };
         }
         catch (Exception ex)
         {
@@ -571,7 +658,7 @@ public class SubscriptionService : ISubscriptionService
             }
 
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -639,7 +726,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -687,19 +774,54 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    public async Task<JsonModel> GetAllSubscriptionsAsync(TokenModel tokenModel)
+    public async Task<JsonModel> GetAllSubscriptionsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, string[]? userId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
     {
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
-            var dtos = _mapper.Map<IEnumerable<SubscriptionDto>>(allSubscriptions);
-            return new JsonModel { data = dtos, Message = "All subscriptions retrieved successfully", StatusCode = 200 };
+            _logger.LogInformation("Retrieving all subscriptions with database-level filtering - Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}, UserId: {UserId}",
+                page, pageSize, searchTerm, tokenModel.UserID);
+
+            // Create filter DTO for database-level filtering
+            var filter = new SubscriptionFilterDto
+            {
+                Page = page,
+                PageSize = pageSize,
+                SearchTerm = searchTerm,
+                Statuses = status?.ToList(),
+                PlanIds = planId?.Where(id => Guid.TryParse(id, out _)).Select(Guid.Parse).ToList(),
+                UserIds = userId?.Where(id => int.TryParse(id, out _)).Select(int.Parse).ToList(),
+                CreatedDateFrom = startDate,
+                CreatedDateTo = endDate,
+                SortColumn = sortBy ?? "CreatedDate",
+                SortOrder = sortOrder ?? "desc"
+            };
+
+            // Use database-level filtering, pagination, and sorting
+            var (subscriptions, totalCount) = await _subscriptionRepository.GetSubscriptionsWithAdvancedFilteringAsync(filter);
+            var dtos = _mapper.Map<IEnumerable<SubscriptionDto>>(subscriptions);
+
+            // Return with pagination metadata
+            return new JsonModel
+            {
+                data = dtos,
+                meta = new Meta
+                {
+                    TotalRecords = totalCount,
+                    PageSize = pageSize,
+                    CurrentPage = page,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                    HasNextPage = page < (int)Math.Ceiling((double)totalCount / pageSize),
+                    HasPreviousPage = page > 1
+                },
+                Message = "All subscriptions retrieved successfully with database-level filtering",
+                StatusCode = 200
+            };
         }
         catch (Exception ex)
         {
@@ -713,7 +835,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -779,7 +901,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1)
+            if (tokenModel.RoleID != (int)RoleId.Admin)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -802,86 +924,31 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
-            var filteredSubscriptions = allSubscriptions.AsQueryable();
-            
-            // Apply search term filter
-            if (!string.IsNullOrEmpty(searchTerm))
+            _logger.LogInformation("Retrieving user subscriptions with database-level filtering - Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}",
+                page, pageSize, searchTerm);
+
+            // Create filter DTO for database-level filtering
+            var filter = new SubscriptionFilterDto
             {
-                filteredSubscriptions = filteredSubscriptions.Where(s => 
-                    s.User.UserName.Contains(searchTerm) || 
-                    s.SubscriptionPlan.Name.Contains(searchTerm) ||
-                    s.Id.ToString().Contains(searchTerm));
-            }
-            
-            // Apply status filter (array)
-            if (status != null && status.Length > 0)
-            {
-                filteredSubscriptions = filteredSubscriptions.Where(s => status.Contains(s.Status));
-            }
-            
-            // Apply plan ID filter (array)
-            if (planId != null && planId.Length > 0)
-            {
-                var planIds = planId.Where(id => Guid.TryParse(id, out _)).Select(id => Guid.Parse(id)).ToList();
-                if (planIds.Any())
-                {
-                    filteredSubscriptions = filteredSubscriptions.Where(s => planIds.Contains(s.SubscriptionPlanId));
-                }
-            }
-            
-            // Apply user ID filter (array)
-            if (userId != null && userId.Length > 0)
-            {
-                var userIds = userId.Where(id => int.TryParse(id, out _)).Select(id => int.Parse(id)).ToList();
-                if (userIds.Any())
-                {
-                    filteredSubscriptions = filteredSubscriptions.Where(s => userIds.Contains(s.UserId));
-                }
-            }
-            
-            if (startDate.HasValue)
-            {
-                filteredSubscriptions = filteredSubscriptions.Where(s => s.CreatedDate >= startDate.Value);
-            }
-            
-            if (endDate.HasValue)
-            {
-                filteredSubscriptions = filteredSubscriptions.Where(s => s.CreatedDate <= endDate.Value);
-            }
-            
-            // Apply sorting
-            if (!string.IsNullOrEmpty(sortBy))
-            {
-                filteredSubscriptions = sortBy.ToLower() switch
-                {
-                    "CreatedDate" => sortOrder?.ToLower() == "desc" 
-                        ? filteredSubscriptions.OrderByDescending(s => s.CreatedDate)
-                        : filteredSubscriptions.OrderBy(s => s.CreatedDate),
-                    "status" => sortOrder?.ToLower() == "desc" 
-                        ? filteredSubscriptions.OrderByDescending(s => s.Status)
-                        : filteredSubscriptions.OrderBy(s => s.Status),
-                    "userid" => sortOrder?.ToLower() == "desc" 
-                        ? filteredSubscriptions.OrderByDescending(s => s.UserId)
-                        : filteredSubscriptions.OrderBy(s => s.UserId),
-                    _ => filteredSubscriptions.OrderByDescending(s => s.CreatedDate)
-                };
-            }
-            else
-            {
-                filteredSubscriptions = filteredSubscriptions.OrderByDescending(s => s.CreatedDate);
-            }
-            
-            var totalCount = filteredSubscriptions.Count();
-            var subscriptions = filteredSubscriptions
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
+                Page = page,
+                PageSize = pageSize,
+                SearchTerm = searchTerm,
+                Statuses = status?.ToList(),
+                PlanIds = planId?.Where(id => Guid.TryParse(id, out _)).Select(Guid.Parse).ToList(),
+                UserIds = userId?.Where(id => int.TryParse(id, out _)).Select(int.Parse).ToList(),
+                CreatedDateFrom = startDate,
+                CreatedDateTo = endDate,
+                SortColumn = sortBy ?? "CreatedDate",
+                SortOrder = sortOrder ?? "desc"
+            };
+
+            // Use database-level filtering, pagination, and sorting
+            var (subscriptions, totalCount) = await _subscriptionRepository.GetSubscriptionsWithAdvancedFilteringAsync(filter);
             
             var dtos = _mapper.Map<IEnumerable<SubscriptionDto>>(subscriptions);
 
@@ -921,7 +988,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -958,7 +1025,7 @@ public class SubscriptionService : ISubscriptionService
             }
 
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId.ToString()))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId.ToString()))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -1047,7 +1114,7 @@ public class SubscriptionService : ISubscriptionService
             }
 
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId.ToString()))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId.ToString()))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -1128,7 +1195,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != 1 && tokenModel.RoleID != 3)
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
@@ -1222,7 +1289,7 @@ public class SubscriptionService : ISubscriptionService
             }
 
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -1329,7 +1396,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Validate token permissions
-            if (tokenModel.RoleID != 1 && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
+            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
             {
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
@@ -1553,6 +1620,76 @@ public class SubscriptionService : ISubscriptionService
     }
 
     /// <summary>
+    /// Retrieves subscription privilege usage with comprehensive filtering, pagination, and sorting
+    /// </summary>
+    public async Task<JsonModel> GetSubscriptionPrivilegeUsageWithFilteringAsync(
+        string subscriptionId, int page, int pageSize, string? search = null, 
+        bool? isActive = null, DateTime? startDate = null, DateTime? endDate = null, 
+        string? sortBy = "LastUsedAt", string? sortOrder = "desc", TokenModel? tokenModel = null)
+    {
+        try
+        {
+            if (!Guid.TryParse(subscriptionId, out var subscriptionGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID format", StatusCode = 400 };
+            }
+
+            // Validate access
+            if (tokenModel != null)
+            {
+                var subscriptionResult = await GetSubscriptionAsync(subscriptionId, tokenModel);
+                if (subscriptionResult.StatusCode != 200)
+                {
+                    return subscriptionResult;
+                }
+            }
+
+            _logger.LogInformation("Retrieving subscription privilege usage with database-level filtering - SubscriptionId: {SubscriptionId}, Page: {Page}, PageSize: {PageSize}", 
+                subscriptionId, page, pageSize);
+
+            // Use database-level filtering, pagination, and sorting
+            var (usages, totalCount) = await _usageRepo.GetUsagesWithFilteringAsync(
+                page, pageSize, subscriptionGuid, null, null, search, isActive, startDate, endDate, sortBy, sortOrder);
+
+            var usageData = usages.Select(usage => new
+            {
+                Id = usage.Id,
+                PrivilegeId = usage.PrivilegeId,
+                PrivilegeName = usage.Privilege?.Name ?? "Unknown",
+                UsedCount = usage.UsedValue,
+                Limit = usage.AllowedValue,
+                UsagePeriod = $"{usage.UsagePeriodStart:yyyy-MM-dd} to {usage.UsagePeriodEnd:yyyy-MM-dd}",
+                LastUsed = usage.LastUsedAt,
+                CreatedAt = usage.CreatedDate,
+                IsActive = usage.IsActive
+            }).ToList();
+
+            var paginationMeta = new Meta
+            {
+                TotalRecords = totalCount,
+                CurrentPage = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                HasNextPage = page < (int)Math.Ceiling((double)totalCount / pageSize),
+                HasPreviousPage = page > 1
+            };
+
+            return new JsonModel
+            {
+                data = usageData,
+                meta = paginationMeta,
+                Message = "Privilege usage retrieved successfully with database-level filtering",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving subscription privilege usage with filtering for subscription {SubscriptionId}", subscriptionId);
+            return new JsonModel { data = new object(), Message = $"Error retrieving privilege usage: {ex.Message}", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
     /// Retrieves subscriptions with comprehensive filtering, pagination, and sorting
     /// </summary>
     public async Task<JsonModel> GetSubscriptionsWithFilteringAsync(SubscriptionFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false)
@@ -1560,7 +1697,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Validate admin access if required
-            if (adminOnly && (tokenModel?.RoleID != 1 && tokenModel?.RoleID != 3))
+            if (adminOnly && (tokenModel?.RoleID != (int)RoleId.Admin && tokenModel?.RoleID != (int)RoleId.Provider))
             {
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }

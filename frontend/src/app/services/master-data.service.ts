@@ -28,6 +28,6 @@ export class MasterDataService {
   }
 
   getPrivileges(): Observable<ApiResponse<Privilege[]>> {
-    return this.commonService.getWithAuth<Privilege[]>('/api/Privileges');
+    return this.commonService.getWithAuth<Privilege[]>('/api/SubscriptionPlanPrivileges/privileges');
   }
 }
