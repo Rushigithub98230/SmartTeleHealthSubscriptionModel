@@ -18,16 +18,19 @@ namespace SmartTelehealth.API.Controllers
     {
         private readonly IStripeService _stripeService;
         private readonly ISubscriptionPlanService _subscriptionPlanService;
+        private readonly ILogger<StripeController> _logger;
 
         /// <summary>
         /// Initializes a new instance of the StripeController with the required services.
         /// </summary>
         /// <param name="stripeService">Service for handling Stripe-related business logic</param>
         /// <param name="subscriptionPlanService">Service for handling subscription plan operations</param>
-        public StripeController(IStripeService stripeService, ISubscriptionPlanService subscriptionPlanService)
+        /// <param name="logger">Logger for logging operations</param>
+        public StripeController(IStripeService stripeService, ISubscriptionPlanService subscriptionPlanService, ILogger<StripeController> logger)
         {
             _stripeService = stripeService;
             _subscriptionPlanService = subscriptionPlanService;
+            _logger = logger;
         }
 
         /// <summary>
@@ -107,6 +110,16 @@ namespace SmartTelehealth.API.Controllers
                 // Create checkout session with dynamic price ID
                 var sessionUrl = await _stripeService.CreateCheckoutSessionAsync(priceId, request.SuccessUrl, request.CancelUrl, GetToken(HttpContext));
                 
+                // Store questionnaire responses if provided
+                if (request.QuestionnaireResponses != null && request.QuestionnaireResponses.Count > 0)
+                {
+                    // TODO: Store questionnaire responses in database or session storage
+                    // This could be stored in a temporary table or session storage
+                    // and associated with the checkout session ID
+                    _logger.LogInformation("Questionnaire responses received for plan {PlanId}: {ResponseCount} responses", 
+                        request.PlanId, request.QuestionnaireResponses.Count);
+                }
+                
                 return new JsonModel 
                 { 
                     data = new { url = sessionUrl, sessionId = Guid.NewGuid().ToString() }, 
@@ -146,5 +159,7 @@ namespace SmartTelehealth.API.Controllers
         public string BillingCycleId { get; set; } = string.Empty;
         public string SuccessUrl { get; set; } = string.Empty;
         public string CancelUrl { get; set; } = string.Empty;
+        public Dictionary<string, object>? QuestionnaireResponses { get; set; }
+        public string? CategoryId { get; set; }
     }
 } 

@@ -362,42 +362,6 @@ export class SubscriptionManagementComponent implements OnInit {
     });
   }
 
-  deactivatePlan(planId: string) {
-    const dialogData: ConfirmationDialogData = {
-      title: 'Deactivate Subscription Plan',
-      message: 'Are you sure you want to deactivate this subscription plan? It will no longer be available for new subscriptions.',
-      confirmText: 'Deactivate Plan',
-      cancelText: 'Cancel',
-      type: 'warning',
-      requireReason: true,
-      reasonLabel: 'Deactivation Reason',
-      reasonPlaceholder: 'Please provide a reason for deactivating this plan...'
-    };
-
-    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
-      width: '600px',
-      data: dialogData
-    });
-
-    dialogRef.afterClosed().subscribe(result => {
-      if (result && result.confirmed) {
-        this.subscriptionService.deactivatePlan(planId).subscribe({
-          next: (response) => {
-            if (response.statusCode === 200) {
-              this.snackBar.open('Plan deactivated successfully', 'Close', { duration: 3000 });
-              this.loadPlans();
-            } else {
-              this.snackBar.open(response.message || 'Failed to deactivate plan', 'Close', { duration: 5000 });
-            }
-          },
-          error: (error) => {
-            console.error('Error deactivating plan:', error);
-            this.snackBar.open(error.message || 'Error deactivating plan', 'Close', { duration: 5000 });
-          }
-        });
-      }
-    });
-  }
 
   // Subscriptions management
   loadSubscriptions() {

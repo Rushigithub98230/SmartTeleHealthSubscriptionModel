@@ -405,7 +405,7 @@
   <!-- Question Popup -->
   <app-questionare-popup
     *ngIf="showQuestionPopup"
-    [questions]="getQuestionsForCurrentCategory()"
+    [questions]="currentQuestions"
     [categoryName]="getCategoryForPlan(formData.planId)?.name || ''"
     (complete)="onQuestionsComplete($event)"
     (close)="onQuestionsClose()">

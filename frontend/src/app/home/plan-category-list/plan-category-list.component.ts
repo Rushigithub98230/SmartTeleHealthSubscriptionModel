@@ -73,6 +73,10 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
     answers: {},
     fromTrending: false,
   };
+  
+  // Questionnaire state
+  currentQuestions: Question[] = [];
+  questionnaireTemplateId: string = '';
 
   constructor(
     private questionsService: PlanCategoryService,
@@ -235,9 +239,8 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
     this.formData.selectedPlan = { ...plan, billingCycleId: plan.billingCycleId || 'monthly' };
     this.formData.fromTrending = false;
 
-    // Start with questions step
-    this.showQuestionPopup = true;
-    this.currentStep = "questions";
+    // Load questions from backend for this category
+    this.loadQuestionsForCategory(plan.categoryId);
   }
 
   handlePlanSelect(plan: SubscriptionPlan): void {
@@ -248,15 +251,58 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
     this.formData.selectedPlan = { ...plan, billingCycleId: plan.billingCycleId || 'monthly' };
     this.formData.fromTrending = true;
 
-    // Start with questions step
-    this.showQuestionPopup = true;
-    this.currentStep = "questions";
+    // Load questions from backend for this category
+    this.loadQuestionsForCategory(plan.categoryId);
+  }
+
+  loadQuestionsForCategory(categoryId: string): void {
+    console.log('Loading questions for category:', categoryId);
+    
+    this.questionsService.getQuestionsForCategory(categoryId).subscribe({
+      next: (questions: Question[]) => {
+        console.log('Questions loaded:', questions);
+        this.currentQuestions = questions;
+        this.showQuestionPopup = true;
+        this.currentStep = "questions";
+      },
+      error: (error) => {
+        console.error('Error loading questions:', error);
+        // Fallback to showing questions popup with empty questions
+        this.currentQuestions = [];
+        this.showQuestionPopup = true;
+        this.currentStep = "questions";
+      }
+    });
   }
 
   onQuestionsComplete(answers: { [key: string]: any }): void {
     this.formData.answers = answers;
-    this.showQuestionPopup = false;
-    this.currentStep = "plans";
+    
+    // Submit questionnaire response to backend
+    if (this.questionnaireTemplateId) {
+      this.questionsService.submitQuestionnaireResponse(
+        this.questionnaireTemplateId,
+        answers,
+        this.formData.planId,
+        this.formData.categoryId
+      ).subscribe({
+        next: (response) => {
+          console.log('Questionnaire response submitted:', response);
+          this.showQuestionPopup = false;
+          this.currentStep = "plans";
+        },
+        error: (error) => {
+          console.error('Error submitting questionnaire response:', error);
+          // Continue with the flow even if submission fails
+          this.showQuestionPopup = false;
+          this.currentStep = "plans";
+        }
+      });
+    } else {
+      // No template ID, just continue
+      this.showQuestionPopup = false;
+      this.currentStep = "plans";
+    }
   }
 
   onQuestionsClose(): void {
@@ -316,7 +362,9 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
       planId: selectedPlan.id,
       billingCycleId: billingCycleId,
       successUrl: `${window.location.origin}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${window.location.origin}/subscription/cancel`
+      cancelUrl: `${window.location.origin}/subscription/cancel`,
+      questionnaireResponses: this.formData.answers,
+      categoryId: this.formData.categoryId
     };
 
     console.log('Creating checkout session for:', checkoutRequest);

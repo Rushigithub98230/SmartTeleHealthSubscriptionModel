@@ -84,6 +84,8 @@ export interface CheckoutSessionRequest {
   billingCycleId: string;
   successUrl: string;
   cancelUrl: string;
+  questionnaireResponses?: { [key: string]: any };
+  categoryId?: string;
 }
 
 @Injectable({

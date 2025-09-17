@@ -1,10 +1,83 @@
 import { Injectable } from '@angular/core';
 import { CategoryQuestions, Question } from './plan-category-list.component';
+import { QuestionnaireService, CreateUserResponseDto } from '../../services/questionnaire.service';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
 })
 export class PlanCategoryService {
+  constructor(private questionnaireService: QuestionnaireService) {}
+
+  /**
+   * Get questions for a specific category from backend
+   */
+  getQuestionsForCategory(categoryId: string): Observable<Question[]> {
+    return this.questionnaireService.getTemplatesByCategory(categoryId).pipe(
+      map((response: any) => {
+        if (response.statusCode === 200 && response.data && response.data.length > 0) {
+          // Get the first active template for the category
+          const template = response.data.find((t: any) => t.isActive);
+          if (template && template.questions) {
+            return template.questions.map((q: any) => ({
+              id: q.id,
+              text: q.text,
+              type: q.type,
+              options: q.options || [],
+              required: q.required || false,
+              placeholder: q.placeholder
+            }));
+          }
+        }
+        // Fallback to hardcoded questions if backend fails
+        return this.getHardcodedQuestions(categoryId);
+      }),
+      catchError((error) => {
+        console.error('Error fetching questions from backend:', error);
+        // Fallback to hardcoded questions
+        return of(this.getHardcodedQuestions(categoryId));
+      })
+    );
+  }
+
+  /**
+   * Submit questionnaire response to backend
+   */
+  submitQuestionnaireResponse(templateId: string, answers: { [key: string]: any }, planId?: string, categoryId?: string): Observable<any> {
+    const response: CreateUserResponseDto = {
+      templateId: templateId,
+      answers: answers,
+      planId: planId,
+      categoryId: categoryId
+    };
+
+    return this.questionnaireService.submitResponse(response);
+  }
+
+  /**
+   * Get hardcoded questions as fallback
+   */
+  private getHardcodedQuestions(categoryId: string): Question[] {
+    const categoryKey = this.getCategoryKey(categoryId);
+    return this.categoryQuestions[categoryKey] || [];
+  }
+
+  /**
+   * Map category ID to category key
+   */
+  private getCategoryKey(categoryId: string): string {
+    // This is a simple mapping - you might want to make this more sophisticated
+    const categoryMap: { [key: string]: string } = {
+      'hair-loss': 'hair-loss',
+      'skincare': 'skincare',
+      'weight-loss': 'weight-loss',
+      'mental-health': 'mental-health',
+      'sexual-health': 'sexual-health',
+      'general-health': 'general-health'
+    };
+    return categoryMap[categoryId] || 'general-health';
+  }
  private categoryQuestions: CategoryQuestions = {
     'hair-loss': [
       {
@@ -237,71 +310,4 @@ export class PlanCategoryService {
     ]
   };
 
-  getQuestionsForCategory(categoryId: string): Question[] {
-    console.log('Getting questions for category ID:', categoryId);
-    
-    // Map backend category IDs to question sets
-    // This mapping should ideally come from the backend, but for now we'll use a mapping
-    const categoryMapping: { [key: string]: string } = {
-      // Map actual backend category IDs to question sets
-      // You should update these mappings based on the actual category IDs from your backend
-      '1': 'hair-loss',
-      '2': 'skincare', 
-      '3': 'weight-management',
-      '4': 'mental-wellness',
-      '5': 'hormone-therapy',
-      '6': 'preventive-care'
-    };
-    
-    // Try to find a mapping first
-    const questionKey = categoryMapping[categoryId];
-    
-    // If we have a specific question set for this category, use it
-    if (questionKey && this.categoryQuestions[questionKey]) {
-      console.log('Found specific questions for category:', questionKey);
-      return this.categoryQuestions[questionKey];
-    }
-    
-    // Return general questions if no specific mapping found
-    console.log('Using general questions for category:', categoryId);
-    const generalQuestions: Question[] = [
-      {
-        id: 'health-goals',
-        text: 'What are your primary health goals?',
-        type: 'checkbox',
-        options: ['Improve overall health', 'Manage specific condition', 'Preventive care', 'Regular monitoring', 'Expert consultation'],
-        required: true
-      },
-      {
-        id: 'medical-history',
-        text: 'Do you have any significant medical history?',
-        type: 'textarea',
-        placeholder: 'Please describe any relevant medical conditions, allergies, or medications',
-        required: true
-      },
-      {
-        id: 'previous-experience',
-        text: 'Have you used telemedicine services before?',
-        type: 'radio',
-        options: ['Yes, frequently', 'Yes, occasionally', 'Yes, but rarely', 'No, this is my first time'],
-        required: true
-      },
-      {
-        id: 'communication-preference',
-        text: 'How do you prefer to communicate with healthcare providers?',
-        type: 'checkbox',
-        options: ['Video calls', 'Phone calls', 'Text messaging', 'Email', 'In-app messaging'],
-        required: true
-      },
-      {
-        id: 'emergency-contact',
-        text: 'Emergency contact information',
-        type: 'text',
-        placeholder: 'Name and phone number of emergency contact',
-        required: true
-      }
-    ];
-    
-    return generalQuestions;
-  }
 }
