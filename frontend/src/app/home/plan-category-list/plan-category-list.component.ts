@@ -18,6 +18,7 @@ export interface Question {
   options?: string[];
   required: boolean;
   placeholder?: string;
+  templateId?: string;
 }
 
 export interface CategoryQuestions {
@@ -102,7 +103,7 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
     this.isLoadingPlans = true;
     this.errorMessage = '';
     
-    this.subscriptionService.getActivePlans().subscribe({
+    const subscription = this.subscriptionService.getActivePlans().subscribe({
       next: (plans: SubscriptionPlan[]) => {
         this.backendPlans = plans || [];
         console.log('Loaded plans:', this.backendPlans);
@@ -114,13 +115,15 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
         this.isLoadingPlans = false;
       }
     });
+    
+    this.subscriptions.push(subscription);
   }
 
   loadCategories() {
     this.isLoadingCategories = true;
     this.errorMessage = '';
     
-    this.subscriptionService.getCategories().subscribe({
+    const subscription = this.subscriptionService.getCategories().subscribe({
       next: (categories: BackendCategory[]) => {
         this.backendCategories = categories || [];
         console.log('Loaded categories:', this.backendCategories);
@@ -132,6 +135,8 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
         this.isLoadingCategories = false;
       }
     });
+    
+    this.subscriptions.push(subscription);
   }
 
   loadBillingCycles() {
@@ -234,10 +239,18 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
   onSelectPlan(plan: SubscriptionPlan): void {
     console.log('Plan selected from category view:', plan);
     
+    // Validate plan data
+    if (!plan || !plan.id || !plan.categoryId) {
+      console.error('Invalid plan data');
+      this.errorMessage = 'Invalid plan selected. Please try again.';
+      return;
+    }
+    
     this.formData.categoryId = plan.categoryId;
     this.formData.planId = plan.id;
     this.formData.selectedPlan = { ...plan, billingCycleId: plan.billingCycleId || 'monthly' };
     this.formData.fromTrending = false;
+    this.formData.answers = {}; // Reset answers when selecting new plan
 
     // Load questions from backend for this category
     this.loadQuestionsForCategory(plan.categoryId);
@@ -246,10 +259,18 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
   handlePlanSelect(plan: SubscriptionPlan): void {
     console.log('Plan selected from trending view:', plan);
     
+    // Validate plan data
+    if (!plan || !plan.id || !plan.categoryId) {
+      console.error('Invalid plan data');
+      this.errorMessage = 'Invalid plan selected. Please try again.';
+      return;
+    }
+    
     this.formData.categoryId = plan.categoryId;
     this.formData.planId = plan.id;
     this.formData.selectedPlan = { ...plan, billingCycleId: plan.billingCycleId || 'monthly' };
     this.formData.fromTrending = true;
+    this.formData.answers = {}; // Reset answers when selecting new plan
 
     // Load questions from backend for this category
     this.loadQuestionsForCategory(plan.categoryId);
@@ -258,21 +279,31 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
   loadQuestionsForCategory(categoryId: string): void {
     console.log('Loading questions for category:', categoryId);
     
-    this.questionsService.getQuestionsForCategory(categoryId).subscribe({
+    const subscription = this.questionsService.getQuestionsForCategory(categoryId).subscribe({
       next: (questions: Question[]) => {
         console.log('Questions loaded:', questions);
         this.currentQuestions = questions;
+        
+        // Set questionnaire template ID from the first question if available
+        if (questions.length > 0 && questions[0].templateId) {
+          this.questionnaireTemplateId = questions[0].templateId;
+        } else {
+          this.questionnaireTemplateId = '';
+        }
+        
         this.showQuestionPopup = true;
         this.currentStep = "questions";
       },
       error: (error) => {
         console.error('Error loading questions:', error);
-        // Fallback to showing questions popup with empty questions
+        this.errorMessage = 'Failed to load questions. Please try again.';
         this.currentQuestions = [];
-        this.showQuestionPopup = true;
-        this.currentStep = "questions";
+        this.questionnaireTemplateId = '';
+        this.showQuestionPopup = false; // Don't show empty popup
       }
     });
+    
+    this.subscriptions.push(subscription);
   }
 
   onQuestionsComplete(answers: { [key: string]: any }): void {
@@ -280,7 +311,7 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
     
     // Submit questionnaire response to backend
     if (this.questionnaireTemplateId) {
-      this.questionsService.submitQuestionnaireResponse(
+      const subscription = this.questionsService.submitQuestionnaireResponse(
         this.questionnaireTemplateId,
         answers,
         this.formData.planId,
@@ -298,6 +329,8 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
           this.currentStep = "plans";
         }
       });
+      
+      this.subscriptions.push(subscription);
     } else {
       // No template ID, just continue
       this.showQuestionPopup = false;
@@ -342,7 +375,7 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
   onPayment(): void {
     if (!this.formData.selectedPlan) {
       console.error('No plan selected for payment');
-      alert('No plan selected');
+      this.errorMessage = 'No plan selected. Please select a plan first.';
       return;
     }
 
@@ -353,7 +386,22 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
     // Validate required fields
     if (!selectedPlan.id) {
       console.error('Plan ID is missing');
-      alert('Plan information is incomplete. Please try again.');
+      this.errorMessage = 'Plan information is incomplete. Please try again.';
+      return;
+    }
+
+    // Validate billing cycle
+    const validBillingCycle = this.billingCycles.find(cycle => cycle.id === billingCycleId);
+    if (!validBillingCycle) {
+      console.error('Invalid billing cycle');
+      this.errorMessage = 'Invalid billing cycle selected. Please try again.';
+      return;
+    }
+
+    // Validate plan price
+    if (!selectedPlan.price || selectedPlan.price <= 0) {
+      console.error('Invalid plan price');
+      this.errorMessage = 'Invalid plan price. Please contact support.';
       return;
     }
 
@@ -371,7 +419,7 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
     console.log('Selected plan details:', selectedPlan);
 
     // Create Stripe checkout session
-    this.subscriptionService.createCheckoutSession(checkoutRequest).subscribe({
+    const subscription = this.subscriptionService.createCheckoutSession(checkoutRequest).subscribe({
       next: (response) => {
         console.log('Checkout session created successfully:', response);
         if (response.url) {
@@ -379,7 +427,7 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
           window.location.href = response.url;
         } else {
           console.error('No checkout URL received');
-          alert('Failed to get checkout URL. Please try again.');
+          this.errorMessage = 'Failed to get checkout URL. Please try again.';
         }
       },
       error: (error) => {
@@ -392,9 +440,11 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
           errorMessage = error.error.message;
         }
         
-        alert(errorMessage);
+        this.errorMessage = errorMessage;
       }
     });
+    
+    this.subscriptions.push(subscription);
   }
 
   resetFormData(): void {
@@ -405,6 +455,11 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
       fromTrending: false,
     };
     this.selectedCategory = null;
+    this.clearErrorMessage();
+  }
+
+  clearErrorMessage(): void {
+    this.errorMessage = '';
   }
 
   backToOverview(): void {

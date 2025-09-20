@@ -48,19 +48,6 @@ public class BundleItemDto
     public string? Description { get; set; }
 }
 
-public class BillingAdjustmentDto
-{
-    public Guid Id { get; set; }
-    public Guid BillingRecordId { get; set; }
-    public decimal Amount { get; set; }
-    public string AdjustmentType { get; set; } = string.Empty;
-    public string Reason { get; set; } = string.Empty;
-    public string? AppliedBy { get; set; }
-    public DateTime AppliedAt { get; set; }
-    public DateTime CreatedDate => AppliedAt;
-    public bool IsPercentage { get; set; }
-    public string? Notes { get; set; }
-}
 
 public class InvoiceDto
 {

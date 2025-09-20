@@ -1,66 +1,64 @@
 import { Injectable } from '@angular/core';
 import { User } from './plan-category-list.component';
-import { BehaviorSubject } from 'rxjs/internal/BehaviorSubject';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { AuthService as RealAuthService, AdminUser } from '../../admin/auth/auth.service';
+import { map, catchError } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
 })
 export class PlanCategoryAuthService {
- private currentUserSubject = new BehaviorSubject<User | null>(null);
+  private currentUserSubject = new BehaviorSubject<User | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
 
-  constructor() {
+  constructor(private realAuthService: RealAuthService) {
     this.checkExistingAuth();
   }
 
   private checkExistingAuth(): void {
-    const token = localStorage.getItem('access-token');
-    const userData = localStorage.getItem('user-data');
-    
-    if (token && userData) {
-      try {
-        const user = JSON.parse(userData);
-        user.accessToken = token;
+    // Use the real auth service to check authentication status
+    if (this.realAuthService.isAuthenticated()) {
+      const adminUser = this.realAuthService.getCurrentUser();
+      if (adminUser) {
+        const user: User = {
+          email: adminUser.email,
+          name: `${adminUser.firstName} ${adminUser.lastName}`.trim(),
+          accessToken: this.realAuthService.getToken() || ''
+        };
         this.currentUserSubject.next(user);
-      } catch (error) {
-        this.logout();
       }
     }
   }
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('access-token');
+    return this.realAuthService.isAuthenticated();
   }
 
-  login(email: string, password: string): Promise<boolean> {
-    // Simulate login API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        if (email && password) {
+  login(email: string, password: string): Observable<boolean> {
+    return this.realAuthService.login({ email, password }).pipe(
+      map(response => {
+        if (response.statusCode === 200 && response.data) {
+          const adminUser = response.data.user;
           const user: User = {
-            email: email,
-            name: email.split('@')[0],
-            accessToken: 'mock-token-' + Date.now()
+            email: adminUser.email,
+            name: `${adminUser.firstName} ${adminUser.lastName}`.trim(),
+            accessToken: response.data.token
           };
-          
-          localStorage.setItem('access-token', user.accessToken);
-          localStorage.setItem('user-data', JSON.stringify({
-            email: user.email,
-            name: user.name
-          }));
-          
           this.currentUserSubject.next(user);
-          resolve(true);
-        } else {
-          resolve(false);
+          return true;
         }
-      }, 1000);
-    });
+        return false;
+      }),
+      catchError(error => {
+        console.error('Login error:', error);
+        this.currentUserSubject.next(null);
+        throw error;
+      })
+    );
   }
 
   logout(): void {
-    localStorage.removeItem('access-token');
-    localStorage.removeItem('user-data');
+    this.realAuthService.logout();
     this.currentUserSubject.next(null);
   }
 

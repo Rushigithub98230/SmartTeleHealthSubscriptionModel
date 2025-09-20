@@ -33,8 +33,12 @@ public class AutomatedBillingService : IAutomatedBillingService
     private readonly IBillingService _billingService;
     private readonly IStripeService _stripeService;
     private readonly IPrivilegeUsageHistoryRepository _privilegeUsageHistoryRepository;
+    private readonly IUserSubscriptionPrivilegeUsageRepository _userSubscriptionPrivilegeUsageRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<AutomatedBillingService> _logger;
+    private readonly INotificationService _notificationService;
+    private readonly IUserRepository _userRepository;
+    private readonly IBillingRepository _billingRepository;
 
     /// <summary>
     /// Initializes a new instance of the AutomatedBillingService
@@ -43,22 +47,34 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// <param name="billingService">Service for billing record management and processing</param>
     /// <param name="stripeService">Service for Stripe payment processing integration</param>
     /// <param name="privilegeUsageHistoryRepository">Repository for privilege usage history tracking</param>
+    /// <param name="userSubscriptionPrivilegeUsageRepository">Repository for user subscription privilege usage tracking</param>
     /// <param name="unitOfWork">Unit of work for transaction management</param>
     /// <param name="logger">Logger instance for recording service operations and errors</param>
+    /// <param name="notificationService">Service for sending notifications to users</param>
+    /// <param name="userRepository">Repository for user data access operations</param>
+    /// <param name="billingRepository">Repository for billing record data access operations</param>
     public AutomatedBillingService(
         ISubscriptionRepository subscriptionRepository,
         IBillingService billingService,
         IStripeService stripeService,
         IPrivilegeUsageHistoryRepository privilegeUsageHistoryRepository,
+        IUserSubscriptionPrivilegeUsageRepository userSubscriptionPrivilegeUsageRepository,
         IUnitOfWork unitOfWork,
-        ILogger<AutomatedBillingService> logger)
+        ILogger<AutomatedBillingService> logger,
+        INotificationService notificationService,
+        IUserRepository userRepository,
+        IBillingRepository billingRepository)
     {
         _subscriptionRepository = subscriptionRepository;
         _billingService = billingService;
         _stripeService = stripeService;
         _privilegeUsageHistoryRepository = privilegeUsageHistoryRepository;
+        _userSubscriptionPrivilegeUsageRepository = userSubscriptionPrivilegeUsageRepository;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _notificationService = notificationService;
+        _userRepository = userRepository;
+        _billingRepository = billingRepository;
     }
 
     public async Task ProcessRecurringBillingAsync(TokenModel tokenModel)
@@ -897,28 +913,117 @@ public class AutomatedBillingService : IAutomatedBillingService
     }
 
     /// <summary>
-    /// Processes payment through Stripe
+    /// Processes payment through Stripe with comprehensive retry logic
     /// </summary>
     private async Task<PaymentResultDto> ProcessPaymentThroughStripeAsync(Subscription subscription, decimal amount, TokenModel tokenModel)
     {
-        try
+        const int maxRetries = 3;
+        const int baseDelayMs = 1000; // 1 second base delay
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            return await _stripeService.ProcessPaymentAsync(
-                subscription.PaymentMethodId,
-                amount,
-                subscription.Currency ?? "usd",
-                tokenModel
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing payment through Stripe for subscription {SubscriptionId}", subscription.Id);
-            return new PaymentResultDto
+            try
             {
-                Status = "failed",
-                ErrorMessage = ex.Message
-            };
+                _logger.LogInformation("Processing payment attempt {Attempt}/{MaxRetries} for subscription {SubscriptionId} amount {Amount}", 
+                    attempt, maxRetries, subscription.Id, amount);
+
+                var result = await _stripeService.ProcessPaymentAsync(
+                    subscription.PaymentMethodId,
+                    amount,
+                    subscription.Currency ?? "usd",
+                    tokenModel
+                );
+
+                if (result.Status == "succeeded")
+                {
+                    _logger.LogInformation("Payment succeeded on attempt {Attempt} for subscription {SubscriptionId}", 
+                        attempt, subscription.Id);
+                    return result;
+                }
+
+                // Check if this is a retryable error
+                if (IsRetryablePaymentError(result.Status) && attempt < maxRetries)
+                {
+                    var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1); // Exponential backoff
+                    _logger.LogWarning("Payment failed with retryable error on attempt {Attempt} for subscription {SubscriptionId}. Retrying in {Delay}ms. Status: {Status}", 
+                        attempt, subscription.Id, delay, result.Status);
+                    
+                    await Task.Delay(delay);
+                    continue;
+                }
+
+                // Non-retryable error or max retries reached
+                _logger.LogError("Payment failed permanently for subscription {SubscriptionId} after {Attempt} attempts. Status: {Status}, Error: {Error}", 
+                    subscription.Id, attempt, result.Status, result.ErrorMessage);
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                if (attempt < maxRetries && IsRetryableException(ex))
+                {
+                    var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1); // Exponential backoff
+                    _logger.LogWarning(ex, "Payment processing exception on attempt {Attempt} for subscription {SubscriptionId}. Retrying in {Delay}ms", 
+                        attempt, subscription.Id, delay);
+                    
+                    await Task.Delay(delay);
+                    continue;
+                }
+
+                _logger.LogError(ex, "Payment processing failed permanently for subscription {SubscriptionId} after {Attempt} attempts", 
+                    subscription.Id, attempt);
+                
+                return new PaymentResultDto
+                {
+                    Status = "failed",
+                    ErrorMessage = ex.Message
+                };
+            }
         }
+
+        // This should never be reached, but just in case
+        return new PaymentResultDto
+        {
+            Status = "failed",
+            ErrorMessage = "Payment processing failed after all retry attempts"
+        };
+    }
+
+    /// <summary>
+    /// Determines if a payment error is retryable
+    /// </summary>
+    private static bool IsRetryablePaymentError(string status)
+    {
+        var retryableStatuses = new[]
+        {
+            "requires_payment_method",
+            "requires_confirmation",
+            "requires_action",
+            "processing",
+            "canceled" // Sometimes canceled payments can be retried
+        };
+
+        return retryableStatuses.Contains(status?.ToLower());
+    }
+
+    /// <summary>
+    /// Determines if an exception is retryable
+    /// </summary>
+    private static bool IsRetryableException(Exception ex)
+    {
+        // Network-related exceptions are typically retryable
+        if (ex is HttpRequestException || ex is TaskCanceledException || ex is TimeoutException)
+            return true;
+
+        // Stripe rate limiting is retryable
+        if (ex.Message.Contains("rate_limit") || ex.Message.Contains("too_many_requests"))
+            return true;
+
+        // Temporary Stripe service issues are retryable
+        if (ex.Message.Contains("service_unavailable") || ex.Message.Contains("internal_error"))
+            return true;
+
+        return false;
     }
 
     /// <summary>
@@ -1306,7 +1411,7 @@ public class AutomatedBillingService : IAutomatedBillingService
         }
     }
     
-    private async Task<decimal> CalculateOverageChargeAsync(Subscription subscription)
+    public async Task<decimal> CalculateOverageChargeAsync(Subscription subscription)
     {
         try
         {
@@ -1351,11 +1456,144 @@ public class AutomatedBillingService : IAutomatedBillingService
         }
     }
 
-    private async Task<int> GetActualUsageForPrivilegeAsync(Guid subscriptionId, Guid privilegeId)
+    /// <summary>
+    /// Creates a billing record for overage charges
+    /// </summary>
+    /// <param name="subscription">The subscription with overage charges</param>
+    /// <param name="overageAmount">The total overage amount</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>Created billing record ID</returns>
+    public async Task<Guid?> CreateOverageBillingRecordAsync(Subscription subscription, decimal overageAmount, TokenModel tokenModel)
     {
         try
         {
-            // Get current billing period dates
+            if (overageAmount <= 0)
+            {
+                _logger.LogInformation("No overage charges to bill for subscription {SubscriptionId}", subscription.Id);
+                return null;
+            }
+
+            // Create billing record for overage charges
+            var billingRecord = new BillingRecord
+            {
+                Id = Guid.NewGuid(),
+                UserId = subscription.UserId,
+                SubscriptionId = subscription.Id,
+                CurrencyId = subscription.CurrencyId,
+                Status = BillingRecord.BillingStatus.Pending,
+                Type = BillingRecord.BillingType.Subscription,
+                Amount = overageAmount,
+                TaxAmount = 0, // Calculate tax if needed
+                ShippingAmount = 0,
+                TotalAmount = overageAmount,
+                BillingDate = DateTime.UtcNow,
+                DueDate = DateTime.UtcNow.AddDays(7), // 7 days to pay overage
+                Description = $"Overage charges for subscription {subscription.Id}",
+                IsRecurring = false,
+                NextBillingDate = null
+            };
+
+            // Save billing record
+            await _billingRepository.CreateAsync(billingRecord);
+
+            _logger.LogInformation("Created overage billing record {BillingRecordId} for subscription {SubscriptionId} with amount {Amount}", 
+                billingRecord.Id, subscription.Id, overageAmount);
+
+            // Send notification to user about overage charges
+            try
+            {
+                var user = await _userRepository.GetByIdAsync(subscription.UserId);
+                if (user != null)
+                {
+                    var billingRecordDto = new BillingRecordDto
+                    {
+                        Id = billingRecord.Id,
+                        Amount = overageAmount,
+                        DueDate = billingRecord.DueDate,
+                        Description = billingRecord.Description
+                    };
+                    
+                    await _notificationService.SendOverageChargeEmailAsync(user.Email, user.FullName, billingRecordDto, overageAmount, tokenModel);
+                    _logger.LogInformation("Overage charge notification sent to user {UserId} for subscription {SubscriptionId}", user.Id, subscription.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send overage charge notification for subscription {SubscriptionId}", subscription.Id);
+                // Don't fail the main operation if notification fails
+            }
+
+            return billingRecord.Id;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating overage billing record for subscription {SubscriptionId}", subscription.Id);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Processes overage charges for a subscription
+    /// </summary>
+    /// <param name="subscription">The subscription to process overage charges for</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>True if overage charges were processed successfully</returns>
+    public async Task<bool> ProcessOverageChargesAsync(Subscription subscription, TokenModel tokenModel)
+    {
+        try
+        {
+            // Calculate overage charges
+            var overageAmount = await CalculateOverageChargeAsync(subscription);
+            
+            if (overageAmount <= 0)
+            {
+                _logger.LogInformation("No overage charges for subscription {SubscriptionId}", subscription.Id);
+                return true;
+            }
+
+            // Create billing record for overage
+            var billingRecordId = await CreateOverageBillingRecordAsync(subscription, overageAmount, tokenModel);
+            
+            if (billingRecordId == null)
+            {
+                _logger.LogError("Failed to create overage billing record for subscription {SubscriptionId}", subscription.Id);
+                return false;
+            }
+
+            // Process payment for overage charges
+            var paymentResult = await ProcessPaymentThroughStripeAsync(subscription, overageAmount, tokenModel);
+            
+            if (paymentResult.IsSuccess)
+            {
+                _logger.LogInformation("Successfully processed overage charges of {Amount} for subscription {SubscriptionId}", 
+                    overageAmount, subscription.Id);
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("Failed to process overage charges for subscription {SubscriptionId}: {Error}", 
+                    subscription.Id, paymentResult.ErrorMessage);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing overage charges for subscription {SubscriptionId}", subscription.Id);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets the actual usage count for a specific privilege in the current billing period
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID</param>
+    /// <param name="privilegeId">The privilege ID</param>
+    /// <returns>Total usage count for the privilege in the current billing period</returns>
+    public async Task<int> GetActualUsageForPrivilegeAsync(Guid subscriptionId, Guid privilegeId)
+    {
+        try
+        {
+            // Get subscription details
             var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
             if (subscription == null)
             {
@@ -1363,24 +1601,24 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return 0;
             }
 
-            // Calculate billing period start and end dates
-            var billingPeriodStart = GetBillingPeriodStart(subscription);
-            var billingPeriodEnd = GetBillingPeriodEnd(subscription);
+            // Get current usage records for this subscription
+            var usageRecords = await _userSubscriptionPrivilegeUsageRepository.GetBySubscriptionIdAsync(subscriptionId);
+            
+            // Find the usage record for the specific privilege
+            var privilegeUsage = usageRecords.FirstOrDefault(u => u.PrivilegeId == privilegeId);
+            
+            if (privilegeUsage == null)
+            {
+                _logger.LogInformation("No usage found for subscription {SubscriptionId}, privilege {PrivilegeId}", 
+                    subscriptionId, privilegeId);
+                return 0;
+            }
 
-            // Get actual usage count for this privilege in the current billing period
-            var usageHistory = await _privilegeUsageHistoryRepository.GetByDateRangeAsync(
-                subscriptionId, 
-                billingPeriodStart, 
-                billingPeriodEnd
-            );
-
-            // Filter by specific privilege and sum up the usage
-            var totalUsage = usageHistory
-                .Where(uh => uh.UserSubscriptionPrivilegeUsage?.SubscriptionPlanPrivilege?.PrivilegeId == privilegeId)
-                .Sum(uh => uh.UsedValue);
-
-            _logger.LogInformation("Usage for subscription {SubscriptionId}, privilege {PrivilegeId}: {Usage} units in period {Start} to {End}", 
-                subscriptionId, privilegeId, totalUsage, billingPeriodStart, billingPeriodEnd);
+            // Return the current used value
+            var totalUsage = privilegeUsage.UsedValue;
+            
+            _logger.LogInformation("Actual usage for subscription {SubscriptionId}, privilege {PrivilegeId}: {Usage} units", 
+                subscriptionId, privilegeId, totalUsage);
 
             return totalUsage;
         }

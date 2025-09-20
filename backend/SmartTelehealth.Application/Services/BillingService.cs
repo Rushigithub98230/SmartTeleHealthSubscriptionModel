@@ -765,23 +765,90 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
+                // Step 1: Validate billing record exists
                 var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
                 if (billingRecord == null)
                 {
+                    _logger.LogWarning("Billing record {BillingRecordId} not found for adjustment", billingRecordId);
                     return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
                 }
 
-                // TODO: Implement billing adjustment logic
-                var adjustment = new BillingAdjustmentDto
+                // Step 2: Validate adjustment details
+                var validationResult = ValidateBillingAdjustment(adjustmentDto, billingRecord);
+                if (!validationResult.IsValid)
+                {
+                    _logger.LogWarning("Invalid billing adjustment for record {BillingRecordId}: {ValidationError}", 
+                        billingRecordId, validationResult.ErrorMessage);
+                    return new JsonModel { data = new object(), Message = validationResult.ErrorMessage, StatusCode = 400 };
+                }
+
+                // Step 3: Create billing adjustment entity
+                var adjustment = new BillingAdjustment
                 {
                     Id = Guid.NewGuid(),
                     BillingRecordId = billingRecordId,
+                    Type = adjustmentDto.Type,
                     Amount = adjustmentDto.Amount,
+                    Description = adjustmentDto.Description,
                     Reason = adjustmentDto.Reason,
-                    AppliedAt = DateTime.UtcNow
+                    IsPercentage = adjustmentDto.IsPercentage,
+                    Percentage = adjustmentDto.Percentage,
+                    AppliedAt = DateTime.UtcNow,
+                    AppliedBy = tokenModel?.UserID,
+                    IsApproved = adjustmentDto.IsApproved,
+                    ApprovalNotes = adjustmentDto.ApprovalNotes
                 };
+
+                // Step 4: Calculate actual adjustment amount
+                decimal actualAdjustmentAmount = adjustmentDto.IsPercentage && adjustmentDto.Percentage.HasValue
+                    ? billingRecord.TotalAmount * (adjustmentDto.Percentage.Value / 100)
+                    : adjustmentDto.Amount;
+
+                // Step 5: Update billing record total
+                billingRecord.TotalAmount += actualAdjustmentAmount;
+                billingRecord.ProcessedAt = DateTime.UtcNow;
+
+                // Step 6: Save changes to database
+                await _billingRepository.CreateAdjustmentAsync(adjustment);
+                await _billingRepository.UpdateAsync(billingRecord);
                 
-                return new JsonModel { data = adjustment, Message = "Billing adjustment applied successfully", StatusCode = 200 };
+                // Step 7: Create adjustment DTO for response
+                var adjustmentResponse = new BillingAdjustmentDto
+                {
+                    Id = adjustment.Id,
+                    BillingRecordId = billingRecordId,
+                    Type = adjustment.Type,
+                    Amount = actualAdjustmentAmount,
+                    Description = adjustment.Description,
+                    Reason = adjustment.Reason,
+                    IsPercentage = adjustment.IsPercentage,
+                    Percentage = adjustment.Percentage,
+                    AppliedAt = adjustment.AppliedAt,
+                    AppliedBy = adjustment.AppliedBy,
+                    IsApproved = adjustment.IsApproved,
+                    ApprovalNotes = adjustment.ApprovalNotes
+                };
+
+                _logger.LogInformation("Successfully applied billing adjustment {AdjustmentId} of {Amount} to billing record {BillingRecordId} by user {UserId}", 
+                    adjustment.Id, actualAdjustmentAmount, billingRecordId, tokenModel?.UserID);
+
+                // Send notification to user about billing adjustment
+                try
+                {
+                    var user = await _userRepository.GetByIdAsync(billingRecord.UserId);
+                    if (user != null)
+                    {
+                        await _notificationService.SendBillingAdjustmentEmailAsync(user.Email, user.FullName, adjustmentResponse, tokenModel);
+                        _logger.LogInformation("Billing adjustment notification sent to user {UserId}", user.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send billing adjustment notification for adjustment {AdjustmentId}", adjustment.Id);
+                    // Don't fail the main operation if notification fails
+                }
+
+                return new JsonModel { data = adjustmentResponse, Message = "Billing adjustment applied successfully", StatusCode = 200 };
             }
             catch (Exception ex)
             {
@@ -809,10 +876,38 @@ namespace SmartTelehealth.Application.Services
         {
             try
             {
-                // TODO: Implement billing adjustments retrieval
-                var adjustments = new List<BillingAdjustmentDto>();
+                // Step 1: Validate billing record exists
+                var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
+                if (billingRecord == null)
+                {
+                    _logger.LogWarning("Billing record {BillingRecordId} not found for adjustments retrieval", billingRecordId);
+                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+                }
+
+                // Step 2: Get billing adjustments from repository
+                var adjustments = await _billingRepository.GetAdjustmentsByBillingRecordIdAsync(billingRecordId);
                 
-                return new JsonModel { data = adjustments, Message = "Billing adjustments retrieved successfully", StatusCode = 200 };
+                // Step 3: Map to DTOs
+                var adjustmentDtos = adjustments.Select(adj => new BillingAdjustmentDto
+                {
+                    Id = adj.Id,
+                    BillingRecordId = adj.BillingRecordId,
+                    Type = adj.Type,
+                    Amount = adj.Amount,
+                    Description = adj.Description,
+                    Reason = adj.Reason,
+                    IsPercentage = adj.IsPercentage,
+                    Percentage = adj.Percentage,
+                    AppliedAt = adj.AppliedAt,
+                    AppliedBy = adj.AppliedBy,
+                    IsApproved = adj.IsApproved,
+                    ApprovalNotes = adj.ApprovalNotes
+                }).ToList();
+
+                _logger.LogInformation("Retrieved {Count} billing adjustments for billing record {BillingRecordId} by user {UserId}", 
+                    adjustmentDtos.Count, billingRecordId, tokenModel?.UserID);
+
+                return new JsonModel { data = adjustmentDtos, Message = "Billing adjustments retrieved successfully", StatusCode = 200 };
             }
             catch (Exception ex)
             {
@@ -1974,6 +2069,154 @@ namespace SmartTelehealth.Application.Services
             {
                 _logger.LogError(ex, "Error getting payment history for user {UserId}", userId);
                 return Enumerable.Empty<PaymentHistoryDto>();
+            }
+        }
+
+        /// <summary>
+        /// Validates billing adjustment details
+        /// </summary>
+        /// <param name="adjustmentDto">The adjustment DTO to validate</param>
+        /// <param name="billingRecord">The billing record to apply adjustment to</param>
+        /// <returns>Validation result with success status and error message</returns>
+        private (bool IsValid, string ErrorMessage) ValidateBillingAdjustment(CreateBillingAdjustmentDto adjustmentDto, BillingRecord billingRecord)
+        {
+            try
+            {
+                // Validate adjustment amount
+                if (adjustmentDto.Amount <= 0 && (!adjustmentDto.IsPercentage || !adjustmentDto.Percentage.HasValue || adjustmentDto.Percentage.Value <= 0))
+                {
+                    return (false, "Adjustment amount must be greater than zero");
+                }
+
+                // Validate percentage-based adjustments
+                if (adjustmentDto.IsPercentage)
+                {
+                    if (!adjustmentDto.Percentage.HasValue)
+                    {
+                        return (false, "Percentage value is required for percentage-based adjustments");
+                    }
+
+                    if (adjustmentDto.Percentage.Value <= 0 || adjustmentDto.Percentage.Value > 100)
+                    {
+                        return (false, "Percentage must be between 0 and 100");
+                    }
+                }
+
+                // Validate billing record status
+                if (billingRecord.Status == BillingRecord.BillingStatus.Paid && 
+                    (adjustmentDto.Type == BillingAdjustment.AdjustmentType.Discount || 
+                     adjustmentDto.Type == BillingAdjustment.AdjustmentType.Credit))
+                {
+                    return (false, "Cannot apply discounts or credits to already paid billing records");
+                }
+
+                // Validate refund adjustments
+                if (adjustmentDto.Type == BillingAdjustment.AdjustmentType.Refund && 
+                    billingRecord.Status != BillingRecord.BillingStatus.Paid)
+                {
+                    return (false, "Refunds can only be applied to paid billing records");
+                }
+
+                // Validate description
+                if (string.IsNullOrWhiteSpace(adjustmentDto.Description))
+                {
+                    return (false, "Adjustment description is required");
+                }
+
+                // Validate reason for certain adjustment types
+                if ((adjustmentDto.Type == BillingAdjustment.AdjustmentType.Refund || 
+                     adjustmentDto.Type == BillingAdjustment.AdjustmentType.LateFee) && 
+                    string.IsNullOrWhiteSpace(adjustmentDto.Reason))
+                {
+                    return (false, "Reason is required for refund and late fee adjustments");
+                }
+
+                return (true, string.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating billing adjustment");
+                return (false, "Error validating billing adjustment");
+            }
+        }
+
+        /// <summary>
+        /// Calculates the total adjustment amount for a billing record
+        /// </summary>
+        /// <param name="billingRecordId">The billing record ID</param>
+        /// <returns>Total adjustment amount</returns>
+        public async Task<decimal> GetTotalAdjustmentAmountAsync(Guid billingRecordId)
+        {
+            try
+            {
+                var adjustments = await _billingRepository.GetAdjustmentsByBillingRecordIdAsync(billingRecordId);
+                return adjustments.Sum(adj => adj.Amount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calculating total adjustment amount for billing record {BillingRecordId}", billingRecordId);
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Reverses a billing adjustment
+        /// </summary>
+        /// <param name="adjustmentId">The adjustment ID to reverse</param>
+        /// <param name="tokenModel">Token containing user authentication information</param>
+        /// <returns>JsonModel containing reversal results</returns>
+        public async Task<JsonModel> ReverseBillingAdjustmentAsync(Guid adjustmentId, TokenModel tokenModel)
+        {
+            try
+            {
+                // Get the adjustment
+                var adjustment = await _billingRepository.GetAdjustmentByIdAsync(adjustmentId);
+                if (adjustment == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Billing adjustment not found", StatusCode = 404 };
+                }
+
+                // Get the billing record
+                var billingRecord = await _billingRepository.GetByIdAsync(adjustment.BillingRecordId);
+                if (billingRecord == null)
+                {
+                    return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+                }
+
+                // Create reversal adjustment
+                var reversalAdjustment = new BillingAdjustment
+                {
+                    Id = Guid.NewGuid(),
+                    BillingRecordId = adjustment.BillingRecordId,
+                    Type = adjustment.Type,
+                    Amount = -adjustment.Amount, // Negative amount for reversal
+                    Description = $"Reversal of adjustment: {adjustment.Description}",
+                    Reason = $"Reversed by user {tokenModel?.UserID}",
+                    IsPercentage = adjustment.IsPercentage,
+                    Percentage = adjustment.Percentage,
+                    AppliedAt = DateTime.UtcNow,
+                    AppliedBy = tokenModel?.UserID,
+                    IsApproved = true,
+                    ApprovalNotes = "Automatic reversal"
+                };
+
+                // Update billing record total
+                billingRecord.TotalAmount -= adjustment.Amount;
+                billingRecord.ProcessedAt = DateTime.UtcNow;
+
+                // Save changes
+                await _billingRepository.CreateAdjustmentAsync(reversalAdjustment);
+                await _billingRepository.UpdateAsync(billingRecord);
+
+                _logger.LogInformation("Successfully reversed billing adjustment {AdjustmentId} by user {UserId}", 
+                    adjustmentId, tokenModel?.UserID);
+
+                return new JsonModel { data = new { ReversalId = reversalAdjustment.Id }, Message = "Billing adjustment reversed successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reversing billing adjustment {AdjustmentId}", adjustmentId);
+                return new JsonModel { data = new object(), Message = "Error reversing billing adjustment", StatusCode = 500 };
             }
         }
 

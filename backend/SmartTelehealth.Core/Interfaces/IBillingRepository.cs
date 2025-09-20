@@ -20,6 +20,9 @@ public interface IBillingRepository : IRepositoryBase<BillingRecord>
     
     // Additional methods needed by BillingService
     Task<IEnumerable<BillingAdjustment>> GetAdjustmentsByBillingRecordIdAsync(Guid billingRecordId);
+    Task<BillingAdjustment?> GetAdjustmentByIdAsync(Guid adjustmentId);
+    Task<BillingAdjustment> CreateAdjustmentAsync(BillingAdjustment adjustment);
+    Task<BillingAdjustment> UpdateAdjustmentAsync(BillingAdjustment adjustment);
     Task<IEnumerable<BillingRecord>> GetByBillingCycleIdAsync(Guid billingCycleId);
     Task<IEnumerable<BillingRecord>> GetOverdueRecordsAsync();
     Task<IEnumerable<BillingRecord>> GetPendingRecordsAsync();

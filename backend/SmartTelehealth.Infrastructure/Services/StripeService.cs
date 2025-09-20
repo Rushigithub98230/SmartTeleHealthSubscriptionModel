@@ -661,6 +661,12 @@ public class StripeService : IStripeService
         if (string.IsNullOrEmpty(currency))
             throw new ArgumentException("Currency is required", nameof(currency));
 
+        // CRITICAL FIX: Validate currency before processing
+        if (!IsValidCurrency(currency))
+        {
+            throw new ArgumentException($"Currency {currency} is not supported. Supported currencies: {string.Join(", ", GetSupportedCurrencies())}");
+        }
+
         return await ExecuteWithRetryAsync(async () =>
         {
             try
@@ -1406,6 +1412,44 @@ public class StripeService : IStripeService
         var invoice = stripeEvent.Data.Object as Stripe.Invoice;
         _logger.LogInformation("Handling invoice payment failed event for invoice {InvoiceId}", invoice?.Id);
         // Implement payment failed logic
+    }
+
+    /// <summary>
+    /// Validates if a currency is supported by Stripe
+    /// </summary>
+    /// <param name="currency">The currency code to validate</param>
+    /// <returns>True if currency is supported, false otherwise</returns>
+    private static bool IsValidCurrency(string currency)
+    {
+        if (string.IsNullOrEmpty(currency))
+            return false;
+
+        var supportedCurrencies = GetSupportedCurrencies();
+        return supportedCurrencies.Contains(currency.ToLower());
+    }
+
+    /// <summary>
+    /// Gets the list of supported currencies by Stripe
+    /// </summary>
+    /// <returns>Array of supported currency codes</returns>
+    private static string[] GetSupportedCurrencies()
+    {
+        return new[]
+        {
+            "usd", "eur", "gbp", "cad", "aud", "jpy", "chf", "sek", "nok", "dkk",
+            "pln", "czk", "huf", "bgn", "ron", "hrk", "rsd", "try", "rub", "uah",
+            "byn", "kzt", "amd", "azn", "gel", "kgs", "mdl", "tmt", "uzs", "bdt",
+            "inr", "lkr", "npr", "pkr", "afn", "khr", "lao", "mmk", "mnt", "thb",
+            "vnd", "idr", "myr", "php", "sgd", "brl", "clp", "cop", "mxn", "pen",
+            "uyu", "ars", "bob", "pyg", "vef", "crc", "gtq", "hnl", "nio", "pab",
+            "svc", "dzd", "egp", "mad", "tnd", "ngn", "zar", "kes", "ugx", "tzs",
+            "etb", "ghs", "xof", "xaf", "aoa", "bwp", "lsl", "szl", "mwk", "zmw",
+            "mzn", "mga", "mur", "scr", "cny", "hkd", "krw", "twd", "nzd", "fjd",
+            "pgk", "sbd", "top", "vuv", "wst", "xpf", "aed", "bhd", "ils", "jod",
+            "kwd", "lbp", "omr", "qar", "sar", "bnd", "kyd", "bbd", "bmd", "bsd",
+            "bzd", "ttd", "xcd", "awg", "bob", "clf", "cop", "cup", "dop", "htg",
+            "jmd", "mop", "nzd", "pyg", "srd", "uyu", "vef", "xaf", "xof", "xpf"
+        };
     }
     #endregion
 } 

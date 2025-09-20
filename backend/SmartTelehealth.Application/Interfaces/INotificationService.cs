@@ -32,6 +32,8 @@ public interface INotificationService
     Task<JsonModel> SendPaymentFailedEmailAsync(string email, string userName, BillingRecordDto billingRecord, TokenModel tokenModel);
     Task<JsonModel> SendRefundProcessedEmailAsync(string email, string userName, BillingRecordDto billingRecord, decimal refundAmount, TokenModel tokenModel);
     Task<JsonModel> SendOverduePaymentEmailAsync(string email, string userName, BillingRecordDto billingRecord, TokenModel tokenModel);
+    Task<JsonModel> SendBillingAdjustmentEmailAsync(string email, string userName, BillingAdjustmentDto adjustment, TokenModel tokenModel);
+    Task<JsonModel> SendOverageChargeEmailAsync(string email, string userName, BillingRecordDto billingRecord, decimal overageAmount, TokenModel tokenModel);
     
     // In-app notifications
     Task<JsonModel> CreateInAppNotificationAsync(int userId, string title, string message, TokenModel tokenModel);

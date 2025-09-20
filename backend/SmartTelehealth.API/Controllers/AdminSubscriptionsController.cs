@@ -147,6 +147,24 @@ public class AdminSubscriptionsController : BaseController
         return await _subscriptionLifecycleService.UpdateSubscriptionAsync(id, updateDto, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves billing history for a specific subscription for administrative management.
+    /// </summary>
+    [HttpGet("{id}/billing-history")]
+    public async Task<JsonModel> GetSubscriptionBillingHistory(string id)
+    {
+        return await _subscriptionService.GetSubscriptionBillingHistoryAsync(id, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves privilege usage for a specific subscription for administrative management.
+    /// </summary>
+    [HttpGet("{id}/privilege-usage")]
+    public async Task<JsonModel> GetSubscriptionPrivilegeUsage(string id)
+    {
+        return await _subscriptionService.GetSubscriptionPrivilegeUsageAsync(id, GetToken(HttpContext));
+    }
+
     #endregion
 
     #region Bulk Operations

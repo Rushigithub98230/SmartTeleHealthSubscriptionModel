@@ -26,7 +26,8 @@ export class PlanCategoryService {
               type: q.type,
               options: q.options || [],
               required: q.required || false,
-              placeholder: q.placeholder
+              placeholder: q.placeholder,
+              templateId: template.id
             }));
           }
         }

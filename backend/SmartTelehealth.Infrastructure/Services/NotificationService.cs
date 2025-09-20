@@ -648,6 +648,121 @@ public class NotificationService : INotificationService
         }
     }
     
+    public async Task<JsonModel> SendBillingAdjustmentEmailAsync(string email, string userName, BillingAdjustmentDto adjustment, TokenModel tokenModel)
+    {
+        try
+        {
+            var subject = "Billing Adjustment Applied";
+            var body = $@"
+                <h2>Billing Adjustment Applied</h2>
+                <p>Hello {userName},</p>
+                <p>A billing adjustment has been applied to your account.</p>
+                <p><strong>Adjustment Details:</strong></p>
+                <ul>
+                    <li>Type: {adjustment.Type}</li>
+                    <li>Amount: ${adjustment.Amount}</li>
+                    <li>Description: {adjustment.Description}</li>
+                    <li>Applied Date: {adjustment.AppliedAt:MM/dd/yyyy}</li>
+                    <li>Reason: {adjustment.Reason ?? "Not specified"}</li>
+                </ul>
+                <p>This adjustment has been applied to your billing record and will be reflected in your next statement.</p>
+                <br>
+                <p>Best regards,<br>Smart Telehealth Team</p>";
+            
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Billing adjustment email sent successfully to {Email} for adjustment {AdjustmentId}", email, adjustment.Id);
+                return new JsonModel
+                {
+                    data = true,
+                    Message = "Billing adjustment email sent successfully",
+                    StatusCode = 200
+                };
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send billing adjustment email to {Email}. Status: {StatusCode}, Message: {Message}", 
+                    email, emailResult.StatusCode, emailResult.Message);
+                return new JsonModel
+                {
+                    data = false,
+                    Message = $"Failed to send email: {emailResult.Message}",
+                    StatusCode = emailResult.StatusCode
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending billing adjustment email to {Email}", email);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Error sending billing adjustment email",
+                StatusCode = 500
+            };
+        }
+    }
+    
+    public async Task<JsonModel> SendOverageChargeEmailAsync(string email, string userName, BillingRecordDto billingRecord, decimal overageAmount, TokenModel tokenModel)
+    {
+        try
+        {
+            var subject = "Overage Charges Applied";
+            var body = $@"
+                <h2>Overage Charges Applied</h2>
+                <p>Hello {userName},</p>
+                <p>Overage charges have been applied to your subscription due to usage exceeding your plan limits.</p>
+                <p><strong>Overage Details:</strong></p>
+                <ul>
+                    <li>Overage Amount: ${overageAmount}</li>
+                    <li>Billing Record: {billingRecord.Id}</li>
+                    <li>Due Date: {billingRecord.DueDate:MM/dd/yyyy}</li>
+                    <li>Description: {billingRecord.Description}</li>
+                </ul>
+                <p>These charges are based on your usage that exceeded the limits included in your subscription plan. Please review your usage and consider upgrading your plan if you consistently exceed limits.</p>
+                <br>
+                <p>Best regards,<br>Smart Telehealth Team</p>";
+            
+            // Send email using the communication service
+            var emailResult = await _communicationService.SendEmailAsync(email, subject, body, true, tokenModel);
+            
+            if (emailResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Overage charge email sent successfully to {Email} for billing record {BillingRecordId}", email, billingRecord.Id);
+                return new JsonModel
+                {
+                    data = true,
+                    Message = "Overage charge email sent successfully",
+                    StatusCode = 200
+                };
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send overage charge email to {Email}. Status: {StatusCode}, Message: {Message}", 
+                    email, emailResult.StatusCode, emailResult.Message);
+                return new JsonModel
+                {
+                    data = false,
+                    Message = $"Failed to send email: {emailResult.Message}",
+                    StatusCode = emailResult.StatusCode
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending overage charge email to {Email}", email);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Error sending overage charge email",
+                StatusCode = 500
+            };
+        }
+    }
+    
     public async Task<JsonModel> SendDeliveryNotificationAsync(string email, string userName, MedicationDeliveryDto delivery, TokenModel tokenModel)
     {
         try

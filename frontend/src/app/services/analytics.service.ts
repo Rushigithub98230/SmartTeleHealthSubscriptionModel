@@ -45,12 +45,12 @@ export interface PlanPerformance {
   providedIn: 'root'
 })
 export class AnalyticsService {
-  private readonly apiUrl = `${environment.apiUrl}/api/admin/AdminSubscription`;
+  private readonly apiUrl = `${environment.apiUrl}/api/admin/analytics`;
 
   constructor(private http: HttpClient) {}
 
   getDashboardSummary(): Observable<DashboardSummary> {
-    return this.http.get<DashboardSummary>(`${this.apiUrl}`);
+    return this.http.get<DashboardSummary>(`${this.apiUrl}/dashboard`);
   }
 
   getRevenueMetrics(startDate?: string, endDate?: string): Observable<RevenueMetrics> {
@@ -58,21 +58,21 @@ export class AnalyticsService {
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
     
-    return this.http.get<RevenueMetrics>(`${this.apiUrl}/analytics/revenue`, { params });
+    return this.http.get<RevenueMetrics>(`${this.apiUrl}/revenue`, { params });
   }
 
   getChurnAnalysis(period: string = 'month'): Observable<ChurnAnalysis> {
-    return this.http.get<ChurnAnalysis>(`${this.apiUrl}/analytics/churn`, { 
+    return this.http.get<ChurnAnalysis>(`${this.apiUrl}/churn`, { 
       params: { period } 
     });
   }
 
   getPlanPerformance(): Observable<PlanPerformance[]> {
-    return this.http.get<PlanPerformance[]>(`${this.apiUrl}/analytics`);
+    return this.http.get<PlanPerformance[]>(`${this.apiUrl}/plan-performance`);
   }
 
   exportAnalytics(type: string, format: string = 'csv'): Observable<Blob> {
-    return this.http.get(`${this.apiUrl}/analytics/export`, {
+    return this.http.get(`${this.apiUrl}/export`, {
       params: { type, format },
       responseType: 'blob'
     });
@@ -83,16 +83,16 @@ export class AnalyticsService {
   }
 
   getSubscriptionTrends(period: string = '30days'): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/analytics/trends`, {
+    return this.http.get<any>(`${this.apiUrl}/trends`, {
       params: { period }
     });
   }
 
   getUserGrowthMetrics(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/analytics/user-growth`);
+    return this.http.get<any>(`${this.apiUrl}/user-growth`);
   }
 
   getPaymentAnalytics(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/analytics/payments`);
+    return this.http.get<any>(`${this.apiUrl}/payments`);
   }
 }

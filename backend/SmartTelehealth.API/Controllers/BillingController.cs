@@ -382,23 +382,6 @@ public class BillingController : BaseController
         return await _billingService.ProcessBundlePaymentAsync(createDto, GetToken(HttpContext));
     }
 
-    /// <summary>
-    /// Apply billing adjustment
-    /// </summary>
-    [HttpPost("{id}/adjustments")]
-    public async Task<JsonModel> ApplyBillingAdjustment(Guid id, [FromBody] CreateBillingAdjustmentDto adjustmentDto)
-    {
-        return await _billingService.ApplyBillingAdjustmentAsync(id, adjustmentDto, GetToken(HttpContext));
-    }
-
-    /// <summary>
-    /// Get billing adjustments
-    /// </summary>
-    [HttpGet("{id}/adjustments")]
-    public async Task<JsonModel> GetBillingAdjustments(Guid id)
-    {
-        return await _billingService.GetBillingAdjustmentsAsync(id, GetToken(HttpContext));
-    }
 
     /// <summary>
     /// Retry failed payment
@@ -587,6 +570,117 @@ public class BillingController : BaseController
     public async Task<JsonModel> UpdateInvoiceStatus(string invoiceNumber, [FromBody] UpdateInvoiceStatusRequestDto request)
     {
         return await _billingService.UpdateInvoiceStatusAsync(invoiceNumber, request.Status, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Applies a billing adjustment to a specific billing record
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record</param>
+    /// <param name="adjustmentDto">The billing adjustment details</param>
+    /// <returns>Result of the billing adjustment application</returns>
+    [HttpPost("{billingRecordId}/adjustments")]
+    public async Task<IActionResult> ApplyBillingAdjustment(Guid billingRecordId, [FromBody] CreateBillingAdjustmentDto adjustmentDto)
+    {
+        try
+        {
+            
+            adjustmentDto.BillingRecordId = billingRecordId; // Ensure consistency
+            
+            var result = await _billingService.ApplyBillingAdjustmentAsync(billingRecordId, adjustmentDto, GetToken(HttpContext));
+            
+            return StatusCode(result.StatusCode, result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new JsonModel 
+            { 
+                data = new object(), 
+                Message = "Error applying billing adjustment", 
+                StatusCode = 500 
+            });
+        }
+    }
+
+    /// <summary>
+    /// Retrieves all billing adjustments for a specific billing record
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record</param>
+    /// <returns>List of billing adjustments for the record</returns>
+    [HttpGet("{billingRecordId}/adjustments")]
+    public async Task<IActionResult> GetBillingAdjustments(Guid billingRecordId)
+    {
+        try
+        {
+            
+            var result = await _billingService.GetBillingAdjustmentsAsync(billingRecordId, GetToken(HttpContext));
+            
+            return StatusCode(result.StatusCode, result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new JsonModel 
+            { 
+                data = new object(), 
+                Message = "Error retrieving billing adjustments", 
+                StatusCode = 500 
+            });
+        }
+    }
+
+    /// <summary>
+    /// Reverses a billing adjustment
+    /// </summary>
+    /// <param name="adjustmentId">The unique identifier of the adjustment to reverse</param>
+    /// <returns>Result of the adjustment reversal</returns>
+    [HttpPost("adjustments/{adjustmentId}/reverse")]
+    public async Task<IActionResult> ReverseBillingAdjustment(Guid adjustmentId)
+    {
+        try
+        {
+            var tokenModel = GetTokenModel();
+            var result = await _billingService.ReverseBillingAdjustmentAsync(adjustmentId, tokenModel);
+            
+            return StatusCode(result.StatusCode, result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new JsonModel 
+            { 
+                data = new object(), 
+                Message = "Error reversing billing adjustment", 
+                StatusCode = 500 
+            });
+        }
+    }
+
+    /// <summary>
+    /// Gets the total adjustment amount for a billing record
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record</param>
+    /// <returns>Total adjustment amount</returns>
+    [HttpGet("{billingRecordId}/adjustments/total")]
+    public async Task<IActionResult> GetTotalAdjustmentAmount(Guid billingRecordId)
+    {
+        try
+        {
+            var totalAmount = await _billingService.GetTotalAdjustmentAmountAsync(billingRecordId);
+            
+            return Ok(new JsonModel 
+            { 
+                data = new { TotalAdjustmentAmount = totalAmount }, 
+                Message = "Total adjustment amount retrieved successfully", 
+                StatusCode = 200 
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new JsonModel 
+            { 
+                data = new object(), 
+                Message = "Error retrieving total adjustment amount", 
+                StatusCode = 500 
+            });
+        }
     }
 }
 

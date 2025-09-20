@@ -101,9 +101,26 @@ public class StripeBillingService : IStripeBillingService
                 };
             }
 
+            // CRITICAL FIX: Validate payment method before processing
+            var paymentMethod = paymentMethods.First();
+            var isValidPaymentMethod = await _stripeService.ValidatePaymentMethodAsync(paymentMethod.Id, tokenModel);
+            
+            if (!isValidPaymentMethod)
+            {
+                _logger.LogWarning("Payment method {PaymentMethodId} is invalid or expired for billing record {BillingRecordId}", 
+                    paymentMethod.Id, billingRecordId);
+                
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Payment method is invalid or expired. Please update your payment method.",
+                    StatusCode = 400
+                };
+            }
+
             // Process payment through Stripe with retry logic
             var paymentResult = await _stripeService.ProcessPaymentAsync(
-                paymentMethods.First().Id,
+                paymentMethod.Id,
                 billingRecord.TotalAmount,
                 billingRecord.Currency.Code,
                 tokenModel);

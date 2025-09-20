@@ -351,3 +351,65 @@ export interface SubscriptionDetailsDto extends SubscriptionDto {
   statusHistory: SubscriptionStatusHistoryDto[];
   privilegeUsage: UserSubscriptionPrivilegeUsageDto[];
 }
+
+// Additional DTOs for admin operations
+export interface UpdateSubscriptionDto {
+  status?: string;
+  currentPrice?: number;
+  nextBillingDate?: Date;
+  lastPaymentDate?: Date;
+  lastPaymentFailedDate?: Date;
+  lastPaymentError?: string;
+  failedPaymentAttempts?: number;
+  stripeSubscriptionId?: string;
+  stripeCustomerId?: string;
+  paymentMethodId?: string;
+  cancelledDate?: Date;
+  cancellationReason?: string;
+  pausedDate?: Date;
+  pauseReason?: string;
+  resumedDate?: Date;
+  expiredDate?: Date;
+  renewedAt?: Date;
+  lastUsedDate?: Date;
+  totalUsageCount?: number;
+  autoRenew?: boolean;
+  subscriptionPlanId?: string;
+  trialEndDate?: Date;
+  updatedDate?: Date;
+}
+
+export interface UpgradeSubscriptionDto {
+  subscriptionId: string;
+  userId: number;
+  newPlanId: string;
+  paymentMethodId: string;
+  prorate: boolean;
+}
+
+export interface DowngradeSubscriptionDto {
+  subscriptionId: string;
+  userId: number;
+  newPlanId: string;
+  paymentMethodId: string;
+  prorate: boolean;
+}
+
+export interface ExtendSubscriptionDto {
+  newEndDate: Date;
+  reason?: string;
+}
+
+export interface BulkActionRequestDto {
+  subscriptionId: string;
+  action: string;
+  reason?: string;
+  additionalDays?: number;
+}
+
+export interface BulkActionResultDto {
+  subscriptionId: string;
+  success: boolean;
+  message: string;
+  error?: string;
+}

@@ -37,6 +37,8 @@ public interface IBillingService
     Task<JsonModel> ProcessBundlePaymentAsync(CreateBundlePaymentDto createDto, TokenModel tokenModel);
     Task<JsonModel> ApplyBillingAdjustmentAsync(Guid billingRecordId, CreateBillingAdjustmentDto adjustmentDto, TokenModel tokenModel);
     Task<JsonModel> GetBillingAdjustmentsAsync(Guid billingRecordId, TokenModel tokenModel);
+    Task<JsonModel> ReverseBillingAdjustmentAsync(Guid adjustmentId, TokenModel tokenModel);
+    Task<decimal> GetTotalAdjustmentAmountAsync(Guid billingRecordId);
     Task<JsonModel> RetryFailedPaymentAsync(Guid billingRecordId, TokenModel tokenModel);
     Task<JsonModel> RetryPaymentAsync(Guid billingRecordId, TokenModel tokenModel);
     Task<JsonModel> ProcessPartialPaymentAsync(Guid billingRecordId, decimal amount, TokenModel tokenModel);

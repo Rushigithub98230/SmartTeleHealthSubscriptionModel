@@ -244,23 +244,25 @@ export class LoginPopupOurPlanComponent {
 
   constructor(private authService: PlanCategoryAuthService) {}
 
-  async onLogin(): Promise<void> {
+  onLogin(): void {
     this.isLoading = true;
     this.errorMessage = "";
 
-    try {
-      const success = await this.authService.login(this.email, this.password);
-
-      if (success) {
-        this.loginSuccess.emit();
-      } else {
-        this.errorMessage = "Invalid email or password";
+    this.authService.login(this.email, this.password).subscribe({
+      next: (success) => {
+        this.isLoading = false;
+        if (success) {
+          this.loginSuccess.emit();
+        } else {
+          this.errorMessage = "Invalid email or password";
+        }
+      },
+      error: (error) => {
+        this.isLoading = false;
+        console.error('Login error:', error);
+        this.errorMessage = error?.error?.message || "Login failed. Please try again.";
       }
-    } catch (error) {
-      this.errorMessage = "Login failed. Please try again.";
-    } finally {
-      this.isLoading = false;
-    }
+    });
   }
 
   onClose(): void {

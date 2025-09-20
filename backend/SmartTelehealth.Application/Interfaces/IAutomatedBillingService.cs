@@ -1,5 +1,6 @@
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
+using SmartTelehealth.Core.Entities;
 
 namespace SmartTelehealth.Application.Interfaces;
 
@@ -22,4 +23,10 @@ public interface IAutomatedBillingService
     Task ProcessAllFailedPaymentRetriesAsync(TokenModel tokenModel);
     Task ProcessAllSubscriptionRenewalsAsync(TokenModel tokenModel);
     Task<BillingStatistics> GetBillingStatisticsAsync(DateTime startDate, DateTime endDate, TokenModel tokenModel);
+    
+    // Overage processing methods
+    Task<decimal> CalculateOverageChargeAsync(Subscription subscription);
+    Task<Guid?> CreateOverageBillingRecordAsync(Subscription subscription, decimal overageAmount, TokenModel tokenModel);
+    Task<bool> ProcessOverageChargesAsync(Subscription subscription, TokenModel tokenModel);
+    Task<int> GetActualUsageForPrivilegeAsync(Guid subscriptionId, Guid privilegeId);
 }

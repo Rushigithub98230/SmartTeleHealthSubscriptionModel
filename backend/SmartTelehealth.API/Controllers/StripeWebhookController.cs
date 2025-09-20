@@ -326,6 +326,87 @@ public class StripeWebhookController : BaseController
             case "checkout.session.completed":
                 await HandleCheckoutSessionCompleted(stripeEvent);
                 break;
+            case "product.created":
+                await HandleProductCreated(stripeEvent);
+                break;
+            case "product.updated":
+                await HandleProductUpdated(stripeEvent);
+                break;
+            case "product.deleted":
+                await HandleProductDeleted(stripeEvent);
+                break;
+            case "price.created":
+                await HandlePriceCreated(stripeEvent);
+                break;
+            case "price.updated":
+                await HandlePriceUpdated(stripeEvent);
+                break;
+            case "price.deleted":
+                await HandlePriceDeleted(stripeEvent);
+                break;
+            case "payout.created":
+                await HandlePayoutCreated(stripeEvent);
+                break;
+            case "payout.updated":
+                await HandlePayoutUpdated(stripeEvent);
+                break;
+            case "payout.paid":
+                await HandlePayoutPaid(stripeEvent);
+                break;
+            case "payout.failed":
+                await HandlePayoutFailed(stripeEvent);
+                break;
+            case "payout.canceled":
+                await HandlePayoutCanceled(stripeEvent);
+                break;
+            case "balance.available":
+                await HandleBalanceAvailable(stripeEvent);
+                break;
+            case "mandate.updated":
+                await HandleMandateUpdated(stripeEvent);
+                break;
+            case "review.opened":
+                await HandleReviewOpened(stripeEvent);
+                break;
+            case "review.closed":
+                await HandleReviewClosed(stripeEvent);
+                break;
+            case "subscription_schedule.canceled":
+                await HandleSubscriptionScheduleCanceled(stripeEvent);
+                break;
+            case "subscription_schedule.completed":
+                await HandleSubscriptionScheduleCompleted(stripeEvent);
+                break;
+            case "subscription_schedule.created":
+                await HandleSubscriptionScheduleCreated(stripeEvent);
+                break;
+            case "subscription_schedule.released":
+                await HandleSubscriptionScheduleReleased(stripeEvent);
+                break;
+            case "subscription_schedule.updated":
+                await HandleSubscriptionScheduleUpdated(stripeEvent);
+                break;
+            case "tax_rate.created":
+                await HandleTaxRateCreated(stripeEvent);
+                break;
+            case "tax_rate.updated":
+                await HandleTaxRateUpdated(stripeEvent);
+                break;
+            case "transfer.created":
+                await HandleTransferCreated(stripeEvent);
+                break;
+            case "transfer.failed":
+                await HandleTransferFailed(stripeEvent);
+                break;
+            case "transfer.paid":
+                await HandleTransferPaid(stripeEvent);
+                break;
+            case "transfer.reversed":
+                await HandleTransferReversed(stripeEvent);
+                break;
+            case "transfer.updated":
+                await HandleTransferUpdated(stripeEvent);
+                break;
             default:
                 // Log unhandled event type
                 _logger.LogInformation("Unhandled Stripe webhook event type: {EventType}", stripeEvent.Type);
@@ -1471,6 +1552,199 @@ public class StripeWebhookController : BaseController
         // We'll handle this event when the Stripe.NET version supports it
         _logger.LogInformation("Checkout session completed event received but not fully implemented due to Stripe.NET version limitations");
         return;
+    }
+
+    // Additional webhook handlers for comprehensive Stripe event coverage
+    private async Task HandleProductCreated(Event stripeEvent)
+    {
+        var product = stripeEvent.Data.Object as Stripe.Product;
+        _logger.LogInformation("Product created: {ProductId} - {ProductName}", product?.Id, product?.Name);
+        // Implement product creation logic if needed
+    }
+
+    private async Task HandleProductUpdated(Event stripeEvent)
+    {
+        var product = stripeEvent.Data.Object as Stripe.Product;
+        _logger.LogInformation("Product updated: {ProductId} - {ProductName}", product?.Id, product?.Name);
+        // Implement product update logic if needed
+    }
+
+    private async Task HandleProductDeleted(Event stripeEvent)
+    {
+        var product = stripeEvent.Data.Object as Stripe.Product;
+        _logger.LogInformation("Product deleted: {ProductId}", product?.Id);
+        // Implement product deletion logic if needed
+    }
+
+    private async Task HandlePriceCreated(Event stripeEvent)
+    {
+        var price = stripeEvent.Data.Object as Stripe.Price;
+        _logger.LogInformation("Price created: {PriceId} - {Amount} {Currency}", price?.Id, price?.UnitAmount, price?.Currency);
+        // Implement price creation logic if needed
+    }
+
+    private async Task HandlePriceUpdated(Event stripeEvent)
+    {
+        var price = stripeEvent.Data.Object as Stripe.Price;
+        _logger.LogInformation("Price updated: {PriceId} - {Amount} {Currency}", price?.Id, price?.UnitAmount, price?.Currency);
+        // Implement price update logic if needed
+    }
+
+    private async Task HandlePriceDeleted(Event stripeEvent)
+    {
+        var price = stripeEvent.Data.Object as Stripe.Price;
+        _logger.LogInformation("Price deleted: {PriceId}", price?.Id);
+        // Implement price deletion logic if needed
+    }
+
+    private async Task HandlePayoutCreated(Event stripeEvent)
+    {
+        var payout = stripeEvent.Data.Object as Stripe.Payout;
+        _logger.LogInformation("Payout created: {PayoutId} - {Amount} {Currency}", payout?.Id, payout?.Amount, payout?.Currency);
+        // Implement payout creation logic if needed
+    }
+
+    private async Task HandlePayoutUpdated(Event stripeEvent)
+    {
+        var payout = stripeEvent.Data.Object as Stripe.Payout;
+        _logger.LogInformation("Payout updated: {PayoutId} - {Status}", payout?.Id, payout?.Status);
+        // Implement payout update logic if needed
+    }
+
+    private async Task HandlePayoutPaid(Event stripeEvent)
+    {
+        var payout = stripeEvent.Data.Object as Stripe.Payout;
+        _logger.LogInformation("Payout paid: {PayoutId} - {Amount} {Currency}", payout?.Id, payout?.Amount, payout?.Currency);
+        // Implement payout paid logic if needed
+    }
+
+    private async Task HandlePayoutFailed(Event stripeEvent)
+    {
+        var payout = stripeEvent.Data.Object as Stripe.Payout;
+        _logger.LogWarning("Payout failed: {PayoutId} - {FailureCode}: {FailureMessage}", 
+            payout?.Id, payout?.FailureCode, payout?.FailureMessage);
+        // Implement payout failure logic if needed
+    }
+
+    private async Task HandlePayoutCanceled(Event stripeEvent)
+    {
+        var payout = stripeEvent.Data.Object as Stripe.Payout;
+        _logger.LogInformation("Payout canceled: {PayoutId}", payout?.Id);
+        // Implement payout cancellation logic if needed
+    }
+
+    private async Task HandleBalanceAvailable(Event stripeEvent)
+    {
+        var balance = stripeEvent.Data.Object as Stripe.Balance;
+        _logger.LogInformation("Balance available: {AvailableAmount} {Currency}", 
+            balance?.Available?.FirstOrDefault()?.Amount, balance?.Available?.FirstOrDefault()?.Currency);
+        // Implement balance available logic if needed
+    }
+
+    private async Task HandleMandateUpdated(Event stripeEvent)
+    {
+        var mandate = stripeEvent.Data.Object as Stripe.Mandate;
+        _logger.LogInformation("Mandate updated: {MandateId} - {Status}", mandate?.Id, mandate?.Status);
+        // Implement mandate update logic if needed
+    }
+
+    private async Task HandleReviewOpened(Event stripeEvent)
+    {
+        var review = stripeEvent.Data.Object as Stripe.Review;
+        _logger.LogInformation("Review opened: {ReviewId} - {Reason}", review?.Id, review?.Reason);
+        // Implement review opened logic if needed
+    }
+
+    private async Task HandleReviewClosed(Event stripeEvent)
+    {
+        var review = stripeEvent.Data.Object as Stripe.Review;
+        _logger.LogInformation("Review closed: {ReviewId} - {Reason}", review?.Id, review?.Reason);
+        // Implement review closed logic if needed
+    }
+
+    private async Task HandleSubscriptionScheduleCanceled(Event stripeEvent)
+    {
+        var schedule = stripeEvent.Data.Object as Stripe.SubscriptionSchedule;
+        _logger.LogInformation("Subscription schedule canceled: {ScheduleId}", schedule?.Id);
+        // Implement subscription schedule cancellation logic if needed
+    }
+
+    private async Task HandleSubscriptionScheduleCompleted(Event stripeEvent)
+    {
+        var schedule = stripeEvent.Data.Object as Stripe.SubscriptionSchedule;
+        _logger.LogInformation("Subscription schedule completed: {ScheduleId}", schedule?.Id);
+        // Implement subscription schedule completion logic if needed
+    }
+
+    private async Task HandleSubscriptionScheduleCreated(Event stripeEvent)
+    {
+        var schedule = stripeEvent.Data.Object as Stripe.SubscriptionSchedule;
+        _logger.LogInformation("Subscription schedule created: {ScheduleId}", schedule?.Id);
+        // Implement subscription schedule creation logic if needed
+    }
+
+    private async Task HandleSubscriptionScheduleReleased(Event stripeEvent)
+    {
+        var schedule = stripeEvent.Data.Object as Stripe.SubscriptionSchedule;
+        _logger.LogInformation("Subscription schedule released: {ScheduleId}", schedule?.Id);
+        // Implement subscription schedule release logic if needed
+    }
+
+    private async Task HandleSubscriptionScheduleUpdated(Event stripeEvent)
+    {
+        var schedule = stripeEvent.Data.Object as Stripe.SubscriptionSchedule;
+        _logger.LogInformation("Subscription schedule updated: {ScheduleId}", schedule?.Id);
+        // Implement subscription schedule update logic if needed
+    }
+
+    private async Task HandleTaxRateCreated(Event stripeEvent)
+    {
+        var taxRate = stripeEvent.Data.Object as Stripe.TaxRate;
+        _logger.LogInformation("Tax rate created: {TaxRateId} - {Percentage}%", taxRate?.Id, taxRate?.Percentage);
+        // Implement tax rate creation logic if needed
+    }
+
+    private async Task HandleTaxRateUpdated(Event stripeEvent)
+    {
+        var taxRate = stripeEvent.Data.Object as Stripe.TaxRate;
+        _logger.LogInformation("Tax rate updated: {TaxRateId} - {Percentage}%", taxRate?.Id, taxRate?.Percentage);
+        // Implement tax rate update logic if needed
+    }
+
+    private async Task HandleTransferCreated(Event stripeEvent)
+    {
+        var transfer = stripeEvent.Data.Object as Stripe.Transfer;
+        _logger.LogInformation("Transfer created: {TransferId} - {Amount} {Currency}", transfer?.Id, transfer?.Amount, transfer?.Currency);
+        // Implement transfer creation logic if needed
+    }
+
+    private async Task HandleTransferFailed(Event stripeEvent)
+    {
+        var transfer = stripeEvent.Data.Object as Stripe.Transfer;
+        _logger.LogWarning("Transfer failed: {TransferId} - {FailureCode}: {FailureMessage}", 
+            transfer?.Id, transfer?.FailureCode, transfer?.FailureMessage);
+        // Implement transfer failure logic if needed
+    }
+
+    private async Task HandleTransferPaid(Event stripeEvent)
+    {
+        var transfer = stripeEvent.Data.Object as Stripe.Transfer;
+        _logger.LogInformation("Transfer paid: {TransferId} - {Amount} {Currency}", transfer?.Id, transfer?.Amount, transfer?.Currency);
+        // Implement transfer paid logic if needed
+    }
+
+    private async Task HandleTransferReversed(Event stripeEvent)
+    {
+        var transfer = stripeEvent.Data.Object as Stripe.Transfer;
+        _logger.LogInformation("Transfer reversed: {TransferId}", transfer?.Id);
+        // Implement transfer reversal logic if needed
+    }
+
+    private async Task HandleTransferUpdated(Event stripeEvent)
+    {
+        var transfer = stripeEvent.Data.Object as Stripe.Transfer;
+        _logger.LogInformation("Transfer updated: {TransferId} - {Status}", transfer?.Id, transfer?.Status);
+        // Implement transfer update logic if needed
     }
 }
 }
