@@ -1,0 +1,473 @@
+<div class="subscription-management-container">
+  <!-- Header -->
+  <div class="header-section">
+    <h1>Subscription Management</h1>
+    <div class="header-actions">
+      <button mat-raised-button color="primary" (click)="viewMode = 'subscriptions'">
+        <mat-icon>subscriptions</mat-icon>
+        Subscriptions
+      </button>
+      <button mat-raised-button color="primary" (click)="viewMode = 'plans'">
+        <mat-icon>assignment</mat-icon>
+        Plans
+      </button>
+      <button mat-raised-button color="primary" (click)="viewMode = 'analytics'">
+        <mat-icon>analytics</mat-icon>
+        Analytics
+      </button>
+    </div>
+  </div>
+
+  <!-- Subscriptions Tab -->
+  <div *ngIf="viewMode === 'subscriptions'" class="subscriptions-section">
+    <!-- Filters -->
+    <mat-card class="filters-card">
+      <mat-card-header>
+        <mat-card-title>Filters</mat-card-title>
+        <mat-card-subtitle>Filter subscriptions by various criteria</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="subscriptionFilterForm" class="filters-form">
+          <div class="filter-row">
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>Search</mat-label>
+              <input matInput formControlName="searchTerm" placeholder="Search by user name, email, or plan name">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>Status</mat-label>
+              <mat-select formControlName="status" multiple>
+                <mat-option value="active">Active</mat-option>
+                <mat-option value="paused">Paused</mat-option>
+                <mat-option value="cancelled">Cancelled</mat-option>
+                <mat-option value="expired">Expired</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>Plan</mat-label>
+              <mat-select formControlName="planId" multiple>
+                <mat-option *ngFor="let plan of plans" [value]="plan.id">{{ plan.name }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>Start Date</mat-label>
+              <input matInput [matDatepicker]="startPicker" formControlName="startDate">
+              <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+              <mat-datepicker #startPicker></mat-datepicker>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>End Date</mat-label>
+              <input matInput [matDatepicker]="endPicker" formControlName="endDate">
+              <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+              <mat-datepicker #endPicker></mat-datepicker>
+            </mat-form-field>
+          </div>
+
+          <div class="filter-actions">
+            <button mat-button type="button" (click)="clearSubscriptionFilters()">
+              <mat-icon>clear</mat-icon>
+              Clear Filters
+            </button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Bulk Actions -->
+    <div *ngIf="selectedSubscriptions.length > 0" class="bulk-actions">
+      <mat-chip-list>
+        <mat-chip>{{ selectedSubscriptions.length }} selected</mat-chip>
+      </mat-chip-list>
+      <div class="bulk-buttons">
+        <button mat-button (click)="performBulkSubscriptionAction('cancel')">
+          <mat-icon>cancel</mat-icon>
+          Cancel Selected
+        </button>
+        <button mat-button (click)="performBulkSubscriptionAction('pause')">
+          <mat-icon>pause</mat-icon>
+          Pause Selected
+        </button>
+        <button mat-button (click)="performBulkSubscriptionAction('resume')">
+          <mat-icon>play_arrow</mat-icon>
+          Resume Selected
+        </button>
+        <button mat-button (click)="exportSubscriptions('csv')">
+          <mat-icon>download</mat-icon>
+          Export CSV
+        </button>
+        <button mat-button (click)="exportSubscriptions('excel')">
+          <mat-icon>download</mat-icon>
+          Export Excel
+        </button>
+      </div>
+    </div>
+
+    <!-- Subscriptions Table -->
+    <mat-card class="table-card">
+      <mat-card-content>
+        <div class="table-container">
+          <table mat-table [dataSource]="subscriptions" class="subscriptions-table">
+            <!-- Selection Column -->
+            <ng-container matColumnDef="select">
+              <th mat-header-cell *matHeaderCellDef>
+                <mat-checkbox 
+                  [checked]="selectedSubscriptions.length === subscriptions.length && subscriptions.length > 0"
+                  [indeterminate]="selectedSubscriptions.length > 0 && selectedSubscriptions.length < subscriptions.length"
+                  (change)="selectAllSubscriptions($event.checked)">
+                </mat-checkbox>
+              </th>
+              <td mat-cell *matCellDef="let subscription">
+                <mat-checkbox 
+                  [checked]="selectedSubscriptions.includes(subscription.id)"
+                  (change)="onSubscriptionSelectionChange(subscription.id, $event.checked)">
+                </mat-checkbox>
+              </td>
+            </ng-container>
+
+            <!-- User Name Column -->
+            <ng-container matColumnDef="userName">
+              <th mat-header-cell *matHeaderCellDef>User</th>
+              <td mat-cell *matCellDef="let subscription">
+                <div class="user-info">
+                  <div class="user-name">{{ subscription.userName }}</div>
+                  <div class="user-email">{{ subscription.userEmail }}</div>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Plan Name Column -->
+            <ng-container matColumnDef="planName">
+              <th mat-header-cell *matHeaderCellDef>Plan</th>
+              <td mat-cell *matCellDef="let subscription">
+                <div class="plan-info">
+                  <div class="plan-name">{{ subscription.planName }}</div>
+                  <div class="plan-category">{{ getCategoryName(subscription.planCategoryId) }}</div>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Status Column -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let subscription">
+                <mat-chip [color]="getStatusColor(subscription.status)" selected>
+                  {{ subscription.status }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <!-- Start Date Column -->
+            <ng-container matColumnDef="startDate">
+              <th mat-header-cell *matHeaderCellDef>Start Date</th>
+              <td mat-cell *matCellDef="let subscription">
+                {{ formatDate(subscription.startDate) }}
+              </td>
+            </ng-container>
+
+            <!-- Next Billing Date Column -->
+            <ng-container matColumnDef="nextBillingDate">
+              <th mat-header-cell *matHeaderCellDef>Next Billing</th>
+              <td mat-cell *matCellDef="let subscription">
+                {{ formatDate(subscription.nextBillingDate) }}
+              </td>
+            </ng-container>
+
+            <!-- Amount Column -->
+            <ng-container matColumnDef="amount">
+              <th mat-header-cell *matHeaderCellDef>Amount</th>
+              <td mat-cell *matCellDef="let subscription">
+                {{ formatPrice(subscription.currentPrice) }}
+              </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let subscription">
+                <button mat-icon-button [matMenuTriggerFor]="subscriptionMenu">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #subscriptionMenu="matMenu">
+                  <button mat-menu-item (click)="viewSubscriptionDetails(subscription)">
+                    <mat-icon>visibility</mat-icon>
+                    View Details
+                  </button>
+                  <button mat-menu-item (click)="editSubscription(subscription)">
+                    <mat-icon>edit</mat-icon>
+                    Edit
+                  </button>
+                  <mat-divider></mat-divider>
+                  <button mat-menu-item (click)="pauseSubscription(subscription)" *ngIf="subscription.status === 'Active'">
+                    <mat-icon>pause</mat-icon>
+                    Pause
+                  </button>
+                  <button mat-menu-item (click)="resumeSubscription(subscription)" *ngIf="subscription.status === 'Paused'">
+                    <mat-icon>play_arrow</mat-icon>
+                    Resume
+                  </button>
+                  <button mat-menu-item (click)="cancelSubscription(subscription)" *ngIf="subscription.status === 'Active' || subscription.status === 'Paused'">
+                    <mat-icon>cancel</mat-icon>
+                    Cancel
+                  </button>
+                </mat-menu>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="subscriptionColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: subscriptionColumns;"></tr>
+          </table>
+
+          <!-- Loading Spinner -->
+          <div *ngIf="subscriptionsLoading" class="loading-container">
+            <mat-spinner diameter="50"></mat-spinner>
+            <p>Loading subscriptions...</p>
+          </div>
+
+          <!-- No Data -->
+          <div *ngIf="!subscriptionsLoading && subscriptions.length === 0" class="no-data">
+            <mat-icon>inbox</mat-icon>
+            <p>No subscriptions found</p>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <mat-paginator
+          [length]="subscriptionsTotalCount"
+          [pageSize]="subscriptionsPageSize"
+          [pageIndex]="subscriptionsCurrentPage"
+          [pageSizeOptions]="[10, 20, 50, 100]"
+          (page)="onSubscriptionsPageChange($event)">
+        </mat-paginator>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Plans Tab -->
+  <div *ngIf="viewMode === 'plans'" class="plans-section">
+    <!-- Plan Filters -->
+    <mat-card class="filters-card">
+      <mat-card-header>
+        <mat-card-title>Plan Filters</mat-card-title>
+        <mat-card-subtitle>Filter subscription plans</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="planFilterForm" class="filters-form">
+          <div class="filter-row">
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>Search</mat-label>
+              <input matInput formControlName="searchTerm" placeholder="Search by plan name or description">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>Category</mat-label>
+              <mat-select formControlName="categoryId">
+                <mat-option value="">All Categories</mat-option>
+                <mat-option *ngFor="let category of categories" [value]="category.id">
+                  {{ category.name }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+              <mat-label>Status</mat-label>
+              <mat-select formControlName="isActive">
+                <mat-option value="">All</mat-option>
+                <mat-option [value]="true">Active</mat-option>
+                <mat-option [value]="false">Inactive</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="filter-actions">
+            <button mat-button type="button" (click)="clearPlanFilters()">
+              <mat-icon>clear</mat-icon>
+              Clear Filters
+            </button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Plan Bulk Actions -->
+    <div *ngIf="selectedPlans.length > 0" class="bulk-actions">
+      <mat-chip-list>
+        <mat-chip>{{ selectedPlans.length }} selected</mat-chip>
+      </mat-chip-list>
+      <div class="bulk-buttons">
+        <button mat-button (click)="performBulkPlanAction('activate')">
+          <mat-icon>check_circle</mat-icon>
+          Activate Selected
+        </button>
+        <button mat-button (click)="performBulkPlanAction('deactivate')">
+          <mat-icon>cancel</mat-icon>
+          Deactivate Selected
+        </button>
+        <button mat-button (click)="exportPlans('csv')">
+          <mat-icon>download</mat-icon>
+          Export CSV
+        </button>
+        <button mat-button (click)="exportPlans('excel')">
+          <mat-icon>download</mat-icon>
+          Export Excel
+        </button>
+      </div>
+    </div>
+
+    <!-- Plans Table -->
+    <mat-card class="table-card">
+      <mat-card-content>
+        <div class="table-container">
+          <table mat-table [dataSource]="plans" class="plans-table">
+            <!-- Selection Column -->
+            <ng-container matColumnDef="select">
+              <th mat-header-cell *matHeaderCellDef>
+                <mat-checkbox 
+                  [checked]="selectedPlans.length === plans.length && plans.length > 0"
+                  [indeterminate]="selectedPlans.length > 0 && selectedPlans.length < plans.length"
+                  (change)="selectAllPlans($event.checked)">
+                </mat-checkbox>
+              </th>
+              <td mat-cell *matCellDef="let plan">
+                <mat-checkbox 
+                  [checked]="selectedPlans.includes(plan.id)"
+                  (change)="onPlanSelectionChange(plan.id, $event.checked)">
+                </mat-checkbox>
+              </td>
+            </ng-container>
+
+            <!-- Name Column -->
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Plan Name</th>
+              <td mat-cell *matCellDef="let plan">
+                <div class="plan-info">
+                  <div class="plan-name">{{ plan.name }}</div>
+                  <div class="plan-description">{{ plan.description }}</div>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Category Column -->
+            <ng-container matColumnDef="category">
+              <th mat-header-cell *matHeaderCellDef>Category</th>
+              <td mat-cell *matCellDef="let plan">
+                {{ getCategoryName(plan.categoryId) }}
+              </td>
+            </ng-container>
+
+            <!-- Price Column -->
+            <ng-container matColumnDef="price">
+              <th mat-header-cell *matHeaderCellDef>Price</th>
+              <td mat-cell *matCellDef="let plan">
+                {{ formatPrice(plan.price) }}
+              </td>
+            </ng-container>
+
+            <!-- Billing Cycle Column -->
+            <ng-container matColumnDef="billingCycle">
+              <th mat-header-cell *matHeaderCellDef>Billing Cycle</th>
+              <td mat-cell *matCellDef="let plan">
+                {{ getBillingCycleName(plan.billingCycleId) }}
+              </td>
+            </ng-container>
+
+            <!-- Status Column -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let plan">
+                <mat-chip [color]="plan.isActive ? 'primary' : 'warn'" selected>
+                  {{ plan.isActive ? 'Active' : 'Inactive' }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <!-- Subscribers Column -->
+            <ng-container matColumnDef="subscribers">
+              <th mat-header-cell *matHeaderCellDef>Subscribers</th>
+              <td mat-cell *matCellDef="let plan">
+                {{ plan.subscriberCount || 0 }}
+              </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let plan">
+                <button mat-icon-button [matMenuTriggerFor]="planMenu">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #planMenu="matMenu">
+                  <button mat-menu-item (click)="viewPlanDetails(plan)">
+                    <mat-icon>visibility</mat-icon>
+                    View Details
+                  </button>
+                  <button mat-menu-item (click)="editPlan(plan)">
+                    <mat-icon>edit</mat-icon>
+                    Edit
+                  </button>
+                  <mat-divider></mat-divider>
+                  <button mat-menu-item (click)="activatePlan(plan)" *ngIf="!plan.isActive">
+                    <mat-icon>check_circle</mat-icon>
+                    Activate
+                  </button>
+                  <button mat-menu-item (click)="deactivatePlan(plan)" *ngIf="plan.isActive">
+                    <mat-icon>cancel</mat-icon>
+                    Deactivate
+                  </button>
+                  <button mat-menu-item (click)="deletePlan(plan)" class="danger-action">
+                    <mat-icon>delete</mat-icon>
+                    Delete
+                  </button>
+                </mat-menu>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="planColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: planColumns;"></tr>
+          </table>
+
+          <!-- Loading Spinner -->
+          <div *ngIf="plansLoading" class="loading-container">
+            <mat-spinner diameter="50"></mat-spinner>
+            <p>Loading plans...</p>
+          </div>
+
+          <!-- No Data -->
+          <div *ngIf="!plansLoading && plans.length === 0" class="no-data">
+            <mat-icon>inbox</mat-icon>
+            <p>No plans found</p>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <mat-paginator
+          [length]="plansTotalCount"
+          [pageSize]="plansPageSize"
+          [pageIndex]="plansCurrentPage"
+          [pageSizeOptions]="[10, 20, 50, 100]"
+          (page)="onPlansPageChange($event)">
+        </mat-paginator>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Analytics Tab -->
+  <div *ngIf="viewMode === 'analytics'" class="analytics-section">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Subscription Analytics</mat-card-title>
+        <mat-card-subtitle>Comprehensive analytics and reporting</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="analytics-placeholder">
+          <mat-icon>analytics</mat-icon>
+          <p>Analytics dashboard coming soon...</p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

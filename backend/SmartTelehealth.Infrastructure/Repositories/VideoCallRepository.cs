@@ -52,7 +52,6 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
     /// </summary>
     public override async Task<VideoCall> CreateAsync(VideoCall videoCall)
     {
-        videoCall.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(videoCall);
     }
 
@@ -61,7 +60,6 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
     /// </summary>
     public override async Task<VideoCall> UpdateAsync(VideoCall videoCall)
     {
-        videoCall.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(videoCall);
     }
 
@@ -78,7 +76,6 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
             return false;
 
         videoCall.IsDeleted = true;
-        videoCall.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
     }

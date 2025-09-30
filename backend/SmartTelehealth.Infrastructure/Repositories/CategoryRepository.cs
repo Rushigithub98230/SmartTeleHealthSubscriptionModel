@@ -17,22 +17,18 @@ public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
     // Use base class methods for basic CRUD operations
     // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
 
-    // Override GetByIdAsync to include related data and apply business logic
-    public override async Task<Category?> GetByIdAsync(object id)
+    // Custom method to get category by ID with related data and business logic
+    public async Task<Category?> GetByIdWithDetailsAsync(Guid id)
     {
-        if (id is Guid guidId)
-        {
-            return await _context.Categories
-                .Include(c => c.SubscriptionPlans.Where(sp => sp.IsActive))
-                .Include(c => c.ProviderCategories.Where(pc => pc.IsAvailable))
-                    .ThenInclude(pc => pc.Provider)
-                .FirstOrDefaultAsync(c => c.Id == guidId && !c.IsDeleted);
-        }
-        return null;
+        return await _context.Categories
+            .Include(c => c.SubscriptionPlans.Where(sp => sp.IsActive))
+            .Include(c => c.ProviderCategories.Where(pc => pc.IsAvailable))
+                .ThenInclude(pc => pc.Provider)
+            .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
     }
 
-    // Override GetAllAsync to include related data and apply business logic
-    public override async Task<IEnumerable<Category>> GetAllAsync()
+    // Custom method to get all categories with related data and business logic
+    public async Task<IEnumerable<Category>> GetAllWithDetailsAsync()
     {
         return await _context.Categories
             .Include(c => c.SubscriptionPlans.Where(sp => sp.IsActive))
@@ -41,45 +37,35 @@ public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
             .ToListAsync();
     }
 
-    // Override CreateAsync to set audit fields
-    public override async Task<Category> CreateAsync(Category category)
+    // Custom method to create category with audit fields
+    public async Task<Category> CreateCategoryAsync(Category category)
     {
-        category.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(category);
     }
 
-    // Override UpdateAsync to set audit fields
-    public override async Task<Category> UpdateAsync(Category category)
+    // Custom method to update category with audit fields
+    public async Task<Category> UpdateCategoryAsync(Category category)
     {
-        category.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(category);
     }
 
-    // Override DeleteAsync to implement soft delete
-    public override async Task<bool> DeleteAsync(object id)
+    // Custom method to soft delete category
+    public async Task<bool> DeleteCategoryAsync(Guid id)
     {
-        if (id is Guid guidId)
-        {
-            var category = await _context.Categories.FindAsync(guidId);
-            if (category == null) return false;
+        var category = await _context.Categories.FindAsync(id);
+        if (category == null) return false;
 
-            category.IsDeleted = true;
-            category.UpdatedDate = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        return false;
+        category.IsActive = false;
+        category.IsDeleted = true;
+        await _context.SaveChangesAsync();
+        return true;
     }
 
-    // Override ExistsAsync to apply business logic
-    public override async Task<bool> ExistsAsync(object id)
+    // Custom method to check if category exists with business logic
+    public async Task<bool> ExistsCategoryAsync(Guid id)
     {
-        if (id is Guid guidId)
-        {
-            return await _context.Categories
-                .AnyAsync(c => c.Id == guidId && !c.IsDeleted);
-        }
-        return false;
+        return await _context.Categories
+            .AnyAsync(c => c.Id == id && !c.IsDeleted);
     }
 
     // Specialized methods for Category entity

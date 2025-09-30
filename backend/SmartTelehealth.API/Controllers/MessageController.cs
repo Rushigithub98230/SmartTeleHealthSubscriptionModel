@@ -74,8 +74,8 @@ public class MessageController : BaseController
     [HttpPost]
     public async Task<JsonModel> SendMessage([FromBody] CreateMessageDto createDto)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.SendMessageAsync(createDto, userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.SendMessageAsync(createDto, token.UserID, token);
     }
 
     /// <summary>
@@ -100,8 +100,8 @@ public class MessageController : BaseController
     [HttpPut("{messageId}")]
     public async Task<JsonModel> UpdateMessage(Guid messageId, [FromBody] UpdateMessageDto updateDto)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.UpdateMessageAsync(messageId.ToString(), updateDto, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.UpdateMessageAsync(messageId.ToString(), updateDto, token);
     }
 
     /// <summary>
@@ -125,35 +125,36 @@ public class MessageController : BaseController
     [HttpDelete("{messageId}")]
     public async Task<JsonModel> DeleteMessage(Guid messageId)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.DeleteMessageAsync(messageId.ToString(), GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.DeleteMessageAsync(messageId.ToString(), token);
     }
 
     [HttpPost("{messageId}/read")]
     public async Task<JsonModel> MarkMessageAsRead(Guid messageId)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.MarkMessageAsReadAsync(messageId.ToString(), userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.MarkMessageAsReadAsync(messageId.ToString(), token.UserID, token);
     }
 
     [HttpPost("{messageId}/reactions")]
     public async Task<JsonModel> AddReaction(Guid messageId, [FromQuery] string reactionType)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.AddReactionAsync(messageId.ToString(), userId, reactionType, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.AddReactionAsync(messageId.ToString(), token.UserID, reactionType, token);
     }
 
     [HttpDelete("{messageId}/reactions")]
     public async Task<JsonModel> RemoveReaction(Guid messageId, [FromQuery] string reactionType)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.RemoveReactionAsync(messageId.ToString(), userId, reactionType, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.RemoveReactionAsync(messageId.ToString(), token.UserID, reactionType, token);
     }
 
     [HttpGet("{messageId}/reactions")]
     public async Task<JsonModel> GetMessageReactions(Guid messageId)
     {
-        return await _messagingService.GetMessageReactionsAsync(messageId.ToString(), GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.GetMessageReactionsAsync(messageId.ToString(), token);
     }
 
     [HttpPost("search")]
@@ -201,11 +202,6 @@ public class MessageController : BaseController
         return await _messagingService.DecryptMessageAsync(request.EncryptedMessage, request.Key, GetToken(HttpContext));
     }
 
-    private int GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(userIdClaim, out var userId) ? userId : 0;
-    }
 }
 
  

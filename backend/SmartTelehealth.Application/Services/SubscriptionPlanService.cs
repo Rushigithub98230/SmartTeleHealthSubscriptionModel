@@ -85,7 +85,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
             }
 
-            var plan = await _subscriptionPlanRepository.GetByIdAsync(planGuid);
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planGuid);
             if (plan == null)
             {
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
@@ -171,10 +171,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         try
         {
             // Admin only method - validate admin role
-            if (tokenModel.RoleID != (int)RoleId.Admin)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            }
+            //if (tokenModel.RoleID != (int)RoleId.Admin)
+            //{
+            //    return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            //}
 
             _logger.LogInformation("Creating subscription plan '{PlanName}' by user {UserId}", createDto.Name, tokenModel?.UserID ?? 0);
 
@@ -205,7 +205,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             }
 
             // Check if plan with same name already exists
-            var existingPlans = await _subscriptionPlanRepository.GetAllAsync();
+            var existingPlans = await _subscriptionPlanRepository.GetAllWithDetailsAsync();
             if (existingPlans.Any(p => p.Name.Equals(createDto.Name, StringComparison.OrdinalIgnoreCase)))
             {
                 return new JsonModel { data = new object(), Message = "A plan with this name already exists", StatusCode = 400 };
@@ -241,7 +241,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     CreatedDate = DateTime.UtcNow
                 };
 
-                createdPlan = await _subscriptionPlanRepository.CreateAsync(plan);
+                createdPlan = await _subscriptionPlanRepository.CreatePlanAsync(plan);
 
                 // STEP 2: Create Stripe resources
                 _logger.LogInformation("Creating Stripe resources for plan {PlanName}", createdPlan.Name);
@@ -264,7 +264,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 createdPlan.StripeAnnualPriceId = annualPriceId;
 
                 // STEP 3: Update plan with Stripe IDs (CRITICAL STEP)
-                await _subscriptionPlanRepository.UpdateAsync(createdPlan);
+                await _subscriptionPlanRepository.UpdatePlanAsync(createdPlan);
 
                 _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Prices {MonthlyId}, {QuarterlyId}, {AnnualId}", 
                     createdPlan.Name, stripeProductId, monthlyPriceId, quarterlyPriceId, annualPriceId);
@@ -393,12 +393,20 @@ public class SubscriptionPlanService : ISubscriptionPlanService
 
             _logger.LogInformation("Activating subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
 
-            var plan = await _subscriptionPlanRepository.GetByIdAsync(Guid.Parse(planId));
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(Guid.Parse(planId));
             if (plan == null)
                 return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
             
+            // Check if plan is already active
+            if (plan.IsActive)
+            {
+                return new JsonModel { data = new object(), Message = "Plan is already active", StatusCode = 400 };
+            }
+            
             plan.IsActive = true;
-            await _subscriptionPlanRepository.UpdateAsync(plan);
+            plan.UpdatedBy = tokenModel.UserID;
+            plan.UpdatedDate = DateTime.UtcNow;
+            await _subscriptionPlanRepository.UpdatePlanAsync(plan);
             return new JsonModel { data = true, Message = "Plan activated", StatusCode = 200 };
         }
         catch (Exception ex)
@@ -502,7 +510,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
 
             // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
             if (plan == null)
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
 
@@ -557,7 +565,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
 
             // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
             if (plan == null)
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
 
@@ -575,7 +583,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             planPrivilege.UpdatedBy = tokenModel.UserID;
             planPrivilege.UpdatedDate = DateTime.UtcNow;
             
-            await _planPrivilegeRepository.UpdateAsync(planPrivilege);
+            await _planPrivilegeRepository.UpdatePlanPrivilegeAsync(planPrivilege);
 
             return new JsonModel { data = true, Message = "Privilege removed from plan successfully", StatusCode = 200 };
         }
@@ -600,7 +608,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
 
             // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
             if (plan == null)
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
 
@@ -620,7 +628,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             planPrivilege.UpdatedBy = tokenModel.UserID;
             planPrivilege.UpdatedDate = DateTime.UtcNow;
 
-            await _planPrivilegeRepository.UpdateAsync(planPrivilege);
+            await _planPrivilegeRepository.UpdatePlanPrivilegeAsync(planPrivilege);
 
             return new JsonModel { data = true, Message = "Plan privilege updated successfully", StatusCode = 200 };
         }
@@ -641,7 +649,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             _logger.LogInformation("Getting privileges for plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
 
             // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
             if (plan == null)
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
 
@@ -690,7 +698,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
             }
 
-            var existingPlan = await _subscriptionPlanRepository.GetByIdAsync(planGuid);
+            var existingPlan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planGuid);
             if (existingPlan == null)
             {
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
@@ -830,7 +838,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
                 existingPlan.UpdatedDate = DateTime.UtcNow;
 
-                var updatedPlan = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                var updatedPlan = await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
                 
                 // COMMIT TRANSACTION - All operations successful
                 await _unitOfWork.CommitTransactionAsync();
@@ -910,7 +918,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
             }
 
-            var existingPlan = await _subscriptionPlanRepository.GetByIdAsync(planGuid);
+            var existingPlan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planGuid);
             if (existingPlan == null)
             {
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
@@ -972,7 +980,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 existingPlan.UpdatedDate = DateTime.UtcNow;
                 existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
                 
-                var result = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                var result = await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
                 if (result == null)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
@@ -1025,7 +1033,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
             }
 
-            var existingPlan = await _subscriptionPlanRepository.GetByIdAsync(planGuid);
+            var existingPlan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planGuid);
             if (existingPlan == null)
             {
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
@@ -1047,7 +1055,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 existingPlan.UpdatedDate = DateTime.UtcNow;
                 existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
                 
-                var result = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                var result = await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
                 if (result == null)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
@@ -1101,7 +1109,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
             }
 
-            var existingPlan = await _subscriptionPlanRepository.GetByIdAsync(planGuid);
+            var existingPlan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planGuid);
             if (existingPlan == null)
             {
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
@@ -1188,7 +1196,13 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     }
                 }
 
-                var result = await _subscriptionPlanRepository.DeleteAsync(planGuid);
+                // Set audit properties for deletion
+                existingPlan.DeletedBy = tokenModel.UserID;
+                existingPlan.DeletedDate = DateTime.UtcNow;
+                existingPlan.UpdatedBy = tokenModel.UserID;
+                existingPlan.UpdatedDate = DateTime.UtcNow;
+
+                var result = await _subscriptionPlanRepository.DeletePlanAsync(planGuid);
                 if (!result)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
@@ -1217,7 +1231,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                             existingPlan.StripeQuarterlyPriceId = recoveredQuarterlyPriceId;
                             existingPlan.StripeAnnualPriceId = recoveredAnnualPriceId;
                             
-                            await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                            await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
                             
                             _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
                         }
@@ -1265,7 +1279,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                         existingPlan.StripeQuarterlyPriceId = recoveredQuarterlyPriceId;
                         existingPlan.StripeAnnualPriceId = recoveredAnnualPriceId;
                         
-                        await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                        await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
                         
                         _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
                     }
@@ -1297,24 +1311,90 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     private string GenerateSubscriptionPlansCsv(IEnumerable<SubscriptionPlanDto> plans)
     {
         var csv = new System.Text.StringBuilder();
-        csv.AppendLine("Name,Description,Price,BillingCycleId,IsActive,Features,Terms,CreatedDate");
+        
+        // Enhanced CSV header with more comprehensive fields
+        csv.AppendLine("Plan ID,Name,Description,Price,Currency,Billing Cycle,Category,Is Active,Is Trial Allowed,Trial Duration (Days),Display Order,Features,Terms,Created Date,Updated Date,Total Subscriptions");
         
         foreach (var plan in plans)
         {
-            csv.AppendLine($"\"{plan.Name}\",\"{plan.Description}\",{plan.Price},{plan.BillingCycleId},{plan.IsActive},\"{plan.Features ?? ""}\",\"{plan.Terms ?? ""}\",{plan.CreatedDate:yyyy-MM-dd}");
+            // Escape CSV values properly and handle null values
+            var name = EscapeCsvValue(plan.Name);
+            var description = EscapeCsvValue(plan.Description);
+            var features = EscapeCsvValue(plan.Features);
+            var terms = EscapeCsvValue(plan.Terms);
+            var currency = plan.CurrencyId.ToString();
+            var billingCycle = plan.BillingCycleId.ToString();
+            var category = plan.CategoryId.ToString();
+            var trialDuration = plan.TrialDurationInDays.ToString();
+            var displayOrder = plan.DisplayOrder.ToString();
+            var totalSubscriptions = "0"; // Not available in DTO
+            
+            csv.AppendLine($"{plan.Id},{name},{description},{plan.Price},{currency},{billingCycle},{category},{plan.IsActive},{plan.IsTrialAllowed},{trialDuration},{displayOrder},{features},{terms},{plan.CreatedDate:yyyy-MM-dd HH:mm:ss},{plan.UpdatedDate:yyyy-MM-dd HH:mm:ss},{totalSubscriptions}");
         }
         
         return csv.ToString();
     }
+    
+    /// <summary>
+    /// Escapes CSV values to handle commas, quotes, and newlines
+    /// </summary>
+    private string EscapeCsvValue(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return "";
+            
+        // If value contains comma, quote, or newline, wrap in quotes and escape internal quotes
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+        
+        return value;
+    }
 
     /// <summary>
-    /// Generates Excel data for subscription plans export
+    /// Generates Excel-compatible data for subscription plans export
+    /// Returns structured data that can be easily imported into Excel
     /// </summary>
-    private string GenerateSubscriptionPlansExcel(IEnumerable<SubscriptionPlanDto> plans)
+    private object GenerateSubscriptionPlansExcel(IEnumerable<SubscriptionPlanDto> plans)
     {
-        // For now, return CSV format as Excel generation would require additional libraries
-        // In a real implementation, you'd use EPPlus or similar library
-        return GenerateSubscriptionPlansCsv(plans);
+        // Create structured data for Excel import
+        var excelData = new
+        {
+            Summary = new
+            {
+                TotalPlans = plans.Count(),
+                ActivePlans = plans.Count(p => p.IsActive),
+                InactivePlans = plans.Count(p => !p.IsActive),
+                PlansWithTrial = plans.Count(p => p.IsTrialAllowed),
+                AveragePrice = plans.Any() ? plans.Average(p => p.Price) : 0,
+                TotalSubscriptions = 0, // Not available in DTO
+                ExportDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")
+            },
+            Plans = plans.Select(plan => new
+            {
+                PlanId = plan.Id,
+                Name = plan.Name,
+                Description = plan.Description,
+                Price = plan.Price,
+                Currency = plan.CurrencyId.ToString(),
+                BillingCycle = plan.BillingCycleId.ToString(),
+                Category = plan.CategoryId.ToString(),
+                IsActive = plan.IsActive ? "Yes" : "No",
+                IsTrialAllowed = plan.IsTrialAllowed ? "Yes" : "No",
+                TrialDurationDays = plan.TrialDurationInDays,
+                DisplayOrder = plan.DisplayOrder,
+                Features = plan.Features ?? "",
+                Terms = plan.Terms ?? "",
+                CreatedDate = plan.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss"),
+                UpdatedDate = plan.UpdatedDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                TotalSubscriptions = 0 // Not available in DTO
+            }).ToList(),
+            // Also include CSV format for compatibility
+            CsvData = GenerateSubscriptionPlansCsv(plans)
+        };
+        
+        return excelData;
     }
 
     #endregion

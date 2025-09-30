@@ -19,6 +19,7 @@ public class SubscriptionsController : BaseController
 {
     private readonly ISubscriptionService _subscriptionService;
     private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
+    private readonly ISubscriptionPlanService _subscriptionPlanService;
     private readonly IPrivilegeService _privilegeService;
     
 
@@ -33,6 +34,7 @@ public class SubscriptionsController : BaseController
     {
         _subscriptionService = subscriptionService;
         _subscriptionLifecycleService = subscriptionLifecycleService;
+        _subscriptionPlanService = subscriptionPlanService;
         _privilegeService = privilegeService;
     }
 
@@ -991,12 +993,6 @@ public class SubscriptionsController : BaseController
     /// - Optimized for public consumption with limited sensitive information
     /// </remarks>
 
-    /// <summary>
-    /// Gets the current user ID from the authentication claims.
-    /// This helper method extracts the user ID from the JWT token claims for use in service calls.
-    /// </summary>
-    /// <returns>The current user ID</returns>
-    private int GetCurrentUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     /// <summary>
     /// Retrieves all subscriptions for the current authenticated user with comprehensive filtering and pagination.
@@ -1039,8 +1035,8 @@ public class SubscriptionsController : BaseController
         [FromQuery] string? sortBy = null,
         [FromQuery] string? sortOrder = null)
     {
-        var userId = GetCurrentUserId();
-        return await _subscriptionService.GetUserSubscriptionsWithFilteringAsync(userId, page, pageSize, searchTerm, status, planId, startDate, endDate, sortBy, sortOrder, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _subscriptionService.GetUserSubscriptionsWithFilteringAsync(token.UserID, page, pageSize, searchTerm, status, planId, startDate, endDate, sortBy, sortOrder, token);
     }
 
     /// <summary>
@@ -1064,13 +1060,13 @@ public class SubscriptionsController : BaseController
     [HttpPost("user/purchase")]
     public async Task<JsonModel> PurchaseSubscription([FromBody] PurchaseSubscriptionDto dto)
     {
-        var userId = GetCurrentUserId();
+        var token = GetToken(HttpContext);
         var createDto = new CreateSubscriptionDto
         {
-            UserId = userId,
+            UserId = token.UserID,
             PlanId = dto.PlanId.ToString()
         };
-        var result = await _subscriptionLifecycleService.CreateSubscriptionAsync(createDto, GetToken(HttpContext));
+        var result = await _subscriptionLifecycleService.CreateSubscriptionAsync(createDto, token);
         if (result.StatusCode != 200) 
             return new JsonModel { data = new object(), Message = result.Message, StatusCode = result.StatusCode };
         return result;
@@ -1097,8 +1093,8 @@ public class SubscriptionsController : BaseController
     [HttpPost("user/cancel")]
     public async Task<JsonModel> CancelCurrentUserSubscription([FromBody] CancelSubscriptionDto dto)
     {
-        var userId = GetCurrentUserId();
-        var result = await _subscriptionLifecycleService.CancelSubscriptionAsync(dto.SubscriptionId.ToString(), null, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var result = await _subscriptionLifecycleService.CancelSubscriptionAsync(dto.SubscriptionId.ToString(), null, token);
         if (result.StatusCode != 200) 
             return new JsonModel { data = new object(), Message = result.Message, StatusCode = result.StatusCode };
         return result;
@@ -1124,8 +1120,8 @@ public class SubscriptionsController : BaseController
     [HttpGet("user/privilege-usage")]
     public async Task<JsonModel> GetCurrentUserPrivilegeUsage()
     {
-        var userId = GetCurrentUserId();
-        var subscriptions = await _subscriptionService.GetUserSubscriptionsAsync(userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var subscriptions = await _subscriptionService.GetUserSubscriptionsAsync(token.UserID, token);
         
         if (subscriptions.StatusCode != 200)
             return subscriptions;
@@ -1177,8 +1173,8 @@ public class SubscriptionsController : BaseController
     [HttpPost("user/privileges/use")]
     public async Task<JsonModel> UsePrivilege([FromBody] UsePrivilegeDto dto)
     {
-        var userId = GetCurrentUserId();
-        var used = await _privilegeService.UsePrivilegeAsync(dto.SubscriptionId, dto.PrivilegeName, dto.Amount, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var used = await _privilegeService.UsePrivilegeAsync(dto.SubscriptionId, dto.PrivilegeName, dto.Amount, token);
         if (!used) 
             return new JsonModel { data = new object(), Message = "Privilege could not be used or limit reached.", StatusCode = 400 };
         return new JsonModel { data = true, Message = "Privilege used successfully", StatusCode = 200 };

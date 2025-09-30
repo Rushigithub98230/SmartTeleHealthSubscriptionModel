@@ -37,7 +37,6 @@ public class AppointmentPaymentLogRepository : RepositoryBase<AppointmentPayment
     /// </summary>
     public override async Task<AppointmentPaymentLog> CreateAsync(AppointmentPaymentLog entity)
     {
-        entity.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(entity);
     }
 
@@ -46,7 +45,6 @@ public class AppointmentPaymentLogRepository : RepositoryBase<AppointmentPayment
     /// </summary>
     public override async Task<AppointmentPaymentLog> UpdateAsync(AppointmentPaymentLog entity)
     {
-        entity.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(entity);
     }
 

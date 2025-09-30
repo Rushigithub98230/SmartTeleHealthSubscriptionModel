@@ -13,7 +13,7 @@ public class NotificationRepository : RepositoryBase<Notification>, INotificatio
         _dbContext = dbContext;
     }
 
-    public override async Task<Notification> CreateAsync(Notification notification)
+    public async Task<Notification> CreateNotificationAsync(Notification notification)
     {
         return await base.CreateAsync(notification);
     }
@@ -36,42 +36,35 @@ public class NotificationRepository : RepositoryBase<Notification>, INotificatio
         }
     }
 
-    public override async Task<IEnumerable<Notification>> GetAllAsync()
+    public async Task<IEnumerable<Notification>> GetAllWithDetailsAsync()
     {
         return await _dbContext.Notifications.OrderByDescending(n => n.CreatedDate).ToListAsync();
     }
 
-    public override async Task<Notification?> GetByIdAsync(object id)
+    public async Task<Notification?> GetByIdWithDetailsAsync(Guid notificationId)
     {
-        if (id is not Guid notificationId)
-            return null;
-
         return await _dbContext.Notifications.FirstOrDefaultAsync(n => n.Id == notificationId);
     }
 
-    public override async Task<Notification> UpdateAsync(Notification notification)
+    public async Task<Notification> UpdateNotificationAsync(Notification notification)
     {
         return await base.UpdateAsync(notification);
     }
 
-    public override async Task<bool> DeleteAsync(object id)
+    public async Task<bool> DeleteNotificationAsync(Guid notificationId)
     {
-        if (id is not Guid notificationId)
-            return false;
-
         var notification = await _dbContext.Notifications.FindAsync(notificationId);
         if (notification == null)
             return false;
-        _dbContext.Notifications.Remove(notification);
+        
+        notification.IsActive = false;
+        notification.IsDeleted = true;
         await _dbContext.SaveChangesAsync();
         return true;
     }
 
-    public override async Task<bool> ExistsAsync(object id)
+    public async Task<bool> ExistsNotificationAsync(Guid notificationId)
     {
-        if (id is not Guid notificationId)
-            return false;
-
         return await _dbContext.Notifications.AnyAsync(n => n.Id == notificationId);
     }
 } 

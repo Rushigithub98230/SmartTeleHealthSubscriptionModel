@@ -1,9 +1,11 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
-import { map, tap } from 'rxjs/operators';
+import { map, tap, catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { CommonService, ApiResponse } from './common.service';
+import { DataCachingService } from './data-caching.service';
+import { ErrorHandlingService } from './error-handling.service';
 
 export interface SubscriptionPlan {
   id: string;
@@ -95,49 +97,116 @@ export class SubscriptionService {
   private readonly apiUrl = `${environment.apiUrl}/api`;
   private plansSubject = new BehaviorSubject<SubscriptionPlan[]>([]);
   private categoriesSubject = new BehaviorSubject<Category[]>([]);
+  private billingCyclesSubject = new BehaviorSubject<BillingCycle[]>([]);
 
   public plans$ = this.plansSubject.asObservable();
   public categories$ = this.categoriesSubject.asObservable();
+  public billingCycles$ = this.billingCyclesSubject.asObservable();
 
-  constructor(private http: HttpClient, private commonService: CommonService) {}
+  constructor(
+    private http: HttpClient, 
+    private commonService: CommonService,
+    private cacheService: DataCachingService,
+    private errorHandling: ErrorHandlingService
+  ) {}
 
   getActivePlans(): Observable<SubscriptionPlan[]> {
-    const url = `/api/SubscriptionPlans/active`;
-    console.log('Fetching plans from:', url);
-    
-    return this.commonService.getWithAuth<SubscriptionPlan[]>(url).pipe(
-      tap(response => console.log('Plans API response:', response)),
-      map(response => {
-        if (response.statusCode === 200) {
-          const plans = response.data.map((plan: any) => ({
-            ...plan,
-            popular: plan.isMostPopular,
-            trending: plan.isTrending
-          }));
-          this.plansSubject.next(plans);
-          return plans;
-        }
-        throw new Error(response.message || 'Failed to fetch plans');
-      }),
-      tap(plans => console.log('Processed plans:', plans))
+    return this.cacheService.getOrFetch(
+      DataCachingService.CACHE_KEYS.ACTIVE_PLANS,
+      () => {
+        const url = `/api/SubscriptionPlans/active`;
+        console.log('Fetching plans from:', url);
+        
+        return this.commonService.getWithAuth<SubscriptionPlan[]>(url).pipe(
+          tap(response => console.log('Plans API response:', response)),
+          map(response => {
+            if (response.statusCode === 200) {
+              const plans = response.data.map((plan: any) => ({
+                ...plan,
+                popular: plan.isMostPopular,
+                trending: plan.isTrending
+              }));
+              this.plansSubject.next(plans);
+              this.cacheService.cacheActivePlans(plans);
+              return plans;
+            }
+            throw new Error(response.message || 'Failed to fetch plans');
+          }),
+          tap(plans => console.log('Processed plans:', plans)),
+          catchError(error => {
+            this.errorHandling.handlePlanError(error, 'fetch');
+            throw error;
+          })
+        );
+      },
+      { ttl: 5 * 60 * 1000 } // 5 minutes cache
     );
   }
 
   getCategories(): Observable<Category[]> {
-    const url = `/api/Categories`;
-    console.log('Fetching categories from:', url);
-    
-    return this.commonService.getWithAuth<Category[]>(url).pipe(
-      tap(response => console.log('Categories API response:', response)),
-      map(response => {
-        if (response.statusCode === 200) {
-          this.categoriesSubject.next(response.data);
-          return response.data;
-        }
-        throw new Error(response.message || 'Failed to fetch categories');
-      }),
-      tap(categories => console.log('Processed categories:', categories))
+    return this.cacheService.getOrFetch(
+      DataCachingService.CACHE_KEYS.CATEGORIES,
+      () => {
+        const url = `/api/Categories`;
+        console.log('Fetching categories from:', url);
+        
+        return this.commonService.getWithAuth<Category[]>(url).pipe(
+          tap(response => console.log('Categories API response:', response)),
+          map(response => {
+            if (response.statusCode === 200) {
+              this.categoriesSubject.next(response.data);
+              this.cacheService.cacheCategories(response.data);
+              return response.data;
+            }
+            throw new Error(response.message || 'Failed to fetch categories');
+          }),
+          tap(categories => console.log('Processed categories:', categories)),
+          catchError(error => {
+            this.errorHandling.handleHttpError(error, 'Categories');
+            throw error;
+          })
+        );
+      },
+      { ttl: 15 * 60 * 1000 } // 15 minutes cache
     );
+  }
+
+  getBillingCycles(): Observable<BillingCycle[]> {
+    return this.cacheService.getOrFetch(
+      DataCachingService.CACHE_KEYS.BILLING_CYCLES,
+      () => {
+        const url = `/api/BillingCycles`;
+        return this.commonService.getWithAuth<BillingCycle[]>(url).pipe(
+          tap(response => console.log('Billing cycles API response:', response)),
+          map(response => {
+            if (response.statusCode === 200) {
+              this.billingCyclesSubject.next(response.data);
+              this.cacheService.cacheBillingCycles(response.data);
+              return response.data;
+            }
+            throw new Error(response.message || 'Failed to fetch billing cycles');
+          }),
+          tap(cycles => console.log('Processed billing cycles:', cycles)),
+          catchError(error => {
+            this.errorHandling.handleHttpError(error, 'Billing Cycles');
+            throw error;
+          })
+        );
+      },
+      { ttl: 30 * 60 * 1000 } // 30 minutes cache
+    );
+  }
+
+  getBillingCycleById(id: string): Observable<BillingCycle | null> {
+    return this.billingCycles$.pipe(
+      map(cycles => cycles.find(cycle => cycle.id === id) || null)
+    );
+  }
+
+  getBillingCycleName(id: string): string {
+    const cycles = this.billingCyclesSubject.value;
+    const cycle = cycles.find(c => c.id === id);
+    return cycle ? cycle.name : 'Unknown';
   }
 
   createCheckoutSession(request: CheckoutSessionRequest): Observable<{url: string}> {
@@ -284,5 +353,37 @@ export class SubscriptionService {
 
   getSubscriptionDetails(subscriptionId: string): Observable<any> {
     return this.commonService.getWithAuth<any>(`/api/admin/subscriptions/${subscriptionId}`);
+  }
+
+  // Bulk Operations
+  bulkUpdateStatus(subscriptionIds: string[], newStatus: string): Observable<any> {
+    return this.commonService.postWithAuth<any>('/api/admin/subscriptions/bulk/status', {
+      subscriptionIds,
+      newStatus
+    });
+  }
+
+  bulkCancelSubscriptions(subscriptionIds: string[], reason: string): Observable<any> {
+    return this.commonService.postWithAuth<any>('/api/admin/subscriptions/bulk/cancel', {
+      subscriptionIds,
+      reason
+    });
+  }
+
+  bulkSendNotifications(subscriptionIds: string[], message: string, type: string = 'info'): Observable<any> {
+    return this.commonService.postWithAuth<any>('/api/admin/subscriptions/bulk/notifications', {
+      subscriptionIds,
+      message,
+      type
+    });
+  }
+
+  // Export Methods
+  exportSubscriptions(options: any): Observable<any> {
+    return this.commonService.postWithAuth<any>('/api/admin/subscriptions/export', options, { responseType: 'blob' });
+  }
+
+  exportPlans(options: any): Observable<any> {
+    return this.commonService.postWithAuth<any>('/api/SubscriptionPlans/admin/export', options, { responseType: 'blob' });
   }
 }

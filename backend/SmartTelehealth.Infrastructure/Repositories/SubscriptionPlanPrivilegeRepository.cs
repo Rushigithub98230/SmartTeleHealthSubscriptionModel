@@ -13,63 +13,67 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
         _context = context;
     }
 
+    // Custom methods with different names to avoid overriding base methods
     /// <summary>
     /// Retrieves a subscription plan privilege by its unique identifier
     /// </summary>
-    public override async Task<SubscriptionPlanPrivilege?> GetByIdAsync(object id)
+    public async Task<SubscriptionPlanPrivilege?> GetByIdWithDetailsAsync(Guid id)
     {
-        if (id is not Guid privilegeId)
-            return null;
-
-        return await _context.SubscriptionPlanPrivileges.FindAsync(privilegeId);
+        return await _context.SubscriptionPlanPrivileges
+            .Include(spp => spp.SubscriptionPlan)
+            .Include(spp => spp.Privilege)
+            .FirstOrDefaultAsync(x => x.Id == id);
     }
 
     public async Task<IEnumerable<SubscriptionPlanPrivilege>> GetByPlanIdAsync(Guid planId)
         => await _context.SubscriptionPlanPrivileges
+            .Include(spp => spp.Privilege)
             .Where(x => x.SubscriptionPlanId == planId)
             .ToListAsync();
 
     public async Task<IEnumerable<SubscriptionPlanPrivilege>> GetByPrivilegeIdAsync(Guid privilegeId)
-        => await _context.SubscriptionPlanPrivileges.Where(x => x.PrivilegeId == privilegeId).ToListAsync();
+        => await _context.SubscriptionPlanPrivileges
+            .Include(spp => spp.SubscriptionPlan)
+            .Where(x => x.PrivilegeId == privilegeId)
+            .ToListAsync();
 
     /// <summary>
-    /// Retrieves all subscription plan privileges
+    /// Retrieves all subscription plan privileges with related entities
     /// </summary>
-    public override async Task<IEnumerable<SubscriptionPlanPrivilege>> GetAllAsync()
+    public async Task<IEnumerable<SubscriptionPlanPrivilege>> GetAllWithDetailsAsync()
     {
-        return await _context.SubscriptionPlanPrivileges.ToListAsync();
+        return await _context.SubscriptionPlanPrivileges
+            .Include(spp => spp.SubscriptionPlan)
+            .Include(spp => spp.Privilege)
+            .ToListAsync();
     }
 
     /// <summary>
     /// Creates a new subscription plan privilege
     /// </summary>
-    public override async Task<SubscriptionPlanPrivilege> CreateAsync(SubscriptionPlanPrivilege planPrivilege)
+    public async Task<SubscriptionPlanPrivilege> CreatePlanPrivilegeAsync(SubscriptionPlanPrivilege planPrivilege)
     {
-        planPrivilege.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(planPrivilege);
     }
 
     /// <summary>
     /// Updates an existing subscription plan privilege
     /// </summary>
-    public override async Task<SubscriptionPlanPrivilege> UpdateAsync(SubscriptionPlanPrivilege planPrivilege)
+    public async Task<SubscriptionPlanPrivilege> UpdatePlanPrivilegeAsync(SubscriptionPlanPrivilege planPrivilege)
     {
-        planPrivilege.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(planPrivilege);
     }
 
     /// <summary>
-    /// Deletes a subscription plan privilege by its unique identifier (hard delete)
+    /// Deletes a subscription plan privilege by its unique identifier (soft delete)
     /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
+    public async Task<bool> DeletePlanPrivilegeAsync(Guid id)
     {
-        if (id is not Guid privilegeId)
-            return false;
-
-        var entity = await _context.SubscriptionPlanPrivileges.FindAsync(privilegeId);
+        var entity = await _context.SubscriptionPlanPrivileges.FindAsync(id);
         if (entity != null)
         {
-            _context.SubscriptionPlanPrivileges.Remove(entity);
+            entity.IsActive = false;
+            entity.IsDeleted = true;
             await _context.SaveChangesAsync();
             return true;
         }
@@ -79,12 +83,9 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
     /// <summary>
     /// Checks if a subscription plan privilege exists
     /// </summary>
-    public override async Task<bool> ExistsAsync(object id)
+    public async Task<bool> ExistsPlanPrivilegeAsync(Guid id)
     {
-        if (id is not Guid privilegeId)
-            return false;
-
-        return await _context.SubscriptionPlanPrivileges.AnyAsync(x => x.Id == privilegeId);
+        return await _context.SubscriptionPlanPrivileges.AnyAsync(x => x.Id == id);
     }
 
     /// <summary>

@@ -13,8 +13,8 @@ namespace SmartTelehealth.Application.DTOs
         public int NewSubscriptionsThisMonth { get; set; }
         public int CancelledSubscriptionsThisMonth { get; set; }
         public decimal AverageRevenuePerSubscription { get; set; }
-        public List<MonthlyRevenueData> MonthlyRevenueBreakdown { get; set; } = new List<MonthlyRevenueData>();
-        public List<CategoryRevenueData> RevenueByCategory { get; set; } = new List<CategoryRevenueData>();
+        public List<SmartTelehealth.Core.DTOs.MonthlyRevenueData> MonthlyRevenueBreakdown { get; set; } = new List<SmartTelehealth.Core.DTOs.MonthlyRevenueData>();
+        public List<SmartTelehealth.Core.DTOs.CategoryRevenueData> RevenueByCategory { get; set; } = new List<SmartTelehealth.Core.DTOs.CategoryRevenueData>();
         public decimal TotalRefunds { get; set; }
         public decimal MonthlyRecurringRevenue { get; set; }
         public decimal AverageRevenuePerUser { get; set; }
@@ -22,19 +22,7 @@ namespace SmartTelehealth.Application.DTOs
         public List<PlanRevenueDto> RevenueByPlan { get; set; } = new List<PlanRevenueDto>();
     }
 
-    public class MonthlyRevenueData
-    {
-        public string Month { get; set; } = string.Empty;
-        public decimal Revenue { get; set; }
-        public int Subscriptions { get; set; }
-    }
-
-    public class CategoryRevenueData
-    {
-        public string CategoryName { get; set; } = string.Empty;
-        public decimal Revenue { get; set; }
-        public int Subscriptions { get; set; }
-    }
+    // MonthlyRevenueData and CategoryRevenueData moved to Core.DTOs to avoid duplication
 
     public class UserActivityAnalyticsDto
     {
@@ -336,5 +324,252 @@ namespace SmartTelehealth.Application.DTOs
         public int SubscriptionCount { get; set; }
     }
 
+    // === ADVANCED ANALYTICS DTOs ===
+
+    /// <summary>
+    /// Comprehensive churn analytics data transfer object
+    /// </summary>
+    public class ChurnAnalyticsDto
+    {
+        public int TotalChurnedSubscriptions { get; set; }
+        public decimal ChurnRate { get; set; }
+        public List<ChurnByPlanDto> ChurnByPlan { get; set; } = new();
+        public List<ChurnByReasonDto> ChurnByReason { get; set; } = new();
+        public List<ChurnTrendDto> ChurnTrend { get; set; } = new();
+        public decimal RevenueLostToChurn { get; set; }
+        public decimal AverageChurnTime { get; set; }
+    }
+
+    public class ChurnByPlanDto
+    {
+        public string PlanName { get; set; } = string.Empty;
+        public int ChurnedCount { get; set; }
+        public decimal ChurnRate { get; set; }
+    }
+
+    public class ChurnByReasonDto
+    {
+        public string Reason { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal Percentage { get; set; }
+    }
+
+    public class ChurnTrendDto
+    {
+        public string Month { get; set; } = string.Empty;
+        public int ChurnedCount { get; set; }
+        public decimal ChurnRate { get; set; }
+    }
+
+    /// <summary>
+    /// Comprehensive privilege usage analytics data transfer object
+    /// </summary>
+    public class PrivilegeUsageAnalyticsDto
+    {
+        public int TotalPrivilegeUsage { get; set; }
+        public List<PrivilegeUsageDto> MostUsedPrivileges { get; set; } = new();
+        public List<PrivilegeUsageDto> LeastUsedPrivileges { get; set; } = new();
+        public List<UsageByPlanDto> UsageByPlan { get; set; } = new();
+        public List<UsageTrendDto> UsageTrend { get; set; } = new();
+        public OverageChargesDto OverageCharges { get; set; } = new();
+        public decimal AverageUsagePerUser { get; set; }
+    }
+
+    public class PrivilegeUsageDto
+    {
+        public string PrivilegeName { get; set; } = string.Empty;
+        public int UsageCount { get; set; }
+        public decimal UsagePercentage { get; set; }
+        public decimal AverageUsagePerUser { get; set; }
+    }
+
+    public class UsageByPlanDto
+    {
+        public string PlanName { get; set; } = string.Empty;
+        public int TotalUsage { get; set; }
+        public decimal AverageUsagePerSubscription { get; set; }
+        public int SubscriptionCount { get; set; }
+    }
+
+    public class OverageChargesDto
+    {
+        public decimal TotalOverageCharges { get; set; }
+        public int OverageCount { get; set; }
+        public decimal AverageOverageAmount { get; set; }
+        public List<SmartTelehealth.Core.DTOs.OverageByPlanDto> OverageByPlan { get; set; } = new();
+    }
+
+    public class OverageByPlanDto
+    {
+        public string PlanName { get; set; } = string.Empty;
+        public decimal TotalCharges { get; set; }
+        public int Count { get; set; }
+    }
+
+    /// <summary>
+    /// Comprehensive subscription lifecycle analytics data transfer object
+    /// </summary>
+    public class SubscriptionLifecycleAnalyticsDto
+    {
+        public int TotalSubscriptions { get; set; }
+        public List<StatusDistributionDto> StatusDistribution { get; set; } = new();
+        public decimal AverageSubscriptionDuration { get; set; }
+        public ConversionRatesDto ConversionRates { get; set; } = new();
+        public List<LifecycleEventDto> LifecycleEvents { get; set; } = new();
+        public List<RetentionRateDto> RetentionRates { get; set; } = new();
+        public UpgradeDowngradeRatesDto UpgradeDowngradeRates { get; set; } = new();
+    }
+
+    public class StatusDistributionDto
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal Percentage { get; set; }
+    }
+
+    public class ConversionRatesDto
+    {
+        public decimal TrialToActiveRate { get; set; }
+        public decimal OverallActivationRate { get; set; }
+        public decimal CancellationRate { get; set; }
+    }
+
+    public class LifecycleEventDto
+    {
+        public string EventType { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public DateTime Date { get; set; }
+        public decimal Percentage { get; set; }
+    }
+
+    public class RetentionRateDto
+    {
+        public string Period { get; set; } = string.Empty;
+        public decimal RetentionRate { get; set; }
+        public int RetainedUsers { get; set; }
+        public int TotalUsers { get; set; }
+    }
+
+    public class UpgradeDowngradeRatesDto
+    {
+        public decimal UpgradeRate { get; set; }
+        public decimal DowngradeRate { get; set; }
+        public int TotalUpgrades { get; set; }
+        public int TotalDowngrades { get; set; }
+        public decimal AverageUpgradeValue { get; set; }
+        public decimal AverageDowngradeValue { get; set; }
+    }
+
+    /// <summary>
+    /// Enhanced billing analytics with comprehensive metrics
+    /// </summary>
+    public class EnhancedBillingAnalyticsDto : BillingAnalyticsDto
+    {
+        public List<MonthlyBillingTrendDto> MonthlyBillingTrend { get; set; } = new();
+        public List<BillingMethodAnalyticsDto> BillingMethodAnalytics { get; set; } = new();
+        public List<BillingFailureReasonDto> BillingFailureReasons { get; set; } = new();
+        public decimal AverageBillingCycleTime { get; set; }
+        public decimal BillingEfficiency { get; set; }
+        public List<RevenueForecastDto> RevenueForecast { get; set; } = new();
+    }
+
+    public class MonthlyBillingTrendDto
+    {
+        public string Month { get; set; } = string.Empty;
+        public decimal TotalRevenue { get; set; }
+        public int SuccessfulBills { get; set; }
+        public int FailedBills { get; set; }
+        public decimal SuccessRate { get; set; }
+    }
+
+    public class BillingMethodAnalyticsDto
+    {
+        public string PaymentMethod { get; set; } = string.Empty;
+        public int UsageCount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal SuccessRate { get; set; }
+        public decimal AverageAmount { get; set; }
+    }
+
+    public class BillingFailureReasonDto
+    {
+        public string Reason { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal Percentage { get; set; }
+        public decimal LostRevenue { get; set; }
+    }
+
+    public class RevenueForecastDto
+    {
+        public string Period { get; set; } = string.Empty;
+        public decimal ForecastedRevenue { get; set; }
+        public decimal ConfidenceLevel { get; set; }
+        public decimal GrowthRate { get; set; }
+    }
+
+    // === DATABASE-LEVEL ANALYTICS DTOs ===
+
+    public class PaymentMethodAnalytics
+    {
+        public string PaymentMethod { get; set; } = string.Empty;
+        public int UsageCount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal SuccessRate { get; set; }
+        public decimal AverageAmount { get; set; }
+    }
+
+    public class BillingStatusAnalytics
+    {
+        public string Status { get; set; } = string.Empty;
+        public int Count { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal Percentage { get; set; }
+    }
+
+    public class RevenueTrendData
+    {
+        public string Period { get; set; } = string.Empty;
+        public decimal Revenue { get; set; }
+        public int BillingCount { get; set; }
+        public decimal GrowthRate { get; set; }
+    }
+
+    public class OverageChargesAnalytics
+    {
+        public decimal TotalOverageCharges { get; set; }
+        public int OverageCount { get; set; }
+        public decimal AverageOverageAmount { get; set; }
+        public List<SmartTelehealth.Core.DTOs.OverageByPlanDto> OverageByPlan { get; set; } = new();
+        public List<SmartTelehealth.Core.DTOs.OverageTrendDto> OverageTrend { get; set; } = new();
+    }
+
+    public class OverageTrendDto
+    {
+        public string Period { get; set; } = string.Empty;
+        public decimal OverageAmount { get; set; }
+        public int OverageCount { get; set; }
+    }
+
+    public class BillingEfficiencyMetrics
+    {
+        public decimal OverallEfficiency { get; set; }
+        public decimal PaymentSuccessRate { get; set; }
+        public decimal AverageBillingCycleTime { get; set; }
+        public decimal RevenueRecoveryRate { get; set; }
+        public List<BillingEfficiencyByMethodDto> EfficiencyByMethod { get; set; } = new();
+    }
+
+    public class BillingEfficiencyByMethodDto
+    {
+        public string PaymentMethod { get; set; } = string.Empty;
+        public decimal Efficiency { get; set; }
+        public decimal SuccessRate { get; set; }
+        public decimal AverageProcessingTime { get; set; }
+    }
+
+
+    // === END DATABASE-LEVEL ANALYTICS DTOs ===
+
+    // === END ADVANCED ANALYTICS DTOs ===
 
 } 

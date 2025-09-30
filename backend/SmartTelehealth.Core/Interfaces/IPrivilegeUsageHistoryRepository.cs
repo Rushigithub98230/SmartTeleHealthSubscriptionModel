@@ -6,6 +6,14 @@ public interface IPrivilegeUsageHistoryRepository : IRepositoryBase<PrivilegeUsa
 {
     // Basic CRUD methods are inherited from IRepositoryBase<PrivilegeUsageHistory>
     
+    // Custom methods with different names to avoid overriding base methods
+    Task<PrivilegeUsageHistory?> GetByIdWithDetailsAsync(Guid id);
+    Task<IEnumerable<PrivilegeUsageHistory>> GetAllWithDetailsAsync();
+    Task<PrivilegeUsageHistory> CreateUsageHistoryAsync(PrivilegeUsageHistory history);
+    Task<PrivilegeUsageHistory> UpdateUsageHistoryAsync(PrivilegeUsageHistory history);
+    Task<bool> DeleteUsageHistoryAsync(Guid id);
+    Task<bool> ExistsUsageHistoryAsync(Guid id);
+    
     Task<IEnumerable<PrivilegeUsageHistory>> GetByUserSubscriptionPrivilegeUsageIdAsync(Guid userSubscriptionPrivilegeUsageId);
     Task<IEnumerable<PrivilegeUsageHistory>> GetBySubscriptionIdAsync(Guid subscriptionId);
     Task<IEnumerable<PrivilegeUsageHistory>> GetByDateRangeAsync(Guid subscriptionId, DateTime startDate, DateTime endDate);

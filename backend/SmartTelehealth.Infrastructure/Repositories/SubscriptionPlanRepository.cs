@@ -26,14 +26,12 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
 
     #region Basic CRUD Operations
 
+    // Custom methods with different names to avoid overriding base methods
     /// <summary>
     /// Retrieves a subscription plan by its unique identifier with related entities
     /// </summary>
-    public override async Task<SubscriptionPlan?> GetByIdAsync(object id)
+    public async Task<SubscriptionPlan?> GetByIdWithDetailsAsync(Guid id)
     {
-        if (id is not Guid planId)
-            return null;
-
         return await _context.SubscriptionPlans
             .Include(sp => sp.Category)
             .Include(sp => sp.Currency)
@@ -41,13 +39,13 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
             .Include(sp => sp.PlanPrivileges)
                 .ThenInclude(spp => spp.Privilege)
             .Include(sp => sp.Subscriptions)
-            .FirstOrDefaultAsync(sp => sp.Id == planId);
+            .FirstOrDefaultAsync(sp => sp.Id == id);
     }
 
     /// <summary>
     /// Retrieves all subscription plans with related entities
     /// </summary>
-    public override async Task<IEnumerable<SubscriptionPlan>> GetAllAsync()
+    public async Task<IEnumerable<SubscriptionPlan>> GetAllWithDetailsAsync()
     {
         return await _context.SubscriptionPlans
             .Include(sp => sp.Category)
@@ -63,36 +61,32 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
     /// <summary>
     /// Creates a new subscription plan
     /// </summary>
-    public override async Task<SubscriptionPlan> CreateAsync(SubscriptionPlan plan)
+    public async Task<SubscriptionPlan> CreatePlanAsync(SubscriptionPlan plan)
     {
-        plan.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(plan);
     }
 
     /// <summary>
     /// Updates an existing subscription plan
     /// </summary>
-    public override async Task<SubscriptionPlan> UpdateAsync(SubscriptionPlan plan)
+    public async Task<SubscriptionPlan> UpdatePlanAsync(SubscriptionPlan plan)
     {
-        plan.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(plan);
     }
 
     /// <summary>
     /// Deletes a subscription plan by its unique identifier
     /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
+    public async Task<bool> DeletePlanAsync(Guid id)
     {
-        if (id is not Guid planId)
-            return false;
-
         try
         {
-            var plan = await _context.SubscriptionPlans.FindAsync(planId);
+            var plan = await _context.SubscriptionPlans.FindAsync(id);
             if (plan == null)
                 return false;
 
-            _context.SubscriptionPlans.Remove(plan);
+            plan.IsActive = false;
+            plan.IsDeleted = true;
             await _context.SaveChangesAsync();
             return true;
         }
@@ -105,12 +99,9 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
     /// <summary>
     /// Checks if a subscription plan exists
     /// </summary>
-    public override async Task<bool> ExistsAsync(object id)
+    public async Task<bool> ExistsPlanAsync(Guid id)
     {
-        if (id is not Guid planId)
-            return false;
-
-        return await _context.SubscriptionPlans.AnyAsync(sp => sp.Id == planId);
+        return await _context.SubscriptionPlans.AnyAsync(sp => sp.Id == id);
     }
 
 
@@ -130,7 +121,6 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
                 return false;
 
             plan.IsActive = true;
-        plan.UpdatedDate = DateTime.UtcNow;
             
             _context.Entry(plan).State = EntityState.Modified;
         await _context.SaveChangesAsync();
@@ -154,7 +144,6 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
                 return false;
 
             plan.IsActive = false;
-            plan.UpdatedDate = DateTime.UtcNow;
             
             _context.Entry(plan).State = EntityState.Modified;
             await _context.SaveChangesAsync();
@@ -505,6 +494,29 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
     {
         return await _context.Subscriptions
             .AnyAsync(s => s.SubscriptionPlanId == id && s.Status == "Active");
+    }
+
+    /// <summary>
+    /// Gets all privileges associated with a subscription plan
+    /// </summary>
+    public async Task<IEnumerable<SubscriptionPlanPrivilege>> GetPlanPrivilegesAsync(Guid planId)
+    {
+        return await _context.SubscriptionPlanPrivileges
+            .Include(spp => spp.Privilege)
+            .Where(spp => spp.SubscriptionPlanId == planId && !spp.IsDeleted)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets a specific plan privilege configuration
+    /// </summary>
+    public async Task<SubscriptionPlanPrivilege?> GetPlanPrivilegeAsync(Guid planId, Guid privilegeId)
+    {
+        return await _context.SubscriptionPlanPrivileges
+            .Include(spp => spp.Privilege)
+            .FirstOrDefaultAsync(spp => spp.SubscriptionPlanId == planId && 
+                                       spp.PrivilegeId == privilegeId && 
+                                       !spp.IsDeleted);
     }
 
     #endregion

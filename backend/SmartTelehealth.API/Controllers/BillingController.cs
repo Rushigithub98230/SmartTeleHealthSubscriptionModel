@@ -637,7 +637,7 @@ public class BillingController : BaseController
     {
         try
         {
-            var tokenModel = GetTokenModel();
+            var tokenModel = GetToken(HttpContext);
             var result = await _billingService.ReverseBillingAdjustmentAsync(adjustmentId, tokenModel);
             
             return StatusCode(result.StatusCode, result);

@@ -14,14 +14,17 @@ public class UserSubscriptionPrivilegeUsageRepository : RepositoryBase<UserSubsc
     }
 
     /// <summary>
-    /// Retrieves a user subscription privilege usage by its unique identifier
+    /// Retrieves a user subscription privilege usage by its unique identifier with related entities
     /// </summary>
-    public override async Task<UserSubscriptionPrivilegeUsage?> GetByIdAsync(object id)
+    public async Task<UserSubscriptionPrivilegeUsage?> GetByIdWithDetailsAsync(Guid id)
     {
-        if (id is not Guid usageId)
-            return null;
-
-        return await _context.UserSubscriptionPrivilegeUsages.FindAsync(usageId);
+        return await _context.UserSubscriptionPrivilegeUsages
+            .Include(uspu => uspu.Subscription)
+                .ThenInclude(s => s.User)
+            .Include(uspu => uspu.SubscriptionPlanPrivilege)
+                .ThenInclude(spp => spp.Privilege)
+            .Include(uspu => uspu.Privilege)
+            .FirstOrDefaultAsync(uspu => uspu.Id == id);
     }
 
     public async Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetBySubscriptionIdAsync(Guid subscriptionId)
@@ -31,43 +34,46 @@ public class UserSubscriptionPrivilegeUsageRepository : RepositoryBase<UserSubsc
         => await _context.UserSubscriptionPrivilegeUsages.Where(x => x.SubscriptionPlanPrivilegeId == subscriptionPlanPrivilegeId).ToListAsync();
 
     /// <summary>
-    /// Retrieves all user subscription privilege usages
+    /// Retrieves all user subscription privilege usages with related entities
     /// </summary>
-    public override async Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetAllAsync()
+    public async Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetAllWithDetailsAsync()
     {
-        return await _context.UserSubscriptionPrivilegeUsages.ToListAsync();
+        return await _context.UserSubscriptionPrivilegeUsages
+            .Include(uspu => uspu.Subscription)
+                .ThenInclude(s => s.User)
+            .Include(uspu => uspu.SubscriptionPlanPrivilege)
+                .ThenInclude(spp => spp.Privilege)
+            .Include(uspu => uspu.Privilege)
+            .OrderByDescending(uspu => uspu.LastUsedAt)
+            .ToListAsync();
     }
 
     /// <summary>
     /// Creates a new user subscription privilege usage
     /// </summary>
-    public override async Task<UserSubscriptionPrivilegeUsage> CreateAsync(UserSubscriptionPrivilegeUsage usage)
+    public async Task<UserSubscriptionPrivilegeUsage> CreateUsageAsync(UserSubscriptionPrivilegeUsage usage)
     {
-        usage.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(usage);
     }
 
     /// <summary>
     /// Updates an existing user subscription privilege usage
     /// </summary>
-    public override async Task<UserSubscriptionPrivilegeUsage> UpdateAsync(UserSubscriptionPrivilegeUsage usage)
+    public async Task<UserSubscriptionPrivilegeUsage> UpdateUsageAsync(UserSubscriptionPrivilegeUsage usage)
     {
-        usage.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(usage);
     }
 
     /// <summary>
-    /// Deletes a user subscription privilege usage by its unique identifier (hard delete)
+    /// Deletes a user subscription privilege usage by its unique identifier (soft delete)
     /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
+    public async Task<bool> DeleteUsageAsync(Guid id)
     {
-        if (id is not Guid usageId)
-            return false;
-
-        var entity = await _context.UserSubscriptionPrivilegeUsages.FindAsync(usageId);
+        var entity = await _context.UserSubscriptionPrivilegeUsages.FindAsync(id);
         if (entity != null)
         {
-            _context.UserSubscriptionPrivilegeUsages.Remove(entity);
+            entity.IsActive = false;
+            entity.IsDeleted = true;
             await _context.SaveChangesAsync();
             return true;
         }
@@ -77,12 +83,9 @@ public class UserSubscriptionPrivilegeUsageRepository : RepositoryBase<UserSubsc
     /// <summary>
     /// Checks if a user subscription privilege usage exists
     /// </summary>
-    public override async Task<bool> ExistsAsync(object id)
+    public async Task<bool> ExistsUsageAsync(Guid id)
     {
-        if (id is not Guid usageId)
-            return false;
-
-        return await _context.UserSubscriptionPrivilegeUsages.AnyAsync(x => x.Id == usageId);
+        return await _context.UserSubscriptionPrivilegeUsages.AnyAsync(x => x.Id == id);
     }
 
     /// <summary>
@@ -90,7 +93,7 @@ public class UserSubscriptionPrivilegeUsageRepository : RepositoryBase<UserSubsc
     /// </summary>
     public async Task AddAsync(UserSubscriptionPrivilegeUsage usage)
     {
-        await CreateAsync(usage);
+        await CreateUsageAsync(usage);
     }
 
     #region Advanced Query Operations
@@ -200,6 +203,49 @@ public class UserSubscriptionPrivilegeUsageRepository : RepositoryBase<UserSubsc
                 : query.OrderBy(uspu => uspu.IsActive),
             _ => query.OrderByDescending(uspu => uspu.LastUsedAt)
         };
+    }
+
+    /// <summary>
+    /// Gets privilege usage record for a specific user and privilege
+    /// </summary>
+    public async Task<UserSubscriptionPrivilegeUsage?> GetByUserAndPrivilegeAsync(int userId, Guid privilegeId)
+    {
+        return await _context.UserSubscriptionPrivilegeUsages
+            .Include(uspu => uspu.Subscription)
+            .Include(uspu => uspu.Privilege)
+            .Include(uspu => uspu.SubscriptionPlanPrivilege)
+            .FirstOrDefaultAsync(uspu => uspu.Subscription.UserId == userId && 
+                                        uspu.PrivilegeId == privilegeId && 
+                                        !uspu.IsDeleted);
+    }
+
+    /// <summary>
+    /// Gets all privilege usage records for a specific user
+    /// </summary>
+    public async Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetByUserIdAsync(int userId)
+    {
+        return await _context.UserSubscriptionPrivilegeUsages
+            .Include(uspu => uspu.Subscription)
+            .Include(uspu => uspu.Privilege)
+            .Include(uspu => uspu.SubscriptionPlanPrivilege)
+            .Where(uspu => uspu.Subscription.UserId == userId && !uspu.IsDeleted)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Updates a privilege usage record
+    /// </summary>
+    public async Task<UserSubscriptionPrivilegeUsage> UpdatePrivilegeUsageAsync(UserSubscriptionPrivilegeUsage usage)
+    {
+        return await base.UpdateAsync(usage);
+    }
+
+    /// <summary>
+    /// Creates a new privilege usage record
+    /// </summary>
+    public async Task<UserSubscriptionPrivilegeUsage> CreatePrivilegeUsageAsync(UserSubscriptionPrivilegeUsage usage)
+    {
+        return await base.CreateAsync(usage);
     }
 
     #endregion

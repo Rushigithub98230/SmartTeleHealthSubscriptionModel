@@ -71,7 +71,6 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
     /// </summary>
     public override async Task<SubscriptionStatusHistory> CreateAsync(SubscriptionStatusHistory history)
     {
-        history.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(history);
     }
 
@@ -80,7 +79,6 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
     /// </summary>
     public override async Task<SubscriptionStatusHistory> UpdateAsync(SubscriptionStatusHistory history)
     {
-        history.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(history);
     }
 
@@ -96,7 +94,6 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
         if (history == null) return false;
 
         history.IsDeleted = true;
-        history.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
     }

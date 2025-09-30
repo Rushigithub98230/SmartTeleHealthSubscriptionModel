@@ -18,6 +18,33 @@
   min-height: 56px;
 }
 
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background-color: #e3f2fd;
+  border-radius: 8px;
+  border: 1px solid #bbdefb;
+  
+  .selection-info {
+    font-weight: 500;
+    color: #1976d2;
+    font-size: 14px;
+  }
+  
+  button {
+    min-width: auto;
+  }
+}
+
+.search-filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .search-field {
   min-width: 300px;
   flex: 1;
@@ -91,6 +118,11 @@
 
 // Subscription-specific styling
 .subscriptions-table {
+  .mat-column-select {
+    width: 50px;
+    text-align: center;
+  }
+
   .mat-column-user {
     min-width: 180px;
     font-weight: 500;

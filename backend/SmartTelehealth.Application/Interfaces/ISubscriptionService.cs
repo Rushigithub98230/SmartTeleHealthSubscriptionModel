@@ -7,7 +7,7 @@ namespace SmartTelehealth.Application.Interfaces
     {
         Task<JsonModel> GetSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
         Task<JsonModel> GetUserSubscriptionsAsync(int userId, TokenModel tokenModel);
-        Task<JsonModel> GetUserSubscriptionsWithFilteringAsync(int userId, int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
+        Task<JsonModel> GetUserSubscriptionsWithFilteringAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
         Task<JsonModel> GetSubscriptionByPlanIdAsync(string planId, TokenModel tokenModel);
         Task<JsonModel> GetPaymentMethodsAsync(int userId, TokenModel tokenModel);
         Task<JsonModel> AddPaymentMethodAsync(int userId, string paymentMethodId, TokenModel tokenModel);

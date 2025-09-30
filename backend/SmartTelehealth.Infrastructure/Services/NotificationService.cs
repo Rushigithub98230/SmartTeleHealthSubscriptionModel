@@ -413,6 +413,7 @@ public class NotificationService : INotificationService
                 Message = message,
                 Type = NotificationType.InApp,
                 Status = NotificationStatus.Unread,
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow,
                 ScheduledAt = DateTime.UtcNow
             };
@@ -1134,6 +1135,7 @@ public class NotificationService : INotificationService
                 Type = Enum.TryParse<NotificationType>(createNotificationDto.Type, out var type) ? type : NotificationType.InApp,
                 Status = NotificationStatus.Unread,
                 IsRead = false,
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow,
                 ScheduledAt = createNotificationDto.ScheduledAt
             };
@@ -1453,6 +1455,7 @@ public class NotificationService : INotificationService
                 Type = NotificationType.InApp,
                 Status = NotificationStatus.Unread,
                 IsRead = false,
+                CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow,
                 ScheduledAt = DateTime.UtcNow
             };

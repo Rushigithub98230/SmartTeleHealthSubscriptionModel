@@ -416,7 +416,7 @@ public class PaymentService : IPaymentService
             _logger.LogInformation("Getting pending payments for user {UserId}", tokenModel.UserID);
             
             // Get pending billing records
-            var pendingRecords = await _billingRepository.GetPendingRecordsAsync();
+            var pendingRecords = await _billingRepository.GetPendingBillingRecordsAsync();
             var billingRecordDtos = _mapper.Map<IEnumerable<BillingRecordDto>>(pendingRecords);
             
             return new JsonModel { data = billingRecordDtos, Message = "Pending payments retrieved successfully", StatusCode = 200 };

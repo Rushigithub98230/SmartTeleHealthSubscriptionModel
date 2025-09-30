@@ -22,11 +22,8 @@ namespace SmartTelehealth.Infrastructure.Repositories
         /// <summary>
         /// Retrieves a billing record by its unique identifier with related entities
         /// </summary>
-        public override async Task<BillingRecord?> GetByIdAsync(object id)
+        public async Task<BillingRecord?> GetByIdWithDetailsAsync(Guid billingId)
         {
-            if (id is not Guid billingId)
-                return null;
-
             return await _context.BillingRecords
                 .Include(b => b.User)
                 .Include(b => b.Subscription)
@@ -79,7 +76,7 @@ namespace SmartTelehealth.Infrastructure.Repositories
         /// <summary>
         /// Retrieves all billing records with related entities
         /// </summary>
-        public override async Task<IEnumerable<BillingRecord>> GetAllAsync()
+        public async Task<IEnumerable<BillingRecord>> GetAllWithDetailsAsync()
         {
             return await _context.BillingRecords
                 .Include(b => b.User)
@@ -91,29 +88,24 @@ namespace SmartTelehealth.Infrastructure.Repositories
         /// <summary>
         /// Creates a new billing record
         /// </summary>
-        public override async Task<BillingRecord> CreateAsync(BillingRecord billingRecord)
+        public async Task<BillingRecord> CreateBillingRecordAsync(BillingRecord billingRecord)
         {
-            billingRecord.CreatedDate = DateTime.UtcNow;
             return await base.CreateAsync(billingRecord);
         }
 
         /// <summary>
         /// Updates an existing billing record
         /// </summary>
-        public override async Task<BillingRecord> UpdateAsync(BillingRecord billingRecord)
+        public async Task<BillingRecord> UpdateBillingRecordAsync(BillingRecord billingRecord)
         {
-            billingRecord.UpdatedDate = DateTime.UtcNow;
             return await base.UpdateAsync(billingRecord);
         }
 
         /// <summary>
         /// Deletes a billing record by its unique identifier (hard delete)
         /// </summary>
-        public override async Task<bool> DeleteAsync(object id)
+        public async Task<bool> DeleteBillingRecordAsync(Guid billingId)
         {
-            if (id is not Guid billingId)
-                return false;
-
             var billingRecord = await _context.BillingRecords.FindAsync(billingId);
             if (billingRecord == null)
                 return false;
@@ -126,11 +118,8 @@ namespace SmartTelehealth.Infrastructure.Repositories
         /// <summary>
         /// Checks if a billing record exists
         /// </summary>
-        public override async Task<bool> ExistsAsync(object id)
+        public async Task<bool> ExistsBillingRecordAsync(Guid billingId)
         {
-            if (id is not Guid billingId)
-                return false;
-
             return await _context.BillingRecords.AnyAsync(b => b.Id == billingId);
         }
 
@@ -161,6 +150,40 @@ namespace SmartTelehealth.Infrastructure.Repositories
                 .Where(b => b.UserId == userId && !string.IsNullOrEmpty(b.InvoiceNumber))
                 .CountAsync();
         }
+
+        /// <summary>
+        /// Retrieves all overdue billing records that require immediate attention
+        /// </summary>
+        public async Task<IEnumerable<BillingRecord>> GetOverdueBillingRecordsAsync()
+        {
+            var currentDate = DateTime.UtcNow;
+            return await _context.BillingRecords
+                .Include(b => b.User)
+                .Include(b => b.Subscription)
+                .Include(b => b.Currency)
+                .Where(b => b.DueDate.HasValue && 
+                           b.DueDate.Value < currentDate && 
+                           b.Status == BillingRecord.BillingStatus.Pending &&
+                           !b.IsDeleted)
+                .OrderBy(b => b.DueDate)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Retrieves all billing records with pending payment status
+        /// </summary>
+        public async Task<IEnumerable<BillingRecord>> GetPendingBillingRecordsAsync()
+        {
+            return await _context.BillingRecords
+                .Include(b => b.User)
+                .Include(b => b.Subscription)
+                .Include(b => b.Currency)
+                .Where(b => b.Status == BillingRecord.BillingStatus.Pending && !b.IsDeleted)
+                .OrderBy(b => b.DueDate)
+                .ToListAsync();
+        }
+
+
 
         public async Task<IEnumerable<BillingRecord>> GetBillingRecordsByDateRangeAsync(DateTime startDate, DateTime endDate)
         {
@@ -733,5 +756,282 @@ namespace SmartTelehealth.Infrastructure.Repositories
                 _ => query.OrderByDescending(b => b.CreatedDate)
             };
         }
+
+        // New methods for BillingAdjustment management
+        public async Task<BillingAdjustment?> GetAdjustmentByIdAsync(Guid adjustmentId)
+        {
+            return await _context.BillingAdjustments
+                .Include(ba => ba.BillingRecord)
+                .Include(ba => ba.AppliedByUser)
+                .FirstOrDefaultAsync(ba => ba.Id == adjustmentId);
+        }
+
+        public async Task<BillingAdjustment> CreateAdjustmentAsync(BillingAdjustment adjustment)
+        {
+            _context.BillingAdjustments.Add(adjustment);
+            await _context.SaveChangesAsync();
+            return adjustment;
+        }
+
+        public async Task<BillingAdjustment> UpdateAdjustmentAsync(BillingAdjustment adjustment)
+        {
+            _context.BillingAdjustments.Update(adjustment);
+            await _context.SaveChangesAsync();
+            return adjustment;
+        }
+
+        // === DATABASE-LEVEL ANALYTICS AGGREGATION METHODS ===
+
+        public async Task<int> GetFailedPaymentsCountAsync(DateTime startDate, DateTime endDate)
+        {
+            return await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Status == BillingRecord.BillingStatus.Failed)
+                .CountAsync();
+        }
+
+        public async Task<decimal> GetTotalRevenueAsync(DateTime startDate, DateTime endDate)
+        {
+            return await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Status == BillingRecord.BillingStatus.Paid)
+                .SumAsync(br => br.TotalAmount);
+        }
+
+        public async Task<List<MonthlyRevenueData>> GetMonthlyRevenueBreakdownAsync(DateTime startDate, DateTime endDate)
+        {
+            return await _context.BillingRecords
+                .Where(br => br.CreatedDate.HasValue && 
+                            br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Status == BillingRecord.BillingStatus.Paid)
+                .GroupBy(br => new { br.CreatedDate!.Value.Year, br.CreatedDate!.Value.Month })
+                .Select(g => new MonthlyRevenueData
+                {
+                    Month = $"{g.Key.Year}-{g.Key.Month:D2}",
+                    Revenue = g.Sum(br => br.TotalAmount),
+                    SubscriptionCount = g.Count()
+                })
+                .OrderBy(x => x.Month)
+                .ToListAsync();
+        }
+
+        public async Task<List<CategoryRevenueData>> GetRevenueByCategoryAsync(DateTime startDate, DateTime endDate)
+        {
+            return await _context.BillingRecords
+                .Where(br => br.CreatedDate.HasValue && 
+                            br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Status == BillingRecord.BillingStatus.Paid)
+                .Include(br => br.Subscription)
+                .ThenInclude(s => s.SubscriptionPlan)
+                .ThenInclude(sp => sp.Category)
+                .GroupBy(br => br.Subscription.SubscriptionPlan.Category.Name)
+                .Select(g => new CategoryRevenueData
+                {
+                    CategoryName = g.Key,
+                    Revenue = g.Sum(br => br.TotalAmount),
+                    SubscriptionCount = g.Count()
+                })
+                .OrderByDescending(x => x.Revenue)
+                .ToListAsync();
+        }
+
+        public async Task<decimal> GetAverageRevenuePerUserAsync(DateTime startDate, DateTime endDate)
+        {
+            var totalRevenue = await GetTotalRevenueAsync(startDate, endDate);
+            var uniqueUsers = await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Status == BillingRecord.BillingStatus.Paid)
+                .Select(br => br.UserId)
+                .Distinct()
+                .CountAsync();
+
+            return uniqueUsers > 0 ? totalRevenue / uniqueUsers : 0;
+        }
+
+        public async Task<List<PaymentMethodAnalytics>> GetPaymentMethodAnalyticsAsync(DateTime startDate, DateTime endDate)
+        {
+            return await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && br.CreatedDate <= endDate)
+                .GroupBy(br => br.PaymentMethod ?? "Unknown")
+                .Select(g => new PaymentMethodAnalytics
+                {
+                    PaymentMethod = g.Key,
+                    UsageCount = g.Count(),
+                    TotalAmount = g.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.TotalAmount),
+                    SuccessRate = g.Any() ? (decimal)g.Count(br => br.Status == BillingRecord.BillingStatus.Paid) / g.Count() * 100 : 0,
+                    AverageAmount = g.Any() ? g.Average(br => br.TotalAmount) : 0
+                })
+                .OrderByDescending(x => x.UsageCount)
+                .ToListAsync();
+        }
+
+        public async Task<List<BillingStatusAnalytics>> GetBillingStatusAnalyticsAsync(DateTime startDate, DateTime endDate)
+        {
+            var totalRecords = await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && br.CreatedDate <= endDate)
+                .CountAsync();
+
+            return await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && br.CreatedDate <= endDate)
+                .GroupBy(br => br.Status)
+                .Select(g => new BillingStatusAnalytics
+                {
+                    Status = g.Key.ToString(),
+                    Count = g.Count(),
+                    TotalAmount = g.Sum(br => br.TotalAmount),
+                    Percentage = totalRecords > 0 ? (decimal)g.Count() / totalRecords * 100 : 0
+                })
+                .OrderByDescending(x => x.Count)
+                .ToListAsync();
+        }
+
+        public async Task<decimal> GetPaymentSuccessRateAsync(DateTime startDate, DateTime endDate)
+        {
+            var totalPayments = await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && br.CreatedDate <= endDate)
+                .CountAsync();
+
+            if (totalPayments == 0) return 0;
+
+            var successfulPayments = await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Status == BillingRecord.BillingStatus.Paid)
+                .CountAsync();
+
+            return (decimal)successfulPayments / totalPayments * 100;
+        }
+
+        public async Task<List<RevenueTrendData>> GetRevenueTrendAsync(DateTime startDate, DateTime endDate)
+        {
+            var monthlyData = await _context.BillingRecords
+                .Where(br => br.CreatedDate.HasValue && 
+                            br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Status == BillingRecord.BillingStatus.Paid)
+                .GroupBy(br => new { br.CreatedDate!.Value.Year, br.CreatedDate!.Value.Month })
+                .Select(g => new { 
+                    Period = $"{g.Key.Year}-{g.Key.Month:D2}", 
+                    Revenue = g.Sum(br => br.TotalAmount),
+                    BillingCount = g.Count()
+                })
+                .OrderBy(x => x.Period)
+                .ToListAsync();
+
+            var trendData = new List<RevenueTrendData>();
+            decimal? previousRevenue = null;
+
+            foreach (var data in monthlyData)
+            {
+                var growthRate = previousRevenue.HasValue && previousRevenue.Value > 0
+                    ? (data.Revenue - previousRevenue.Value) / previousRevenue.Value * 100
+                    : 0;
+
+                trendData.Add(new RevenueTrendData
+                {
+                    Period = data.Period,
+                    Revenue = data.Revenue,
+                    SubscriptionCount = data.BillingCount,
+                    GrowthRate = Math.Round(growthRate, 2)
+                });
+
+                previousRevenue = data.Revenue;
+            }
+
+            return trendData;
+        }
+
+        public async Task<OverageChargesAnalytics> GetOverageChargesAnalyticsAsync(DateTime startDate, DateTime endDate)
+        {
+            var overageRecords = await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Description.Contains("overage", StringComparison.OrdinalIgnoreCase))
+                .Include(br => br.Subscription)
+                .ThenInclude(s => s.SubscriptionPlan)
+                .ToListAsync();
+
+            var overageByPlan = overageRecords
+                .GroupBy(br => br.Subscription?.SubscriptionPlan?.Name ?? "Unknown")
+                .Select(g => new OverageByPlanDto
+                {
+                    PlanName = g.Key,
+                    OverageAmount = g.Sum(br => br.TotalAmount),
+                    OverageCount = g.Count()
+                })
+                .ToList();
+
+            var overageTrend = overageRecords
+                .Where(br => br.CreatedDate.HasValue)
+                .GroupBy(br => new { br.CreatedDate!.Value.Year, br.CreatedDate!.Value.Month })
+                .Select(g => new OverageTrendDto
+                {
+                    Period = $"{g.Key.Year}-{g.Key.Month:D2}",
+                    OverageAmount = g.Sum(br => br.TotalAmount),
+                    OverageCount = g.Count()
+                })
+                .OrderBy(x => x.Period)
+                .ToList();
+
+            return new OverageChargesAnalytics
+            {
+                TotalOverageCharges = overageRecords.Sum(br => br.TotalAmount),
+                OverageCount = overageRecords.Count,
+                AverageOverageAmount = overageRecords.Any() ? overageRecords.Average(br => br.TotalAmount) : 0,
+                OverageByPlan = overageByPlan,
+                OverageTrend = overageTrend
+            };
+        }
+
+        public async Task<BillingEfficiencyMetrics> GetBillingEfficiencyMetricsAsync(DateTime startDate, DateTime endDate)
+        {
+            var records = await _context.BillingRecords
+                .Where(br => br.CreatedDate >= startDate && br.CreatedDate <= endDate)
+                .ToListAsync();
+
+            var totalRecords = records.Count;
+            var successfulRecords = records.Count(br => br.Status == BillingRecord.BillingStatus.Paid);
+            var failedRecords = records.Count(br => br.Status == BillingRecord.BillingStatus.Failed);
+
+            var overallEfficiency = totalRecords > 0 ? (decimal)successfulRecords / totalRecords * 100 : 0;
+            var paymentSuccessRate = overallEfficiency;
+            var revenueRecoveryRate = failedRecords > 0 ? (decimal)successfulRecords / (successfulRecords + failedRecords) * 100 : 100;
+
+            var averageBillingCycleTime = (decimal)records
+                .Where(br => br.Status == BillingRecord.BillingStatus.Paid && br.PaidAt.HasValue && br.CreatedDate.HasValue)
+                .Select(br => (br.PaidAt!.Value - br.CreatedDate!.Value).TotalDays)
+                .DefaultIfEmpty(0)
+                .Average();
+
+            var efficiencyByMethod = records
+                .GroupBy(br => br.PaymentMethod ?? "Unknown")
+                .Select(g => new BillingEfficiencyByMethodDto
+                {
+                    PaymentMethod = g.Key,
+                    Efficiency = g.Any() ? (decimal)g.Count(br => br.Status == BillingRecord.BillingStatus.Paid) / g.Count() * 100 : 0,
+                    SuccessRate = g.Any() ? (decimal)g.Count(br => br.Status == BillingRecord.BillingStatus.Paid) / g.Count() * 100 : 0,
+                    AverageProcessingTime = (decimal)g.Where(br => br.Status == BillingRecord.BillingStatus.Paid && br.PaidAt.HasValue && br.CreatedDate.HasValue)
+                        .Select(br => (br.PaidAt!.Value - br.CreatedDate!.Value).TotalDays)
+                        .DefaultIfEmpty(0)
+                        .Average()
+                })
+                .ToList();
+
+            return new BillingEfficiencyMetrics
+            {
+                OverallEfficiency = Math.Round(overallEfficiency, 2),
+                PaymentSuccessRate = Math.Round(paymentSuccessRate, 2),
+                AverageBillingCycleTime = Math.Round((decimal)averageBillingCycleTime, 2),
+                RevenueRecoveryRate = Math.Round(revenueRecoveryRate, 2),
+                EfficiencyByMethod = efficiencyByMethod
+            };
+        }
+
+        // === END DATABASE-LEVEL ANALYTICS AGGREGATION METHODS ===
     }
 } 

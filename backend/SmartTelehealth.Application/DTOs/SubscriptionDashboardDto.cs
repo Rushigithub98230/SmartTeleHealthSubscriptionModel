@@ -40,15 +40,6 @@ public class OverviewMetricsDto
 
 // RevenueAnalyticsDto and MonthlyRevenueDto already exist in AnalyticsDtos.cs
 
-public class ChurnAnalyticsDto
-{
-    public decimal ChurnRate { get; set; }
-    public decimal RetentionRate { get; set; }
-    public int CancelledSubscriptions { get; set; }
-    public List<CancellationReasonDto> CancellationReasons { get; set; } = new();
-    public decimal AverageLifetime { get; set; }
-    public List<CohortRetentionDto> CohortRetention { get; set; } = new();
-}
 
 public class CancellationReasonDto
 {

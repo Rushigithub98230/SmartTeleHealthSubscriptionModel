@@ -113,14 +113,12 @@ public class ChatRoomRepository : RepositoryBase<ChatRoom>, IChatRoomRepository
     // Override CreateAsync to add audit fields
     public override async Task<ChatRoom> CreateAsync(ChatRoom chatRoom)
     {
-        chatRoom.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(chatRoom);
     }
 
     // Override UpdateAsync to add audit fields
     public override async Task<ChatRoom> UpdateAsync(ChatRoom chatRoom)
     {
-        chatRoom.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(chatRoom);
     }
 
@@ -134,7 +132,6 @@ public class ChatRoomRepository : RepositoryBase<ChatRoom>, IChatRoomRepository
                 return false;
 
             chatRoom.IsDeleted = true;
-            chatRoom.UpdatedDate = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return true;
         }

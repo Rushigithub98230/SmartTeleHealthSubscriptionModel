@@ -1451,5 +1451,88 @@ public class StripeService : IStripeService
             "jmd", "mop", "nzd", "pyg", "srd", "uyu", "vef", "xaf", "xof", "xpf"
         };
     }
+
+    /// <summary>
+    /// Captures a payment intent that was previously authorized
+    /// </summary>
+    /// <param name="paymentIntentId">The payment intent ID to capture</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>True if capture was successful, false otherwise</returns>
+    public async Task<bool> CapturePaymentIntentAsync(string paymentIntentId, TokenModel tokenModel)
+    {
+        if (string.IsNullOrEmpty(paymentIntentId))
+            throw new ArgumentException("Payment intent ID is required", nameof(paymentIntentId));
+
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                var paymentIntentService = new PaymentIntentService();
+                var captureOptions = new PaymentIntentCaptureOptions
+                {
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "captured_by_user_id", tokenModel.UserID.ToString() },
+                        { "captured_by_role_id", tokenModel.RoleID.ToString() },
+                        { "captured_at", DateTime.UtcNow.ToString("O") }
+                    }
+                };
+
+                var paymentIntent = await paymentIntentService.CaptureAsync(paymentIntentId, captureOptions);
+
+                _logger.LogInformation("Payment intent {PaymentIntentId} captured successfully by user {UserId}", 
+                    paymentIntentId, tokenModel.UserID);
+
+                return paymentIntent.Status == "succeeded";
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "Stripe error capturing payment intent {PaymentIntentId}: {Message}", 
+                    paymentIntentId, ex.Message);
+                return false;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Gets the status of a payment intent
+    /// </summary>
+    /// <param name="paymentIntentId">The payment intent ID to check</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>Payment intent status information</returns>
+    public async Task<PaymentIntentStatusDto> GetPaymentIntentStatusAsync(string paymentIntentId, TokenModel tokenModel)
+    {
+        if (string.IsNullOrEmpty(paymentIntentId))
+            throw new ArgumentException("Payment intent ID is required", nameof(paymentIntentId));
+
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                var paymentIntentService = new PaymentIntentService();
+                var paymentIntent = await paymentIntentService.GetAsync(paymentIntentId);
+
+                _logger.LogInformation("Retrieved payment intent status for {PaymentIntentId}: {Status}", 
+                    paymentIntentId, paymentIntent.Status);
+
+                return new PaymentIntentStatusDto
+                {
+                    Id = paymentIntent.Id,
+                    Status = paymentIntent.Status,
+                    Amount = paymentIntent.Amount,
+                    Currency = paymentIntent.Currency,
+                    Created = paymentIntent.Created,
+                    LastPaymentError = paymentIntent.LastPaymentError?.Message,
+                    Metadata = paymentIntent.Metadata
+                };
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "Stripe error getting payment intent status for {PaymentIntentId}: {Message}", 
+                    paymentIntentId, ex.Message);
+                throw;
+            }
+        });
+    }
     #endregion
 } 

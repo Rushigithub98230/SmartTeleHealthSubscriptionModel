@@ -17,11 +17,8 @@ public class ConsultationRepository : RepositoryBase<Consultation>, IConsultatio
     /// <summary>
     /// Retrieves a consultation by its unique identifier with related entities
     /// </summary>
-    public override async Task<Consultation?> GetByIdAsync(object id)
+    public async Task<Consultation?> GetByIdWithDetailsAsync(Guid consultationId)
     {
-        if (id is not Guid consultationId)
-            return null;
-
         return await _context.Consultations
             .Include(c => c.User)
             .Include(c => c.Provider)
@@ -67,7 +64,7 @@ public class ConsultationRepository : RepositoryBase<Consultation>, IConsultatio
     /// <summary>
     /// Retrieves all consultations with related entities
     /// </summary>
-    public override async Task<IEnumerable<Consultation>> GetAllAsync()
+    public async Task<IEnumerable<Consultation>> GetAllWithDetailsAsync()
     {
         return await _context.Consultations
             .Include(c => c.User)
@@ -82,34 +79,30 @@ public class ConsultationRepository : RepositoryBase<Consultation>, IConsultatio
     /// <summary>
     /// Creates a new consultation
     /// </summary>
-    public override async Task<Consultation> CreateAsync(Consultation consultation)
+    public async Task<Consultation> CreateConsultationAsync(Consultation consultation)
     {
-        consultation.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(consultation);
     }
     
     /// <summary>
     /// Updates an existing consultation
     /// </summary>
-    public override async Task<Consultation> UpdateAsync(Consultation consultation)
+    public async Task<Consultation> UpdateConsultationAsync(Consultation consultation)
     {
-        consultation.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(consultation);
     }
     
     /// <summary>
-    /// Deletes a consultation by its unique identifier (hard delete)
+    /// Deletes a consultation by its unique identifier (soft delete)
     /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
+    public async Task<bool> DeleteConsultationAsync(Guid consultationId)
     {
-        if (id is not Guid consultationId)
-            return false;
-
         var consultation = await _context.Consultations.FindAsync(consultationId);
         if (consultation == null)
             return false;
-            
-        _context.Consultations.Remove(consultation);
+
+        consultation.IsActive = false;
+        consultation.IsDeleted = true;
         await _context.SaveChangesAsync();
         return true;
     }
@@ -117,11 +110,8 @@ public class ConsultationRepository : RepositoryBase<Consultation>, IConsultatio
     /// <summary>
     /// Checks if a consultation exists
     /// </summary>
-    public override async Task<bool> ExistsAsync(object id)
+    public async Task<bool> ExistsConsultationAsync(Guid consultationId)
     {
-        if (id is not Guid consultationId)
-            return false;
-
         return await _context.Consultations.AnyAsync(c => c.Id == consultationId);
     }
     

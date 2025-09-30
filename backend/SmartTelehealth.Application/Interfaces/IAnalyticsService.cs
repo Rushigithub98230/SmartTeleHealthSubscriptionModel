@@ -30,4 +30,22 @@ public interface IAnalyticsService
     Task<JsonModel> GenerateUserReportAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
     Task<JsonModel> GenerateProviderReportAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
     Task<JsonModel> ExportSubscriptionAnalyticsAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
+    
+    // Advanced Analytics Methods
+    Task<ChurnAnalyticsDto> GetChurnAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null);
+    Task<PrivilegeUsageAnalyticsDto> GetPrivilegeUsageAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null);
+    Task<SubscriptionLifecycleAnalyticsDto> GetSubscriptionLifecycleAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null);
+    
+    // Enhanced Billing Analytics
+    Task<EnhancedBillingAnalyticsDto> GetEnhancedBillingAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null);
+    
+    // Core Analytics Methods (for internal use)
+    Task<decimal> GetTotalRevenueAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
+    Task<decimal> CalculateAverageRevenuePerUserAsync(TokenModel tokenModel);
+    Task<int> GetFailedPaymentsAsync(DateTime? startDate = null, DateTime? endDate = null);
+    Task<int> GetRefundsIssuedAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
+    Task<decimal> CalculatePaymentSuccessRateAsync(DateTime? startDate = null, DateTime? endDate = null);
+    Task<IEnumerable<CategoryRevenueDto>> GetRevenueByCategoryAsync(DateTime? startDate = null, DateTime? endDate = null, TokenModel tokenModel = null);
+    Task<IEnumerable<RevenueTrendDto>> GetRevenueTrendAsync(DateTime? startDate = null, DateTime? endDate = null, TokenModel tokenModel = null);
+    Task<decimal> GetMonthlyRecurringRevenueAsync(TokenModel tokenModel);
 } 

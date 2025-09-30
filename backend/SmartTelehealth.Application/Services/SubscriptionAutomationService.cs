@@ -134,7 +134,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
         {
             _logger.LogInformation("Renewing subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
             {
                 return new JsonModel 
@@ -178,9 +178,10 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             // Update subscription
             subscription.NextBillingDate = newBillingDate;
             subscription.Status = Subscription.SubscriptionStatuses.Active;
+            subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             await _subscriptionRepository.SaveChangesAsync();
 
 
@@ -220,7 +221,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
         {
             _logger.LogInformation("Changing plan for subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
             {
                 return new JsonModel 
@@ -249,9 +250,10 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             var oldPlanId = subscription.SubscriptionPlanId;
             subscription.SubscriptionPlanId = newPlan.Id;
             subscription.CurrentPrice = newPlan.Price;
+            subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             await _subscriptionRepository.SaveChangesAsync();
 
 

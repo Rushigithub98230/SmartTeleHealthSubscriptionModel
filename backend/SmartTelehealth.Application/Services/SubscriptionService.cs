@@ -108,8 +108,8 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            // Retrieve subscription entity from repository with related entities
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
             
@@ -397,7 +397,7 @@ public class SubscriptionService : ISubscriptionService
         try
         {
             // Retrieve subscription to validate it exists
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -663,7 +663,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -683,7 +683,7 @@ public class SubscriptionService : ISubscriptionService
                     subscription.Status = Subscription.SubscriptionStatuses.Active;
                     subscription.FailedPaymentAttempts = 0; // Reset failed payment attempts
                     subscription.LastPaymentError = null; // Clear last payment error
-                    await _subscriptionRepository.UpdateAsync(subscription);
+                    await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
                 }
 
                 // Create billing record for successful payment
@@ -731,7 +731,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -757,10 +757,9 @@ public class SubscriptionService : ISubscriptionService
                     usageStats.PrivilegeUsage.Add(new PrivilegeUsageDto
                     {
                         PrivilegeName = planPrivilege.Privilege.Name,
-                        UsedValue = usage.UsedValue,
-                        AllowedValue = planPrivilege.Value,
-                        RemainingValue = planPrivilege.Value == -1 ? int.MaxValue : Math.Max(0, planPrivilege.Value - usage.UsedValue),
-                        UsagePercentage = planPrivilege.Value == -1 ? 0 : (decimal)usage.UsedValue / planPrivilege.Value * 100
+                        UsageCount = usage.UsedValue,
+                        UsagePercentage = planPrivilege.Value == -1 ? 0 : (decimal)usage.UsedValue / planPrivilege.Value * 100,
+                        AverageUsagePerUser = usage.UsedValue // For now, using current usage as average
                     });
                 }
             }
@@ -840,7 +839,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -1040,7 +1039,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Failed to use teleconsultation privilege.", StatusCode = 500 };
 
             // Get subscription details
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -1129,7 +1128,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Failed to use medication supply privilege.", StatusCode = 500 };
 
             // Get subscription details
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -1200,7 +1199,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -1237,7 +1236,7 @@ public class SubscriptionService : ISubscriptionService
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
 
-            await _subscriptionRepository.UpdateAsync(entity);
+            await _subscriptionRepository.UpdateSubscriptionAsync(entity);
 
             // Add status history
             await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
@@ -1294,7 +1293,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-        var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+        var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
         if (entity == null)
             return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -1368,7 +1367,7 @@ public class SubscriptionService : ISubscriptionService
                 ChangedAt = DateTime.UtcNow
             });
             
-            await _subscriptionRepository.UpdateAsync(entity);
+            await _subscriptionRepository.UpdateSubscriptionAsync(entity);
             
             return new JsonModel { data = paymentResult, Message = "Payment retried and subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -1401,7 +1400,7 @@ public class SubscriptionService : ISubscriptionService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null || subscription.Status != Subscription.SubscriptionStatuses.Active)
                 return new JsonModel { data = new object(), Message = "Subscription not active", StatusCode = 400 };
 
@@ -1430,7 +1429,7 @@ public class SubscriptionService : ISubscriptionService
     // Increment privilege usage (to be called after successful action)
     public async Task IncrementPrivilegeUsageAsync(string subscriptionId, string privilegeName)
     {
-        var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+        var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
         if (subscription == null) return;
         var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(subscription.SubscriptionPlanId);
         var planPrivilege = planPrivileges.FirstOrDefault(p => p.Privilege.Name == privilegeName);
@@ -1452,7 +1451,7 @@ public class SubscriptionService : ISubscriptionService
         else
         {
             usage.UsedValue += 1;
-            await _usageRepo.UpdateAsync(usage);
+            await _usageRepo.UpdateUsageAsync(usage);
         }
     }
 
@@ -1466,7 +1465,7 @@ public class SubscriptionService : ISubscriptionService
             foreach (var usage in usages)
             {
                 usage.UsedValue = 0;
-                await _usageRepo.UpdateAsync(usage);
+                await _usageRepo.UpdateUsageAsync(usage);
             }
         }
     }
@@ -1482,7 +1481,7 @@ public class SubscriptionService : ISubscriptionService
             {
                 // For now, just reset to 0 at expiry; can be extended for carry-over logic
                 usage.UsedValue = 0;
-                await _usageRepo.UpdateAsync(usage);
+                await _usageRepo.UpdateUsageAsync(usage);
             }
         }
     }
@@ -1503,7 +1502,7 @@ public class SubscriptionService : ISubscriptionService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             return subscription != null && subscription.UserId == userId;
         }
         catch (Exception ex)

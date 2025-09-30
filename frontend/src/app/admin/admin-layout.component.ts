@@ -121,6 +121,10 @@ import { AuthService } from './auth/auth.service';
               <mat-icon matListItemIcon>analytics</mat-icon>
               <span matListItemTitle>Analytics</span>
             </a>
+            <a mat-list-item routerLink="/admin/stripe-testing" routerLinkActive="active-link" class="nav-item">
+              <mat-icon matListItemIcon>credit_card</mat-icon>
+              <span matListItemTitle>Stripe Testing</span>
+            </a>
           </mat-nav-list>
         </mat-sidenav>
 

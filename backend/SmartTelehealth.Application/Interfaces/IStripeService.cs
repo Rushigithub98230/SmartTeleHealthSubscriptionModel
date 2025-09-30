@@ -43,6 +43,8 @@ public interface IStripeService
     // Payment Processing
     Task<PaymentResultDto> ProcessPaymentAsync(string paymentMethodId, decimal amount, string currency, TokenModel tokenModel);
     Task<bool> ProcessRefundAsync(string paymentIntentId, decimal amount, TokenModel tokenModel);
+    Task<bool> CapturePaymentIntentAsync(string paymentIntentId, TokenModel tokenModel);
+    Task<PaymentIntentStatusDto> GetPaymentIntentStatusAsync(string paymentIntentId, TokenModel tokenModel);
     
     // Checkout Sessions
     Task<string> CreateCheckoutSessionAsync(string priceId, string successUrl, string cancelUrl, TokenModel tokenModel);

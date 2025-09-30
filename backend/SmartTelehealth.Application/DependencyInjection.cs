@@ -54,10 +54,15 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
                 provider.GetRequiredService<IPaymentService>(), // Changed from IStripeBillingService to IPaymentService
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserRepository>(),
+                provider.GetRequiredService<INotificationService>(),
                 provider.GetRequiredService<AutoMapper.IMapper>(),
                 provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BillingService>>()
             )
         );
+        
+        // Register Privilege-Based Billing Service
+        services.AddScoped<IPrivilegeBasedBillingService, PrivilegeBasedBillingService>();
         services.AddScoped<IHomeMedService, HomeMedService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         
@@ -127,6 +132,9 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
             )
         );
+        
+        // Register Stripe Synchronization Service
+        services.AddScoped<IStripeSynchronizationService, StripeSynchronizationService>();
         
         return services;
     }

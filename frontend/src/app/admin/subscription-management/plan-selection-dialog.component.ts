@@ -195,9 +195,8 @@ export class PlanSelectionDialogComponent implements OnInit {
   }
 
   getBillingCycle(billingCycleId: string): string {
-    // You might want to load billing cycles from master data service
-    // For now, return a default value
-    return 'month';
+    // Get billing cycle name from the service
+    return this.subscriptionService.getBillingCycleName(billingCycleId);
   }
 
   onCancel() {

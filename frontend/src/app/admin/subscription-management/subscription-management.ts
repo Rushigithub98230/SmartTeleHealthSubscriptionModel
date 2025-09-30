@@ -15,6 +15,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ActivatedRoute } from '@angular/router';
 import { SubscriptionService } from '../../services/subscription.service';
 import { PlanStepperComponent } from './plan-stepper.component';
@@ -25,6 +26,8 @@ import { PlanSelectionDialogComponent, PlanSelectionData } from './plan-selectio
 import { ExtensionDialogComponent, ExtensionDialogData, ExtensionResult } from './extension-dialog.component';
 import { BillingHistoryDialogComponent, BillingHistoryDialogData } from './billing-history-dialog.component';
 import { PrivilegeUsageDialogComponent, PrivilegeUsageDialogData } from './privilege-usage-dialog.component';
+import { BulkOperationsDialogComponent, BulkOperationsDialogData, BulkOperationResult } from './bulk-operations-dialog.component';
+import { ExportDialogComponent, ExportDialogData } from './export-dialog.component';
 import { 
   SubscriptionDto, 
   SubscriptionPlanDto, 
@@ -69,6 +72,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
     MatSnackBarModule,
     MatDividerModule,
     MatProgressSpinnerModule,
+    MatCheckboxModule,
     PlanStepperComponent
   ],
   templateUrl: './subscription-management.html',
@@ -94,13 +98,18 @@ export class SubscriptionManagementComponent implements OnInit {
 
   // Subscriptions data
   subscriptions: SubscriptionDto[] = [];
-  subscriptionColumns = ['user', 'plan', 'status', 'price', 'nextBilling', 'actions'];
+  subscriptionColumns = ['select', 'user', 'plan', 'status', 'price', 'nextBilling', 'actions'];
   subscriptionTotalCount = 0;
   subscriptionPageSize = 20;
   subscriptionCurrentPage = 0;
   subscriptionSearchTerm = '';
   selectedStatus = '';
   subscriptionsLoading = false;
+
+  // Bulk selection
+  selectedSubscriptions: string[] = [];
+  isAllSelected = false;
+  isIndeterminate = false;
 
   // UI state
   loading = false;
@@ -712,5 +721,103 @@ export class SubscriptionManagementComponent implements OnInit {
       case 'expired': return 'warn';
       default: return undefined;
     }
+  }
+
+  // Bulk Selection Methods
+  toggleAllSubscriptions() {
+    if (this.isAllSelected) {
+      this.selectedSubscriptions = [];
+    } else {
+      this.selectedSubscriptions = this.subscriptions.map(s => s.id);
+    }
+    this.updateSelectionState();
+  }
+
+  toggleSubscriptionSelection(subscriptionId: string) {
+    const index = this.selectedSubscriptions.indexOf(subscriptionId);
+    if (index > -1) {
+      this.selectedSubscriptions.splice(index, 1);
+    } else {
+      this.selectedSubscriptions.push(subscriptionId);
+    }
+    this.updateSelectionState();
+  }
+
+  isSubscriptionSelected(subscriptionId: string): boolean {
+    return this.selectedSubscriptions.includes(subscriptionId);
+  }
+
+  updateSelectionState() {
+    const total = this.subscriptions.length;
+    const selected = this.selectedSubscriptions.length;
+    
+    this.isAllSelected = total > 0 && selected === total;
+    this.isIndeterminate = selected > 0 && selected < total;
+  }
+
+  openBulkOperationsDialog() {
+    if (this.selectedSubscriptions.length === 0) {
+      this.snackBar.open('Please select at least one subscription', 'Close', { duration: 3000 });
+      return;
+    }
+
+    const dialogData: BulkOperationsDialogData = {
+      selectedSubscriptions: this.selectedSubscriptions,
+      subscriptionCount: this.selectedSubscriptions.length
+    };
+
+    const dialogRef = this.dialog.open(BulkOperationsDialogComponent, {
+      width: '600px',
+      data: dialogData
+    });
+
+    dialogRef.afterClosed().subscribe((result: BulkOperationResult) => {
+      if (result && result.success) {
+        this.snackBar.open(result.message, 'Close', { duration: 5000 });
+        this.loadSubscriptions();
+        this.selectedSubscriptions = [];
+        this.updateSelectionState();
+      }
+    });
+  }
+
+  clearSelection() {
+    this.selectedSubscriptions = [];
+    this.updateSelectionState();
+  }
+
+  // Export Methods
+  openExportDialog(exportType: 'subscriptions' | 'plans') {
+    const dialogData: ExportDialogData = {
+      exportType,
+      selectedSubscriptions: exportType === 'subscriptions' ? this.selectedSubscriptions : undefined
+    };
+
+    const dialogRef = this.dialog.open(ExportDialogComponent, {
+      width: '700px',
+      data: dialogData
+    });
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result) {
+        this.snackBar.open('Export completed successfully', 'Close', { duration: 3000 });
+      }
+    });
+  }
+
+  exportSelectedSubscriptions() {
+    if (this.selectedSubscriptions.length === 0) {
+      this.snackBar.open('Please select subscriptions to export', 'Close', { duration: 3000 });
+      return;
+    }
+    this.openExportDialog('subscriptions');
+  }
+
+  exportAllSubscriptions() {
+    this.openExportDialog('subscriptions');
+  }
+
+  exportPlans() {
+    this.openExportDialog('plans');
   }
 }

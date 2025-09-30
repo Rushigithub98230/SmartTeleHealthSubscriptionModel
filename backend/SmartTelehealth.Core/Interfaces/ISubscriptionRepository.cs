@@ -8,6 +8,14 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     // Basic CRUD methods (inherited from IRepositoryBase<T>)
     // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited
     
+    // Custom methods with different names to avoid overriding base methods
+    Task<Subscription?> GetByIdWithDetailsAsync(Guid id);
+    Task<IEnumerable<Subscription>> GetAllWithDetailsAsync();
+    Task<Subscription> CreateSubscriptionAsync(Subscription subscription);
+    Task<Subscription> UpdateSubscriptionAsync(Subscription subscription);
+    Task<bool> DeleteSubscriptionAsync(Guid id);
+    Task<bool> ExistsSubscriptionAsync(Guid id);
+    
     // Subscription-specific methods
     Task<IEnumerable<Subscription>> GetByUserIdAsync(int userId);
     Task<(IEnumerable<Subscription> subscriptions, int totalCount)> GetUserSubscriptionsWithFilteringAsync(int userId, SubscriptionFilterDto filter);

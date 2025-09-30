@@ -131,8 +131,9 @@ public class StripeBillingService : IStripeBillingService
                 billingRecord.Status = BillingRecord.BillingStatus.Paid;
                 billingRecord.PaidAt = DateTime.UtcNow;
                 billingRecord.PaymentMethod = paymentMethods.First().Type;
-                billingRecord.TransactionId = paymentResult.PaymentIntentId;
-                billingRecord.StripePaymentIntentId = paymentResult.PaymentIntentId; // Link to Stripe payment intent
+                billingRecord.StripePaymentIntentId = paymentResult.PaymentIntentId; // Primary Stripe payment intent reference
+                billingRecord.PaymentIntentId = paymentResult.PaymentIntentId; // Generic payment intent reference
+                billingRecord.TransactionId = $"txn_{paymentResult.PaymentIntentId}"; // Internal transaction reference
                 billingRecord.ProcessedAt = DateTime.UtcNow;
 
                 // Use transaction to ensure atomicity
@@ -324,6 +325,7 @@ public class StripeBillingService : IStripeBillingService
             // Reset status to pending for retry
             billingRecord.Status = BillingRecord.BillingStatus.Pending;
             billingRecord.FailureReason = null;
+            billingRecord.UpdatedBy = tokenModel.UserID;
             billingRecord.UpdatedDate = DateTime.UtcNow;
             await _billingRepository.UpdateAsync(billingRecord);
 
@@ -403,13 +405,60 @@ public class StripeBillingService : IStripeBillingService
 
             if (paymentResult.Success)
             {
-                // Update billing record with partial payment
-                billingRecord.TotalAmount -= amount;
-                billingRecord.UpdatedDate = DateTime.UtcNow;
-                billingRecord.TransactionId = paymentResult.PaymentIntentId;
-                billingRecord.StripePaymentIntentId = paymentResult.PaymentIntentId;
+                // CRITICAL FIX: Create a separate partial payment record instead of modifying the original
+                var partialPaymentRecord = new BillingRecord
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = billingRecord.UserId,
+                    SubscriptionId = billingRecord.SubscriptionId,
+                    CurrencyId = billingRecord.CurrencyId,
+                    Amount = amount,
+                    TotalAmount = amount,
+                    TaxAmount = 0, // Partial payments typically don't include tax
+                    ShippingAmount = 0,
+                    Status = BillingRecord.BillingStatus.Paid,
+                    Type = BillingRecord.BillingType.Subscription,
+                    Description = $"Partial payment of {amount:C} for billing record {billingRecord.Id}",
+                    BillingDate = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow,
+                    PaidAt = DateTime.UtcNow,
+                    ProcessedAt = DateTime.UtcNow,
+                    PaymentMethod = billingRecord.PaymentMethod,
+                    TransactionId = paymentResult.PaymentIntentId,
+                    StripePaymentIntentId = paymentResult.PaymentIntentId,
+                    IsRecurring = false,
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow,
+                    IsActive = true,
+                    IsDeleted = false
+                };
 
-                await _billingRepository.UpdateAsync(billingRecord);
+                // Update the original billing record to track remaining amount
+                var remainingAmount = billingRecord.TotalAmount - amount;
+                billingRecord.UpdatedBy = tokenModel.UserID;
+                billingRecord.UpdatedDate = DateTime.UtcNow;
+                
+                // Only update status if fully paid
+                if (remainingAmount <= 0)
+                {
+                    billingRecord.Status = BillingRecord.BillingStatus.Paid;
+                    billingRecord.PaidAt = DateTime.UtcNow;
+                    billingRecord.ProcessedAt = DateTime.UtcNow;
+                }
+
+                // Use transaction to ensure both records are saved atomically
+                await _unitOfWork.BeginTransactionAsync();
+                try
+                {
+                    await _billingRepository.CreateBillingRecordAsync(partialPaymentRecord);
+                    await _billingRepository.UpdateBillingRecordAsync(billingRecord);
+                    await _unitOfWork.CommitTransactionAsync();
+                }
+                catch (Exception ex)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    throw;
+                }
 
                 _logger.LogInformation("Stripe partial payment processed successfully for billing record {BillingRecordId}", billingRecordId);
 
@@ -418,10 +467,11 @@ public class StripeBillingService : IStripeBillingService
                     data = new
                     {
                         BillingRecordId = billingRecord.Id,
+                        PartialPaymentId = partialPaymentRecord.Id,
                         PaymentIntentId = paymentResult.PaymentIntentId,
                         PartialAmount = amount,
-                        RemainingAmount = billingRecord.TotalAmount,
-                        Status = "Partial Payment Processed",
+                        RemainingAmount = remainingAmount,
+                        Status = remainingAmount <= 0 ? "Fully Paid" : "Partially Paid",
                         ProcessedAt = DateTime.UtcNow
                     },
                     Message = "Partial payment processed successfully through Stripe",
@@ -511,6 +561,7 @@ public class StripeBillingService : IStripeBillingService
             {
                 // Update billing record with new payment method
                 billingRecord.PaymentMethod = paymentMethodId;
+                billingRecord.UpdatedBy = tokenModel.UserID;
                 billingRecord.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(billingRecord);
 
@@ -669,6 +720,7 @@ public class StripeBillingService : IStripeBillingService
             foreach (var record in pendingRecords)
             {
                 record.Status = BillingRecord.BillingStatus.Cancelled;
+                record.UpdatedBy = tokenModel.UserID;
                 record.UpdatedDate = DateTime.UtcNow;
                 await _billingRepository.UpdateAsync(record);
             }
@@ -1067,6 +1119,7 @@ public class StripeBillingService : IStripeBillingService
             // Update billing record status
             billingRecord.Status = BillingRecord.BillingStatus.Paid;
             billingRecord.PaidAt = DateTime.UtcNow;
+            billingRecord.UpdatedBy = tokenModel.UserID;
             billingRecord.UpdatedDate = DateTime.UtcNow;
             await _billingRepository.UpdateAsync(billingRecord);
 
@@ -1119,6 +1172,7 @@ public class StripeBillingService : IStripeBillingService
             // Update billing record status
             billingRecord.Status = BillingRecord.BillingStatus.Failed;
             billingRecord.FailureReason = "Payment failed via Stripe webhook";
+            billingRecord.UpdatedBy = tokenModel.UserID;
             billingRecord.UpdatedDate = DateTime.UtcNow;
             await _billingRepository.UpdateAsync(billingRecord);
 

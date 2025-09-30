@@ -35,13 +35,3 @@ public class BillingHistoryDto
     public string? StripeInvoiceId { get; set; }
     public string? StripePaymentIntentId { get; set; }
 }
-
-public class CreateBillingAdjustmentDto
-{
-    public decimal Amount { get; set; }
-    public string Reason { get; set; } = string.Empty;
-    public string AdjustmentType { get; set; } = string.Empty;
-    public string? Notes { get; set; }
-
-    public Guid? BillingRecordId { get; set; }
-} 

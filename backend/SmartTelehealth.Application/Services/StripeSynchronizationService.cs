@@ -111,7 +111,7 @@ public class StripeSynchronizationService : IStripeSynchronizationService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for status synchronization", subscriptionId);
@@ -248,7 +248,7 @@ public class StripeSynchronizationService : IStripeSynchronizationService
         
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 result.Issues.Add("Subscription not found");
@@ -324,7 +324,7 @@ public class StripeSynchronizationService : IStripeSynchronizationService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for repair", subscriptionId);
@@ -383,7 +383,7 @@ public class StripeSynchronizationService : IStripeSynchronizationService
 
             // Update subscription with new Stripe subscription ID
             subscription.StripeSubscriptionId = stripeSubscriptionId;
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
 
             _logger.LogInformation("Successfully repaired subscription {SubscriptionId} synchronization with new Stripe subscription {StripeId}", 
                 subscriptionId, stripeSubscriptionId);

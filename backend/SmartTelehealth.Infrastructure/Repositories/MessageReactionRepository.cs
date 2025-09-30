@@ -54,7 +54,6 @@ public class MessageReactionRepository : RepositoryBase<MessageReaction>, IMessa
 
     public async Task<MessageReaction> CreateAsync(MessageReaction reaction)
     {
-        reaction.CreatedDate = DateTime.UtcNow;
         _context.MessageReactions.Add(reaction);
         await _context.SaveChangesAsync();
         return reaction;
@@ -62,7 +61,6 @@ public class MessageReactionRepository : RepositoryBase<MessageReaction>, IMessa
 
     public async Task<MessageReaction> UpdateAsync(MessageReaction reaction)
     {
-        reaction.UpdatedDate = DateTime.UtcNow;
         _context.MessageReactions.Update(reaction);
         await _context.SaveChangesAsync();
         return reaction;
@@ -80,7 +78,6 @@ public class MessageReactionRepository : RepositoryBase<MessageReaction>, IMessa
             return false;
 
         reaction.IsDeleted = true;
-        reaction.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
     }
@@ -92,7 +89,6 @@ public class MessageReactionRepository : RepositoryBase<MessageReaction>, IMessa
             return false;
 
         reaction.IsDeleted = true;
-        reaction.UpdatedDate = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return true;
     }

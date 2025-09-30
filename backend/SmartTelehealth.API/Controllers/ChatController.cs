@@ -59,8 +59,8 @@ public class ChatController : BaseController
     [HttpPost("messages")]
     public async Task<JsonModel> SendMessage([FromBody] CreateMessageDto createDto)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.SendMessageAsync(createDto, userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.SendMessageAsync(createDto, token.UserID, token);
     }
 
     /// <summary>
@@ -84,8 +84,8 @@ public class ChatController : BaseController
     [HttpPost("messages/with-notification")]
     public async Task<JsonModel> SendMessageWithNotification([FromBody] CreateMessageDto createDto)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.SendMessageAsync(createDto, userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.SendMessageAsync(createDto, token.UserID, token);
     }
 
     /// <summary>
@@ -138,55 +138,57 @@ public class ChatController : BaseController
         [FromQuery] int skip = 0, 
         [FromQuery] int take = 50)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.GetChatRoomMessagesAsync(chatRoomId.ToString(), skip, take, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.GetChatRoomMessagesAsync(chatRoomId.ToString(), skip, take, token);
     }
 
     [HttpPut("messages/{messageId}")]
     public async Task<JsonModel> UpdateMessage(Guid messageId, [FromBody] UpdateMessageDto updateDto)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.UpdateMessageAsync(messageId.ToString(), updateDto, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.UpdateMessageAsync(messageId.ToString(), updateDto, token);
     }
 
     [HttpDelete("messages/{messageId}")]
     public async Task<JsonModel> DeleteMessage(Guid messageId)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.DeleteMessageAsync(messageId.ToString(), GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.DeleteMessageAsync(messageId.ToString(), token);
     }
 
     [HttpPost("messages/{messageId}/read")]
     public async Task<JsonModel> MarkMessageAsRead(Guid messageId)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.MarkMessageAsReadAsync(messageId.ToString(), userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.MarkMessageAsReadAsync(messageId.ToString(), token.UserID, token);
     }
 
     [HttpPost("messages/{messageId}/reactions")]
     public async Task<JsonModel> AddReaction(Guid messageId, [FromQuery] string reactionType)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.AddReactionAsync(messageId.ToString(), userId, reactionType, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.AddReactionAsync(messageId.ToString(), token.UserID, reactionType, token);
     }
 
     [HttpDelete("messages/{messageId}/reactions")]
     public async Task<JsonModel> RemoveReaction(Guid messageId, [FromQuery] string reactionType)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.RemoveReactionAsync(messageId.ToString(), userId, reactionType, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.RemoveReactionAsync(messageId.ToString(), token.UserID, reactionType, token);
     }
 
     [HttpGet("messages/{messageId}/reactions")]
     public async Task<JsonModel> GetMessageReactions(Guid messageId)
     {
-        return await _messagingService.GetMessageReactionsAsync(messageId.ToString(), GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.GetMessageReactionsAsync(messageId.ToString(), token);
     }
 
     [HttpPost("search")]
     public async Task<JsonModel> SearchMessages([FromQuery] string chatRoomId, [FromQuery] string searchTerm)
     {
-        return await _messagingService.SearchMessagesAsync(chatRoomId, searchTerm, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.SearchMessagesAsync(chatRoomId, searchTerm, token);
     }
 
     [HttpPost("rooms")]
@@ -262,22 +264,22 @@ public class ChatController : BaseController
     [HttpGet("rooms/{chatRoomId}/unread")]
     public async Task<JsonModel> GetUnreadMessages(Guid chatRoomId)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.GetUnreadMessagesAsync(chatRoomId.ToString(), userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.GetUnreadMessagesAsync(chatRoomId.ToString(), token.UserID, token);
     }
 
     [HttpPost("rooms/{chatRoomId}/validate-access")]
     public async Task<JsonModel> ValidateChatRoomAccess(Guid chatRoomId)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.ValidateChatRoomAccessAsync(chatRoomId.ToString(), userId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.ValidateChatRoomAccessAsync(chatRoomId.ToString(), token.UserID, token);
     }
 
     [HttpPost("rooms/{chatRoomId}/typing")]
     public async Task<JsonModel> SendTypingIndicator(Guid chatRoomId, [FromQuery] bool isTyping)
     {
-        var userId = GetCurrentUserId();
-        return await _messagingService.SendTypingIndicatorAsync(chatRoomId.ToString(), userId, isTyping, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        return await _messagingService.SendTypingIndicatorAsync(chatRoomId.ToString(), token.UserID, isTyping, token);
     }
 
     [HttpPost("notifications/user/{userId}")]
@@ -335,11 +337,6 @@ public class ChatController : BaseController
         return await _messagingService.DecryptMessageAsync(request.EncryptedMessage, request.Key, GetToken(HttpContext));
     }
 
-    private int GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(userIdClaim, out var userId) ? userId : 0;
-    }
 }
 
 // Supporting DTOs

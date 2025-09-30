@@ -84,8 +84,8 @@ public class PaymentController : BaseController
     [HttpGet("payment-methods")]
     public async Task<JsonModel> GetPaymentMethods()
     {
-        var userId = GetCurrentUserId();
-        var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(userId.ToString(), GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(token.UserID.ToString(), token);
         return new JsonModel { data = paymentMethods, Message = "Payment methods retrieved successfully", StatusCode = 200 };
     }
 
@@ -109,20 +109,20 @@ public class PaymentController : BaseController
     [HttpPost("payment-methods")]
     public async Task<JsonModel> AddPaymentMethod([FromBody] AddPaymentMethodDto request)
     {
-        var userId = GetCurrentUserId();
+        var token = GetToken(HttpContext);
         
         // Validate payment method
-        var validationResult = await _stripeService.ValidatePaymentMethodAsync(request.PaymentMethodId, GetToken(HttpContext));
+        var validationResult = await _stripeService.ValidatePaymentMethodAsync(request.PaymentMethodId, token);
         if (!validationResult)
         {
             return new JsonModel { data = new object(), Message = "Invalid payment method", StatusCode = 400 };
         }
 
         // Add payment method to customer
-        var paymentMethodId = await _stripeService.AddPaymentMethodAsync(userId.ToString(), request.PaymentMethodId, GetToken(HttpContext));
+        var paymentMethodId = await _stripeService.AddPaymentMethodAsync(token.UserID.ToString(), request.PaymentMethodId, token);
         
         // Get the payment method details
-        var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(userId.ToString(), GetToken(HttpContext));
+        var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(token.UserID.ToString(), token);
         var paymentMethod = paymentMethods.FirstOrDefault(pm => pm.Id == paymentMethodId);
         
         if (paymentMethod == null)
@@ -154,8 +154,8 @@ public class PaymentController : BaseController
     [HttpPut("payment-methods/{paymentMethodId}/default")]
     public async Task<JsonModel> SetDefaultPaymentMethod(string paymentMethodId)
     {
-        var userId = GetCurrentUserId();
-        var result = await _stripeService.SetDefaultPaymentMethodAsync(userId.ToString(), paymentMethodId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var result = await _stripeService.SetDefaultPaymentMethodAsync(token.UserID.ToString(), paymentMethodId, token);
         
         if (result)
         {
@@ -184,8 +184,8 @@ public class PaymentController : BaseController
     [HttpDelete("payment-methods/{paymentMethodId}")]
     public async Task<JsonModel> RemovePaymentMethod(string paymentMethodId)
     {
-        var userId = GetCurrentUserId();
-        var result = await _stripeService.RemovePaymentMethodAsync(userId.ToString(), paymentMethodId, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var result = await _stripeService.RemovePaymentMethodAsync(token.UserID.ToString(), paymentMethodId, token);
         
         if (result)
         {
@@ -216,39 +216,39 @@ public class PaymentController : BaseController
     [HttpPost("process-payment")]
     public async Task<JsonModel> ProcessPayment([FromBody] ProcessPaymentRequestDto request)
     {
-        var userId = GetCurrentUserId();
+        var token = GetToken(HttpContext);
         var ipAddress = GetClientIpAddress();
         
         // Validate billing record exists and belongs to user
-        var billingRecord = await _billingService.GetBillingRecordAsync(request.BillingRecordId, GetToken(HttpContext));
+        var billingRecord = await _billingService.GetBillingRecordAsync(request.BillingRecordId, token);
         if (billingRecord.StatusCode != 200 || billingRecord.data == null)
         {
             return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 400 };
         }
 
-        if (((BillingRecordDto)billingRecord.data).UserId != userId)
+        if (((BillingRecordDto)billingRecord.data).UserId != token.UserID)
         {
            
             return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
         }
 
         // Security validation
-        if (!await _paymentSecurityService.ValidatePaymentRequestAsync(userId.ToString(), ipAddress, ((BillingRecordDto)billingRecord.data).Amount, GetToken(HttpContext)))
+        if (!await _paymentSecurityService.ValidatePaymentRequestAsync(token.UserID.ToString(), ipAddress, ((BillingRecordDto)billingRecord.data).Amount, token))
         {
             return new JsonModel { data = new object(), Message = "Payment request validation failed", StatusCode = 400 };
         }
 
         // Process payment
-        var result = await _billingService.ProcessPaymentAsync(request.BillingRecordId, GetToken(HttpContext));
+        var result = await _billingService.ProcessPaymentAsync(request.BillingRecordId, token);
         
         // Log payment attempt
         await _paymentSecurityService.LogPaymentAttemptAsync(
-            userId.ToString(), 
+            token.UserID.ToString(), 
             ipAddress, 
             ((BillingRecordDto)billingRecord.data).Amount, 
             result.StatusCode == 200, 
             result.StatusCode == 200 ? null : result.Message,
-            GetToken(HttpContext));
+            token);
         
         if (result.StatusCode == 200)
         {
@@ -264,22 +264,22 @@ public class PaymentController : BaseController
     [HttpPost("retry-payment/{billingRecordId}")]
     public async Task<JsonModel> RetryPayment(Guid billingRecordId)
     {
-        var userId = GetCurrentUserId();
+        var token = GetToken(HttpContext);
         
         // Validate billing record
-        var billingRecord = await _billingService.GetBillingRecordAsync(billingRecordId, GetToken(HttpContext));
+        var billingRecord = await _billingService.GetBillingRecordAsync(billingRecordId, token);
         if (billingRecord.StatusCode != 200 || billingRecord.data == null)
         {
             return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 400 };
         }
 
-        if (((BillingRecordDto)billingRecord.data).UserId != userId)
+        if (((BillingRecordDto)billingRecord.data).UserId != token.UserID)
         {
             return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
         }
 
         // Retry payment with exponential backoff
-        var result = await _billingService.RetryPaymentAsync(billingRecordId, GetToken(HttpContext));
+        var result = await _billingService.RetryPaymentAsync(billingRecordId, token);
         
         if (result.StatusCode == 200)
         {
@@ -295,22 +295,22 @@ public class PaymentController : BaseController
     [HttpPost("refund/{billingRecordId}")]
     public async Task<JsonModel> ProcessRefund(Guid billingRecordId, [FromBody] RefundRequestDto request)
     {
-        var userId = GetCurrentUserId();
+        var token = GetToken(HttpContext);
         
         // Validate billing record
-        var billingRecord = await _billingService.GetBillingRecordAsync(billingRecordId, GetToken(HttpContext));
+        var billingRecord = await _billingService.GetBillingRecordAsync(billingRecordId, token);
         if (billingRecord.StatusCode != 200 || billingRecord.data == null)
         {
             return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 400 };
         }
 
-        if (((BillingRecordDto)billingRecord.data).UserId != userId)
+        if (((BillingRecordDto)billingRecord.data).UserId != token.UserID)
         {
             return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
         }
 
         // Process refund
-        var result = await _billingService.ProcessRefundAsync(billingRecordId, request.Amount, request.Reason, GetToken(HttpContext));
+        var result = await _billingService.ProcessRefundAsync(billingRecordId, request.Amount, request.Reason, token);
         
         if (result.StatusCode == 200)
         {
@@ -326,8 +326,8 @@ public class PaymentController : BaseController
     [HttpGet("history")]
     public async Task<JsonModel> GetPaymentHistory([FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null)
     {
-        var userId = GetCurrentUserId();
-        var history = await _billingService.GetPaymentHistoryAsync(userId, startDate, endDate, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var history = await _billingService.GetPaymentHistoryAsync(token.UserID, startDate, endDate, token);
         return history;
     }
 
@@ -347,20 +347,11 @@ public class PaymentController : BaseController
     [HttpGet("analytics")]
     public async Task<JsonModel> GetPaymentAnalytics([FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null)
     {
-        var userId = GetCurrentUserId();
-        var analytics = await _billingService.GetPaymentAnalyticsAsync(userId, startDate, endDate, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        var analytics = await _billingService.GetPaymentAnalyticsAsync(token.UserID, startDate, endDate, token);
         return analytics;
     }
 
-    private int GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst("sub")?.Value ?? User.FindFirst("userId")?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-        {
-            throw new UnauthorizedAccessException("Invalid user ID");
-        }
-        return userId;
-    }
 
     private string GetClientIpAddress()
     {

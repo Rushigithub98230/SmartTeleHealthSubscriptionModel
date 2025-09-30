@@ -23,4 +23,5 @@ public interface IPrivilegeService
     Task<JsonModel> GetUsageHistoryAsync(int page, int pageSize, string? privilegeId, string? userId, string? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel token);
     Task<JsonModel> GetUsageSummaryAsync(string? privilegeId, string? userId, string? subscriptionId, DateTime? startDate, DateTime? endDate, TokenModel token);
     Task<JsonModel> ExportUsageDataAsync(string format, string? privilegeId, string? userId, string? subscriptionId, DateTime? startDate, DateTime? endDate, TokenModel token);
+    Task<JsonModel> UpdateTimeBasedLimitsAsync(UpdateTimeBasedLimitsDto updateDto, TokenModel token);
 }

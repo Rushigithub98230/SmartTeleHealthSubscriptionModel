@@ -17,23 +17,19 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
     // Use base class methods for basic CRUD operations
     // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync are inherited from RepositoryBase
 
-    // Override GetByIdAsync to include related data
-    public override async Task<Appointment?> GetByIdAsync(object id)
+    // Custom method to get appointment by ID with related data
+    public async Task<Appointment?> GetByIdWithDetailsAsync(Guid id)
     {
-        if (id is Guid guidId)
-        {
-            return await _context.Appointments
-                .Include(a => a.Patient)
-                .Include(a => a.Provider)
-                .Include(a => a.Consultation)
-                .Include(a => a.Participants)
-                .FirstOrDefaultAsync(a => a.Id == guidId);
-        }
-        return null;
+        return await _context.Appointments
+            .Include(a => a.Patient)
+            .Include(a => a.Provider)
+            .Include(a => a.Consultation)
+            .Include(a => a.Participants)
+            .FirstOrDefaultAsync(a => a.Id == id);
     }
 
-    // Override GetAllAsync to include related data
-    public override async Task<IEnumerable<Appointment>> GetAllAsync()
+    // Custom method to get all appointments with related data
+    public async Task<IEnumerable<Appointment>> GetAllWithDetailsAsync()
     {
         return await _context.Appointments
             .Include(a => a.Patient)
@@ -42,31 +38,39 @@ public class AppointmentRepository : RepositoryBase<Appointment>, IAppointmentRe
             .ToListAsync();
     }
 
-    // Override DeleteAsync to implement soft delete
-    public override async Task<bool> DeleteAsync(object id)
+    // Custom method to create appointment with business logic
+    public async Task<Appointment> CreateAppointmentAsync(Appointment appointment)
     {
-        if (id is Guid guidId)
-        {
-            var appointment = await _context.Appointments.FindAsync(guidId);
-            if (appointment == null)
-                return false;
-
-            appointment.IsDeleted = true;
-            appointment.UpdatedDate = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        return false;
+        _context.Appointments.Add(appointment);
+        await _context.SaveChangesAsync();
+        return appointment;
     }
 
-    // Override ExistsAsync to apply business logic
-    public override async Task<bool> ExistsAsync(object id)
+    // Custom method to update appointment with business logic
+    public async Task<Appointment> UpdateAppointmentAsync(Appointment appointment)
     {
-        if (id is Guid guidId)
-        {
-            return await _context.Appointments.AnyAsync(a => a.Id == guidId && !a.IsDeleted);
-        }
-        return false;
+        _context.Appointments.Update(appointment);
+        await _context.SaveChangesAsync();
+        return appointment;
+    }
+
+    // Custom method to soft delete appointment
+    public async Task<bool> DeleteAppointmentAsync(Guid id)
+    {
+        var appointment = await _context.Appointments.FindAsync(id);
+        if (appointment == null)
+            return false;
+
+        appointment.IsActive = false;
+        appointment.IsDeleted = true;
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    // Custom method to check if appointment exists with business logic
+    public async Task<bool> ExistsAppointmentAsync(Guid id)
+    {
+        return await _context.Appointments.AnyAsync(a => a.Id == id && !a.IsDeleted);
     }
 
     // Specialized methods for Appointment entity

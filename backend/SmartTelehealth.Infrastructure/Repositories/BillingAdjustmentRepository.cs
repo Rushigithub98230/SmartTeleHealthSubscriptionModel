@@ -50,7 +50,6 @@ public class BillingAdjustmentRepository : RepositoryBase<BillingAdjustment>, IB
     /// </summary>
     public override async Task<BillingAdjustment> CreateAsync(BillingAdjustment billingAdjustment)
     {
-        billingAdjustment.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(billingAdjustment);
     }
 
@@ -59,7 +58,6 @@ public class BillingAdjustmentRepository : RepositoryBase<BillingAdjustment>, IB
     /// </summary>
     public override async Task<BillingAdjustment> UpdateAsync(BillingAdjustment billingAdjustment)
     {
-        billingAdjustment.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(billingAdjustment);
     }
 

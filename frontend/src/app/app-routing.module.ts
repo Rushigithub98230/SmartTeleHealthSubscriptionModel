@@ -61,6 +61,10 @@ const routes: Routes = [
       { 
         path: 'analytics', 
         loadComponent: () => import('./admin/dashboard/dashboard.component').then(m => m.DashboardComponent) 
+      },
+      { 
+        path: 'stripe-testing', 
+        loadComponent: () => import('./admin/stripe-testing/stripe-testing-enhanced.component').then(m => m.StripeTestingEnhancedComponent) 
       }
     ]
   },

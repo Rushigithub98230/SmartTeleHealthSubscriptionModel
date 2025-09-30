@@ -1721,8 +1721,7 @@ public class StripeWebhookController : BaseController
     private async Task HandleTransferFailed(Event stripeEvent)
     {
         var transfer = stripeEvent.Data.Object as Stripe.Transfer;
-        _logger.LogWarning("Transfer failed: {TransferId} - {FailureCode}: {FailureMessage}", 
-            transfer?.Id, transfer?.FailureCode, transfer?.FailureMessage);
+        _logger.LogWarning("Transfer failed: {TransferId}", transfer?.Id);
         // Implement transfer failure logic if needed
     }
 
@@ -1743,7 +1742,7 @@ public class StripeWebhookController : BaseController
     private async Task HandleTransferUpdated(Event stripeEvent)
     {
         var transfer = stripeEvent.Data.Object as Stripe.Transfer;
-        _logger.LogInformation("Transfer updated: {TransferId} - {Status}", transfer?.Id, transfer?.Status);
+        _logger.LogInformation("Transfer updated: {TransferId}", transfer?.Id);
         // Implement transfer update logic if needed
     }
 }

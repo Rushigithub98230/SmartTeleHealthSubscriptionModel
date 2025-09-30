@@ -19,14 +19,17 @@ namespace SmartTelehealth.API.Controllers;
 public class SubscriptionPlansController : BaseController
 {
     private readonly ISubscriptionPlanService _subscriptionPlanService;
+    private readonly IPrivilegeService _privilegeService;
 
     /// <summary>
-    /// Initializes a new instance of the SubscriptionPlansController with the required subscription plan service.
+    /// Initializes a new instance of the SubscriptionPlansController with the required services.
     /// </summary>
     /// <param name="subscriptionPlanService">Service for handling subscription plan-related business logic</param>
-    public SubscriptionPlansController(ISubscriptionPlanService subscriptionPlanService)
+    /// <param name="privilegeService">Service for handling privilege-related business logic</param>
+    public SubscriptionPlansController(ISubscriptionPlanService subscriptionPlanService, IPrivilegeService privilegeService)
     {
         _subscriptionPlanService = subscriptionPlanService;
+        _privilegeService = privilegeService;
     }
 
 
@@ -675,44 +678,21 @@ public class SubscriptionPlansController : BaseController
     /// This endpoint allows administrators to configure daily, weekly, and monthly usage limits
     /// for specific privileges within subscription plans, including effective dates and duration settings.
     /// </summary>
-    /// <param name="request">DTO containing time-based limit configuration details</param>
+    /// <param name="updateDto">DTO containing time-based limit configuration details</param>
     /// <returns>JsonModel containing the updated time-based limits</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Updates time-based usage limits for privileges
+    /// - Configures daily, weekly, and monthly limits
+    /// - Sets effective dates and duration settings
+    /// - Access restricted to administrators only
+    /// - Used for privilege limit management and configuration
+    /// - Includes comprehensive validation and error handling
+    /// </remarks>
     [HttpPut("admin/privileges/time-based-limits")]
-    public async Task<JsonModel> UpdateTimeBasedLimits([FromBody] UpdateTimeBasedLimitsRequest request)
+    public async Task<JsonModel> UpdateTimeBasedLimits([FromBody] UpdateTimeBasedLimitsDto updateDto)
     {
-        try
-        {
-            // This would typically call a service method to update the time-based limits
-            // For now, return a success response with the updated limits
-            var updatedLimits = new
-            {
-                PrivilegeId = request.PrivilegeId,
-                DailyLimit = request.DailyLimit,
-                WeeklyLimit = request.WeeklyLimit,
-                MonthlyLimit = request.MonthlyLimit,
-                UsagePeriodId = request.UsagePeriodId,
-                DurationMonths = request.DurationMonths,
-                Description = request.Description,
-                EffectiveDate = request.EffectiveDate,
-                ExpirationDate = request.ExpirationDate
-            };
-
-            return new JsonModel
-            {
-                data = updatedLimits,
-                Message = "Time-based limits updated successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error updating time-based limits: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.UpdateTimeBasedLimitsAsync(updateDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -760,82 +740,7 @@ public class SubscriptionPlansController : BaseController
         }
     }
 
-    /// <summary>
-    /// Retrieves all privileges available in the system.
-    /// This endpoint provides a comprehensive list of all privileges that can be assigned to subscription plans.
-    /// </summary>
-    /// <returns>JsonModel containing the list of all privileges</returns>
-    [HttpGet("admin/privileges")]
-    public async Task<JsonModel> GetAllPrivileges()
-    {
-        try
-        {
-            // This would typically call the privilege service to get all privileges
-            // For now, return a placeholder response
-            var privileges = new[]
-            {
-                new { Id = Guid.NewGuid(), Name = "Video Consultations", Description = "Access to video consultation features" },
-                new { Id = Guid.NewGuid(), Name = "Chat Support", Description = "Access to chat support features" },
-                new { Id = Guid.NewGuid(), Name = "Prescription Management", Description = "Access to prescription management features" }
-            };
 
-            return new JsonModel
-            {
-                data = privileges,
-                Message = "Privileges retrieved successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error retrieving privileges: {ex.Message}",
-                StatusCode = 500
-            };
-        }
-    }
-
-    /// <summary>
-    /// Retrieves a specific privilege by its ID.
-    /// This endpoint provides detailed information about a specific privilege.
-    /// </summary>
-    /// <param name="id">The unique identifier of the privilege</param>
-    /// <returns>JsonModel containing the privilege details</returns>
-    [HttpGet("admin/privileges/{id}")]
-    public async Task<JsonModel> GetPrivilegeById(string id)
-    {
-        try
-        {
-            // This would typically call the privilege service to get the privilege by ID
-            // For now, return a placeholder response
-            var privilege = new
-            {
-                Id = Guid.Parse(id),
-                Name = "Sample Privilege",
-                Description = "Sample privilege description",
-                IsActive = true,
-                CreatedDate = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = privilege,
-                Message = "Privilege retrieved successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error retrieving privilege: {ex.Message}",
-                StatusCode = 500
-            };
-        }
-    }
 
     /// <summary>
     /// Creates a new privilege in the system.
@@ -843,38 +748,19 @@ public class SubscriptionPlansController : BaseController
     /// </summary>
     /// <param name="privilegeDto">DTO containing the privilege details</param>
     /// <returns>JsonModel containing the created privilege</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a new privilege with proper validation
+    /// - Validates privilege data and configuration
+    /// - Access restricted to administrators only
+    /// - Used for privilege management and administration
+    /// - Includes comprehensive validation and error handling
+    /// - Maintains privilege creation audit trails
+    /// </remarks>
     [HttpPost("admin/privileges")]
     public async Task<JsonModel> CreatePrivilege([FromBody] CreatePrivilegeDto privilegeDto)
     {
-        try
-        {
-            // This would typically call the privilege service to create the privilege
-            // For now, return a placeholder response
-            var createdPrivilege = new
-            {
-                Id = Guid.NewGuid(),
-                Name = privilegeDto.Name,
-                Description = privilegeDto.Description,
-                IsActive = true,
-                CreatedDate = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = createdPrivilege,
-                Message = "Privilege created successfully",
-                StatusCode = 201
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error creating privilege: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.CreatePrivilegeAsync(privilegeDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -884,38 +770,19 @@ public class SubscriptionPlansController : BaseController
     /// <param name="id">The unique identifier of the privilege</param>
     /// <param name="privilegeDto">DTO containing the updated privilege details</param>
     /// <returns>JsonModel containing the updated privilege</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Updates an existing privilege with proper validation
+    /// - Validates privilege data and configuration
+    /// - Access restricted to administrators only
+    /// - Used for privilege management and administration
+    /// - Includes comprehensive validation and error handling
+    /// - Maintains privilege update audit trails
+    /// </remarks>
     [HttpPut("admin/privileges/{id}")]
     public async Task<JsonModel> UpdatePrivilege(string id, [FromBody] UpdatePrivilegeDto privilegeDto)
     {
-        try
-        {
-            // This would typically call the privilege service to update the privilege
-            // For now, return a placeholder response
-            var updatedPrivilege = new
-            {
-                Id = Guid.Parse(id),
-                Name = privilegeDto.Name,
-                Description = privilegeDto.Description,
-                IsActive = privilegeDto.IsActive,
-                UpdatedDate = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = updatedPrivilege,
-                Message = "Privilege updated successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error updating privilege: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.UpdatePrivilegeAsync(id, privilegeDto, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -924,29 +791,69 @@ public class SubscriptionPlansController : BaseController
     /// </summary>
     /// <param name="id">The unique identifier of the privilege</param>
     /// <returns>JsonModel containing the deletion result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Soft deletes a privilege from the system
+    /// - Validates privilege existence before deletion
+    /// - Access restricted to administrators only
+    /// - Used for privilege management and cleanup
+    /// - Includes comprehensive validation and error handling
+    /// - Maintains privilege deletion audit trails
+    /// </remarks>
     [HttpDelete("admin/privileges/{id}")]
     public async Task<JsonModel> DeletePrivilege(string id)
     {
-        try
-        {
-            // This would typically call the privilege service to delete the privilege
-            // For now, return a placeholder response
-            return new JsonModel
-            {
-                data = new { Id = Guid.Parse(id) },
-                Message = "Privilege deleted successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error deleting privilege: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.DeletePrivilegeAsync(id, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves all privileges in the system with filtering and pagination.
+    /// This endpoint allows administrators to view and manage all privileges.
+    /// </summary>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 50)</param>
+    /// <param name="search">Search term for filtering privileges</param>
+    /// <param name="category">Category filter for privileges</param>
+    /// <param name="status">Status filter (active/inactive)</param>
+    /// <returns>JsonModel containing paginated privileges</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all privileges with advanced filtering
+    /// - Supports pagination for large datasets
+    /// - Includes search functionality by name and description
+    /// - Access restricted to administrators only
+    /// - Used for privilege management and oversight
+    /// - Includes comprehensive privilege information
+    /// </remarks>
+    [HttpGet("admin/privileges")]
+    public async Task<JsonModel> GetAllPrivileges(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? search = null,
+        [FromQuery] string? category = null,
+        [FromQuery] string? status = null)
+    {
+        return await _privilegeService.GetAllPrivilegesAsync(page, pageSize, search, category, status, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves a specific privilege by its unique identifier.
+    /// This endpoint allows administrators to view detailed information about a specific privilege.
+    /// </summary>
+    /// <param name="id">The unique identifier of the privilege</param>
+    /// <returns>JsonModel containing the privilege details</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns detailed information about a specific privilege
+    /// - Validates privilege existence
+    /// - Access restricted to administrators only
+    /// - Used for privilege management and administration
+    /// - Includes comprehensive privilege information and metadata
+    /// </remarks>
+    [HttpGet("admin/privileges/{id}")]
+    public async Task<JsonModel> GetPrivilege(string id)
+    {
+        return await _privilegeService.GetPrivilegeByIdAsync(id, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -954,36 +861,17 @@ public class SubscriptionPlansController : BaseController
     /// This endpoint provides a list of categories that can be used to organize privileges.
     /// </summary>
     /// <returns>JsonModel containing the list of privilege categories</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all privilege categories available in the system
+    /// - Used for privilege organization and management
+    /// - Access restricted to administrators only
+    /// - Includes comprehensive category information
+    /// </remarks>
     [HttpGet("admin/privileges/categories")]
     public async Task<JsonModel> GetPrivilegeCategories()
     {
-        try
-        {
-            // This would typically call the privilege service to get categories
-            // For now, return a placeholder response
-            var categories = new[]
-            {
-                new { Id = Guid.NewGuid(), Name = "Communication", Description = "Communication-related privileges" },
-                new { Id = Guid.NewGuid(), Name = "Medical", Description = "Medical-related privileges" },
-                new { Id = Guid.NewGuid(), Name = "Administrative", Description = "Administrative privileges" }
-            };
-
-            return new JsonModel
-            {
-                data = categories,
-                Message = "Privilege categories retrieved successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error retrieving privilege categories: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.GetPrivilegeCategoriesAsync(GetToken(HttpContext));
     }
 
     /// <summary>
@@ -991,214 +879,141 @@ public class SubscriptionPlansController : BaseController
     /// This endpoint provides a list of types that can be used to categorize privileges.
     /// </summary>
     /// <returns>JsonModel containing the list of privilege types</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all privilege types available in the system
+    /// - Used for privilege categorization and management
+    /// - Access restricted to administrators only
+    /// - Includes comprehensive type information
+    /// </remarks>
     [HttpGet("admin/privileges/types")]
     public async Task<JsonModel> GetPrivilegeTypes()
     {
-        try
-        {
-            // This would typically call the privilege service to get types
-            // For now, return a placeholder response
-            var types = new[]
-            {
-                new { Id = Guid.NewGuid(), Name = "Feature Access", Description = "Access to specific features" },
-                new { Id = Guid.NewGuid(), Name = "Usage Limit", Description = "Usage-based limitations" },
-                new { Id = Guid.NewGuid(), Name = "Time Restriction", Description = "Time-based restrictions" }
-            };
-
-            return new JsonModel
-            {
-                data = types,
-                Message = "Privilege types retrieved successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error retrieving privilege types: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.GetPrivilegeTypesAsync(GetToken(HttpContext));
     }
 
     /// <summary>
     /// Retrieves privilege usage history for analysis and reporting.
     /// This endpoint provides historical data about privilege usage across the system.
     /// </summary>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 50)</param>
+    /// <param name="privilegeId">Filter by privilege ID</param>
+    /// <param name="userId">Filter by user ID</param>
+    /// <param name="subscriptionId">Filter by subscription ID</param>
+    /// <param name="startDate">Start date for filtering</param>
+    /// <param name="endDate">End date for filtering</param>
+    /// <param name="sortBy">Field to sort by</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
     /// <returns>JsonModel containing the privilege usage history</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns privilege usage history with advanced filtering
+    /// - Supports pagination for large datasets
+    /// - Includes filtering by privilege, user, subscription, and date range
+    /// - Access restricted to administrators only
+    /// - Used for privilege usage analysis and reporting
+    /// </remarks>
     [HttpGet("admin/privileges/usage-history")]
-    public async Task<JsonModel> GetPrivilegeUsageHistory()
+    public async Task<JsonModel> GetPrivilegeUsageHistory(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? privilegeId = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? subscriptionId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
     {
-        try
-        {
-            // This would typically call the privilege service to get usage history
-            // For now, return a placeholder response
-            var usageHistory = new[]
-            {
-                new { PrivilegeId = Guid.NewGuid(), UserId = Guid.NewGuid(), UsageCount = 5, UsageDate = DateTime.UtcNow.AddDays(-1) },
-                new { PrivilegeId = Guid.NewGuid(), UserId = Guid.NewGuid(), UsageCount = 3, UsageDate = DateTime.UtcNow.AddDays(-2) }
-            };
-
-            return new JsonModel
-            {
-                data = usageHistory,
-                Message = "Privilege usage history retrieved successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error retrieving privilege usage history: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.GetUsageHistoryAsync(page, pageSize, privilegeId, userId, subscriptionId, startDate, endDate, sortBy, sortOrder, GetToken(HttpContext));
     }
 
     /// <summary>
     /// Retrieves privilege usage summary for analysis and reporting.
     /// This endpoint provides summarized data about privilege usage across the system.
     /// </summary>
+    /// <param name="privilegeId">Filter by privilege ID</param>
+    /// <param name="userId">Filter by user ID</param>
+    /// <param name="subscriptionId">Filter by subscription ID</param>
+    /// <param name="startDate">Start date for filtering</param>
+    /// <param name="endDate">End date for filtering</param>
     /// <returns>JsonModel containing the privilege usage summary</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns privilege usage summary with filtering options
+    /// - Provides aggregated usage statistics
+    /// - Access restricted to administrators only
+    /// - Used for privilege usage analysis and reporting
+    /// </remarks>
     [HttpGet("admin/privileges/usage-summary")]
-    public async Task<JsonModel> GetPrivilegeUsageSummary()
+    public async Task<JsonModel> GetPrivilegeUsageSummary(
+        [FromQuery] string? privilegeId = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? subscriptionId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
-        try
-        {
-            // This would typically call the privilege service to get usage summary
-            // For now, return a placeholder response
-            var usageSummary = new
-            {
-                TotalPrivileges = 10,
-                ActivePrivileges = 8,
-                TotalUsage = 150,
-                MostUsedPrivilege = "Video Consultations",
-                UsageTrend = "Increasing"
-            };
-
-            return new JsonModel
-            {
-                data = usageSummary,
-                Message = "Privilege usage summary retrieved successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error retrieving privilege usage summary: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.GetUsageSummaryAsync(privilegeId, userId, subscriptionId, startDate, endDate, GetToken(HttpContext));
     }
 
     /// <summary>
     /// Exports privilege usage data for analysis and reporting.
     /// This endpoint allows administrators to export privilege usage data in various formats.
     /// </summary>
+    /// <param name="format">Export format (csv, json, excel)</param>
+    /// <param name="privilegeId">Filter by privilege ID</param>
+    /// <param name="userId">Filter by user ID</param>
+    /// <param name="subscriptionId">Filter by subscription ID</param>
+    /// <param name="startDate">Start date for filtering</param>
+    /// <param name="endDate">End date for filtering</param>
     /// <returns>JsonModel containing the exported privilege usage data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Exports privilege usage data in specified format
+    /// - Supports filtering by privilege, user, subscription, and date range
+    /// - Access restricted to administrators only
+    /// - Used for privilege usage analysis and reporting
+    /// </remarks>
     [HttpGet("admin/privileges/usage-export")]
-    public async Task<JsonModel> ExportPrivilegeUsage()
+    public async Task<JsonModel> ExportPrivilegeUsage(
+        [FromQuery] string format = "csv",
+        [FromQuery] string? privilegeId = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? subscriptionId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
-        try
-        {
-            // This would typically call the privilege service to export usage data
-            // For now, return a placeholder response
-            var exportData = new
-            {
-                Format = "CSV",
-                FileName = "privilege_usage_export.csv",
-                RecordCount = 100,
-                ExportDate = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = exportData,
-                Message = "Privilege usage data exported successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error exporting privilege usage data: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.ExportUsageDataAsync(format, privilegeId, userId, subscriptionId, startDate, endDate, GetToken(HttpContext));
     }
 
     /// <summary>
-    /// Retrieves privileges for a specific user.
-    /// This endpoint provides information about privileges assigned to a specific user.
+    /// Exports privileges data for analysis and reporting.
+    /// This endpoint allows administrators to export privileges data in various formats.
     /// </summary>
-    /// <param name="userId">The unique identifier of the user</param>
-    /// <returns>JsonModel containing the user's privileges</returns>
-    [HttpGet("admin/users/{userId}/privileges")]
-    public async Task<JsonModel> GetUserPrivileges(string userId)
+    /// <param name="format">Export format (csv, json, excel)</param>
+    /// <param name="search">Search term for filtering privileges</param>
+    /// <param name="category">Category filter for privileges</param>
+    /// <param name="status">Status filter (active/inactive)</param>
+    /// <returns>JsonModel containing the exported privileges data</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Exports privileges data in specified format
+    /// - Supports filtering by search term, category, and status
+    /// - Access restricted to administrators only
+    /// - Used for privilege management and reporting
+    /// </remarks>
+    [HttpGet("admin/privileges/export")]
+    public async Task<JsonModel> ExportPrivileges(
+        [FromQuery] string format = "csv",
+        [FromQuery] string? search = null,
+        [FromQuery] string? category = null,
+        [FromQuery] string? status = null)
     {
-        try
-        {
-            // This would typically call the privilege service to get user privileges
-            // For now, return a placeholder response
-            var userPrivileges = new[]
-            {
-                new { UserId = Guid.Parse(userId), PrivilegeId = Guid.NewGuid(), PrivilegeName = "Video Consultations", AssignedDate = DateTime.UtcNow.AddDays(-30) },
-                new { UserId = Guid.Parse(userId), PrivilegeId = Guid.NewGuid(), PrivilegeName = "Chat Support", AssignedDate = DateTime.UtcNow.AddDays(-15) }
-            };
-
-            return new JsonModel
-            {
-                data = userPrivileges,
-                Message = "User privileges retrieved successfully",
-                StatusCode = 200
-            };
-        }
-        catch (Exception ex)
-        {
-            return new JsonModel
-            {
-                data = new object(),
-                Message = $"Error retrieving user privileges: {ex.Message}",
-                StatusCode = 500
-            };
-        }
+        return await _privilegeService.ExportPrivilegesAsync(search, category, status, format, GetToken(HttpContext));
     }
+
 
     #endregion
 }
 
-// DTOs for privilege management
-public class UpdateTimeBasedLimitsRequest
-{
-    public Guid PrivilegeId { get; set; }
-    public int DailyLimit { get; set; }
-    public int WeeklyLimit { get; set; }
-    public int MonthlyLimit { get; set; }
-    public Guid UsagePeriodId { get; set; }
-    public int DurationMonths { get; set; }
-    public string Description { get; set; } = string.Empty;
-    public DateTime EffectiveDate { get; set; }
-    public DateTime ExpirationDate { get; set; }
-}
-
-public class CreatePrivilegeDto
-{
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-}
-
-public class UpdatePrivilegeDto
-{
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
-}

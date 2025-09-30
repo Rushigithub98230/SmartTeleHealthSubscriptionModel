@@ -68,6 +68,8 @@ public class BillingRecord : BaseEntity
         Bundle,
         /// <summary>Billing for invoice-based services</summary>
         Invoice,
+        /// <summary>Billing for overage charges when usage exceeds plan limits</summary>
+        Overage,
         /// <summary>Billing for billing cycle services</summary>
         Cycle
     }

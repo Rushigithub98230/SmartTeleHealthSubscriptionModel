@@ -40,6 +40,7 @@ public interface ISubscriptionLifecycleService
     Task<bool> MarkPaymentFailedAsync(Guid subscriptionId, string? reason = null, TokenModel tokenModel = null);
     Task<bool> MarkPaymentSucceededAsync(Guid subscriptionId, string? reason = null, TokenModel tokenModel = null);
     Task<bool> UpdateSubscriptionStatusAsync(Guid subscriptionId, string newStatus, string? reason = null, TokenModel tokenModel = null);
+    Task<JsonModel> UpdateSubscriptionStatusAsync(string subscriptionId, string newStatus, TokenModel tokenModel);
     Task<IEnumerable<SubscriptionStatusHistory>> GetStatusHistoryAsync(Guid subscriptionId, TokenModel tokenModel = null);
     Task<bool> ValidateStatusTransitionAsync(string currentStatus, string newStatus, TokenModel tokenModel = null);
     Task<string> GetNextValidStatusAsync(string currentStatus, TokenModel tokenModel = null);

@@ -14,56 +14,61 @@ public class PrivilegeUsageHistoryRepository : RepositoryBase<PrivilegeUsageHist
         _context = context;
     }
 
+    // Custom methods with different names to avoid overriding base methods
     /// <summary>
-    /// Retrieves a privilege usage history by its unique identifier
+    /// Retrieves a privilege usage history by its unique identifier with related entities
     /// </summary>
-    public override async Task<PrivilegeUsageHistory?> GetByIdAsync(object id)
+    public async Task<PrivilegeUsageHistory?> GetByIdWithDetailsAsync(Guid id)
     {
-        if (id is not Guid historyId)
-            return null;
-
-        return await _context.PrivilegeUsageHistories.FindAsync(historyId);
+        return await _context.PrivilegeUsageHistories
+            .Include(h => h.UserSubscriptionPrivilegeUsage)
+                .ThenInclude(uspu => uspu.Privilege)
+            .Include(h => h.UserSubscriptionPrivilegeUsage)
+                .ThenInclude(uspu => uspu.Subscription)
+            .FirstOrDefaultAsync(x => x.Id == id);
     }
 
     /// <summary>
-    /// Retrieves all privilege usage histories
+    /// Retrieves all privilege usage histories with related entities
     /// </summary>
-    public override async Task<IEnumerable<PrivilegeUsageHistory>> GetAllAsync()
+    public async Task<IEnumerable<PrivilegeUsageHistory>> GetAllWithDetailsAsync()
     {
-        return await _context.PrivilegeUsageHistories.ToListAsync();
+        return await _context.PrivilegeUsageHistories
+            .Include(h => h.UserSubscriptionPrivilegeUsage)
+                .ThenInclude(uspu => uspu.Privilege)
+            .Include(h => h.UserSubscriptionPrivilegeUsage)
+                .ThenInclude(uspu => uspu.Subscription)
+            .OrderByDescending(h => h.UsedAt)
+            .ToListAsync();
     }
 
     /// <summary>
     /// Creates a new privilege usage history
     /// </summary>
-    public override async Task<PrivilegeUsageHistory> CreateAsync(PrivilegeUsageHistory history)
+    public async Task<PrivilegeUsageHistory> CreateUsageHistoryAsync(PrivilegeUsageHistory history)
     {
-        history.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(history);
     }
 
     /// <summary>
     /// Updates an existing privilege usage history
     /// </summary>
-    public override async Task<PrivilegeUsageHistory> UpdateAsync(PrivilegeUsageHistory history)
+    public async Task<PrivilegeUsageHistory> UpdateUsageHistoryAsync(PrivilegeUsageHistory history)
     {
-        history.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(history);
     }
 
     /// <summary>
-    /// Deletes a privilege usage history by its unique identifier (hard delete)
+    /// Deletes a privilege usage history by its unique identifier (soft delete)
     /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
+    public async Task<bool> DeleteUsageHistoryAsync(Guid id)
     {
-        if (id is not Guid historyId)
-            return false;
-
-        var history = await _context.PrivilegeUsageHistories.FindAsync(historyId);
+        var history = await _context.PrivilegeUsageHistories.FindAsync(id);
         if (history != null)
         {
-            _context.PrivilegeUsageHistories.Remove(history);
-            await _context.SaveChangesAsync();
+        history.IsActive = false;
+        history.IsDeleted = true;
+        await _context.SaveChangesAsync();
             return true;
         }
         return false;
@@ -72,12 +77,9 @@ public class PrivilegeUsageHistoryRepository : RepositoryBase<PrivilegeUsageHist
     /// <summary>
     /// Checks if a privilege usage history exists
     /// </summary>
-    public override async Task<bool> ExistsAsync(object id)
+    public async Task<bool> ExistsUsageHistoryAsync(Guid id)
     {
-        if (id is not Guid historyId)
-            return false;
-
-        return await _context.PrivilegeUsageHistories.AnyAsync(x => x.Id == historyId);
+        return await _context.PrivilegeUsageHistories.AnyAsync(x => x.Id == id);
     }
 
     public async Task<IEnumerable<PrivilegeUsageHistory>> GetByUserSubscriptionPrivilegeUsageIdAsync(Guid userSubscriptionPrivilegeUsageId)

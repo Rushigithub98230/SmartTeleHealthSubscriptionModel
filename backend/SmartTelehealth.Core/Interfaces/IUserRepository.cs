@@ -7,6 +7,14 @@ public interface IUserRepository : IRepositoryBase<User>
     // Basic CRUD methods are inherited from IRepositoryBase<User>
     // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync
 
+    // Custom methods with business logic
+    Task<User?> GetByIdWithDetailsAsync(int id);
+    Task<IEnumerable<User>> GetAllWithDetailsAsync();
+    Task<User> CreateUserAsync(User user);
+    Task<User> UpdateUserAsync(User user);
+    Task<bool> DeleteUserAsync(int id);
+    Task<bool> ExistsUserAsync(int id);
+
     // Specialized methods
     Task<User?> GetByEmailAsync(string email);
     Task<User?> GetByUserNameAsync(string userName);

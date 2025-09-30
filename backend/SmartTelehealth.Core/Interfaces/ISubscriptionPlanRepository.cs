@@ -14,6 +14,14 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
     
     // Basic CRUD methods are inherited from IRepositoryBase<SubscriptionPlan>
     
+    // Custom methods with different names to avoid overriding base methods
+    Task<SubscriptionPlan?> GetByIdWithDetailsAsync(Guid id);
+    Task<IEnumerable<SubscriptionPlan>> GetAllWithDetailsAsync();
+    Task<SubscriptionPlan> CreatePlanAsync(SubscriptionPlan plan);
+    Task<SubscriptionPlan> UpdatePlanAsync(SubscriptionPlan plan);
+    Task<bool> DeletePlanAsync(Guid id);
+    Task<bool> ExistsPlanAsync(Guid id);
+    
     #endregion
     
     #region Status Management Operations
@@ -79,6 +87,21 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
     /// <param name="id">The unique identifier of the subscription plan</param>
     /// <returns>True if the plan has active subscriptions, false otherwise</returns>
     Task<bool> HasActiveSubscriptionsAsync(Guid id);
+    
+    /// <summary>
+    /// Gets all privileges associated with a subscription plan
+    /// </summary>
+    /// <param name="planId">The subscription plan ID</param>
+    /// <returns>Collection of plan privileges</returns>
+    Task<IEnumerable<SubscriptionPlanPrivilege>> GetPlanPrivilegesAsync(Guid planId);
+    
+    /// <summary>
+    /// Gets a specific plan privilege configuration
+    /// </summary>
+    /// <param name="planId">The subscription plan ID</param>
+    /// <param name="privilegeId">The privilege ID</param>
+    /// <returns>Plan privilege configuration or null if not found</returns>
+    Task<SubscriptionPlanPrivilege?> GetPlanPrivilegeAsync(Guid planId, Guid privilegeId);
     
     #endregion
 } 

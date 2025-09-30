@@ -10,6 +10,7 @@ public interface IPrivilegeRepository : IRepositoryBase<Privilege>
     // Specialized methods for Privilege entity
     Task<Privilege?> GetByNameAsync(string name);
     Task<bool> ExistsByNameAsync(string name);
+    Task<IEnumerable<Privilege>> GetByIdsAsync(IEnumerable<Guid> privilegeIds);
     
     // Legacy method for backward compatibility
     Task AddAsync(Privilege privilege);

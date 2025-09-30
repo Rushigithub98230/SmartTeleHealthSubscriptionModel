@@ -175,7 +175,7 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
             {
                 return new JsonModel

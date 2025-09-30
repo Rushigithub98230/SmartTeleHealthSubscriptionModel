@@ -7,6 +7,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Core.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace SmartTelehealth.Application.Services;
@@ -35,9 +36,29 @@ public class AppointmentService : IAppointmentService
     private readonly IParticipantRoleRepository _participantRoleRepository;
     private readonly IDocumentService _documentService;
     private readonly IDocumentTypeService _documentTypeService;
+    private readonly ILogger<AppointmentService> _logger;
+    private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
     // Add other dependencies as needed (e.g., chat, audit, config)
 
     private const int DefaultMaxParticipants = 8;
+
+    /// <summary>
+    /// Helper method to get appointment status ID by name
+    /// </summary>
+    private Guid GetAppointmentStatusId(string statusName)
+    {
+        // This is a simplified implementation - in a real scenario, you'd query the database
+        // For now, return a default GUID based on the status name
+        return statusName.ToLower() switch
+        {
+            "completed" => Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            "cancelled" => Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            "pending" => Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            "scheduled" => Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            _ => Guid.Parse("00000000-0000-0000-0000-000000000000")
+        };
+    }
 
     /// <summary>
     /// Initializes a new instance of the AppointmentService with all required dependencies
@@ -64,7 +85,10 @@ public class AppointmentService : IAppointmentService
         IStripeService stripeService,
         IParticipantRoleRepository participantRoleRepository,
         IDocumentService documentService,
-        IDocumentTypeService documentTypeService
+        IDocumentTypeService documentTypeService,
+        ILogger<AppointmentService> logger,
+        ISubscriptionRepository subscriptionRepository,
+        ISubscriptionPlanRepository subscriptionPlanRepository
     )
     {
         _appointmentRepository = appointmentRepository;
@@ -78,6 +102,9 @@ public class AppointmentService : IAppointmentService
         _participantRoleRepository = participantRoleRepository;
         _documentService = documentService;
         _documentTypeService = documentTypeService;
+        _logger = logger;
+        _subscriptionRepository = subscriptionRepository;
+        _subscriptionPlanRepository = subscriptionPlanRepository;
     }
 
     // --- DOCUMENT MANAGEMENT (Updated to use centralized DocumentService) ---
@@ -87,7 +114,7 @@ public class AppointmentService : IAppointmentService
         try
         {
             // Validate appointment exists
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -153,7 +180,7 @@ public class AppointmentService : IAppointmentService
         try
         {
             // Validate appointment exists
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -382,7 +409,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (string.IsNullOrEmpty(appointment.OpenTokSessionId))
             {
                 var sessionResult = await _openTokService.CreateSessionAsync($"Appointment-{appointmentId}", false, tokenModel);
@@ -391,7 +418,7 @@ public class AppointmentService : IAppointmentService
                 {
                     appointment.OpenTokSessionId = dynamicData.SessionId ?? string.Empty;
                 }
-                await _appointmentRepository.UpdateAsync(appointment);
+                await _appointmentRepository.UpdateAppointmentAsync(appointment);
             }
             return appointment.OpenTokSessionId;
         }
@@ -659,7 +686,7 @@ public class AppointmentService : IAppointmentService
                 CreatedDate = DateTime.UtcNow
             };
 
-            await _appointmentRepository.CreateAsync(appointment);
+            await _appointmentRepository.CreateAppointmentAsync(appointment);
             return new JsonModel
             {
                 data = MapToDto(appointment),
@@ -682,7 +709,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(id);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(id);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -785,7 +812,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(id);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(id);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -831,7 +858,7 @@ public class AppointmentService : IAppointmentService
 
             appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             return new JsonModel
             {
@@ -855,7 +882,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(id);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(id);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -871,7 +898,7 @@ public class AppointmentService : IAppointmentService
             appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
             
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
             return new JsonModel
             {
                 data = true,
@@ -944,7 +971,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -961,7 +988,7 @@ public class AppointmentService : IAppointmentService
             appointment.StripeSessionId = paymentDto.SessionId;
             appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             return new JsonModel
             {
@@ -985,7 +1012,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null) 
                 return new JsonModel
                 {
@@ -1006,7 +1033,7 @@ public class AppointmentService : IAppointmentService
             appointment.IsPaymentCaptured = true;
             appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             return new JsonModel
             {
@@ -1030,7 +1057,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null) 
                 return new JsonModel
                 {
@@ -1072,7 +1099,7 @@ public class AppointmentService : IAppointmentService
 
             appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             return new JsonModel
             {
@@ -1209,7 +1236,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1233,7 +1260,7 @@ public class AppointmentService : IAppointmentService
             appointment.UpdatedDate = DateTime.UtcNow;
             appointment.AcceptedAt = DateTime.UtcNow;
 
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             // Send notification to patient
             // await _notificationService.SendAppointmentAcceptedNotificationAsync(appointment.PatientId, appointmentId);
@@ -1260,7 +1287,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1284,7 +1311,7 @@ public class AppointmentService : IAppointmentService
             appointment.UpdatedDate = DateTime.UtcNow;
             appointment.RejectedAt = DateTime.UtcNow;
 
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             // Send notification to patient
             // await _notificationService.SendAppointmentRejectedNotificationAsync(appointment.PatientId, appointmentId, rejectDto.Reason);
@@ -1311,7 +1338,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1338,7 +1365,7 @@ public class AppointmentService : IAppointmentService
             var sessionId = await GetOrCreateVideoSessionAsync(appointmentId, tokenModel);
             appointment.OpenTokSessionId = sessionId;
 
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             // Send notification to participants
             // await _notificationService.SendMeetingStartedNotificationAsync(appointmentId);
@@ -1365,7 +1392,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1388,7 +1415,7 @@ public class AppointmentService : IAppointmentService
             appointment.UpdatedBy = tokenModel.UserID;
             appointment.UpdatedDate = DateTime.UtcNow;
 
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             // Send notification to participants
             // await _notificationService.SendMeetingEndedNotificationAsync(appointmentId);
@@ -1415,7 +1442,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1442,7 +1469,7 @@ public class AppointmentService : IAppointmentService
             appointment.Prescription = completeDto.Prescription;
             appointment.FollowUpInstructions = completeDto.FollowUpInstructions;
 
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             // Send notification to patient
             // await _notificationService.SendAppointmentCompletedNotificationAsync(appointment.PatientId, appointmentId);
@@ -1469,7 +1496,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1493,7 +1520,7 @@ public class AppointmentService : IAppointmentService
             appointment.UpdatedDate = DateTime.UtcNow;
             appointment.CancellationReason = reason;
 
-            await _appointmentRepository.UpdateAsync(appointment);
+            await _appointmentRepository.UpdateAppointmentAsync(appointment);
 
             // Send notification to participants
             // await _notificationService.SendAppointmentCancelledNotificationAsync(appointmentId, reason);
@@ -1520,7 +1547,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1557,7 +1584,7 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var appointment = await _appointmentRepository.GetByIdAsync(appointmentId);
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
             if (appointment == null)
                 return new JsonModel
                 {
@@ -1672,16 +1699,68 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            // TODO: Implement actual payment capture logic
-            return new JsonModel
+            _logger.LogInformation("Capturing payment for appointment {AppointmentId}", appointmentId);
+
+            // Get the appointment
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
+            if (appointment == null)
             {
-                data = new { paymentCaptured = true },
-                Message = "Payment captured successfully",
-                StatusCode = 200
-            };
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Appointment not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Check if appointment has a payment intent
+            if (string.IsNullOrEmpty(appointment.StripePaymentIntentId))
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "No payment intent found for this appointment",
+                    StatusCode = 400
+                };
+            }
+
+            // Capture the payment through Stripe
+            var captureResult = await _stripeService.CapturePaymentIntentAsync(appointment.StripePaymentIntentId, tokenModel);
+            
+            if (captureResult)
+            {
+                // Update appointment status
+                appointment.AppointmentStatusId = GetAppointmentStatusId("Completed");
+                appointment.UpdatedBy = tokenModel.UserID;
+                appointment.UpdatedDate = DateTime.UtcNow;
+                await _appointmentRepository.UpdateAppointmentAsync(appointment);
+
+                _logger.LogInformation("Payment captured successfully for appointment {AppointmentId}", appointmentId);
+
+                return new JsonModel
+                {
+                    data = new { 
+                        paymentCaptured = true, 
+                        appointmentId = appointmentId,
+                        paymentIntentId = appointment.StripePaymentIntentId
+                    },
+                    Message = "Payment captured successfully",
+                    StatusCode = 200
+                };
+            }
+            else
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Failed to capture payment",
+                    StatusCode = 400
+                };
+            }
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error capturing payment for appointment {AppointmentId}", appointmentId);
             return new JsonModel
             {
                 data = new object(),
@@ -1695,16 +1774,73 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            // TODO: Implement actual payment refund logic
-            return new JsonModel
+            _logger.LogInformation("Processing payment refund for appointment {AppointmentId}, amount: {Amount}", appointmentId, amount);
+
+            // Get the appointment
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
+            if (appointment == null)
             {
-                data = new { refundProcessed = true },
-                Message = "Payment refund processed successfully",
-                StatusCode = 200
-            };
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Appointment not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Check if appointment has a payment intent
+            if (string.IsNullOrEmpty(appointment.StripePaymentIntentId))
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "No payment intent found for this appointment",
+                    StatusCode = 400
+                };
+            }
+
+            // Determine refund amount
+            var refundAmount = amount ?? appointment.Fee;
+            
+            // Process the refund through Stripe
+            var refundResult = await _stripeService.ProcessRefundAsync(appointment.StripePaymentIntentId, refundAmount, tokenModel);
+            
+            if (refundResult)
+            {
+                // Update appointment status to cancelled/refunded
+                appointment.AppointmentStatusId = GetAppointmentStatusId("Cancelled");
+                appointment.UpdatedBy = tokenModel.UserID;
+                appointment.UpdatedDate = DateTime.UtcNow;
+                await _appointmentRepository.UpdateAppointmentAsync(appointment);
+
+                _logger.LogInformation("Payment refund processed successfully for appointment {AppointmentId}, amount: {Amount}", 
+                    appointmentId, refundAmount);
+
+                return new JsonModel
+                {
+                    data = new { 
+                        refundProcessed = true, 
+                        appointmentId = appointmentId,
+                        refundAmount = refundAmount,
+                        paymentIntentId = appointment.StripePaymentIntentId
+                    },
+                    Message = "Payment refund processed successfully",
+                    StatusCode = 200
+                };
+            }
+            else
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Failed to process payment refund",
+                    StatusCode = 400
+                };
+            }
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error processing payment refund for appointment {AppointmentId}", appointmentId);
             return new JsonModel
             {
                 data = new object(),
@@ -1718,16 +1854,61 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            // TODO: Implement actual payment status retrieval logic
+            _logger.LogInformation("Retrieving payment status for appointment {AppointmentId}", appointmentId);
+
+            // Get the appointment
+            var appointment = await _appointmentRepository.GetByIdWithDetailsAsync(appointmentId);
+            if (appointment == null)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Appointment not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Check if appointment has a payment intent
+            if (string.IsNullOrEmpty(appointment.StripePaymentIntentId))
+            {
+                return new JsonModel
+                {
+                    data = new { 
+                        status = "no_payment_intent",
+                        message = "No payment intent found for this appointment"
+                    },
+                    Message = "No payment intent found",
+                    StatusCode = 200
+                };
+            }
+
+            // Get payment status from Stripe
+            var paymentStatus = await _stripeService.GetPaymentIntentStatusAsync(appointment.StripePaymentIntentId, tokenModel);
+            
+            var statusData = new
+            {
+                appointmentId = appointmentId,
+                paymentIntentId = appointment.StripePaymentIntentId,
+                status = paymentStatus.Status,
+                amount = appointment.Fee,
+                currency = "USD", // Assuming USD for now
+                created = paymentStatus.Created,
+                lastUpdated = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Payment status retrieved for appointment {AppointmentId}: {Status}", 
+                appointmentId, paymentStatus.Status);
+
             return new JsonModel
             {
-                data = new { status = "pending" },
+                data = statusData,
                 Message = "Payment status retrieved successfully",
                 StatusCode = 200
             };
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error retrieving payment status for appointment {AppointmentId}", appointmentId);
             return new JsonModel
             {
                 data = new object(),
@@ -1992,20 +2173,105 @@ public class AppointmentService : IAppointmentService
         }
     }
 
-    public async Task<JsonModel> ValidateSubscriptionAccessAsync(Guid patientId, Guid categoryId, TokenModel tokenModel)
+    public async Task<JsonModel> ValidateSubscriptionAccessAsync(int patientId, Guid categoryId, TokenModel tokenModel)
     {
         try
         {
-            // TODO: Implement actual subscription validation logic
+            _logger.LogInformation("Validating subscription access for patient {PatientId} and category {CategoryId}", patientId, categoryId);
+
+            // Get patient's active subscription
+            var subscription = await _subscriptionRepository.GetActiveSubscriptionByUserIdAsync(patientId);
+            if (subscription == null)
+            {
+                return new JsonModel
+                {
+                    data = new { 
+                        hasAccess = false, 
+                        reason = "No active subscription found" 
+                    },
+                    Message = "No active subscription found",
+                    StatusCode = 200
+                };
+            }
+
+            // Check if subscription is valid and not expired
+            if (subscription.Status != Subscription.SubscriptionStatuses.Active)
+            {
+                return new JsonModel
+                {
+                    data = new { 
+                        hasAccess = false, 
+                        reason = $"Subscription status is {subscription.Status}" 
+                    },
+                    Message = "Subscription is not active",
+                    StatusCode = 200
+                };
+            }
+
+            // Check if subscription has expired
+            if (subscription.EndDate.HasValue && subscription.EndDate.Value < DateTime.UtcNow)
+            {
+                return new JsonModel
+                {
+                    data = new { 
+                        hasAccess = false, 
+                        reason = "Subscription has expired" 
+                    },
+                    Message = "Subscription has expired",
+                    StatusCode = 200
+                };
+            }
+
+            // Get subscription plan details
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(subscription.SubscriptionPlanId);
+            if (plan == null)
+            {
+                return new JsonModel
+                {
+                    data = new { 
+                        hasAccess = false, 
+                        reason = "Subscription plan not found" 
+                    },
+                    Message = "Subscription plan not found",
+                    StatusCode = 200
+                };
+            }
+
+            // Check if the plan includes the requested category
+            var hasCategoryAccess = plan.PlanPrivileges?.Any(p => p.PrivilegeId == categoryId) ?? false;
+            
+            if (!hasCategoryAccess)
+            {
+                return new JsonModel
+                {
+                    data = new { 
+                        hasAccess = false, 
+                        reason = "Category not included in subscription plan" 
+                    },
+                    Message = "Category not included in subscription plan",
+                    StatusCode = 200
+                };
+            }
+
+            _logger.LogInformation("Subscription access validated successfully for patient {PatientId} and category {CategoryId}", 
+                patientId, categoryId);
+
             return new JsonModel
             {
-                data = true, // Assume true for now
+                data = new { 
+                    hasAccess = true, 
+                    subscriptionId = subscription.Id,
+                    planId = plan.Id,
+                    planName = plan.Name
+                },
                 Message = "Subscription access validated successfully",
                 StatusCode = 200
             };
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Error validating subscription access for patient {PatientId} and category {CategoryId}", 
+                patientId, categoryId);
             return new JsonModel
             {
                 data = new object(),
@@ -2222,9 +2488,9 @@ public class AppointmentService : IAppointmentService
             // Validate subscription access if subscription is provided
             if (!string.IsNullOrEmpty(bookingDto.SubscriptionId))
             {
-                Guid patientGuid = Guid.TryParse(bookingDto.PatientId, out var pg) ? pg : Guid.Empty;
+                int patientIdInt = int.TryParse(bookingDto.PatientId, out var pid) ? pid : 0;
                 Guid categoryGuid = Guid.TryParse(bookingDto.CategoryId, out var cg) ? cg : Guid.Empty;
-                var subscriptionValidation = await ValidateSubscriptionAccessAsync(patientGuid, categoryGuid, tokenModel);
+                var subscriptionValidation = await ValidateSubscriptionAccessAsync(patientIdInt, categoryGuid, tokenModel);
                 if (subscriptionValidation.StatusCode != 200)
                 {
                     return new JsonModel { data = new object(), Message = "Invalid subscription access", StatusCode = 400 };

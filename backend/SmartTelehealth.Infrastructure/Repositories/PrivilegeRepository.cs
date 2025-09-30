@@ -29,6 +29,14 @@ public class PrivilegeRepository : RepositoryBase<Privilege>, IPrivilegeReposito
             .AnyAsync(p => p.Name.ToLower() == name.ToLower());
     }
 
+    public async Task<IEnumerable<Privilege>> GetByIdsAsync(IEnumerable<Guid> privilegeIds)
+    {
+        var ids = privilegeIds.ToList();
+        return await _context.Privileges
+            .Where(p => ids.Contains(p.Id))
+            .ToListAsync();
+    }
+
     // Legacy method for backward compatibility - delegates to base CreateAsync
     public async Task AddAsync(Privilege privilege)
     {

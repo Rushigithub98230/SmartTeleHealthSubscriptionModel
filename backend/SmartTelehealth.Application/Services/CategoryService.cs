@@ -31,7 +31,7 @@ public class CategoryService : ICategoryService
     {
         try
         {
-            var category = await _categoryRepository.GetByIdAsync(id);
+            var category = await _categoryRepository.GetByIdWithDetailsAsync(id);
             if (category == null)
                 return new JsonModel { data = new object(), Message = "Category not found", StatusCode = 404 };
             
@@ -129,7 +129,7 @@ public class CategoryService : ICategoryService
             category.CreatedDate = DateTime.UtcNow;
             category.IsActive = true;
             
-            var createdCategory = await _categoryRepository.CreateAsync(category);
+            var createdCategory = await _categoryRepository.CreateCategoryAsync(category);
             var categoryDto = _mapper.Map<CategoryDto>(createdCategory);
             
             _logger.LogInformation("Category '{CategoryName}' created by user {UserId}", createDto.Name, tokenModel.UserID);
@@ -146,7 +146,7 @@ public class CategoryService : ICategoryService
     {
         try
         {
-            var existingCategory = await _categoryRepository.GetByIdAsync(id);
+            var existingCategory = await _categoryRepository.GetByIdWithDetailsAsync(id);
             if (existingCategory == null)
                 return new JsonModel { data = new object(), Message = "Category not found", StatusCode = 404 };
             
@@ -155,7 +155,7 @@ public class CategoryService : ICategoryService
             existingCategory.UpdatedBy = tokenModel.UserID;
             existingCategory.UpdatedDate = DateTime.UtcNow;
             
-            var updatedCategory = await _categoryRepository.UpdateAsync(existingCategory);
+            var updatedCategory = await _categoryRepository.UpdateCategoryAsync(existingCategory);
             var categoryDto = _mapper.Map<CategoryDto>(updatedCategory);
             
             _logger.LogInformation("Category {CategoryId} updated by user {UserId}", id, tokenModel.UserID);
@@ -172,7 +172,7 @@ public class CategoryService : ICategoryService
     {
         try
         {
-            var existingCategory = await _categoryRepository.GetByIdAsync(id);
+            var existingCategory = await _categoryRepository.GetByIdWithDetailsAsync(id);
             if (existingCategory == null)
                 return new JsonModel { data = new object(), Message = "Category not found", StatusCode = 404 };
             
@@ -190,7 +190,7 @@ public class CategoryService : ICategoryService
             existingCategory.UpdatedBy = tokenModel.UserID;
             existingCategory.UpdatedDate = DateTime.UtcNow;
             
-            await _categoryRepository.UpdateAsync(existingCategory);
+            await _categoryRepository.UpdateCategoryAsync(existingCategory);
             
             _logger.LogInformation("Category {CategoryId} deleted by user {UserId}", id, tokenModel.UserID);
             return new JsonModel { data = new object(), Message = "Category deleted successfully", StatusCode = 200 };
@@ -206,7 +206,7 @@ public class CategoryService : ICategoryService
     {
         try
         {
-            var category = await _categoryRepository.GetByIdAsync(id);
+            var category = await _categoryRepository.GetByIdWithDetailsAsync(id);
             var exists = category != null && category.IsActive;
             
             _logger.LogInformation("Category existence check for {CategoryId} by user {UserId}: {Exists}", id, tokenModel.UserID, exists);

@@ -7,6 +7,14 @@ public interface IAppointmentRepository : IRepositoryBase<Appointment>
     // Basic CRUD methods are inherited from IRepositoryBase<Appointment>
     // GetByIdAsync, GetAllAsync, CreateAsync, UpdateAsync, DeleteAsync, ExistsAsync
 
+    // Custom methods with business logic
+    Task<Appointment?> GetByIdWithDetailsAsync(Guid id);
+    Task<IEnumerable<Appointment>> GetAllWithDetailsAsync();
+    Task<Appointment> CreateAppointmentAsync(Appointment appointment);
+    Task<Appointment> UpdateAppointmentAsync(Appointment appointment);
+    Task<bool> DeleteAppointmentAsync(Guid id);
+    Task<bool> ExistsAppointmentAsync(Guid id);
+
     // Specialized methods for Appointment entity
     Task<IEnumerable<Appointment>> GetByPatientAsync(int patientId);
     Task<IEnumerable<Appointment>> GetByProviderAsync(int providerId);

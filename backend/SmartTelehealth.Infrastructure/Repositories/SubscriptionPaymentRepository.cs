@@ -70,8 +70,6 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
     /// </summary>
     public override async Task<SubscriptionPayment> CreateAsync(SubscriptionPayment payment)
     {
-        payment.CreatedDate = DateTime.UtcNow;
-        payment.UpdatedDate = DateTime.UtcNow;
         return await base.CreateAsync(payment);
     }
 
@@ -80,7 +78,6 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
     /// </summary>
     public override async Task<SubscriptionPayment> UpdateAsync(SubscriptionPayment payment)
     {
-        payment.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(payment);
     }
 

@@ -15,7 +15,8 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
         _context = context;
     }
 
-    public async Task<Subscription?> GetByIdAsync(Guid id)
+    // Custom methods with different names to avoid overriding base methods
+    public async Task<Subscription?> GetByIdWithDetailsAsync(Guid id)
     {
         return await _context.Subscriptions
             .Include(s => s.SubscriptionPlan)
@@ -24,7 +25,7 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .FirstOrDefaultAsync(s => s.Id == id);
     }
 
-    public async Task<IEnumerable<Subscription>> GetAllAsync()
+    public async Task<IEnumerable<Subscription>> GetAllWithDetailsAsync()
     {
         return await _context.Subscriptions
             .Include(s => s.SubscriptionPlan)
@@ -205,32 +206,35 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .ToListAsync();
     }
 
-    public async Task<Subscription> CreateAsync(Subscription subscription)
+    // Custom methods for subscription-specific operations
+    public async Task<Subscription> CreateSubscriptionAsync(Subscription subscription)
     {
         _context.Subscriptions.Add(subscription);
         await _context.SaveChangesAsync();
         return subscription;
     }
 
-    public async Task<Subscription> UpdateAsync(Subscription subscription)
+    public async Task<Subscription> UpdateSubscriptionAsync(Subscription subscription)
     {
         _context.Subscriptions.Update(subscription);
         await _context.SaveChangesAsync();
         return subscription;
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteSubscriptionAsync(Guid id)
     {
         var subscription = await _context.Subscriptions.FindAsync(id);
         if (subscription == null)
             return false;
 
-        _context.Subscriptions.Remove(subscription);
+        // Only set the soft delete flag, audit properties should be set by service
+        subscription.IsActive = false;
+        subscription.IsDeleted = true;
         await _context.SaveChangesAsync();
         return true;
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    public async Task<bool> ExistsSubscriptionAsync(Guid id)
     {
         return await _context.Subscriptions.AnyAsync(s => s.Id == id);
     }

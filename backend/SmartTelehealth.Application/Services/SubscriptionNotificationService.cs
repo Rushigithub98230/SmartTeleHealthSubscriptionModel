@@ -519,7 +519,7 @@ public class SubscriptionNotificationService : ISubscriptionNotificationService
         {
             if (Guid.TryParse(subscriptionId, out var id))
             {
-                return await _subscriptionRepository.GetByIdAsync(id);
+                return await _subscriptionRepository.GetByIdWithDetailsAsync(id);
             }
             return null;
         }

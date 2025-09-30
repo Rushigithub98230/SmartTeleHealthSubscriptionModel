@@ -6,6 +6,14 @@ public interface IProviderRepository : IRepositoryBase<Provider>
 {
     // Basic CRUD methods are inherited from IRepositoryBase<Provider>
     
+    // Custom methods with business logic
+    Task<Provider?> GetByIdWithDetailsAsync(int providerId);
+    Task<IEnumerable<Provider>> GetAllWithDetailsAsync();
+    Task<Provider> CreateProviderAsync(Provider provider);
+    Task<Provider> UpdateProviderAsync(Provider provider);
+    Task<bool> DeleteProviderAsync(int providerId);
+    Task<bool> ExistsProviderAsync(int providerId);
+    
     Task<IEnumerable<Provider>> GetActiveProvidersAsync();
     Task<IEnumerable<Provider>> GetAvailableProvidersAsync();
     Task<IEnumerable<Provider>> GetProvidersByCategoryAsync(Guid categoryId);

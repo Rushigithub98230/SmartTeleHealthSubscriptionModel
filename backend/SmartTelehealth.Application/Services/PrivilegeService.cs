@@ -69,7 +69,7 @@ public class PrivilegeService : IPrivilegeService
     private async Task<SubscriptionPlanPrivilege?> GetPlanPrivilegeAsync(Guid subscriptionId, string privilegeName)
     {
         // Fetch the subscription to get the planId
-        var subscription = await _subscriptionRepo.GetByIdAsync(subscriptionId);
+        var subscription = await _subscriptionRepo.GetByIdWithDetailsAsync(subscriptionId);
         if (subscription == null) return null;
         
         // Check if subscription is active and allows privilege usage
@@ -267,7 +267,7 @@ public class PrivilegeService : IPrivilegeService
                     unlimitedUsage.LastUsedAt = DateTime.UtcNow;
                     unlimitedUsage.UpdatedBy = tokenModel.UserID;
                     unlimitedUsage.UpdatedDate = DateTime.UtcNow;
-                    await _usageRepo.UpdateAsync(unlimitedUsage);
+                    await _usageRepo.UpdateUsageAsync(unlimitedUsage);
                 }
 
                 // Add usage history
@@ -308,7 +308,7 @@ public class PrivilegeService : IPrivilegeService
                 limitedUsage.LastUsedAt = DateTime.UtcNow;
                 limitedUsage.UpdatedBy = tokenModel.UserID;
                 limitedUsage.UpdatedDate = DateTime.UtcNow;
-                await _usageRepo.UpdateAsync(limitedUsage);
+                await _usageRepo.UpdateUsageAsync(limitedUsage);
             }
 
             // Add usage history
@@ -920,6 +920,78 @@ public class PrivilegeService : IPrivilegeService
             {
                 data = new object(),
                 Message = "Error exporting usage data",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Updates time-based usage limits for a subscription plan privilege.
+    /// This method allows administrators to configure daily, weekly, and monthly usage limits
+    /// for specific privileges within subscription plans.
+    /// </summary>
+    /// <param name="updateDto">DTO containing time-based limit configuration details</param>
+    /// <param name="token">Token model for authentication and authorization</param>
+    /// <returns>JsonModel containing the update result</returns>
+    public async Task<JsonModel> UpdateTimeBasedLimitsAsync(UpdateTimeBasedLimitsDto updateDto, TokenModel token)
+    {
+        try
+        {
+            // Validate admin access
+            if (token.RoleID != (int)SmartTelehealth.Core.Enums.RoleId.Admin)
+            {
+                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
+
+            _logger.LogInformation("Updating time-based limits for privilege {PrivilegeId} by user {UserId}", 
+                updateDto.PrivilegeId, token.UserID);
+
+            // Find the plan privilege to update (repository returns IEnumerable, so get first)
+            var planPrivileges = await _planPrivilegeRepo.GetByPrivilegeIdAsync(updateDto.PrivilegeId);
+            var planPrivilege = planPrivileges.FirstOrDefault();
+            if (planPrivilege == null)
+            {
+                return new JsonModel { data = new object(), Message = "Plan privilege not found", StatusCode = 404 };
+            }
+
+            // Update the time-based limits
+            planPrivilege.DailyLimit = updateDto.DailyLimit;
+            planPrivilege.WeeklyLimit = updateDto.WeeklyLimit;
+            planPrivilege.MonthlyLimit = updateDto.MonthlyLimit;
+            planPrivilege.UsagePeriodId = updateDto.UsagePeriodId;
+            planPrivilege.DurationMonths = updateDto.DurationMonths;
+            planPrivilege.UpdatedBy = token.UserID;
+            planPrivilege.UpdatedDate = DateTime.UtcNow;
+
+            // Update in repository
+            await _planPrivilegeRepo.UpdatePlanPrivilegeAsync(planPrivilege);
+
+            _logger.LogInformation("Successfully updated time-based limits for privilege {PrivilegeId}", updateDto.PrivilegeId);
+
+            return new JsonModel
+            {
+                data = new
+                {
+                    PrivilegeId = updateDto.PrivilegeId,
+                    DailyLimit = updateDto.DailyLimit,
+                    WeeklyLimit = updateDto.WeeklyLimit,
+                    MonthlyLimit = updateDto.MonthlyLimit,
+                    UsagePeriodId = updateDto.UsagePeriodId,
+                    DurationMonths = updateDto.DurationMonths,
+                    UpdatedDate = DateTime.UtcNow
+                },
+                Message = "Time-based limits updated successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating time-based limits for privilege {PrivilegeId} by user {UserId}", 
+                updateDto.PrivilegeId, token.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Error updating time-based limits",
                 StatusCode = 500
             };
         }

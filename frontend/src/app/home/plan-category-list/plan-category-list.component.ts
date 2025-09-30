@@ -140,13 +140,23 @@ export class PlanCategoryListComponent implements OnInit, OnDestroy {
   }
 
   loadBillingCycles() {
-    // For now, use hardcoded billing cycles
-    // TODO: Implement getBillingCycles in SubscriptionService
-    this.billingCycles = [
-      { id: 'monthly', name: 'Monthly', durationInMonths: 1, isActive: true, displayOrder: 1 },
-      { id: 'quarterly', name: 'Quarterly', durationInMonths: 3, isActive: true, displayOrder: 2 },
-      { id: 'annual', name: 'Annual', durationInMonths: 12, isActive: true, displayOrder: 3 }
-    ];
+    const subscription = this.subscriptionService.getBillingCycles().subscribe({
+      next: (cycles: BillingCycle[]) => {
+        this.billingCycles = cycles || [];
+        console.log('Loaded billing cycles:', this.billingCycles);
+      },
+      error: (error) => {
+        console.error('Failed to load billing cycles:', error);
+        // Fallback to hardcoded cycles if API fails
+        this.billingCycles = [
+          { id: 'monthly', name: 'Monthly', durationInMonths: 1, isActive: true, displayOrder: 1 },
+          { id: 'quarterly', name: 'Quarterly', durationInMonths: 3, isActive: true, displayOrder: 2 },
+          { id: 'annual', name: 'Annual', durationInMonths: 12, isActive: true, displayOrder: 3 }
+        ];
+      }
+    });
+    
+    this.subscriptions.push(subscription);
   }
 
   // Removed convertBackendPlansToUI - using backend data directly

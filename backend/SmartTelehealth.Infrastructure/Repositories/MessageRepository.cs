@@ -123,9 +123,8 @@ public class MessageRepository : RepositoryBase<Message>, IMessageRepository
             if (message == null)
                 return false;
 
-            message.IsDeleted = true;
-            message.UpdatedDate = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+        message.IsDeleted = true;
+        await _context.SaveChangesAsync();
             return true;
         }
         return false;
@@ -273,8 +272,7 @@ public class MessageRepository : RepositoryBase<Message>, IMessageRepository
         {
             MessageId = messageId,
             UserId = userId,
-            ReadAt = DateTime.UtcNow,
-            CreatedDate = DateTime.UtcNow
+            ReadAt = DateTime.UtcNow
         };
 
         _context.MessageReadReceipts.Add(receipt);

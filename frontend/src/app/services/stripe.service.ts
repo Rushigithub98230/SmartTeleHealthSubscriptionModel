@@ -72,6 +72,13 @@ export class StripeService {
   }
 
   /**
+   * Create a Stripe customer
+   */
+  createCustomer(customerData: { email: string; name: string; phone?: string }): Observable<ApiResponse<StripeCustomer>> {
+    return this.commonService.postWithAuth<StripeCustomer>('/api/stripe/customers', customerData);
+  }
+
+  /**
    * Get Stripe products
    */
   getProducts(): Observable<ApiResponse<StripeProduct[]>> {

@@ -30,6 +30,7 @@ namespace SmartTelehealth.Application.Services;
 public class AutomatedBillingService : IAutomatedBillingService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
     private readonly IBillingService _billingService;
     private readonly IStripeService _stripeService;
     private readonly IPrivilegeUsageHistoryRepository _privilegeUsageHistoryRepository;
@@ -44,6 +45,7 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// Initializes a new instance of the AutomatedBillingService
     /// </summary>
     /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
+    /// <param name="subscriptionPlanRepository">Repository for subscription plan data access operations</param>
     /// <param name="billingService">Service for billing record management and processing</param>
     /// <param name="stripeService">Service for Stripe payment processing integration</param>
     /// <param name="privilegeUsageHistoryRepository">Repository for privilege usage history tracking</param>
@@ -55,6 +57,7 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// <param name="billingRepository">Repository for billing record data access operations</param>
     public AutomatedBillingService(
         ISubscriptionRepository subscriptionRepository,
+        ISubscriptionPlanRepository subscriptionPlanRepository,
         IBillingService billingService,
         IStripeService stripeService,
         IPrivilegeUsageHistoryRepository privilegeUsageHistoryRepository,
@@ -66,6 +69,7 @@ public class AutomatedBillingService : IAutomatedBillingService
         IBillingRepository billingRepository)
     {
         _subscriptionRepository = subscriptionRepository;
+        _subscriptionPlanRepository = subscriptionPlanRepository;
         _billingService = billingService;
         _stripeService = stripeService;
         _privilegeUsageHistoryRepository = privilegeUsageHistoryRepository;
@@ -180,7 +184,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             _logger.LogInformation("Processing plan change for subscription {SubscriptionId} to plan {NewPlanId} by user {UserId}", 
                 subscriptionId, newPlanId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for plan change by user {UserId}", 
@@ -193,9 +197,11 @@ public class AutomatedBillingService : IAutomatedBillingService
             
             // Process the plan change
             subscription.SubscriptionPlanId = newPlanId;
+            subscription.UpdatedBy = tokenModel.UserID;
+            
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             
             
@@ -217,7 +223,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             _logger.LogInformation("Processing manual billing for subscription {SubscriptionId} by user {UserId}", 
                 subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for manual billing by user {UserId}", 
@@ -246,7 +252,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             _logger.LogInformation("Processing payment for subscription {SubscriptionId} amount {Amount} by user {UserId}", 
                 subscriptionId, amount, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for payment processing by user {UserId}", 
@@ -273,13 +279,14 @@ public class AutomatedBillingService : IAutomatedBillingService
             {
                 // Update subscription status in transaction
                 subscription.Status = Subscription.SubscriptionStatuses.Active;
+                subscription.UpdatedBy = tokenModel.UserID;
                 subscription.UpdatedDate = DateTime.UtcNow;
                 
                 // Use transaction to ensure atomicity
                 await _unitOfWork.BeginTransactionAsync();
                 try
                 {
-                    await _subscriptionRepository.UpdateAsync(subscription);
+                    await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
                     await _unitOfWork.CommitTransactionAsync();
                 }
                 catch (Exception ex)
@@ -347,7 +354,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             _logger.LogInformation("Validating billing cycle for subscription {SubscriptionId} by user {UserId}", 
                 subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for billing cycle validation by user {UserId}", 
@@ -379,7 +386,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             _logger.LogInformation("Calculating next billing date for subscription {SubscriptionId} by user {UserId}", 
                 subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for next billing date calculation by user {UserId}", 
@@ -448,7 +455,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             _logger.LogInformation("Calculating prorated amount for subscription {SubscriptionId} effective {EffectiveDate} by user {UserId}", 
                 subscriptionId, effectiveDate, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for prorated amount calculation by user {UserId}", 
@@ -463,15 +470,15 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return subscription.CurrentPrice;
             }
 
-            // Calculate prorated amount based on billing cycle
+            // Calculate prorated amount based on billing cycle and context
             var proratedAmount = billingCycle.Name.ToLower() switch
             {
-                "monthly" => CalculateMonthlyProration(subscription, effectiveDate),
-                "quarterly" => CalculateQuarterlyProration(subscription, effectiveDate),
-                "yearly" => CalculateYearlyProration(subscription, effectiveDate),
-                "weekly" => CalculateWeeklyProration(subscription, effectiveDate),
-                "daily" => CalculateDailyProration(subscription, effectiveDate),
-                _ => CalculateMonthlyProration(subscription, effectiveDate)
+                "monthly" => CalculateMonthlyProration(subscription, effectiveDate, subscription.CurrentPrice),
+                "quarterly" => CalculateQuarterlyProration(subscription, effectiveDate, subscription.CurrentPrice),
+                "yearly" => CalculateYearlyProration(subscription, effectiveDate, subscription.CurrentPrice),
+                "weekly" => CalculateWeeklyProration(subscription, effectiveDate, subscription.CurrentPrice),
+                "daily" => CalculateDailyProration(subscription, effectiveDate, subscription.CurrentPrice),
+                _ => CalculateMonthlyProration(subscription, effectiveDate, subscription.CurrentPrice)
             };
 
             // Ensure minimum amount
@@ -490,58 +497,175 @@ public class AutomatedBillingService : IAutomatedBillingService
     }
 
     /// <summary>
-    /// Calculates monthly proration
+    /// Calculates monthly proration based on effective date and amount
+    /// Enhanced to handle edge cases like leap years, time zones, and partial days
     /// </summary>
-    private decimal CalculateMonthlyProration(Subscription subscription, DateTime effectiveDate)
+    private decimal CalculateMonthlyProration(Subscription subscription, DateTime effectiveDate, decimal amount)
     {
-        var daysInMonth = DateTime.DaysInMonth(effectiveDate.Year, effectiveDate.Month);
-        var daysRemaining = daysInMonth - effectiveDate.Day + 1;
-        return (subscription.CurrentPrice / daysInMonth) * daysRemaining;
+        try
+        {
+            // Ensure we're working with UTC time to avoid timezone issues
+            var utcEffectiveDate = effectiveDate.Kind == DateTimeKind.Utc ? effectiveDate : effectiveDate.ToUniversalTime();
+            
+            // Get the number of days in the month, accounting for leap years
+            var daysInMonth = DateTime.DaysInMonth(utcEffectiveDate.Year, utcEffectiveDate.Month);
+            
+            // Calculate days remaining from the effective date to the end of the month
+            // Include the effective date itself (hence +1)
+            var daysRemaining = daysInMonth - utcEffectiveDate.Day + 1;
+            
+            // Ensure we don't have negative days or more days than in the month
+            daysRemaining = Math.Max(0, Math.Min(daysRemaining, daysInMonth));
+            
+            // Calculate daily rate with proper rounding
+            var dailyRate = Math.Round(amount / daysInMonth, 4, MidpointRounding.AwayFromZero);
+            
+            // Calculate prorated amount with proper rounding
+            var proratedAmount = Math.Round(dailyRate * daysRemaining, 2, MidpointRounding.AwayFromZero);
+            
+            _logger.LogDebug("Monthly proration calculation: Amount={Amount}, DaysInMonth={DaysInMonth}, DaysRemaining={DaysRemaining}, DailyRate={DailyRate}, ProratedAmount={ProratedAmount}",
+                amount, daysInMonth, daysRemaining, dailyRate, proratedAmount);
+            
+            return proratedAmount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating monthly proration for subscription {SubscriptionId}", subscription.Id);
+            // Fallback to full amount if calculation fails
+            return amount;
+        }
     }
 
     /// <summary>
-    /// Calculates quarterly proration
+    /// Calculates quarterly proration based on effective date and amount
+    /// Enhanced to handle edge cases and proper rounding
     /// </summary>
-    private decimal CalculateQuarterlyProration(Subscription subscription, DateTime effectiveDate)
+    private decimal CalculateQuarterlyProration(Subscription subscription, DateTime effectiveDate, decimal amount)
     {
-        var quarterStart = new DateTime(effectiveDate.Year, ((effectiveDate.Month - 1) / 3) * 3 + 1, 1);
+        try
+        {
+            // Ensure we're working with UTC time
+            var utcEffectiveDate = effectiveDate.Kind == DateTimeKind.Utc ? effectiveDate : effectiveDate.ToUniversalTime();
+            
+            // Calculate quarter boundaries
+            var quarterStart = new DateTime(utcEffectiveDate.Year, ((utcEffectiveDate.Month - 1) / 3) * 3 + 1, 1);
         var quarterEnd = quarterStart.AddMonths(3).AddDays(-1);
+            
+            // Calculate total days in quarter
         var totalDaysInQuarter = (quarterEnd - quarterStart).Days + 1;
-        var daysRemaining = (quarterEnd - effectiveDate).Days + 1;
-        return (subscription.CurrentPrice / totalDaysInQuarter) * daysRemaining;
+            
+            // Calculate days remaining from effective date to end of quarter
+            var daysRemaining = (quarterEnd - utcEffectiveDate).Days + 1;
+            
+            // Ensure we don't have negative days or more days than in the quarter
+            daysRemaining = Math.Max(0, Math.Min(daysRemaining, totalDaysInQuarter));
+            
+            // Calculate daily rate with proper rounding
+            var dailyRate = Math.Round(amount / totalDaysInQuarter, 4, MidpointRounding.AwayFromZero);
+            
+            // Calculate prorated amount with proper rounding
+            var proratedAmount = Math.Round(dailyRate * daysRemaining, 2, MidpointRounding.AwayFromZero);
+            
+            _logger.LogDebug("Quarterly proration calculation: Amount={Amount}, TotalDaysInQuarter={TotalDaysInQuarter}, DaysRemaining={DaysRemaining}, DailyRate={DailyRate}, ProratedAmount={ProratedAmount}",
+                amount, totalDaysInQuarter, daysRemaining, dailyRate, proratedAmount);
+            
+            return proratedAmount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating quarterly proration for subscription {SubscriptionId}", subscription.Id);
+            return amount;
+        }
     }
 
     /// <summary>
-    /// Calculates yearly proration
+    /// Calculates yearly proration based on effective date and amount
+    /// Enhanced to handle leap years and proper rounding
     /// </summary>
-    private decimal CalculateYearlyProration(Subscription subscription, DateTime effectiveDate)
+    private decimal CalculateYearlyProration(Subscription subscription, DateTime effectiveDate, decimal amount)
     {
-        var yearStart = new DateTime(effectiveDate.Year, 1, 1);
-        var yearEnd = new DateTime(effectiveDate.Year, 12, 31);
+        try
+        {
+            // Ensure we're working with UTC time
+            var utcEffectiveDate = effectiveDate.Kind == DateTimeKind.Utc ? effectiveDate : effectiveDate.ToUniversalTime();
+            
+            // Calculate year boundaries
+            var yearStart = new DateTime(utcEffectiveDate.Year, 1, 1);
+            var yearEnd = new DateTime(utcEffectiveDate.Year, 12, 31);
+            
+            // Calculate total days in year (handles leap years automatically)
         var totalDaysInYear = (yearEnd - yearStart).Days + 1;
-        var daysRemaining = (yearEnd - effectiveDate).Days + 1;
-        return (subscription.CurrentPrice / totalDaysInYear) * daysRemaining;
+            
+            // Calculate days remaining from effective date to end of year
+            var daysRemaining = (yearEnd - utcEffectiveDate).Days + 1;
+            
+            // Ensure we don't have negative days or more days than in the year
+            daysRemaining = Math.Max(0, Math.Min(daysRemaining, totalDaysInYear));
+            
+            // Calculate daily rate with proper rounding
+            var dailyRate = Math.Round(amount / totalDaysInYear, 4, MidpointRounding.AwayFromZero);
+            
+            // Calculate prorated amount with proper rounding
+            var proratedAmount = Math.Round(dailyRate * daysRemaining, 2, MidpointRounding.AwayFromZero);
+            
+            _logger.LogDebug("Yearly proration calculation: Amount={Amount}, TotalDaysInYear={TotalDaysInYear}, DaysRemaining={DaysRemaining}, DailyRate={DailyRate}, ProratedAmount={ProratedAmount}",
+                amount, totalDaysInYear, daysRemaining, dailyRate, proratedAmount);
+            
+            return proratedAmount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating yearly proration for subscription {SubscriptionId}", subscription.Id);
+            return amount;
+        }
     }
 
     /// <summary>
-    /// Calculates weekly proration
+    /// Calculates weekly proration based on effective date and amount
+    /// Enhanced to handle proper rounding and edge cases
     /// </summary>
-    private decimal CalculateWeeklyProration(Subscription subscription, DateTime effectiveDate)
+    private decimal CalculateWeeklyProration(Subscription subscription, DateTime effectiveDate, decimal amount)
     {
-        var weekStart = effectiveDate.AddDays(-(int)effectiveDate.DayOfWeek);
+        try
+        {
+            // Ensure we're working with UTC time
+            var utcEffectiveDate = effectiveDate.Kind == DateTimeKind.Utc ? effectiveDate : effectiveDate.ToUniversalTime();
+            
+            // Calculate week boundaries (Sunday to Saturday)
+            var weekStart = utcEffectiveDate.AddDays(-(int)utcEffectiveDate.DayOfWeek);
         var weekEnd = weekStart.AddDays(6);
-        var totalDaysInWeek = 7;
-        var daysRemaining = (weekEnd - effectiveDate).Days + 1;
-        return (subscription.CurrentPrice / totalDaysInWeek) * daysRemaining;
+            
+            // Calculate days remaining from effective date to end of week
+            var daysRemaining = (weekEnd - utcEffectiveDate).Days + 1;
+            
+            // Ensure we don't have negative days or more days than in the week
+            daysRemaining = Math.Max(0, Math.Min(daysRemaining, 7));
+            
+            // Calculate daily rate with proper rounding
+            var dailyRate = Math.Round(amount / 7, 4, MidpointRounding.AwayFromZero);
+            
+            // Calculate prorated amount with proper rounding
+            var proratedAmount = Math.Round(dailyRate * daysRemaining, 2, MidpointRounding.AwayFromZero);
+            
+            _logger.LogDebug("Weekly proration calculation: Amount={Amount}, DaysRemaining={DaysRemaining}, DailyRate={DailyRate}, ProratedAmount={ProratedAmount}",
+                amount, daysRemaining, dailyRate, proratedAmount);
+            
+            return proratedAmount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating weekly proration for subscription {SubscriptionId}", subscription.Id);
+            return amount;
+        }
     }
 
     /// <summary>
-    /// Calculates daily proration
+    /// Calculates daily proration - for daily billing, return the full amount
     /// </summary>
-    private decimal CalculateDailyProration(Subscription subscription, DateTime effectiveDate)
+    private decimal CalculateDailyProration(Subscription subscription, DateTime effectiveDate, decimal amount)
     {
-        // For daily billing, return the full amount
-        return subscription.CurrentPrice;
+        // For daily billing, return the full amount as there's no proration
+        return amount;
     }
 
     // Helper methods
@@ -921,18 +1045,18 @@ public class AutomatedBillingService : IAutomatedBillingService
         const int baseDelayMs = 1000; // 1 second base delay
         
         for (int attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
         {
-            try
-            {
                 _logger.LogInformation("Processing payment attempt {Attempt}/{MaxRetries} for subscription {SubscriptionId} amount {Amount}", 
                     attempt, maxRetries, subscription.Id, amount);
 
                 var result = await _stripeService.ProcessPaymentAsync(
-                    subscription.PaymentMethodId,
-                    amount,
-                    subscription.Currency ?? "usd",
-                    tokenModel
-                );
+                subscription.PaymentMethodId,
+                amount,
+                subscription.Currency ?? "usd",
+                tokenModel
+            );
 
                 if (result.Status == "succeeded")
                 {
@@ -957,9 +1081,9 @@ public class AutomatedBillingService : IAutomatedBillingService
                     subscription.Id, attempt, result.Status, result.ErrorMessage);
                 
                 return result;
-            }
-            catch (Exception ex)
-            {
+        }
+        catch (Exception ex)
+        {
                 if (attempt < maxRetries && IsRetryableException(ex))
                 {
                     var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1); // Exponential backoff
@@ -973,12 +1097,12 @@ public class AutomatedBillingService : IAutomatedBillingService
                 _logger.LogError(ex, "Payment processing failed permanently for subscription {SubscriptionId} after {Attempt} attempts", 
                     subscription.Id, attempt);
                 
-                return new PaymentResultDto
-                {
-                    Status = "failed",
-                    ErrorMessage = ex.Message
-                };
-            }
+            return new PaymentResultDto
+            {
+                Status = "failed",
+                ErrorMessage = ex.Message
+            };
+        }
         }
 
         // This should never be reached, but just in case
@@ -1041,9 +1165,10 @@ public class AutomatedBillingService : IAutomatedBillingService
                 subscription.FailedPaymentAttempts = 0;
                 subscription.LastPaymentError = null;
                 subscription.NextBillingDate = CalculateNextBillingDate(subscription);
+                subscription.UpdatedBy = tokenModel.UserID;
                 subscription.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionRepository.UpdateAsync(subscription);
+                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
                 
                 _logger.LogInformation("Updated subscription {SubscriptionId} after successful billing", subscription.Id);
             }
@@ -1054,9 +1179,10 @@ public class AutomatedBillingService : IAutomatedBillingService
                 subscription.FailedPaymentAttempts++;
                 subscription.LastPaymentFailedDate = DateTime.UtcNow;
                 subscription.LastPaymentError = paymentResult.ErrorMessage;
+                subscription.UpdatedBy = tokenModel.UserID;
                 subscription.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionRepository.UpdateAsync(subscription);
+                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
                 
                 _logger.LogWarning("Updated subscription {SubscriptionId} after failed billing", subscription.Id);
             }
@@ -1080,6 +1206,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             subscription.FailedPaymentAttempts = 0;
             subscription.LastPaymentError = null;
             subscription.NextBillingDate = CalculateNextBillingDate(subscription);
+            subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
             // Extend subscription end date
@@ -1088,7 +1215,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 subscription.EndDate = subscription.EndDate.Value.AddMonths(1); // Assuming monthly billing
             }
             
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             _logger.LogInformation("Updated subscription {SubscriptionId} for renewal", subscription.Id);
         }
@@ -1110,9 +1237,10 @@ public class AutomatedBillingService : IAutomatedBillingService
             subscription.FailedPaymentAttempts++;
             subscription.LastPaymentFailedDate = DateTime.UtcNow;
             subscription.LastPaymentError = paymentResult.ErrorMessage;
+            subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             _logger.LogWarning("Handled renewal failure for subscription {SubscriptionId}", subscription.Id);
         }
@@ -1135,17 +1263,19 @@ public class AutomatedBillingService : IAutomatedBillingService
             subscription.FailedPaymentAttempts = 0;
             subscription.LastPaymentError = null;
             subscription.NextBillingDate = CalculateNextBillingDate(subscription);
+            subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
             // Update the failed billing record
             failedRecord.Status = BillingRecord.BillingStatus.Paid;
             failedRecord.PaidAt = DateTime.UtcNow;
             failedRecord.ProcessedAt = DateTime.UtcNow;
+            failedRecord.UpdatedBy = tokenModel.UserID;
             failedRecord.UpdatedDate = DateTime.UtcNow;
             failedRecord.StripePaymentIntentId = paymentResult.PaymentIntentId;
             failedRecord.FailureReason = null;
             
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             _logger.LogInformation("Updated subscription {SubscriptionId} after successful retry", subscription.Id);
         }
@@ -1166,6 +1296,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             subscription.FailedPaymentAttempts++;
             subscription.LastPaymentFailedDate = DateTime.UtcNow;
             subscription.LastPaymentError = paymentResult.ErrorMessage;
+            subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
             // If max retries reached, suspend subscription
@@ -1175,7 +1306,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 _logger.LogWarning("Suspended subscription {SubscriptionId} after max retry attempts", subscription.Id);
             }
             
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             _logger.LogWarning("Handled retry failure for subscription {SubscriptionId}", subscription.Id);
         }
@@ -1473,13 +1604,22 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return null;
             }
 
+            // Get subscription plan to get CurrencyId
+            var subscriptionPlan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(subscription.SubscriptionPlanId);
+            if (subscriptionPlan == null)
+            {
+                _logger.LogError("Subscription plan {SubscriptionPlanId} not found for subscription {SubscriptionId}", 
+                    subscription.SubscriptionPlanId, subscription.Id);
+                return null;
+            }
+
             // Create billing record for overage charges
             var billingRecord = new BillingRecord
             {
                 Id = Guid.NewGuid(),
                 UserId = subscription.UserId,
                 SubscriptionId = subscription.Id,
-                CurrencyId = subscription.CurrencyId,
+                CurrencyId = subscriptionPlan.CurrencyId,
                 Status = BillingRecord.BillingStatus.Pending,
                 Type = BillingRecord.BillingType.Subscription,
                 Amount = overageAmount,
@@ -1507,7 +1647,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 {
                     var billingRecordDto = new BillingRecordDto
                     {
-                        Id = billingRecord.Id,
+                        Id = billingRecord.Id.ToString(),
                         Amount = overageAmount,
                         DueDate = billingRecord.DueDate,
                         Description = billingRecord.Description
@@ -1563,7 +1703,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             // Process payment for overage charges
             var paymentResult = await ProcessPaymentThroughStripeAsync(subscription, overageAmount, tokenModel);
             
-            if (paymentResult.IsSuccess)
+            if (paymentResult.Success)
             {
                 _logger.LogInformation("Successfully processed overage charges of {Amount} for subscription {SubscriptionId}", 
                     overageAmount, subscription.Id);
@@ -1594,7 +1734,7 @@ public class AutomatedBillingService : IAutomatedBillingService
         try
         {
             // Get subscription details
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for usage calculation", subscriptionId);

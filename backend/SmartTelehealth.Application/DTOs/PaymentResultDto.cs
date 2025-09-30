@@ -25,4 +25,15 @@ public class CustomerDto
     public bool IsActive { get; set; }
     public string? DefaultPaymentMethodId { get; set; }
     public Dictionary<string, object>? Metadata { get; set; }
+}
+
+public class PaymentIntentStatusDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public long Amount { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public DateTime Created { get; set; }
+    public string? LastPaymentError { get; set; }
+    public Dictionary<string, string>? Metadata { get; set; }
 } 

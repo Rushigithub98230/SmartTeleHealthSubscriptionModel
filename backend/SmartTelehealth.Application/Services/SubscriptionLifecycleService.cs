@@ -22,20 +22,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
 {
     #region Constants
     
-    /// <summary>
-    /// Subscription status constants to avoid hard-coded strings
-    /// </summary>
-    public static class SubscriptionStatus
-    {
-        public const string Pending = "Pending";
-        public const string Active = "Active";
-        public const string Paused = "Paused";
-        public const string Suspended = "Suspended";
-        public const string Cancelled = "Cancelled";
-        public const string Expired = "Expired";
-        public const string PaymentFailed = "PaymentFailed";
-        public const string TrialActive = "TrialActive";
-    }
+    // Note: Using Subscription.SubscriptionStatuses from Core.Entities for consistency
+    // This ensures all status constants are centralized and consistent across the system
     
     #endregion
 
@@ -207,11 +195,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 entity.TrialStartDate = DateTime.UtcNow;
                 entity.TrialEndDate = DateTime.UtcNow.AddDays(plan.TrialDurationInDays);
                 entity.TrialDurationInDays = plan.TrialDurationInDays;
-                entity.Status = SubscriptionStatus.TrialActive;
+                entity.Status = Subscription.SubscriptionStatuses.TrialActive;
             }
             else
             {
-                entity.Status = SubscriptionStatus.Active;
+                entity.Status = Subscription.SubscriptionStatuses.Active;
             }
             
             entity.StartDate = DateTime.UtcNow;
@@ -231,7 +219,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             Subscription created;
             try
             {
-                created = await _subscriptionRepository.CreateAsync(entity);
+                created = await _subscriptionRepository.CreateSubscriptionAsync(entity);
                 
                 // Add status history
                 await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
@@ -250,6 +238,9 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 await _unitOfWork.CommitTransactionAsync();
                 
                 _logger.LogInformation("Successfully created subscription {SubscriptionId} with status history in transaction", created.Id);
+                
+                // Create initial billing record for the subscription
+                await CreateInitialBillingRecordAsync(created, plan, tokenModel);
             }
             catch (Exception ex)
             {
@@ -322,7 +313,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
             
@@ -386,7 +377,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             Subscription updated;
             try
             {
-                updated = await _subscriptionRepository.UpdateAsync(entity);
+                updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
                 
                 // Add status history
                 await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
@@ -401,6 +392,9 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 await _unitOfWork.CommitTransactionAsync();
                 
                 _logger.LogInformation("Successfully cancelled subscription {SubscriptionId} with status history in transaction", updated.Id);
+                
+                // Process any pending refunds for the cancelled subscription
+                await ProcessCancellationRefundsAsync(updated, tokenModel);
             }
             catch (Exception ex)
             {
@@ -479,7 +473,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
             
@@ -541,7 +535,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             Subscription updated;
             try
             {
-                updated = await _subscriptionRepository.UpdateAsync(entity);
+                updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
                 
                 // Add status history
                 await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
@@ -598,7 +592,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
             
@@ -663,7 +657,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             Subscription updated;
             try
             {
-                updated = await _subscriptionRepository.UpdateAsync(entity);
+                updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
                 
                 // Add status history
                 await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
@@ -719,7 +713,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
             
@@ -786,7 +780,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
             
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
+            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
             
             // Add status history
             await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
@@ -828,7 +822,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             // Retrieve subscription entity from repository
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
             
@@ -891,7 +885,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
             
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
+            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription upgraded successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -916,7 +910,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             // Retrieve subscription entity from repository
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -933,7 +927,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            var updatedSubscription = await _subscriptionRepository.UpdateAsync(subscription);
+            var updatedSubscription = await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updatedSubscription), Message = "Subscription updated successfully", StatusCode = 200 };
         }
@@ -952,13 +946,13 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         int cancelled = 0;
         foreach (var id in subscriptionIds)
         {
-            var sub = await _subscriptionRepository.GetByIdAsync(Guid.Parse(id));
+            var sub = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(id));
             if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active)
             {
                 sub.Status = Subscription.SubscriptionStatuses.Cancelled;
                 sub.CancellationReason = reason ?? "Bulk admin cancel";
                 sub.CancelledDate = DateTime.UtcNow;
-                await _subscriptionRepository.UpdateAsync(sub);
+                await _subscriptionRepository.UpdateSubscriptionAsync(sub);
                 var userResult = await _userService.GetUserByIdAsync(sub.UserId, tokenModel);
                 if (userResult.StatusCode == 200 && userResult.data != null)
                 {
@@ -980,13 +974,13 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         int upgraded = 0;
         foreach (var id in subscriptionIds)
         {
-            var sub = await _subscriptionRepository.GetByIdAsync(Guid.Parse(id));
+            var sub = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(id));
             if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active && sub.SubscriptionPlanId != Guid.Parse(newPlanId))
             {
                 sub.SubscriptionPlanId = Guid.Parse(newPlanId);
                 sub.UpdatedBy = tokenModel.UserID;
                 sub.UpdatedDate = DateTime.UtcNow;
-                await _subscriptionRepository.UpdateAsync(sub);
+                await _subscriptionRepository.UpdateSubscriptionAsync(sub);
                 var userResult = await _userService.GetUserByIdAsync(sub.UserId, tokenModel);
                 if (userResult.StatusCode == 200 && userResult.data != null)
                 {
@@ -1099,7 +1093,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -1109,7 +1103,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
 
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
+            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
 
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = $"Subscription extended by {additionalDays} days", StatusCode = 200 };
         }
@@ -1125,7 +1119,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     /// </summary>
     public async Task<JsonModel> AutoRenewSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
     {
-        var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+        var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
         if (entity == null)
             return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
         if (entity.Status != Subscription.SubscriptionStatuses.Active)
@@ -1193,7 +1187,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ChangedAt = DateTime.UtcNow
             });
             
-            await _subscriptionRepository.UpdateAsync(entity);
+            await _subscriptionRepository.UpdateSubscriptionAsync(entity);
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(entity), Message = "Subscription auto-renewed successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -1208,7 +1202,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     /// </summary>
     public async Task<JsonModel> ProrateUpgradeAsync(string subscriptionId, string newPlanId, TokenModel tokenModel)
     {
-        var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+        var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
         if (entity == null)
             return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
         if (entity.SubscriptionPlanId == Guid.Parse(newPlanId))
@@ -1260,7 +1254,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         entity.UpdatedBy = tokenModel.UserID;
         entity.UpdatedDate = DateTime.UtcNow;
         
-        var updated = await _subscriptionRepository.UpdateAsync(entity);
+        var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
         
         return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription prorated upgrade completed successfully", StatusCode = 200 };
     }
@@ -1278,7 +1272,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
             }
 
-            var entity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
@@ -1293,7 +1287,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
 
-            var updated = await _subscriptionRepository.UpdateAsync(entity);
+            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
 
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Billing cycle changed successfully", StatusCode = 200 };
         }
@@ -1312,14 +1306,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Activating subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Active, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Active, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Active for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1327,7 +1321,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Active;
+            subscription.Status = Subscription.SubscriptionStatuses.Active;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
@@ -1336,7 +1330,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Active,
+                ToStatus = Subscription.SubscriptionStatuses.Active,
                 Reason = reason ?? "Subscription activated",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1346,7 +1340,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             // Send activation notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1373,14 +1367,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Pausing subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Paused, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Paused, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Paused for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1388,7 +1382,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Paused;
+            subscription.Status = Subscription.SubscriptionStatuses.Paused;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
@@ -1397,7 +1391,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Paused,
+                ToStatus = Subscription.SubscriptionStatuses.Paused,
                 Reason = reason ?? "Subscription paused",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1407,7 +1401,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             
             
@@ -1427,14 +1421,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Resuming subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Active, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Active, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Active for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1442,7 +1436,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Active;
+            subscription.Status = Subscription.SubscriptionStatuses.Active;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
@@ -1451,7 +1445,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Active,
+                ToStatus = Subscription.SubscriptionStatuses.Active,
                 Reason = reason ?? "Subscription resumed",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1461,7 +1455,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             
             
@@ -1481,14 +1475,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Cancelling subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Cancelled, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Cancelled, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Cancelled for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1496,7 +1490,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Cancelled;
+            subscription.Status = Subscription.SubscriptionStatuses.Cancelled;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.CancelledAt = DateTime.UtcNow;
@@ -1506,7 +1500,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Cancelled,
+                ToStatus = Subscription.SubscriptionStatuses.Cancelled,
                 Reason = reason ?? "Subscription cancelled",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1516,7 +1510,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             
             _logger.LogInformation("Successfully cancelled subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
@@ -1535,14 +1529,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Suspending subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Suspended, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Suspended, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Suspended for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1550,7 +1544,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Suspended;
+            subscription.Status = Subscription.SubscriptionStatuses.Suspended;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
@@ -1559,7 +1553,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Suspended,
+                ToStatus = Subscription.SubscriptionStatuses.Suspended,
                 Reason = reason ?? "Subscription suspended",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1569,7 +1563,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             // Send suspension notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1596,14 +1590,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Renewing subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Active, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Active, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Active for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1611,7 +1605,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Active;
+            subscription.Status = Subscription.SubscriptionStatuses.Active;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.RenewedAt = DateTime.UtcNow;
@@ -1621,7 +1615,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Active,
+                ToStatus = Subscription.SubscriptionStatuses.Active,
                 Reason = reason ?? "Subscription renewed",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1631,7 +1625,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             
             
@@ -1651,14 +1645,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Expiring subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Expired, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Expired, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Expired for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1666,7 +1660,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Expired;
+            subscription.Status = Subscription.SubscriptionStatuses.Expired;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.ExpiredAt = DateTime.UtcNow;
@@ -1676,7 +1670,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Expired,
+                ToStatus = Subscription.SubscriptionStatuses.Expired,
                 Reason = reason ?? "Subscription expired",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1686,7 +1680,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             // Send expiration notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1713,14 +1707,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Marking payment failed for subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.PaymentFailed, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.PaymentFailed, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to PaymentFailed for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1728,7 +1722,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.PaymentFailed;
+            subscription.Status = Subscription.SubscriptionStatuses.PaymentFailed;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
@@ -1737,7 +1731,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.PaymentFailed,
+                ToStatus = Subscription.SubscriptionStatuses.PaymentFailed,
                 Reason = reason ?? "Payment failed",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1747,7 +1741,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             // Send payment failed notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1779,14 +1773,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Marking payment succeeded for subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
                 return false;
             }
 
-            if (!await ValidateStatusTransitionAsync(subscription.Status, SubscriptionStatus.Active, tokenModel))
+            if (!await ValidateStatusTransitionAsync(subscription.Status, Subscription.SubscriptionStatuses.Active, tokenModel))
             {
                 _logger.LogWarning("Invalid status transition from {CurrentStatus} to Active for subscription {SubscriptionId} by user {UserId}", 
                     subscription.Status, subscriptionId, tokenModel?.UserID ?? 0);
@@ -1794,7 +1788,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
 
             var oldStatus = subscription.Status;
-            subscription.Status = SubscriptionStatus.Active;
+            subscription.Status = Subscription.SubscriptionStatuses.Active;
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
@@ -1803,7 +1797,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 SubscriptionId = subscriptionId,
                 FromStatus = oldStatus,
-                ToStatus = SubscriptionStatus.Active,
+                ToStatus = Subscription.SubscriptionStatuses.Active,
                 Reason = reason ?? "Payment succeeded",
                 ChangedAt = DateTime.UtcNow,
                 ChangedByUserId = tokenModel?.UserID,
@@ -1813,7 +1807,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             // Send payment success notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1846,7 +1840,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             _logger.LogInformation("Updating subscription {SubscriptionId} status to {NewStatus} by user {UserId}", 
                 subscriptionId, newStatus, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
@@ -1880,7 +1874,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
             
             _logger.LogInformation("Successfully updated subscription {SubscriptionId} status to {NewStatus} by user {UserId}", 
@@ -1892,6 +1886,53 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             _logger.LogError(ex, "Error updating subscription {SubscriptionId} status to {NewStatus} by user {UserId}", 
                 subscriptionId, newStatus, tokenModel?.UserID ?? 0);
             return false;
+        }
+    }
+
+    public async Task<JsonModel> UpdateSubscriptionStatusAsync(string subscriptionId, string newStatus, TokenModel tokenModel)
+    {
+        try
+        {
+            if (!Guid.TryParse(subscriptionId, out var subscriptionGuid))
+            {
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = "Invalid subscription ID format", 
+                    StatusCode = 400 
+                };
+            }
+
+            var success = await UpdateSubscriptionStatusAsync(subscriptionGuid, newStatus, null, tokenModel);
+            
+            if (success)
+            {
+                return new JsonModel 
+                { 
+                    data = new { subscriptionId, newStatus }, 
+                    Message = "Subscription status updated successfully", 
+                    StatusCode = 200 
+                };
+            }
+            else
+            {
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = "Failed to update subscription status", 
+                    StatusCode = 400 
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating subscription {SubscriptionId} status to {NewStatus}", subscriptionId, newStatus);
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"Error updating subscription status: {ex.Message}", 
+                StatusCode = 500 
+            };
         }
     }
 
@@ -1920,14 +1961,15 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // Define valid status transitions
             var validTransitions = new Dictionary<string, List<string>>
             {
-                [SubscriptionStatus.Pending] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.Active] = new List<string> { SubscriptionStatus.Paused, SubscriptionStatus.Suspended, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired, SubscriptionStatus.PaymentFailed },
-                [SubscriptionStatus.Paused] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.Suspended] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.PaymentFailed] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.Expired] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled },
-                [SubscriptionStatus.Cancelled] = new List<string> { SubscriptionStatus.Active }, // Reactivation allowed
-                [SubscriptionStatus.TrialActive] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired }
+                [Subscription.SubscriptionStatuses.Pending] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.Active] = new List<string> { Subscription.SubscriptionStatuses.Paused, Subscription.SubscriptionStatuses.Suspended, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired, Subscription.SubscriptionStatuses.PaymentFailed },
+                [Subscription.SubscriptionStatuses.Paused] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.Suspended] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.PaymentFailed] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.Expired] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled },
+                [Subscription.SubscriptionStatuses.Cancelled] = new List<string> { Subscription.SubscriptionStatuses.Active }, // Reactivation allowed
+                [Subscription.SubscriptionStatuses.TrialActive] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired, Subscription.SubscriptionStatuses.TrialExpired },
+                [Subscription.SubscriptionStatuses.TrialExpired] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled }
             };
 
             if (validTransitions.ContainsKey(currentStatus) && validTransitions[currentStatus].Contains(newStatus))
@@ -1956,14 +1998,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // Define valid next statuses for each current status
             var nextStatuses = new Dictionary<string, List<string>>
             {
-                [SubscriptionStatus.Pending] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.Active] = new List<string> { SubscriptionStatus.Paused, SubscriptionStatus.Suspended, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired, SubscriptionStatus.PaymentFailed },
-                [SubscriptionStatus.Paused] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.Suspended] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.PaymentFailed] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired },
-                [SubscriptionStatus.Expired] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled },
-                [SubscriptionStatus.Cancelled] = new List<string> { SubscriptionStatus.Active },
-                [SubscriptionStatus.TrialActive] = new List<string> { SubscriptionStatus.Active, SubscriptionStatus.Cancelled, SubscriptionStatus.Expired }
+                [Subscription.SubscriptionStatuses.Pending] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.Active] = new List<string> { Subscription.SubscriptionStatuses.Paused, Subscription.SubscriptionStatuses.Suspended, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired, Subscription.SubscriptionStatuses.PaymentFailed },
+                [Subscription.SubscriptionStatuses.Paused] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.Suspended] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.PaymentFailed] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
+                [Subscription.SubscriptionStatuses.Expired] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled },
+                [Subscription.SubscriptionStatuses.Cancelled] = new List<string> { Subscription.SubscriptionStatuses.Active },
+                [Subscription.SubscriptionStatuses.TrialActive] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired }
             };
 
             if (nextStatuses.ContainsKey(currentStatus))
@@ -1993,7 +2035,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel
                 {
@@ -2037,7 +2079,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
 
            
 
@@ -2200,7 +2242,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel
                 {
@@ -2245,7 +2287,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel
                 {
@@ -2345,7 +2387,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel
                 {
@@ -2428,7 +2470,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel
                 {
@@ -2471,7 +2513,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 CreatedDate = DateTime.UtcNow
             });
 
-            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
 
             // Log audit trail
            
@@ -2577,7 +2619,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
                 return new JsonModel
                 {
@@ -2676,7 +2718,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             _logger.LogInformation("Processing subscription expiration for {SubscriptionId} by user {UserId}", 
                 subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for expiration processing by user {UserId}", 
@@ -2713,7 +2755,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             _logger.LogInformation("Processing subscription suspension for {SubscriptionId} by user {UserId}", 
                 subscriptionId, tokenModel?.UserID ?? 0);
             
-            var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionId);
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} not found for suspension processing by user {UserId}", 
@@ -2761,7 +2803,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscriptionId));
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             return subscription != null && subscription.UserId == userId;
         }
         catch
@@ -2779,14 +2821,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             var validActions = new Dictionary<string, List<string>>
             {
-                [SubscriptionStatus.Pending] = new List<string> { "cancel" },
-                [SubscriptionStatus.Active] = new List<string> { "cancel", "pause", "extend" },
-                [SubscriptionStatus.Paused] = new List<string> { "cancel", "resume", "extend" },
-                [SubscriptionStatus.Suspended] = new List<string> { "cancel", "resume", "extend" },
-                [SubscriptionStatus.PaymentFailed] = new List<string> { "cancel", "extend" },
-                [SubscriptionStatus.Expired] = new List<string> { "cancel" },
-                [SubscriptionStatus.Cancelled] = new List<string> { }, // No actions allowed on cancelled subscriptions
-                [SubscriptionStatus.TrialActive] = new List<string> { "cancel", "extend" }
+                [Subscription.SubscriptionStatuses.Pending] = new List<string> { "cancel" },
+                [Subscription.SubscriptionStatuses.Active] = new List<string> { "cancel", "pause", "extend" },
+                [Subscription.SubscriptionStatuses.Paused] = new List<string> { "cancel", "resume", "extend" },
+                [Subscription.SubscriptionStatuses.Suspended] = new List<string> { "cancel", "resume", "extend" },
+                [Subscription.SubscriptionStatuses.PaymentFailed] = new List<string> { "cancel", "extend" },
+                [Subscription.SubscriptionStatuses.Expired] = new List<string> { "cancel" },
+                [Subscription.SubscriptionStatuses.Cancelled] = new List<string> { }, // No actions allowed on cancelled subscriptions
+                [Subscription.SubscriptionStatuses.TrialActive] = new List<string> { "cancel", "extend" }
             };
 
             if (validActions.ContainsKey(currentStatus))
@@ -2933,6 +2975,105 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogError(ex, "Error calculating end date for billing cycle {BillingCycleId}", billingCycleId);
             return startDate.AddMonths(1); // Default fallback
+        }
+    }
+
+    /// <summary>
+    /// Creates an initial billing record for a newly created subscription
+    /// </summary>
+    /// <param name="subscription">The subscription entity</param>
+    /// <param name="plan">The subscription plan</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>Task representing the asynchronous operation</returns>
+    private async Task CreateInitialBillingRecordAsync(Subscription subscription, SubscriptionPlan plan, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Creating initial billing record for subscription {SubscriptionId}", subscription.Id);
+
+            var billingRecordDto = new CreateBillingRecordDto
+            {
+                UserId = subscription.UserId,
+                SubscriptionId = subscription.Id.ToString(),
+                Amount = plan.Price,
+                CurrencyId = null, // Currency is handled by the subscription
+                PaymentMethod = "stripe",
+                Status = BillingRecord.BillingStatus.Pending.ToString(),
+                Description = $"Initial billing for {plan.Name} subscription",
+                BillingDate = DateTime.UtcNow,
+                DueDate = subscription.NextBillingDate,
+                Type = BillingRecord.BillingType.Subscription.ToString()
+            };
+
+            var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, tokenModel);
+            
+            if (billingResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Successfully created initial billing record for subscription {SubscriptionId}", subscription.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to create initial billing record for subscription {SubscriptionId}: {Error}", 
+                    subscription.Id, billingResult.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating initial billing record for subscription {SubscriptionId}", subscription.Id);
+            // Don't throw - this is not critical for subscription creation
+        }
+    }
+
+    /// <summary>
+    /// Processes any pending refunds for a cancelled subscription
+    /// </summary>
+    /// <param name="subscription">The cancelled subscription</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>Task representing the asynchronous operation</returns>
+    private async Task ProcessCancellationRefundsAsync(Subscription subscription, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Processing cancellation refunds for subscription {SubscriptionId}", subscription.Id);
+
+            // Get pending billing records for this subscription
+            var billingHistoryResult = await _billingService.GetSubscriptionBillingHistoryAsync(subscription.Id, tokenModel);
+            
+            if (billingHistoryResult.StatusCode == 200 && billingHistoryResult.data != null)
+            {
+                var billingRecords = (IEnumerable<BillingRecord>)billingHistoryResult.data;
+                var pendingRecords = billingRecords.Where(b => b.Status == BillingRecord.BillingStatus.Pending).ToList();
+
+                foreach (var billingRecord in pendingRecords)
+                {
+                    try
+                    {
+                        // Process refund for pending billing record
+                        var refundResult = await _billingService.ProcessRefundAsync(billingRecord.Id, billingRecord.TotalAmount, tokenModel);
+                        
+                        if (refundResult.StatusCode == 200)
+                        {
+                            _logger.LogInformation("Successfully processed refund for billing record {BillingRecordId} during subscription cancellation", 
+                                billingRecord.Id);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Failed to process refund for billing record {BillingRecordId} during subscription cancellation: {Error}", 
+                                billingRecord.Id, refundResult.Message);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error processing refund for billing record {BillingRecordId} during subscription cancellation", 
+                            billingRecord.Id);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing cancellation refunds for subscription {SubscriptionId}", subscription.Id);
+            // Don't throw - this is not critical for subscription cancellation
         }
     }
 

@@ -356,3 +356,4 @@
 ```
 
 This comprehensive architecture shows how all components work together to provide a robust, scalable, and secure subscription management system for the SmartTeleHealth platform.
+

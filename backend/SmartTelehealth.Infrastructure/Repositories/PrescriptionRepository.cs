@@ -63,9 +63,6 @@ namespace SmartTelehealth.Infrastructure.Repositories
         
         public async Task<Prescription> CreateAsync(Prescription prescription)
         {
-            prescription.CreatedDate = DateTime.UtcNow;
-            prescription.UpdatedDate = DateTime.UtcNow;
-            
             if (string.IsNullOrEmpty(prescription.Status))
                 prescription.Status = "pending";
                 
@@ -76,7 +73,6 @@ namespace SmartTelehealth.Infrastructure.Repositories
         
         public async Task<Prescription> UpdateAsync(Prescription prescription)
         {
-            prescription.UpdatedDate = DateTime.UtcNow;
             _context.Prescriptions.Update(prescription);
             await _context.SaveChangesAsync();
             return prescription;
@@ -88,7 +84,6 @@ namespace SmartTelehealth.Infrastructure.Repositories
             if (prescription == null) return false;
 
             prescription.IsDeleted = true;
-            prescription.UpdatedDate = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return true;
         }

@@ -17,11 +17,8 @@ public class ProviderRepository : RepositoryBase<Provider>, IProviderRepository
     /// <summary>
     /// Retrieves a provider by its unique identifier with related entities
     /// </summary>
-    public override async Task<Provider?> GetByIdAsync(object id)
+    public async Task<Provider?> GetByIdWithDetailsAsync(int providerId)
     {
-        if (id is not int providerId)
-            return null;
-
         return await _context.Providers
             .Include(p => p.ProviderCategories.Where(pc => pc.IsAvailable))
                 .ThenInclude(pc => pc.Category)
@@ -31,7 +28,7 @@ public class ProviderRepository : RepositoryBase<Provider>, IProviderRepository
     /// <summary>
     /// Retrieves all providers with related entities
     /// </summary>
-    public override async Task<IEnumerable<Provider>> GetAllAsync()
+    public async Task<IEnumerable<Provider>> GetAllWithDetailsAsync()
     {
         return await _context.Providers
             .Include(p => p.ProviderCategories.Where(pc => pc.IsAvailable))
@@ -45,34 +42,29 @@ public class ProviderRepository : RepositoryBase<Provider>, IProviderRepository
     /// <summary>
     /// Creates a new provider
     /// </summary>
-    public override async Task<Provider> CreateAsync(Provider provider)
+    public async Task<Provider> CreateProviderAsync(Provider provider)
     {
-        provider.CreatedDate = DateTime.UtcNow;
         return await base.CreateAsync(provider);
     }
 
     /// <summary>
     /// Updates an existing provider
     /// </summary>
-    public override async Task<Provider> UpdateAsync(Provider provider)
+    public async Task<Provider> UpdateProviderAsync(Provider provider)
     {
-        provider.UpdatedDate = DateTime.UtcNow;
         return await base.UpdateAsync(provider);
     }
 
     /// <summary>
     /// Deletes a provider by its unique identifier (soft delete)
     /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
+    public async Task<bool> DeleteProviderAsync(int providerId)
     {
-        if (id is not int providerId)
-            return false;
-
         var provider = await _context.Providers.FindAsync(providerId);
         if (provider == null) return false;
 
+        provider.IsActive = false;
         provider.IsDeleted = true;
-        provider.UpdatedDate = DateTime.UtcNow;
         Update(provider);
         await SaveChangesAsync();
         return true;
@@ -81,11 +73,8 @@ public class ProviderRepository : RepositoryBase<Provider>, IProviderRepository
     /// <summary>
     /// Checks if a provider exists
     /// </summary>
-    public override async Task<bool> ExistsAsync(object id)
+    public async Task<bool> ExistsProviderAsync(int providerId)
     {
-        if (id is not int providerId)
-            return false;
-
         return await _context.Providers
             .AnyAsync(p => p.Id == providerId && !p.IsDeleted);
     }

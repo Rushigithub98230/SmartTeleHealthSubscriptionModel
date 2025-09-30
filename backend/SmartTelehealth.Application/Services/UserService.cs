@@ -151,7 +151,7 @@ public class UserService : IUserService
         {
             _logger.LogInformation("Getting user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
             
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
@@ -173,7 +173,7 @@ public class UserService : IUserService
         {
             _logger.LogInformation("Updating user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
             
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
@@ -201,7 +201,7 @@ public class UserService : IUserService
 
             user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
-            await _userRepository.UpdateAsync(user);
+            await _userRepository.UpdateUserAsync(user);
 
             var userDto = _mapper.Map<UserDto>(user);
             
@@ -224,7 +224,7 @@ public class UserService : IUserService
             _logger.LogInformation("Uploading profile picture for user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
             
             // Validate user exists
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
@@ -323,7 +323,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
@@ -334,7 +334,7 @@ public class UserService : IUserService
             user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
             
-            await _userRepository.UpdateAsync(user);
+            await _userRepository.UpdateUserAsync(user);
             return new JsonModel { data = true, Message = "User deleted successfully", StatusCode = 200 };
         }
         catch (Exception ex)
@@ -405,7 +405,7 @@ public class UserService : IUserService
             user.ResetTokenExpires = DateTime.UtcNow.AddHours(24);
             user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
-            await _userRepository.UpdateAsync(user);
+            await _userRepository.UpdateUserAsync(user);
 
             // Send reset email
             await _notificationService.SendPasswordResetEmailAsync(email, resetToken, tokenModel);
@@ -459,7 +459,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
@@ -485,7 +485,7 @@ public class UserService : IUserService
 
             user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
-            await _userRepository.UpdateAsync(user);
+            await _userRepository.UpdateUserAsync(user);
 
             return new JsonModel { data = true, Message = "Profile updated successfully", StatusCode = 200 };
         }
@@ -500,7 +500,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
@@ -513,7 +513,7 @@ public class UserService : IUserService
                 user.TimeZonePreference = preferencesDto.TimeZonePreference;
             user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
-            await _userRepository.UpdateAsync(user);
+            await _userRepository.UpdateUserAsync(user);
 
             return new JsonModel { data = true, Message = "Preferences updated successfully", StatusCode = 200 };
         }
@@ -529,7 +529,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _userRepository.GetByIdAsync(patientId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(patientId);
             if (user == null || user.UserType != "Patient")
                 return new JsonModel { data = new object(), Message = "Patient not found", StatusCode = 404 };
 
@@ -623,7 +623,7 @@ public class UserService : IUserService
     {
         if (!int.TryParse(id, out var providerId))
             return new JsonModel { data = new object(), Message = "Invalid provider ID", StatusCode = 400 };
-        var provider = await _userRepository.GetByIdAsync(providerId);
+        var provider = await _userRepository.GetByIdWithDetailsAsync(providerId);
         if (provider == null)
             return new JsonModel { data = new object(), Message = "Provider not found", StatusCode = 404 };
         var providerDto = _mapper.Map<ProviderDto>(provider);
@@ -676,7 +676,7 @@ public class UserService : IUserService
         {
             _logger.LogInformation("Getting provider {ProviderId} by user {TokenUserId}", providerId, tokenModel?.UserID ?? 0);
             
-            var provider = await _userRepository.GetByIdAsync(providerId);
+            var provider = await _userRepository.GetByIdWithDetailsAsync(providerId);
             if (provider == null)
             {
                 return new JsonModel { data = new object(), Message = "Provider not found", StatusCode = 404 };
@@ -739,7 +739,7 @@ public class UserService : IUserService
                 CreatedDate = DateTime.UtcNow
             };
 
-            await _userRepository.CreateAsync(provider);
+            await _userRepository.CreateUserAsync(provider);
 
             return new JsonModel { data = MapToProviderDto(provider), Message = "Provider created successfully", StatusCode = 201 };
         }
@@ -756,7 +756,7 @@ public class UserService : IUserService
         {
             _logger.LogInformation("Updating provider {ProviderId} by user {TokenUserId}", providerId, tokenModel?.UserID ?? 0);
             
-            var provider = await _userRepository.GetByIdAsync(providerId);
+            var provider = await _userRepository.GetByIdWithDetailsAsync(providerId);
             if (provider == null || provider.UserType != "Provider")
                 return new JsonModel { data = new object(), Message = "Provider not found", StatusCode = 404 };
 
@@ -790,7 +790,7 @@ public class UserService : IUserService
     {
         try
         {
-            var provider = await _userRepository.GetByIdAsync(providerId);
+            var provider = await _userRepository.GetByIdWithDetailsAsync(providerId);
             if (provider == null || provider.UserType != "Provider")
                 return new JsonModel { data = new object(), Message = "Provider not found", StatusCode = 404 };
 
@@ -812,7 +812,7 @@ public class UserService : IUserService
     {
         try
         {
-            var provider = await _userRepository.GetByIdAsync(providerId);
+            var provider = await _userRepository.GetByIdWithDetailsAsync(providerId);
             if (provider == null || provider.UserType != "Provider")
                 return new JsonModel { data = new object(), Message = "Provider not found", StatusCode = 404 };
 
@@ -892,7 +892,7 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
@@ -1351,14 +1351,14 @@ public class UserService : IUserService
     {
         try
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
             if (user == null)
                 return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
 
             user.IsActive = false;
             user.UpdatedBy = tokenModel.UserID;
             user.UpdatedDate = DateTime.UtcNow;
-            await _userRepository.UpdateAsync(user);
+            await _userRepository.UpdateUserAsync(user);
 
             return new JsonModel { data = true, Message = "Account deleted successfully", StatusCode = 200 };
         }
@@ -1488,7 +1488,7 @@ public class UserService : IUserService
             _logger.LogInformation("Getting all users by user {TokenUserId} with filters: search={SearchText}, role={Role}, isActive={IsActive}, page={Page}, pageSize={PageSize}", 
                 tokenModel?.UserID ?? 0, searchText, role, isActive, page, pageSize);
             
-            var users = await _userRepository.GetAllAsync();
+            var users = await _userRepository.GetAllWithDetailsAsync();
             var userDtos = users.Select(MapToUserDto).ToList();
             
             // Apply search filter

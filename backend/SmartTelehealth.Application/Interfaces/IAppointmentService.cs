@@ -76,7 +76,7 @@ public interface IAppointmentService
     Task<JsonModel> CheckProviderAvailabilityAsync(Guid providerId, DateTime startTime, DateTime endTime, TokenModel tokenModel);
 
     // --- SUBSCRIPTION & BILLING ---
-    Task<JsonModel> ValidateSubscriptionAccessAsync(Guid patientId, Guid categoryId, TokenModel tokenModel);
+    Task<JsonModel> ValidateSubscriptionAccessAsync(int patientId, Guid categoryId, TokenModel tokenModel);
     Task<JsonModel> CalculateAppointmentFeeAsync(int patientId, int providerId, Guid categoryId, TokenModel tokenModel);
     Task<JsonModel> ApplySubscriptionDiscountAsync(Guid appointmentId, TokenModel tokenModel);
 

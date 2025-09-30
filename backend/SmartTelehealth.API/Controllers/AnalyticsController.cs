@@ -385,4 +385,175 @@ public class AnalyticsController : BaseController
             };
         }
     }
-}
+
+    /// <summary>
+    /// Retrieves comprehensive churn analytics for subscription management.
+    /// </summary>
+    [HttpGet("churn-analytics")]
+    public async Task<JsonModel> GetChurnAnalytics([FromQuery] string? startDate, [FromQuery] string? endDate)
+    {
+        try
+        {
+            var start = !string.IsNullOrEmpty(startDate) ? DateTime.Parse(startDate) : DateTime.UtcNow.AddMonths(-12);
+            var end = !string.IsNullOrEmpty(endDate) ? DateTime.Parse(endDate) : DateTime.UtcNow;
+
+            var churnAnalytics = await _analyticsService.GetChurnAnalyticsAsync(start, end);
+
+            return new JsonModel
+            {
+                data = churnAnalytics,
+                Message = "Churn analytics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = $"Error retrieving churn analytics: {ex.Message}",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Retrieves comprehensive privilege usage analytics.
+    /// </summary>
+    [HttpGet("privilege-usage-analytics")]
+    public async Task<JsonModel> GetPrivilegeUsageAnalytics([FromQuery] string? startDate, [FromQuery] string? endDate)
+    {
+        try
+        {
+            var start = !string.IsNullOrEmpty(startDate) ? DateTime.Parse(startDate) : DateTime.UtcNow.AddMonths(-12);
+            var end = !string.IsNullOrEmpty(endDate) ? DateTime.Parse(endDate) : DateTime.UtcNow;
+
+            var privilegeAnalytics = await _analyticsService.GetPrivilegeUsageAnalyticsAsync(start, end);
+
+            return new JsonModel
+            {
+                data = privilegeAnalytics,
+                Message = "Privilege usage analytics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = $"Error retrieving privilege usage analytics: {ex.Message}",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Retrieves comprehensive subscription lifecycle analytics.
+    /// </summary>
+    [HttpGet("subscription-lifecycle-analytics")]
+    public async Task<JsonModel> GetSubscriptionLifecycleAnalytics([FromQuery] string? startDate, [FromQuery] string? endDate)
+    {
+        try
+        {
+            var start = !string.IsNullOrEmpty(startDate) ? DateTime.Parse(startDate) : DateTime.UtcNow.AddMonths(-12);
+            var end = !string.IsNullOrEmpty(endDate) ? DateTime.Parse(endDate) : DateTime.UtcNow;
+
+            var lifecycleAnalytics = await _analyticsService.GetSubscriptionLifecycleAnalyticsAsync(start, end);
+
+            return new JsonModel
+            {
+                data = lifecycleAnalytics,
+                Message = "Subscription lifecycle analytics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = $"Error retrieving subscription lifecycle analytics: {ex.Message}",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Retrieves enhanced billing analytics with comprehensive metrics.
+    /// </summary>
+    [HttpGet("enhanced-billing-analytics")]
+    public async Task<JsonModel> GetEnhancedBillingAnalytics([FromQuery] string? startDate, [FromQuery] string? endDate)
+    {
+        try
+        {
+            var start = !string.IsNullOrEmpty(startDate) ? DateTime.Parse(startDate) : DateTime.UtcNow.AddMonths(-12);
+            var end = !string.IsNullOrEmpty(endDate) ? DateTime.Parse(endDate) : DateTime.UtcNow;
+
+            var enhancedBillingAnalytics = await _analyticsService.GetEnhancedBillingAnalyticsAsync(start, end);
+
+            return new JsonModel
+            {
+                data = enhancedBillingAnalytics,
+                Message = "Enhanced billing analytics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = $"Error retrieving enhanced billing analytics: {ex.Message}",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Retrieves comprehensive subscription management analytics dashboard.
+    /// </summary>
+    [HttpGet("subscription-management-dashboard")]
+    public async Task<JsonModel> GetSubscriptionManagementDashboard([FromQuery] string? startDate, [FromQuery] string? endDate)
+    {
+        try
+        {
+            var start = !string.IsNullOrEmpty(startDate) ? DateTime.Parse(startDate) : DateTime.UtcNow.AddMonths(-12);
+            var end = !string.IsNullOrEmpty(endDate) ? DateTime.Parse(endDate) : DateTime.UtcNow;
+
+            // Get all analytics data in parallel for better performance
+            var churnAnalyticsTask = _analyticsService.GetChurnAnalyticsAsync(start, end);
+            var privilegeAnalyticsTask = _analyticsService.GetPrivilegeUsageAnalyticsAsync(start, end);
+            var lifecycleAnalyticsTask = _analyticsService.GetSubscriptionLifecycleAnalyticsAsync(start, end);
+            var enhancedBillingAnalyticsTask = _analyticsService.GetEnhancedBillingAnalyticsAsync(start, end);
+
+            await Task.WhenAll(churnAnalyticsTask, privilegeAnalyticsTask, lifecycleAnalyticsTask, enhancedBillingAnalyticsTask);
+
+            var dashboardData = new
+            {
+                ChurnAnalytics = await churnAnalyticsTask,
+                PrivilegeUsageAnalytics = await privilegeAnalyticsTask,
+                SubscriptionLifecycleAnalytics = await lifecycleAnalyticsTask,
+                EnhancedBillingAnalytics = await enhancedBillingAnalyticsTask,
+                GeneratedAt = DateTime.UtcNow,
+                Period = new { StartDate = start, EndDate = end }
+            };
+
+            return new JsonModel
+            {
+                data = dashboardData,
+                Message = "Subscription management dashboard retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = $"Error retrieving subscription management dashboard: {ex.Message}",
+                StatusCode = 500
+            };
+        }
+    }
+} 

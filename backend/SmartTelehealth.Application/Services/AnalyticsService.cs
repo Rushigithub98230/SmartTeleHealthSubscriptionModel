@@ -5,6 +5,7 @@ using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Interfaces;
 using AutoMapper;
 using SmartTelehealth.Core.Entities;
+using CoreAnalytics = SmartTelehealth.Core.DTOs;
 
 namespace SmartTelehealth.Application.Services;
 
@@ -610,8 +611,19 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
-            // TODO: Implement failed payments count
-            return 23;
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+            
+            var billingRecords = await _billingRepository.GetAllAsync();
+            var failedPayments = billingRecords
+                .Where(br => br.CreatedDate >= start && 
+                            br.CreatedDate <= end && 
+                            br.Status == BillingRecord.BillingStatus.Failed)
+                .Count();
+            
+            _logger.LogInformation("Failed payments count: {Count} for period {StartDate} to {EndDate}", 
+                failedPayments, start, end);
+            return failedPayments;
         }
         catch (Exception ex)
         {
@@ -647,8 +659,28 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
-            // TODO: Implement payment success rate calculation
-            return 96.8m;
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+            
+            var billingRecords = await _billingRepository.GetAllAsync();
+            var recordsInRange = billingRecords
+                .Where(br => br.CreatedDate >= start && br.CreatedDate <= end)
+                .ToList();
+            
+            if (!recordsInRange.Any())
+            {
+                return 0;
+            }
+            
+            var successfulPayments = recordsInRange
+                .Count(br => br.Status == BillingRecord.BillingStatus.Paid);
+            
+            var totalPayments = recordsInRange.Count;
+            var successRate = (decimal)successfulPayments / totalPayments * 100;
+            
+            _logger.LogInformation("Payment success rate calculated: {SuccessRate}% for period {StartDate} to {EndDate}", 
+                successRate, start, end);
+            return Math.Round(successRate, 2);
         }
         catch (Exception ex)
         {
@@ -1274,8 +1306,8 @@ public class AnalyticsService : IAnalyticsService
                 TotalRevenue = totalRevenue,
                 MonthlyRevenue = mrr,
                 AverageRevenuePerSubscription = averageValue,
-                MonthlyRevenueBreakdown = new List<MonthlyRevenueData>(), // TODO: Implement monthly revenue tracking
-                RevenueByCategory = new List<CategoryRevenueData>() // TODO: Implement plan revenue tracking
+                MonthlyRevenueBreakdown = new List<CoreAnalytics.MonthlyRevenueData>(), // TODO: Implement monthly revenue tracking
+                RevenueByCategory = new List<CoreAnalytics.CategoryRevenueData>() // TODO: Implement plan revenue tracking
             };
         }
         catch (Exception ex)
@@ -1295,12 +1327,13 @@ public class AnalyticsService : IAnalyticsService
 
             return new ChurnAnalyticsDto
             {
+                TotalChurnedSubscriptions = cancelledSubscriptions,
                 ChurnRate = churnRate,
-                RetentionRate = retentionRate,
-                CancelledSubscriptions = cancelledSubscriptions,
-                CancellationReasons = new List<CancellationReasonDto>(), // TODO: Implement cancellation reason tracking
-                AverageLifetime = 0, // TODO: Implement lifetime calculation
-                CohortRetention = new List<CohortRetentionDto>() // TODO: Implement cohort analysis
+                ChurnByPlan = new List<ChurnByPlanDto>(), // TODO: Implement churn by plan tracking
+                ChurnByReason = new List<ChurnByReasonDto>(), // TODO: Implement churn by reason tracking
+                ChurnTrend = new List<ChurnTrendDto>(), // TODO: Implement churn trend tracking
+                RevenueLostToChurn = 0, // TODO: Implement revenue lost calculation
+                AverageChurnTime = 0 // TODO: Implement average churn time calculation
             };
         }
         catch (Exception ex)
@@ -1539,4 +1572,780 @@ public class AnalyticsService : IAnalyticsService
     }
 
     // === END MISSING METHODS ===
+
+    // === ADVANCED ANALYTICS METHODS ===
+
+    /// <summary>
+    /// Calculates comprehensive churn analytics for subscription management
+    /// </summary>
+    public async Task<ChurnAnalyticsDto> GetChurnAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null)
+    {
+        try
+        {
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+            
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(start, end);
+            var cancelledSubscriptions = subscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Cancelled).ToList();
+            
+            var churnAnalytics = new ChurnAnalyticsDto
+            {
+                TotalChurnedSubscriptions = cancelledSubscriptions.Count,
+                ChurnRate = await CalculateChurnRateAsync(start, end),
+                ChurnByPlan = await GetChurnByPlanAsync(start, end),
+                ChurnByReason = await GetChurnByReasonAsync(start, end),
+                ChurnTrend = await GetChurnTrendAsync(start, end),
+                RevenueLostToChurn = await CalculateRevenueLostToChurnAsync(start, end),
+                AverageChurnTime = await CalculateAverageChurnTimeAsync(start, end)
+            };
+            
+            _logger.LogInformation("Churn analytics calculated for period {StartDate} to {EndDate}: {ChurnRate}% churn rate", 
+                start, end, churnAnalytics.ChurnRate);
+            
+            return churnAnalytics;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating churn analytics");
+            return new ChurnAnalyticsDto();
+        }
+    }
+
+    /// <summary>
+    /// Calculates churn rate percentage
+    /// </summary>
+    private async Task<decimal> CalculateChurnRateAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(startDate, endDate);
+            var totalSubscriptions = subscriptions.Count();
+            
+            if (totalSubscriptions == 0) return 0;
+            
+            var cancelledSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Cancelled);
+            var churnRate = (decimal)cancelledSubscriptions / totalSubscriptions * 100;
+            
+            return Math.Round(churnRate, 2);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating churn rate");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets churn data by subscription plan
+    /// </summary>
+    private async Task<List<ChurnByPlanDto>> GetChurnByPlanAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(startDate, endDate);
+            var cancelledSubscriptions = subscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Cancelled);
+            
+            var churnByPlan = cancelledSubscriptions
+                .GroupBy(s => s.SubscriptionPlan?.Name ?? "Unknown")
+                .Select(g => new ChurnByPlanDto
+                {
+                    PlanName = g.Key,
+                    ChurnedCount = g.Count(),
+                    ChurnRate = (decimal)g.Count() / subscriptions.Count(s => s.SubscriptionPlan?.Name == g.Key) * 100
+                })
+                .OrderByDescending(x => x.ChurnedCount)
+                .ToList();
+            
+            return churnByPlan;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating churn by plan");
+            return new List<ChurnByPlanDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets churn data by cancellation reason
+    /// </summary>
+    private async Task<List<ChurnByReasonDto>> GetChurnByReasonAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(startDate, endDate);
+            var cancelledSubscriptions = subscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Cancelled);
+            
+            var churnByReason = cancelledSubscriptions
+                .GroupBy(s => s.CancellationReason ?? "No reason provided")
+                .Select(g => new ChurnByReasonDto
+                {
+                    Reason = g.Key,
+                    Count = g.Count(),
+                    Percentage = (decimal)g.Count() / cancelledSubscriptions.Count() * 100
+                })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+            
+            return churnByReason;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating churn by reason");
+            return new List<ChurnByReasonDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets churn trend over time
+    /// </summary>
+    private async Task<List<ChurnTrendDto>> GetChurnTrendAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(startDate, endDate);
+            
+            var churnTrend = subscriptions
+                .Where(s => s.Status == Subscription.SubscriptionStatuses.Cancelled)
+                .GroupBy(s => new { s.CancelledDate?.Year, s.CancelledDate?.Month })
+                .Where(g => g.Key.Year.HasValue && g.Key.Month.HasValue)
+                .Select(g => new ChurnTrendDto
+                {
+                    Month = $"{g.Key.Year}-{g.Key.Month:D2}",
+                    ChurnedCount = g.Count(),
+                    ChurnRate = (decimal)g.Count() / subscriptions.Count(s => 
+                        s.CreatedDate.HasValue && s.CreatedDate.Value.Year == g.Key.Year && s.CreatedDate.Value.Month == g.Key.Month) * 100
+                })
+                .OrderBy(x => x.Month)
+                .ToList();
+            
+            return churnTrend;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating churn trend");
+            return new List<ChurnTrendDto>();
+        }
+    }
+
+    /// <summary>
+    /// Calculates revenue lost due to churn
+    /// </summary>
+    private async Task<decimal> CalculateRevenueLostToChurnAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(startDate, endDate);
+            var cancelledSubscriptions = subscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Cancelled);
+            
+            var revenueLost = cancelledSubscriptions.Sum(s => s.CurrentPrice);
+            
+            return revenueLost;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating revenue lost to churn");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Calculates average time to churn
+    /// </summary>
+    private async Task<decimal> CalculateAverageChurnTimeAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(startDate, endDate);
+            var cancelledSubscriptions = subscriptions
+                .Where(s => s.Status == Subscription.SubscriptionStatuses.Cancelled && 
+                           s.CancelledDate.HasValue)
+                .ToList();
+            
+            if (!cancelledSubscriptions.Any()) return 0;
+            
+            var totalDays = cancelledSubscriptions.Sum(s => 
+                (s.CancelledDate!.Value - s.StartDate).TotalDays);
+            
+            var averageDays = totalDays / cancelledSubscriptions.Count;
+            
+            return Math.Round((decimal)averageDays, 2);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating average churn time");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets comprehensive privilege usage analytics
+    /// </summary>
+    public async Task<PrivilegeUsageAnalyticsDto> GetPrivilegeUsageAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null)
+    {
+        try
+        {
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+            
+            var privilegeAnalytics = new PrivilegeUsageAnalyticsDto
+            {
+                TotalPrivilegeUsage = await GetTotalPrivilegeUsageAsync(start, end),
+                MostUsedPrivileges = await GetMostUsedPrivilegesAsync(start, end),
+                LeastUsedPrivileges = await GetLeastUsedPrivilegesAsync(start, end),
+                UsageByPlan = await GetUsageByPlanAsync(start, end),
+                UsageTrend = await GetUsageTrendAsync(start, end),
+                OverageCharges = await GetOverageChargesAsync(start, end),
+                AverageUsagePerUser = await GetAverageUsagePerUserAsync(start, end)
+            };
+            
+            _logger.LogInformation("Privilege usage analytics calculated for period {StartDate} to {EndDate}", start, end);
+            
+            return privilegeAnalytics;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating privilege usage analytics");
+            return new PrivilegeUsageAnalyticsDto();
+        }
+    }
+
+    /// <summary>
+    /// Gets total privilege usage count
+    /// </summary>
+    private async Task<int> GetTotalPrivilegeUsageAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            // This would need to be implemented with the privilege usage repository
+            // For now, returning a placeholder
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting total privilege usage");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets most used privileges
+    /// </summary>
+    private async Task<List<PrivilegeUsageDto>> GetMostUsedPrivilegesAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            // This would need to be implemented with the privilege usage repository
+            // For now, returning a placeholder
+            return new List<PrivilegeUsageDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting most used privileges");
+            return new List<PrivilegeUsageDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets least used privileges
+    /// </summary>
+    private async Task<List<PrivilegeUsageDto>> GetLeastUsedPrivilegesAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            // This would need to be implemented with the privilege usage repository
+            // For now, returning a placeholder
+            return new List<PrivilegeUsageDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting least used privileges");
+            return new List<PrivilegeUsageDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets usage by subscription plan
+    /// </summary>
+    private async Task<List<UsageByPlanDto>> GetUsageByPlanAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            // This would need to be implemented with the privilege usage repository
+            // For now, returning a placeholder
+            return new List<UsageByPlanDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting usage by plan");
+            return new List<UsageByPlanDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets usage trend over time
+    /// </summary>
+    private async Task<List<UsageTrendDto>> GetUsageTrendAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            // This would need to be implemented with the privilege usage repository
+            // For now, returning a placeholder
+            return new List<UsageTrendDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting usage trend");
+            return new List<UsageTrendDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets overage charges analytics
+    /// </summary>
+    private async Task<OverageChargesDto> GetOverageChargesAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var billingRecords = await _billingRepository.GetAllAsync();
+            var overageRecords = billingRecords
+                .Where(br => br.CreatedDate >= startDate && 
+                            br.CreatedDate <= endDate && 
+                            br.Description.Contains("overage", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            
+            var overageCharges = new OverageChargesDto
+            {
+                TotalOverageCharges = overageRecords.Sum(br => br.TotalAmount),
+                OverageCount = overageRecords.Count,
+                AverageOverageAmount = overageRecords.Any() ? overageRecords.Average(br => br.TotalAmount) : 0,
+                OverageByPlan = overageRecords
+                    .GroupBy(br => br.Subscription?.SubscriptionPlan?.Name ?? "Unknown")
+                    .Select(g => new CoreAnalytics.OverageByPlanDto
+                    {
+                        PlanName = g.Key,
+                        OverageAmount = g.Sum(br => br.TotalAmount),
+                        OverageCount = g.Count()
+                    })
+                    .ToList()
+            };
+            
+            return overageCharges;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting overage charges");
+            return new OverageChargesDto();
+        }
+    }
+
+    /// <summary>
+    /// Gets average usage per user
+    /// </summary>
+    private async Task<decimal> GetAverageUsagePerUserAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            // This would need to be implemented with the privilege usage repository
+            // For now, returning a placeholder
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting average usage per user");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets subscription lifecycle analytics
+    /// </summary>
+    public async Task<SubscriptionLifecycleAnalyticsDto> GetSubscriptionLifecycleAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null)
+    {
+        try
+        {
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+            
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(start, end);
+            
+            var lifecycleAnalytics = new SubscriptionLifecycleAnalyticsDto
+            {
+                TotalSubscriptions = subscriptions.Count(),
+                StatusDistribution = GetStatusDistribution(subscriptions),
+                AverageSubscriptionDuration = CalculateAverageSubscriptionDuration(subscriptions),
+                ConversionRates = CalculateConversionRates(subscriptions),
+                LifecycleEvents = GetLifecycleEvents(subscriptions),
+                RetentionRates = CalculateRetentionRates(subscriptions),
+                UpgradeDowngradeRates = CalculateUpgradeDowngradeRates(subscriptions)
+            };
+            
+            _logger.LogInformation("Subscription lifecycle analytics calculated for period {StartDate} to {EndDate}", start, end);
+            
+            return lifecycleAnalytics;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating subscription lifecycle analytics");
+            return new SubscriptionLifecycleAnalyticsDto();
+        }
+    }
+
+    /// <summary>
+    /// Gets status distribution of subscriptions
+    /// </summary>
+    private List<StatusDistributionDto> GetStatusDistribution(IEnumerable<Subscription> subscriptions)
+    {
+        try
+        {
+            return subscriptions
+                .GroupBy(s => s.Status)
+                .Select(g => new StatusDistributionDto
+                {
+                    Status = g.Key,
+                    Count = g.Count(),
+                    Percentage = (decimal)g.Count() / subscriptions.Count() * 100
+                })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating status distribution");
+            return new List<StatusDistributionDto>();
+        }
+    }
+
+    /// <summary>
+    /// Calculates average subscription duration
+    /// </summary>
+    private decimal CalculateAverageSubscriptionDuration(IEnumerable<Subscription> subscriptions)
+    {
+        try
+        {
+            var activeSubscriptions = subscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Active);
+            
+            if (!activeSubscriptions.Any()) return 0;
+            
+            var totalDays = activeSubscriptions.Sum(s => (DateTime.UtcNow - s.StartDate).TotalDays);
+            var averageDays = totalDays / activeSubscriptions.Count();
+            
+            return Math.Round((decimal)averageDays, 2);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating average subscription duration");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Calculates conversion rates
+    /// </summary>
+    private ConversionRatesDto CalculateConversionRates(IEnumerable<Subscription> subscriptions)
+    {
+        try
+        {
+            var totalSubscriptions = subscriptions.Count();
+            var activeSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Active);
+            var cancelledSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Cancelled);
+            var trialSubscriptions = subscriptions.Count(s => s.IsTrialSubscription);
+            
+            return new ConversionRatesDto
+            {
+                TrialToActiveRate = trialSubscriptions > 0 ? (decimal)activeSubscriptions / trialSubscriptions * 100 : 0,
+                OverallActivationRate = totalSubscriptions > 0 ? (decimal)activeSubscriptions / totalSubscriptions * 100 : 0,
+                CancellationRate = totalSubscriptions > 0 ? (decimal)cancelledSubscriptions / totalSubscriptions * 100 : 0
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating conversion rates");
+            return new ConversionRatesDto();
+        }
+    }
+
+    /// <summary>
+    /// Gets lifecycle events
+    /// </summary>
+    private List<LifecycleEventDto> GetLifecycleEvents(IEnumerable<Subscription> subscriptions)
+    {
+        try
+        {
+            // This would need to be implemented with subscription status history
+            // For now, returning a placeholder
+            return new List<LifecycleEventDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting lifecycle events");
+            return new List<LifecycleEventDto>();
+        }
+    }
+
+    /// <summary>
+    /// Calculates retention rates
+    /// </summary>
+    private List<RetentionRateDto> CalculateRetentionRates(IEnumerable<Subscription> subscriptions)
+    {
+        try
+        {
+            // This would need to be implemented with cohort analysis
+            // For now, returning a placeholder
+            return new List<RetentionRateDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating retention rates");
+            return new List<RetentionRateDto>();
+        }
+    }
+
+    /// <summary>
+    /// Calculates upgrade/downgrade rates
+    /// </summary>
+    private UpgradeDowngradeRatesDto CalculateUpgradeDowngradeRates(IEnumerable<Subscription> subscriptions)
+    {
+        try
+        {
+            // This would need to be implemented with subscription plan change tracking
+            // For now, returning a placeholder
+            return new UpgradeDowngradeRatesDto();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating upgrade/downgrade rates");
+            return new UpgradeDowngradeRatesDto();
+        }
+    }
+
+    /// <summary>
+    /// Gets enhanced billing analytics with comprehensive metrics
+    /// </summary>
+    public async Task<EnhancedBillingAnalyticsDto> GetEnhancedBillingAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null)
+    {
+        try
+        {
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+            
+            var billingRecords = await _billingRepository.GetAllAsync();
+            var recordsInRange = billingRecords
+                .Where(br => br.CreatedDate >= start && br.CreatedDate <= end)
+                .ToList();
+            
+            var enhancedAnalytics = new EnhancedBillingAnalyticsDto
+            {
+                // Base analytics
+                TotalRevenue = recordsInRange.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.TotalAmount),
+                FailedPayments = recordsInRange.Count(br => br.Status == BillingRecord.BillingStatus.Failed),
+                PaymentSuccessRate = await CalculatePaymentSuccessRateAsync(start, end),
+                AverageRevenuePerUser = await CalculateAverageRevenuePerUserAsync(null),
+                RefundsIssued = recordsInRange.Count(br => br.Status == BillingRecord.BillingStatus.Refunded),
+                
+                // Enhanced analytics
+                MonthlyBillingTrend = GetMonthlyBillingTrend(recordsInRange),
+                BillingMethodAnalytics = GetBillingMethodAnalytics(recordsInRange),
+                BillingFailureReasons = GetBillingFailureReasons(recordsInRange),
+                AverageBillingCycleTime = CalculateAverageBillingCycleTime(recordsInRange),
+                BillingEfficiency = CalculateBillingEfficiency(recordsInRange),
+                RevenueForecast = await GetRevenueForecastAsync(start, end)
+            };
+            
+            _logger.LogInformation("Enhanced billing analytics calculated for period {StartDate} to {EndDate}", start, end);
+            
+            return enhancedAnalytics;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating enhanced billing analytics");
+            return new EnhancedBillingAnalyticsDto();
+        }
+    }
+
+    /// <summary>
+    /// Gets monthly billing trend
+    /// </summary>
+    private List<MonthlyBillingTrendDto> GetMonthlyBillingTrend(List<BillingRecord> records)
+    {
+        try
+        {
+            return records
+                .Where(br => br.CreatedDate.HasValue)
+                .GroupBy(br => new { br.CreatedDate!.Value.Year, br.CreatedDate!.Value.Month })
+                .Select(g => new MonthlyBillingTrendDto
+                {
+                    Month = $"{g.Key.Year}-{g.Key.Month:D2}",
+                    TotalRevenue = g.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.TotalAmount),
+                    SuccessfulBills = g.Count(br => br.Status == BillingRecord.BillingStatus.Paid),
+                    FailedBills = g.Count(br => br.Status == BillingRecord.BillingStatus.Failed),
+                    SuccessRate = g.Any() ? (decimal)g.Count(br => br.Status == BillingRecord.BillingStatus.Paid) / g.Count() * 100 : 0
+                })
+                .OrderBy(x => x.Month)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating monthly billing trend");
+            return new List<MonthlyBillingTrendDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets billing method analytics
+    /// </summary>
+    private List<BillingMethodAnalyticsDto> GetBillingMethodAnalytics(List<BillingRecord> records)
+    {
+        try
+        {
+            return records
+                .GroupBy(br => br.PaymentMethod ?? "Unknown")
+                .Select(g => new BillingMethodAnalyticsDto
+                {
+                    PaymentMethod = g.Key,
+                    UsageCount = g.Count(),
+                    TotalAmount = g.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.TotalAmount),
+                    SuccessRate = g.Any() ? (decimal)g.Count(br => br.Status == BillingRecord.BillingStatus.Paid) / g.Count() * 100 : 0,
+                    AverageAmount = g.Any() ? g.Average(br => br.TotalAmount) : 0
+                })
+                .OrderByDescending(x => x.UsageCount)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating billing method analytics");
+            return new List<BillingMethodAnalyticsDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets billing failure reasons
+    /// </summary>
+    private List<BillingFailureReasonDto> GetBillingFailureReasons(List<BillingRecord> records)
+    {
+        try
+        {
+            var failedRecords = records.Where(br => br.Status == BillingRecord.BillingStatus.Failed).ToList();
+            
+            return failedRecords
+                .GroupBy(br => br.FailureReason ?? "Unknown reason")
+                .Select(g => new BillingFailureReasonDto
+                {
+                    Reason = g.Key,
+                    Count = g.Count(),
+                    Percentage = failedRecords.Any() ? (decimal)g.Count() / failedRecords.Count * 100 : 0,
+                    LostRevenue = g.Sum(br => br.TotalAmount)
+                })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating billing failure reasons");
+            return new List<BillingFailureReasonDto>();
+        }
+    }
+
+    /// <summary>
+    /// Calculates average billing cycle time
+    /// </summary>
+    private decimal CalculateAverageBillingCycleTime(List<BillingRecord> records)
+    {
+        try
+        {
+            var paidRecords = records
+                .Where(br => br.Status == BillingRecord.BillingStatus.Paid && br.PaidAt.HasValue)
+                .ToList();
+            
+            if (!paidRecords.Any()) return 0;
+            
+            var totalDays = paidRecords.Sum(br => (br.PaidAt!.Value - br.CreatedDate!.Value).TotalDays);
+            var averageDays = totalDays / paidRecords.Count;
+            
+            return Math.Round((decimal)averageDays, 2);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating average billing cycle time");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Calculates billing efficiency
+    /// </summary>
+    private decimal CalculateBillingEfficiency(List<BillingRecord> records)
+    {
+        try
+        {
+            if (!records.Any()) return 0;
+            
+            var successfulBills = records.Count(br => br.Status == BillingRecord.BillingStatus.Paid);
+            var totalBills = records.Count;
+            
+            return Math.Round((decimal)successfulBills / totalBills * 100, 2);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating billing efficiency");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets revenue forecast
+    /// </summary>
+    private async Task<List<RevenueForecastDto>> GetRevenueForecastAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            // Simple linear forecast based on historical data
+            var billingRecords = await _billingRepository.GetAllAsync();
+            var historicalData = billingRecords
+                .Where(br => br.CreatedDate.HasValue && br.CreatedDate >= startDate && br.CreatedDate <= endDate && br.Status == BillingRecord.BillingStatus.Paid)
+                .GroupBy(br => new { br.CreatedDate!.Value.Year, br.CreatedDate!.Value.Month })
+                .Select(g => new { Month = g.Key, Revenue = g.Sum(br => br.TotalAmount) })
+                .OrderBy(x => x.Month.Year).ThenBy(x => x.Month.Month)
+                .ToList();
+            
+            if (historicalData.Count < 2)
+            {
+                return new List<RevenueForecastDto>();
+            }
+            
+            // Calculate growth rate
+            var firstMonth = historicalData.First();
+            var lastMonth = historicalData.Last();
+            var monthsDiff = (lastMonth.Month.Year - firstMonth.Month.Year) * 12 + (lastMonth.Month.Month - firstMonth.Month.Month);
+            var growthRate = monthsDiff > 0 ? (lastMonth.Revenue - firstMonth.Revenue) / firstMonth.Revenue / monthsDiff * 100 : 0;
+            
+            // Generate forecast for next 6 months
+            var forecast = new List<RevenueForecastDto>();
+            var currentMonth = lastMonth.Month;
+            
+            for (int i = 1; i <= 6; i++)
+            {
+                var forecastMonth = currentMonth.Month == 12 ? new { Year = currentMonth.Year + 1, Month = 1 } : new { Year = currentMonth.Year, Month = currentMonth.Month + 1 };
+                var forecastedRevenue = lastMonth.Revenue * (1 + growthRate / 100 * i);
+                
+                forecast.Add(new RevenueForecastDto
+                {
+                    Period = $"{forecastMonth.Year}-{forecastMonth.Month:D2}",
+                    ForecastedRevenue = Math.Round(forecastedRevenue, 2),
+                    ConfidenceLevel = Math.Max(100 - (i * 10), 50), // Decreasing confidence over time
+                    GrowthRate = Math.Round(growthRate, 2)
+                });
+                
+                currentMonth = forecastMonth;
+            }
+            
+            return forecast;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating revenue forecast");
+            return new List<RevenueForecastDto>();
+        }
+    }
+
+    // === END ADVANCED ANALYTICS METHODS ===
 } 
