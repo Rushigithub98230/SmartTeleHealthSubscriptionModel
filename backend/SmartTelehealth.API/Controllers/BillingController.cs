@@ -11,13 +11,14 @@ namespace SmartTelehealth.API.Controllers;
 /// This controller provides comprehensive billing functionality including creating billing records,
 /// processing payments, handling refunds, generating invoices, and managing billing cycles.
 /// It integrates with Stripe for payment processing and provides detailed billing analytics.
+/// UPDATED: Now uses consolidated ISubscriptionBillingService
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 //[Authorize]
 public class BillingController : BaseController
 {
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService;
     private readonly IPdfService _pdfService;
     private readonly IUserService _userService;
     private readonly ISubscriptionService _subscriptionService;
@@ -25,12 +26,12 @@ public class BillingController : BaseController
     /// <summary>
     /// Initializes a new instance of the BillingController with required services.
     /// </summary>
-    /// <param name="billingService">Service for handling billing-related business logic</param>
+    /// <param name="billingService">Service for handling billing-related business logic (consolidated)</param>
     /// <param name="pdfService">Service for generating PDF documents and invoices</param>
     /// <param name="userService">Service for user management operations</param>
     /// <param name="subscriptionService">Service for subscription management operations</param>
     public BillingController(
-        IBillingService billingService, 
+        ISubscriptionBillingService billingService, 
         IPdfService pdfService,
         IUserService userService,
         ISubscriptionService subscriptionService)

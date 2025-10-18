@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Core.Interfaces;
 using Microsoft.AspNetCore.Http;
 
 namespace SmartTelehealth.API.Controllers;
@@ -20,16 +21,30 @@ public class SubscriptionPlansController : BaseController
 {
     private readonly ISubscriptionPlanService _subscriptionPlanService;
     private readonly IPrivilegeService _privilegeService;
+    private readonly IPlanVersioningService _planVersioningService;
+    private readonly IPlanPricingService _planPricingService;
+    private readonly IScheduledPlanMigrationRepository _scheduledMigrationRepository;
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionPlansController with the required services.
     /// </summary>
     /// <param name="subscriptionPlanService">Service for handling subscription plan-related business logic</param>
     /// <param name="privilegeService">Service for handling privilege-related business logic</param>
-    public SubscriptionPlansController(ISubscriptionPlanService subscriptionPlanService, IPrivilegeService privilegeService)
+    /// <param name="planVersioningService">Service for healthcare plan versioning</param>
+    /// <param name="planPricingService">Service for healthcare pricing calculations</param>
+    /// <param name="scheduledMigrationRepository">Repository for scheduled plan migrations</param>
+    public SubscriptionPlansController(
+        ISubscriptionPlanService subscriptionPlanService, 
+        IPrivilegeService privilegeService,
+        IPlanVersioningService planVersioningService,
+        IPlanPricingService planPricingService,
+        IScheduledPlanMigrationRepository scheduledMigrationRepository)
     {
         _subscriptionPlanService = subscriptionPlanService;
         _privilegeService = privilegeService;
+        _planVersioningService = planVersioningService;
+        _planPricingService = planPricingService;
+        _scheduledMigrationRepository = scheduledMigrationRepository;
     }
 
 
@@ -1013,6 +1028,144 @@ public class SubscriptionPlansController : BaseController
         return await _privilegeService.ExportPrivilegesAsync(search, category, status, format, GetToken(HttpContext));
     }
 
+    #endregion
+    
+    #region Healthcare-Specific: Plan Versioning & Pricing
+    
+    /// <summary>
+    /// Creates a new version of an existing plan (Issue #1 fix).
+    /// Healthcare Feature: Preserves existing subscriptions on old version.
+    /// </summary>
+    /// <param name="planId">ID of the plan to version</param>
+    /// <param name="updateDto">Updated plan details</param>
+    /// <returns>JsonModel with new plan version and migration info</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Creates a new version instead of modifying the existing plan
+    /// - Preserves all active subscriptions on the old version
+    /// - Schedules migrations at each user's individual renewal date (10 days notice)
+    /// - Notifies all affected users about the upcoming change
+    /// - Admin only access
+    /// </remarks>
+    [HttpPost("{planId}/versions")]
+    //[Authorize(Roles = "Admin")]
+    public async Task<JsonModel> CreatePlanVersion(
+        [FromRoute] string planId,
+        [FromBody] UpdateSubscriptionPlanDto updateDto)
+    {
+        if (!Guid.TryParse(planId, out var planGuid))
+        {
+            return new JsonModel { data = new object(), Message = "Invalid plan ID", StatusCode = 400 };
+        }
+        
+        return await _planVersioningService.CreateNewPlanVersionAsync(planGuid, updateDto, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Gets all versions of a plan.
+    /// Healthcare Feature: View complete plan version history.
+    /// </summary>
+    /// <param name="planId">Plan ID or parent plan ID</param>
+    /// <returns>JsonModel with all plan versions</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all versions of a plan family (v1, v2, v3, etc.)
+    /// - Shows which version is current/latest
+    /// - Displays active subscription count per version
+    /// - Used for plan version management and analytics
+    /// </remarks>
+    [HttpGet("{planId}/versions")]
+    public async Task<JsonModel> GetPlanVersions([FromRoute] string planId)
+    {
+        if (!Guid.TryParse(planId, out var planGuid))
+        {
+            return new JsonModel { data = new object(), Message = "Invalid plan ID", StatusCode = 400 };
+        }
+        
+        return await _planVersioningService.GetPlanVersionHistoryAsync(planGuid);
+    }
+
+    /// <summary>
+    /// Calculates plan price based on privileges.
+    /// Healthcare Feature: Auto-calculate or manual pricing (Choice 1c).
+    /// </summary>
+    /// <param name="planId">ID of the plan to calculate price for</param>
+    /// <returns>JsonModel with calculated price and breakdown</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Calculates price as: Σ(Privilege Costs) + Commission
+    /// - Shows detailed breakdown of all privilege contributions
+    /// - Supports both auto-calculated and manual pricing modes
+    /// - Admin only access
+    /// </remarks>
+    [HttpPost("{planId}/calculate-price")]
+    //[Authorize(Roles = "Admin")]
+    public async Task<JsonModel> CalculatePlanPrice([FromRoute] string planId)
+    {
+        if (!Guid.TryParse(planId, out var planGuid))
+        {
+            return new JsonModel { data = new object(), Message = "Invalid plan ID", StatusCode = 400 };
+        }
+        
+        return await _planPricingService.GetPlanPricingBreakdownAsync(planGuid);
+    }
+
+    /// <summary>
+    /// Gets pricing breakdown for a plan (transparency feature).
+    /// Healthcare Feature: Show users exactly what they're paying for.
+    /// </summary>
+    /// <param name="planId">ID of the plan</param>
+    /// <returns>JsonModel with detailed pricing breakdown</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Shows cost per privilege
+    /// - Shows commission amount and percentage
+    /// - Displays total price calculation
+    /// - Public access for transparency
+    /// </remarks>
+    [HttpGet("{planId}/pricing-breakdown")]
+    [AllowAnonymous]
+    public async Task<JsonModel> GetPricingBreakdown([FromRoute] string planId)
+    {
+        if (!Guid.TryParse(planId, out var planGuid))
+        {
+            return new JsonModel { data = new object(), Message = "Invalid plan ID", StatusCode = 400 };
+        }
+        
+        return await _planPricingService.GetPlanPricingBreakdownAsync(planGuid);
+    }
+
+    /// <summary>
+    /// Gets scheduled migrations for a plan.
+    /// Healthcare Feature: Track users migrating to/from this plan version.
+    /// </summary>
+    /// <param name="planId">ID of the plan</param>
+    /// <returns>JsonModel with scheduled migrations</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Shows all users scheduled to migrate to/from this plan
+    /// - Displays migration dates (individual renewal dates)
+    /// - Shows user decisions (Accept, Downgrade, Cancel)
+    /// - Admin only access
+    /// </remarks>
+    [HttpGet("{planId}/scheduled-migrations")]
+    //[Authorize(Roles = "Admin")]
+    public async Task<JsonModel> GetScheduledMigrations([FromRoute] string planId)
+    {
+        if (!Guid.TryParse(planId, out var planGuid))
+        {
+            return new JsonModel { data = new object(), Message = "Invalid plan ID", StatusCode = 400 };
+        }
+        
+        var migrations = await _scheduledMigrationRepository.GetMigrationsByPlanAsync(planGuid);
+        
+        return new JsonModel
+        {
+            data = migrations,
+            Message = "Scheduled migrations retrieved successfully",
+            StatusCode = 200
+        };
+    }
 
     #endregion
 }

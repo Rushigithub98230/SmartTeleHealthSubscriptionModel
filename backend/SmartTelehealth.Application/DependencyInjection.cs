@@ -27,10 +27,12 @@ public static class DependencyInjection
                 provider.GetRequiredService<IUserService>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanPrivilegeRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
-                provider.GetRequiredService<IBillingService>(),
+                provider.GetRequiredService<ISubscriptionBillingService>(), // UPDATED: Use consolidated service
                 provider.GetRequiredService<ISubscriptionNotificationService>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
-                provider.GetRequiredService<ICategoryService>()
+                provider.GetRequiredService<ICategoryService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
+                provider.GetRequiredService<IPaymentService>()
             )
         );
         services.AddScoped<IConsultationService, ConsultationService>();
@@ -44,25 +46,35 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
                 provider.GetRequiredService<IStripeService>(),
                 provider.GetRequiredService<AutoMapper.IMapper>(),
-                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PaymentService>>()
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PaymentService>>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPaymentRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
             )
         );
 
-        // Register Billing Service (updated to use PaymentService)
-        services.AddScoped<IBillingService, BillingService>(provider =>
-            new BillingService(
+        // Register Comprehensive Subscription Billing Service
+        // ✅ MIGRATION COMPLETE: All 51 methods fully implemented
+        // This service combines all functionality from BillingService and PrivilegeBasedBillingService
+        // Aligned with client's subscription management billing workflow
+        services.AddScoped<ISubscriptionBillingService, SubscriptionBillingService>(provider =>
+            new SubscriptionBillingService(
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
-                provider.GetRequiredService<IPaymentService>(), // Changed from IStripeBillingService to IPaymentService
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserRepository>(),
+                provider.GetRequiredService<IPaymentService>(),
+                provider.GetRequiredService<IStripeService>(),
                 provider.GetRequiredService<INotificationService>(),
+                provider.GetRequiredService<IPlanPricingService>(),
                 provider.GetRequiredService<AutoMapper.IMapper>(),
-                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<BillingService>>()
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionBillingService>>()
             )
         );
         
-        // Register Privilege-Based Billing Service
-        services.AddScoped<IPrivilegeBasedBillingService, PrivilegeBasedBillingService>();
         services.AddScoped<IHomeMedService, HomeMedService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         
@@ -85,7 +97,22 @@ public static class DependencyInjection
         services.AddScoped<IQuestionnaireService, QuestionnaireService>();
         
         // Register Automated Billing and Lifecycle Services
-        services.AddScoped<IAutomatedBillingService, AutomatedBillingService>();
+        services.AddScoped<IAutomatedBillingService, AutomatedBillingService>(provider =>
+            new AutomatedBillingService(
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanRepository>(),
+                provider.GetRequiredService<ISubscriptionBillingService>(),
+                provider.GetRequiredService<IStripeService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeUsageHistoryRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AutomatedBillingService>>(),
+                provider.GetRequiredService<INotificationService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPaymentRepository>()
+            )
+        );
         services.AddScoped<ISubscriptionLifecycleService, SubscriptionLifecycleService>(provider =>
             new SubscriptionLifecycleService(
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
@@ -99,7 +126,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<IUserService>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanPrivilegeRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
-                provider.GetRequiredService<IBillingService>(),
+                provider.GetRequiredService<ISubscriptionBillingService>(), // UPDATED: Use consolidated service
                 provider.GetRequiredService<ISubscriptionNotificationService>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
@@ -116,6 +143,10 @@ public static class DependencyInjection
         services.AddScoped<ISubscriptionAnalyticsService, SubscriptionAnalyticsService>();
         services.AddScoped<ISubscriptionNotificationService, SubscriptionNotificationService>();
         
+        // Healthcare-specific subscription management services (MUST be registered before SubscriptionPlanService)
+        services.AddScoped<IPlanPricingService, PlanPricingService>();
+        services.AddScoped<IPlanVersioningService, PlanVersioningService>();
+        
         // Register Subscription Plan Service
         services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>(provider =>
             new SubscriptionPlanService(
@@ -129,7 +160,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<INotificationService>(),
                 provider.GetRequiredService<IUserService>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
-                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
+                provider.GetRequiredService<IPlanPricingService>()
             )
         );
         

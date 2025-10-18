@@ -11,6 +11,9 @@ public interface IPrivilegeService
     Task<bool> UsePrivilegeAsync(Guid subscriptionId, string privilegeName, int amount = 1, TokenModel tokenModel = null);
     Task<IEnumerable<Privilege>> GetPrivilegesForPlanAsync(Guid planId, TokenModel tokenModel);
     Task<JsonModel> GetAllPrivilegesAsync(int page, int pageSize, string? search, string? category, string? status, TokenModel tokenModel);
+    
+    // Check privilege availability with detailed purchase information if limit exceeded
+    Task<JsonModel> CheckPrivilegeAvailabilityAsync(Guid subscriptionId, string privilegeName, int requestedAmount, TokenModel tokenModel);
 
     // New methods for enhanced privilege management
     Task<JsonModel> GetPrivilegeByIdAsync(string id, TokenModel token);

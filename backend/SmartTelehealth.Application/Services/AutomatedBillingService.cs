@@ -31,7 +31,7 @@ public class AutomatedBillingService : IAutomatedBillingService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService; // UPDATED: Use consolidated service
     private readonly IStripeService _stripeService;
     private readonly IPrivilegeUsageHistoryRepository _privilegeUsageHistoryRepository;
     private readonly IUserSubscriptionPrivilegeUsageRepository _userSubscriptionPrivilegeUsageRepository;
@@ -40,13 +40,15 @@ public class AutomatedBillingService : IAutomatedBillingService
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepository;
     private readonly IBillingRepository _billingRepository;
+    private readonly ISubscriptionPaymentRepository _subscriptionPaymentRepository;
 
     /// <summary>
     /// Initializes a new instance of the AutomatedBillingService
+    /// UPDATED: Now uses consolidated ISubscriptionBillingService
     /// </summary>
     /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
     /// <param name="subscriptionPlanRepository">Repository for subscription plan data access operations</param>
-    /// <param name="billingService">Service for billing record management and processing</param>
+    /// <param name="billingService">Service for billing record management and processing (consolidated)</param>
     /// <param name="stripeService">Service for Stripe payment processing integration</param>
     /// <param name="privilegeUsageHistoryRepository">Repository for privilege usage history tracking</param>
     /// <param name="userSubscriptionPrivilegeUsageRepository">Repository for user subscription privilege usage tracking</param>
@@ -55,10 +57,11 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// <param name="notificationService">Service for sending notifications to users</param>
     /// <param name="userRepository">Repository for user data access operations</param>
     /// <param name="billingRepository">Repository for billing record data access operations</param>
+    /// <param name="subscriptionPaymentRepository">Repository for subscription payment data access operations</param>
     public AutomatedBillingService(
         ISubscriptionRepository subscriptionRepository,
         ISubscriptionPlanRepository subscriptionPlanRepository,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService, // UPDATED: Use consolidated service
         IStripeService stripeService,
         IPrivilegeUsageHistoryRepository privilegeUsageHistoryRepository,
         IUserSubscriptionPrivilegeUsageRepository userSubscriptionPrivilegeUsageRepository,
@@ -66,7 +69,8 @@ public class AutomatedBillingService : IAutomatedBillingService
         ILogger<AutomatedBillingService> logger,
         INotificationService notificationService,
         IUserRepository userRepository,
-        IBillingRepository billingRepository)
+        IBillingRepository billingRepository,
+        ISubscriptionPaymentRepository subscriptionPaymentRepository)
     {
         _subscriptionRepository = subscriptionRepository;
         _subscriptionPlanRepository = subscriptionPlanRepository;
@@ -79,6 +83,7 @@ public class AutomatedBillingService : IAutomatedBillingService
         _notificationService = notificationService;
         _userRepository = userRepository;
         _billingRepository = billingRepository;
+        _subscriptionPaymentRepository = subscriptionPaymentRepository;
     }
 
     public async Task ProcessRecurringBillingAsync(TokenModel tokenModel)
@@ -152,19 +157,37 @@ public class AutomatedBillingService : IAutomatedBillingService
         {
             _logger.LogInformation("Starting failed payment retry process by user {UserId}", tokenModel?.UserID ?? 0);
             
-            // Get subscriptions with failed payments that can be retried
-            var failedSubscriptions = await _subscriptionRepository.GetSubscriptionsWithFailedPaymentsAsync();
+            // Get failed payments that are due for retry using SubscriptionPayment
+            var paymentsToRetry = await _subscriptionPaymentRepository.GetFailedPaymentsDueForRetryAsync(DateTime.UtcNow, 100);
             
-            foreach (var subscription in failedSubscriptions)
+            foreach (var payment in paymentsToRetry)
             {
                 try
                 {
-                    await ProcessFailedPaymentRetryAsync(subscription, tokenModel);
+                    if (payment.AttemptCount >= 3)
+                    {
+                        await HandleMaxRetriesExceededAsync(payment, tokenModel);
+                        continue;
+                    }
+                    
+                    // Process retry payment
+                    var result = await _billingService.ProcessPaymentAsync(payment.BillingRecordId, tokenModel);
+                    
+                    if (result.StatusCode == 200)
+                    {
+                        _logger.LogInformation("Successfully retried payment {PaymentId} for subscription {SubscriptionId}", 
+                            payment.Id, payment.SubscriptionId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to retry payment {PaymentId} for subscription {SubscriptionId}: {Message}", 
+                            payment.Id, payment.SubscriptionId, result.Message);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing failed payment retry for subscription {SubscriptionId} by user {UserId}", 
-                        subscription.Id, tokenModel?.UserID ?? 0);
+                    _logger.LogError(ex, "Error processing failed payment retry for payment {PaymentId} by user {UserId}", 
+                        payment.Id, tokenModel?.UserID ?? 0);
                 }
             }
             
@@ -379,6 +402,7 @@ public class AutomatedBillingService : IAutomatedBillingService
         }
     }
 
+    // SRP Refactoring: Replaced duplicate logic with centralized BillingService method
     public async Task<DateTime> CalculateNextBillingDateAsync(Guid subscriptionId, TokenModel tokenModel)
     {
         try
@@ -414,27 +438,8 @@ public class AutomatedBillingService : IAutomatedBillingService
                 }
             }
 
-            var nextBillingDate = DateTime.UtcNow;
-            
-            // Calculate next billing date based on billing cycle
-            if (subscription.BillingCycle != null)
-            {
-                switch (subscription.BillingCycle.Name)
-                {
-                    case "Monthly":
-                        nextBillingDate = DateTime.UtcNow.AddMonths(1);
-                        break;
-                    case "Quarterly":
-                        nextBillingDate = DateTime.UtcNow.AddMonths(3);
-                        break;
-                    case "Annually":
-                        nextBillingDate = DateTime.UtcNow.AddYears(1);
-                        break;
-                    default:
-                        nextBillingDate = DateTime.UtcNow.AddMonths(1);
-                        break;
-                }
-            }
+            // SRP Refactoring: Use centralized billing date calculation from BillingService
+            var nextBillingDate = _billingService.CalculateNextBillingDate(DateTime.UtcNow, subscription.BillingCycle);
 
             _logger.LogInformation("Next billing date calculated for subscription {SubscriptionId} by user {UserId}: {NextBillingDate}", 
                 subscriptionId, tokenModel?.UserID ?? 0, nextBillingDate);
@@ -667,6 +672,49 @@ public class AutomatedBillingService : IAutomatedBillingService
         // For daily billing, return the full amount as there's no proration
         return amount;
     }
+    
+    /// <summary>
+    /// Migrates existing subscription pricing to align with billing cycle
+    /// </summary>
+    private async Task MigrateSubscriptionPricingIfNeededAsync(Subscription subscription, TokenModel tokenModel)
+    {
+        try
+        {
+            var plan = subscription.SubscriptionPlan;
+            var monthlyPrice = plan.Price;
+            var billingCycleDays = subscription.BillingCycle.DurationInDays;
+            var monthsInCycle = billingCycleDays / 30.0m;
+            var expectedPrice = monthlyPrice * monthsInCycle;
+            
+            // Apply discount
+            var discountPercent = subscription.BillingCycle.Name.ToLower() switch
+            {
+                "annual" or "yearly" => plan.AnnualBillingDiscount,
+                "quarterly" => plan.QuarterlyBillingDiscount,
+                "monthly" => plan.MonthlyBillingDiscount,
+                _ => 0m
+            };
+            var discount = expectedPrice * (discountPercent / 100);
+            var correctPrice = expectedPrice - discount;
+            
+            // If CurrentPrice is wrong, update it
+            if (Math.Abs(subscription.CurrentPrice - correctPrice) > 0.01m)
+            {
+                _logger.LogWarning("Migrating subscription {SubscriptionId} price from {OldPrice} to {NewPrice} for billing cycle {BillingCycle}",
+                    subscription.Id, subscription.CurrentPrice, correctPrice, subscription.BillingCycle.Name);
+                
+                subscription.CurrentPrice = correctPrice;
+                subscription.UpdatedBy = tokenModel.UserID;
+                subscription.UpdatedDate = DateTime.UtcNow;
+                await _subscriptionRepository.UpdateAsync(subscription);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error migrating subscription pricing for subscription {SubscriptionId}", subscription.Id);
+            // Don't throw - allow billing to continue with current price
+        }
+    }
 
     // Helper methods
     private async Task ProcessSubscriptionBillingAsync(Subscription subscription, TokenModel tokenModel)
@@ -675,6 +723,9 @@ public class AutomatedBillingService : IAutomatedBillingService
         {
         _logger.LogInformation("Processing billing for subscription {SubscriptionId} by user {UserId}", 
             subscription.Id, tokenModel?.UserID ?? 0);
+        
+            // Migrate existing subscription pricing if needed (for existing subscriptions)
+            await MigrateSubscriptionPricingIfNeededAsync(subscription, tokenModel);
         
             // Step 1: Validate subscription is eligible for billing
             if (!await ValidateSubscriptionForBillingAsync(subscription, tokenModel))
@@ -691,23 +742,15 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return;
             }
 
-            // Step 3: Create billing record
-            var billingRecordDto = new CreateBillingRecordDto
-            {
-                UserId = subscription.UserId,
-                SubscriptionId = subscription.Id.ToString(),
-                Amount = billingAmount,
-                CurrencyId = null, // Currency is hardcoded to USD in Subscription entity
-                PaymentMethod = "stripe",
-                Status = BillingRecord.BillingStatus.Pending.ToString(),
-                Description = $"Automated billing for {subscription.SubscriptionPlan?.Name ?? "subscription"} - {subscription.BillingCycle?.Name ?? "monthly"}",
-                BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7), // 7-day grace period
-                Type = BillingRecord.BillingType.Subscription.ToString(),
-                // StripeSubscriptionId is not available in CreateBillingRecordDto
-            };
-
-            var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, tokenModel);
+            // Step 3: Create billing record using centralized factory method (SRP Refactoring)
+            var billingResult = await _billingService.CreateSubscriptionBillingAsync(
+                subscription,
+                billingAmount,
+                $"Automated billing for {subscription.SubscriptionPlan?.Name ?? "subscription"} - {subscription.BillingCycle?.Name ?? "monthly"}",
+                DateTime.UtcNow.AddDays(7), // 7-day grace period
+                tokenModel
+            );
+            
             if (billingResult.StatusCode != 200)
             {
                 _logger.LogError("Failed to create billing record for subscription {SubscriptionId}: {Error}", 
@@ -715,14 +758,31 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return;
             }
 
-            // Step 4: Process payment through Stripe
-            var paymentResult = await ProcessPaymentThroughStripeAsync(subscription, billingAmount, tokenModel);
-            
-            // Step 5: Update subscription and billing record based on payment result
-            await UpdateSubscriptionAfterBillingAsync(subscription, paymentResult, billingRecordDto, tokenModel);
+            // Extract billing record ID from result
+            var billingRecordDto = billingResult.data as BillingRecordDto;
+            if (billingRecordDto == null || !Guid.TryParse(billingRecordDto.Id, out var billingRecordId))
+            {
+                _logger.LogError("Failed to extract billing record ID from result for subscription {SubscriptionId}", subscription.Id);
+                return;
+            }
 
-            _logger.LogInformation("Successfully processed billing for subscription {SubscriptionId} with amount {Amount}", 
-                subscription.Id, billingAmount);
+            // Step 4: FIXED - Process payment through PaymentService to enable SubscriptionPayment tracking
+            // PaymentService.ProcessPaymentAsync handles:
+            // - Creates SubscriptionPayment with billing period
+            // - Processes payment through Stripe
+            // - Updates BillingRecord, SubscriptionPayment, and Subscription in transaction
+            var paymentResult = await _billingService.ProcessPaymentAsync(billingRecordId, tokenModel);
+            
+            if (paymentResult.StatusCode == 200)
+            {
+                _logger.LogInformation("Successfully processed billing and payment for subscription {SubscriptionId} with amount {Amount}", 
+                    subscription.Id, billingAmount);
+            }
+            else
+            {
+                _logger.LogWarning("Billing created but payment failed for subscription {SubscriptionId}: {Error}. Will retry automatically.", 
+                    subscription.Id, paymentResult.Message);
+            }
         }
         catch (Exception ex)
         {
@@ -753,43 +813,42 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return;
             }
 
-            // Step 3: Process renewal payment
-            var paymentResult = await ProcessPaymentThroughStripeAsync(subscription, renewalAmount, tokenModel);
+            // Step 3: FIXED - Create billing record FIRST (proper order)
+            var renewalBillingResult = await _billingService.CreateSubscriptionBillingAsync(
+                subscription,
+                renewalAmount,
+                $"Subscription renewal for {subscription.SubscriptionPlan?.Name ?? "subscription"}",
+                DateTime.UtcNow.AddDays(7),
+                tokenModel
+            );
             
-            if (paymentResult.Status == "succeeded")
+            if (renewalBillingResult.StatusCode != 200)
             {
-                // Step 4: Update subscription for renewal
-                await UpdateSubscriptionForRenewalAsync(subscription, tokenModel);
-                
-                // Step 5: Create renewal billing record
-                var renewalBillingDto = new CreateBillingRecordDto
-                {
-                    UserId = subscription.UserId,
-                    SubscriptionId = subscription.Id.ToString(),
-                    Amount = renewalAmount,
-                    CurrencyId = null, // Currency is hardcoded to USD in Subscription entity
-                    PaymentMethod = "stripe",
-                    Status = BillingRecord.BillingStatus.Paid.ToString(),
-                    Description = $"Subscription renewal for {subscription.SubscriptionPlan?.Name ?? "subscription"}",
-                    BillingDate = DateTime.UtcNow,
-                    PaidDate = DateTime.UtcNow,
-                    Type = BillingRecord.BillingType.Subscription.ToString(),
-                    // StripeSubscriptionId is not available in CreateBillingRecordDto,
-                    StripePaymentIntentId = paymentResult.PaymentIntentId
-                };
+                _logger.LogError("Failed to create renewal billing record for subscription {SubscriptionId}: {Error}", 
+                    subscription.Id, renewalBillingResult.Message);
+                return;
+            }
 
-                await _billingService.CreateBillingRecordAsync(renewalBillingDto, tokenModel);
-                
+            // Extract billing record ID from result
+            var renewalBillingDto = renewalBillingResult.data as BillingRecordDto;
+            if (renewalBillingDto == null || !Guid.TryParse(renewalBillingDto.Id, out var billingRecordId))
+            {
+                _logger.LogError("Failed to extract billing record ID from renewal result for subscription {SubscriptionId}", subscription.Id);
+                return;
+            }
+
+            // Step 4: FIXED - Process payment through PaymentService (creates SubscriptionPayment, handles updates)
+            var paymentResult = await _billingService.ProcessPaymentAsync(billingRecordId, tokenModel);
+            
+            if (paymentResult.StatusCode == 200)
+            {
                 _logger.LogInformation("Successfully renewed subscription {SubscriptionId} with amount {Amount}", 
                     subscription.Id, renewalAmount);
             }
             else
             {
-                // Step 4: Handle renewal failure
-                await HandleRenewalFailureAsync(subscription, paymentResult, tokenModel);
-                
-                _logger.LogWarning("Failed to renew subscription {SubscriptionId}: {Error}", 
-                    subscription.Id, paymentResult.ErrorMessage);
+                _logger.LogWarning("Renewal payment failed for subscription {SubscriptionId}: {Error}. Will retry automatically.", 
+                    subscription.Id, paymentResult.Message);
             }
         }
         catch (Exception ex)
@@ -969,28 +1028,57 @@ public class AutomatedBillingService : IAutomatedBillingService
     }
 
     /// <summary>
-    /// Calculates the billing amount for a subscription
+    /// Calculates the billing amount for a subscription scaled to billing cycle
+    /// FIXED: Now scales monthly price to billing cycle duration with discount support
     /// </summary>
     private async Task<decimal> CalculateBillingAmountAsync(Subscription subscription, TokenModel tokenModel)
     {
         try
         {
-            var baseAmount = subscription.CurrentPrice;
+            var plan = subscription.SubscriptionPlan;
+            var monthlyPrice = plan.Price; // Base monthly price
+            var billingCycleDays = subscription.BillingCycle.DurationInDays;
+            var monthsInCycle = billingCycleDays / 30.0m;
             
-            // Apply any discounts or adjustments
-            var discountAmount = await CalculateDiscountAmountAsync(subscription, tokenModel);
+            // Calculate base price for billing cycle
+            var basePrice = monthlyPrice * monthsInCycle;
+            
+            // Apply billing cycle discount
+            var billingCycleDiscount = CalculateBillingCycleDiscount(plan, subscription.BillingCycle, basePrice);
+            
+            // Apply additional discounts or adjustments (existing logic)
+            var additionalDiscounts = await CalculateDiscountAmountAsync(subscription, tokenModel);
             var adjustmentAmount = await CalculateAdjustmentAmountAsync(subscription, tokenModel);
             
-            var totalAmount = baseAmount - discountAmount + adjustmentAmount;
+            var finalPrice = basePrice - billingCycleDiscount - additionalDiscounts + adjustmentAmount;
+            
+            _logger.LogInformation("Billing amount calculated for subscription {SubscriptionId}: BasePrice={BasePrice}, BillingCycleDiscount={BillingCycleDiscount}, AdditionalDiscounts={AdditionalDiscounts}, Final={Final}",
+                subscription.Id, basePrice, billingCycleDiscount, additionalDiscounts, finalPrice);
             
             // Ensure minimum amount
-            return Math.Max(totalAmount, 0.01m);
+            return Math.Max(finalPrice, 0.01m);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating billing amount for subscription {SubscriptionId}", subscription.Id);
             return subscription.CurrentPrice;
         }
+    }
+    
+    /// <summary>
+    /// Calculates billing cycle discount based on plan configuration
+    /// </summary>
+    private decimal CalculateBillingCycleDiscount(SubscriptionPlan plan, MasterBillingCycle billingCycle, decimal basePrice)
+    {
+        var discountPercent = billingCycle.Name.ToLower() switch
+        {
+            "annual" or "yearly" => plan.AnnualBillingDiscount,
+            "quarterly" => plan.QuarterlyBillingDiscount,
+            "monthly" => plan.MonthlyBillingDiscount,
+            _ => 0m
+        };
+        
+        return basePrice * (discountPercent / 100);
     }
 
     /// <summary>
@@ -1621,7 +1709,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 SubscriptionId = subscription.Id,
                 CurrencyId = subscriptionPlan.CurrencyId,
                 Status = BillingRecord.BillingStatus.Pending,
-                Type = BillingRecord.BillingType.Subscription,
+                Type = BillingRecord.BillingType.Overage,  // FIXED: Use Overage type, not Subscription
                 Amount = overageAmount,
                 TaxAmount = 0, // Calculate tax if needed
                 ShippingAmount = 0,
@@ -1700,10 +1788,10 @@ public class AutomatedBillingService : IAutomatedBillingService
                 return false;
             }
 
-            // Process payment for overage charges
-            var paymentResult = await ProcessPaymentThroughStripeAsync(subscription, overageAmount, tokenModel);
+            // FIXED: Process payment through PaymentService to enable SubscriptionPayment tracking and retry logic
+            var paymentResult = await _billingService.ProcessPaymentAsync(billingRecordId.Value, tokenModel);
             
-            if (paymentResult.Success)
+            if (paymentResult.StatusCode == 200)
             {
                 _logger.LogInformation("Successfully processed overage charges of {Amount} for subscription {SubscriptionId}", 
                     overageAmount, subscription.Id);
@@ -1712,7 +1800,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             else
             {
                 _logger.LogWarning("Failed to process overage charges for subscription {SubscriptionId}: {Error}", 
-                    subscription.Id, paymentResult.ErrorMessage);
+                    subscription.Id, paymentResult.Message);
                 return false;
             }
         }
@@ -2036,6 +2124,81 @@ public class AutomatedBillingService : IAutomatedBillingService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting billing statistics by user {UserId}", tokenModel?.UserID ?? 0);
+            throw;
+        }
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Handles subscription suspension when maximum retry attempts are exceeded
+    /// </summary>
+    private async Task HandleMaxRetriesExceededAsync(SubscriptionPayment payment, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogWarning("Maximum retry attempts exceeded for payment {PaymentId}. Suspending subscription {SubscriptionId}", 
+                payment.Id, payment.SubscriptionId);
+
+            await _unitOfWork.BeginTransactionAsync();
+            
+            try
+            {
+                // Get subscription
+                var subscription = await _subscriptionRepository.GetByIdAsync(payment.SubscriptionId);
+                if (subscription == null)
+                {
+                    _logger.LogError("Subscription {SubscriptionId} not found for payment {PaymentId}", 
+                        payment.SubscriptionId, payment.Id);
+                    return;
+                }
+
+                // Suspend subscription
+                subscription.Status = Subscription.SubscriptionStatuses.Suspended;
+                subscription.Notes = "Maximum payment retry attempts exceeded";
+                // SuspensionReason and SuspendedAt properties don't exist - using Notes instead
+                subscription.UpdatedBy = tokenModel.UserID;
+                subscription.UpdatedDate = DateTime.UtcNow;
+
+                await _subscriptionRepository.UpdateAsync(subscription);
+
+                // Update payment status to indicate max retries exceeded
+                payment.Status = SubscriptionPayment.PaymentStatus.Failed;
+                payment.FailureReason = "Maximum retry attempts exceeded (3)";
+                payment.UpdatedBy = tokenModel.UserID;
+                payment.UpdatedDate = DateTime.UtcNow;
+
+                await _subscriptionPaymentRepository.UpdateAsync(payment);
+
+                // Send notification to user
+                var user = await _userRepository.GetByIdAsync(subscription.UserId);
+                if (user != null)
+                {
+                    await _notificationService.SendNotificationAsync(
+                        user.Id,
+                        "Subscription Suspended",
+                        "Your subscription has been suspended due to failed payment attempts. Please update your payment method to reactivate your subscription.",
+                        tokenModel);
+                }
+
+                await _unitOfWork.CommitTransactionAsync();
+                
+                _logger.LogInformation("Successfully suspended subscription {SubscriptionId} after max retry attempts exceeded", 
+                    subscription.Id);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error suspending subscription {SubscriptionId} after max retry attempts", 
+                    payment.SubscriptionId);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling max retries exceeded for payment {PaymentId}", payment.Id);
             throw;
         }
     }

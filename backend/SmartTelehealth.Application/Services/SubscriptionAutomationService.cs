@@ -29,7 +29,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
 {
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly ISubscriptionLifecycleService _lifecycleService;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService; // UPDATED: Use consolidated service
     private readonly IStripeService _stripeService;
       
     private readonly ILogger<SubscriptionAutomationService> _logger;
@@ -37,7 +37,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
     public SubscriptionAutomationService(
         ISubscriptionRepository subscriptionRepository,
         ISubscriptionLifecycleService lifecycleService,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService, // UPDATED: Use consolidated service
         IStripeService stripeService,
           
         ILogger<SubscriptionAutomationService> logger)
@@ -65,18 +65,15 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             {
                 try
                 {
-                    // Create billing record
-                    var billingRecord = new CreateBillingRecordDto
-                    {
-                        UserId = subscription.UserId,
-                        SubscriptionId = subscription.Id.ToString(),
-                        Amount = subscription.CurrentPrice,
-                        Description = $"Automated billing for {subscription.SubscriptionPlan.Name}",
-                        DueDate = DateTime.UtcNow,
-                        Type = BillingRecord.BillingType.Subscription.ToString()
-                    };
-
-                    var billingResult = await _billingService.CreateBillingRecordAsync(billingRecord, tokenModel);
+                    // SRP Refactoring: Use centralized billing record factory method
+                    var billingResult = await _billingService.CreateSubscriptionBillingAsync(
+                        subscription,
+                        subscription.CurrentPrice,
+                        $"Automated billing for {subscription.SubscriptionPlan.Name}",
+                        DateTime.UtcNow,
+                        tokenModel
+                    );
+                    
                     if (billingResult.StatusCode == 200)
                     {
                         processedCount++;

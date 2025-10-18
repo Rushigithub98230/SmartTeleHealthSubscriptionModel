@@ -12,7 +12,7 @@ public class VideoCallSubscriptionService : IVideoCallSubscriptionService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IConsultationRepository _consultationRepository;
     private readonly IOpenTokService _openTokService;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService; // UPDATED: Use consolidated service
     private readonly ILogger<VideoCallSubscriptionService> _logger;
     private readonly PrivilegeService _privilegeService;
 
@@ -20,7 +20,7 @@ public class VideoCallSubscriptionService : IVideoCallSubscriptionService
         ISubscriptionRepository subscriptionRepository,
         IConsultationRepository consultationRepository,
         IOpenTokService openTokService,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService, // UPDATED: Use consolidated service
         ILogger<VideoCallSubscriptionService> logger,
         PrivilegeService privilegeService)
     {

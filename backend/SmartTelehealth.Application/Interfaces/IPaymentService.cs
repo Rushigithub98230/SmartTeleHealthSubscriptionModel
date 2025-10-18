@@ -23,6 +23,8 @@ public interface IPaymentService
     
     // Payment Method Management
     Task<JsonModel> UpdatePaymentMethodAsync(Guid billingRecordId, string paymentMethodId, TokenModel tokenModel);
+    Task<JsonModel> GetPaymentMethodsAsync(int userId, TokenModel tokenModel); // SRP Refactoring: Moved from ISubscriptionService
+    Task<JsonModel> AddPaymentMethodAsync(int userId, string paymentMethodId, TokenModel tokenModel); // SRP Refactoring: Moved from ISubscriptionService
     
     // Special Payment Types
     Task<JsonModel> CreateUpfrontPaymentAsync(CreateUpfrontPaymentDto createDto, TokenModel tokenModel);

@@ -135,6 +135,34 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
     }
 
     /// <summary>
+    /// Retrieves a subscription payment by its billing record ID with related entities
+    /// </summary>
+    public async Task<SubscriptionPayment?> GetByBillingRecordIdAsync(Guid billingRecordId)
+    {
+        return await _context.SubscriptionPayments
+            .Include(sp => sp.Subscription)
+            .Include(sp => sp.BillingRecord)
+            .FirstOrDefaultAsync(sp => sp.BillingRecordId == billingRecordId);
+    }
+
+    /// <summary>
+    /// Retrieves failed payments that are due for retry with related entities
+    /// </summary>
+    public async Task<IEnumerable<SubscriptionPayment>> GetFailedPaymentsDueForRetryAsync(
+        DateTime now, int maxResults = 100)
+    {
+        return await _context.SubscriptionPayments
+            .Include(sp => sp.Subscription)
+            .Include(sp => sp.BillingRecord)
+            .Where(sp => sp.Status == SubscriptionPayment.PaymentStatus.Failed)
+            .Where(sp => sp.NextRetryAt.HasValue && sp.NextRetryAt.Value <= now)
+            .Where(sp => sp.AttemptCount < 3)
+            .OrderBy(sp => sp.NextRetryAt)
+            .Take(maxResults)
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Retrieves subscription payments with database-level filtering, pagination, and sorting
     /// </summary>
     public async Task<(IEnumerable<SubscriptionPayment> Payments, int TotalCount)> GetPaymentsWithFilteringAsync(

@@ -28,6 +28,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     private readonly IUserService _userService;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IPlanPricingService _pricingService;
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionPlanService with required dependencies
@@ -43,6 +44,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// <param name="userService">Service for user management operations</param>
     /// <param name="subscriptionRepository">Repository for subscription data access</param>
     /// <param name="unitOfWork">Unit of work for transaction management</param>
+    /// <param name="pricingService">Service for healthcare pricing calculations</param>
     public SubscriptionPlanService(
         ISubscriptionPlanRepository subscriptionPlanRepository,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepository,
@@ -54,7 +56,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         INotificationService notificationService,
         IUserService userService,
         ISubscriptionRepository subscriptionRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IPlanPricingService pricingService)
     {
         _subscriptionPlanRepository = subscriptionPlanRepository ?? throw new ArgumentNullException(nameof(subscriptionPlanRepository));
         _planPrivilegeRepository = planPrivilegeRepository ?? throw new ArgumentNullException(nameof(planPrivilegeRepository));
@@ -67,6 +70,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         _userService = userService ?? throw new ArgumentNullException(nameof(userService));
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _pricingService = pricingService ?? throw new ArgumentNullException(nameof(pricingService));
     }
 
     #region Core Plan Management
@@ -171,10 +175,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         try
         {
             // Admin only method - validate admin role
-            //if (tokenModel.RoleID != (int)RoleId.Admin)
-            //{
-            //    return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
-            //}
+            if (tokenModel.RoleID != (int)RoleId.Admin)
+            {
+                return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
 
             _logger.LogInformation("Creating subscription plan '{PlanName}' by user {UserId}", createDto.Name, tokenModel?.UserID ?? 0);
 
@@ -211,7 +215,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "A plan with this name already exists", StatusCode = 400 };
             }
 
-            // BEGIN TRANSACTION - Ensure database and Stripe operations are atomic
+            // BEGIN TRANSACTION - Single atomic operation for all changes
             await _unitOfWork.BeginTransactionAsync();
             
             SubscriptionPlan createdPlan = null;
@@ -219,6 +223,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             string monthlyPriceId = null;
             string quarterlyPriceId = null;
             string annualPriceId = null;
+            var invalidPrivileges = new List<Guid>();
+            var assignedPrivilegesCount = 0;
             
             try
             {
@@ -236,6 +242,20 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     // Trial configuration
                     IsTrialAllowed = createDto.IsTrialAllowed,
                     TrialDurationInDays = createDto.TrialDurationInDays,
+                    
+                    // ═══════════════════════════════════════════════════════════
+                    // HEALTHCARE PRICING MODEL (Choices 1c, 2c, 4d)
+                    // ═══════════════════════════════════════════════════════════
+                    VersionNumber = 1,  // Choice 3a: First version
+                    IsLatestVersion = true,
+                    ParentPlanId = null,
+                    VersionCreatedDate = DateTime.UtcNow,
+                    IsAutoCalculatedPrice = createDto.IsAutoCalculatedPrice,
+                    AdminCommissionPercent = createDto.AdminCommissionPercent,
+                    AdminCommissionFixed = createDto.AdminCommissionFixed,
+                    PriceChangeNoticeDays = createDto.PriceChangeNoticeDays,
+                    PrivilegesTotalCost = 0,  // Will be calculated if auto-pricing
+                    
                     // Set audit properties for creation
                     CreatedBy = tokenModel.UserID,
                     CreatedDate = DateTime.UtcNow
@@ -269,12 +289,77 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Prices {MonthlyId}, {QuarterlyId}, {AnnualId}", 
                     createdPlan.Name, stripeProductId, monthlyPriceId, quarterlyPriceId, annualPriceId);
 
-                // COMMIT TRANSACTION - All operations successful
+                // STEP 4: Process privileges if provided (SAME TRANSACTION - NO NESTED!)
+                if (createDto.Privileges != null && createDto.Privileges.Any())
+                {
+                    foreach (var privilege in createDto.Privileges)
+                    {
+                        // Validate privilege exists
+                        var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
+                        if (privilegeEntity == null)
+                        {
+                            _logger.LogWarning("Privilege {PrivilegeId} not found, skipping privilege assignment", privilege.PrivilegeId);
+                            invalidPrivileges.Add(privilege.PrivilegeId);
+                            continue; // Skip this privilege and continue with others
+                        }
+
+                        // Create plan privilege
+                        var planPrivilege = new SubscriptionPlanPrivilege
+                        {
+                            Id = Guid.NewGuid(),
+                            SubscriptionPlanId = createdPlan.Id,
+                            PrivilegeId = privilege.PrivilegeId,
+                            Value = privilege.Value,
+                            UsagePeriodId = privilege.UsagePeriodId,
+                            DurationMonths = privilege.DurationMonths,
+                            ExpirationDate = privilege.ExpirationDate,
+                            DailyLimit = privilege.DailyLimit,
+                            WeeklyLimit = privilege.WeeklyLimit,
+                            MonthlyLimit = privilege.MonthlyLimit,
+                            
+                            // Healthcare Pricing Model
+                            PrivilegeBaseCost = privilege.PrivilegeBaseCost,  // For plan price calculation
+                            UnitCost = privilege.UnitCost,  // For overage billing
+                            
+                            // Set audit properties for creation
+                            IsActive = true,
+                            CreatedBy = tokenModel.UserID,
+                            CreatedDate = DateTime.UtcNow
+                        };
+
+                        await _planPrivilegeRepository.CreateAsync(planPrivilege);
+                        assignedPrivilegesCount++;
+                    }
+                    
+                    _logger.LogInformation("Successfully assigned {PrivilegeCount} privileges to plan {PlanName}", 
+                        assignedPrivilegesCount, createdPlan.Name);
+                }
+                
+                // STEP 5: Auto-calculate price if enabled (STILL IN SAME TRANSACTION!)
+                if (createdPlan.IsAutoCalculatedPrice && assignedPrivilegesCount > 0)
+                {
+                    _logger.LogInformation("Auto-calculating price for plan {PlanId} based on privileges", createdPlan.Id);
+                    
+                    // Get pricing breakdown (includes privilegesTotalCost)
+                    var breakdown = await _pricingService.CalculatePricingBreakdownAsync(createdPlan.Id);
+                    
+                    // Update plan with calculated price
+                    createdPlan.Price = breakdown.FinalPrice;
+                    createdPlan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
+                    
+                    await _subscriptionPlanRepository.UpdatePlanAsync(createdPlan);
+                    
+                    _logger.LogInformation(
+                        "Auto-calculated price for plan {PlanName}: ${Price} (Privileges: ${PrivTotal}, Commission: ${Comm})",
+                        createdPlan.Name, breakdown.FinalPrice, breakdown.PrivilegesTotalCost, breakdown.CommissionAmount);
+                }
+
+                // COMMIT SINGLE TRANSACTION - All operations successful (atomic)
                 await _unitOfWork.CommitTransactionAsync();
             }
             catch (Exception ex)
             {
-                // ROLLBACK TRANSACTION - Something failed, ensure data consistency
+                // ROLLBACK SINGLE TRANSACTION - Ensure all-or-nothing consistency
                 await _unitOfWork.RollbackTransactionAsync();
                 
                 // CRITICAL: Clean up Stripe resources if they were created but database failed
@@ -307,61 +392,15 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = $"Failed to create plan: {ex.Message}", StatusCode = 500 };
             }
 
-            // Process privileges if provided (in separate transaction for data integrity)
-            if (createDto.Privileges != null && createDto.Privileges.Any())
-            {
-                await _unitOfWork.BeginTransactionAsync();
-                try
-                {
-                    foreach (var privilege in createDto.Privileges)
-                    {
-                        // Validate privilege exists
-                        var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
-                        if (privilegeEntity == null)
-                        {
-                            _logger.LogWarning("Privilege {PrivilegeId} not found, skipping privilege assignment", privilege.PrivilegeId);
-                            continue; // Skip this privilege and continue with others
-                        }
-
-                        // Create plan privilege
-                        var planPrivilege = new SubscriptionPlanPrivilege
-                        {
-                            Id = Guid.NewGuid(),
-                            SubscriptionPlanId = createdPlan.Id,
-                            PrivilegeId = privilege.PrivilegeId,
-                            Value = privilege.Value,
-                            UsagePeriodId = privilege.UsagePeriodId,
-                            DurationMonths = privilege.DurationMonths,
-                            ExpirationDate = privilege.ExpirationDate,
-                            DailyLimit = privilege.DailyLimit,
-                            WeeklyLimit = privilege.WeeklyLimit,
-                            MonthlyLimit = privilege.MonthlyLimit,
-                            UnitCost = privilege.UnitCost,  // Set unit cost for overage billing
-                            // Set audit properties for creation
-                            IsActive = true,
-                            CreatedBy = tokenModel.UserID,
-                            CreatedDate = DateTime.UtcNow
-                        };
-
-                        await _planPrivilegeRepository.AddAsync(planPrivilege);
-                    }
-                    
-                    await _unitOfWork.CommitTransactionAsync();
-                    _logger.LogInformation("Successfully assigned {PrivilegeCount} privileges to plan {PlanName}", 
-                        createDto.Privileges.Count, createdPlan.Name);
-                }
-                catch (Exception ex)
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError(ex, "Failed to assign privileges to plan {PlanName}. Privilege assignment rolled back.", createdPlan.Name);
-                    // Don't fail the entire operation, just log the error
-                }
-            }
-
             var planDto = _mapper.Map<SubscriptionPlanDto>(createdPlan);
 
+            // Build success message with privilege assignment info
+            var successMessage = invalidPrivileges.Any()
+                ? $"Plan created with {assignedPrivilegesCount} privileges. {invalidPrivileges.Count} invalid privileges skipped."
+                : $"Plan created successfully with {assignedPrivilegesCount} privileges";
+
             _logger.LogInformation("Successfully created subscription plan {PlanId} by user {UserId}", createdPlan.Id, tokenModel?.UserID ?? 0);
-            return new JsonModel { data = planDto, Message = "Plan created successfully with privileges", StatusCode = 201 };
+            return new JsonModel { data = planDto, Message = successMessage, StatusCode = 201 };
         }
         catch (Exception ex)
         {
@@ -501,21 +540,32 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// </summary>
     public async Task<JsonModel> AssignPrivilegesToPlanAsync(Guid planId, List<PlanPrivilegeDto> privileges, TokenModel tokenModel)
     {
+        // BEGIN TRANSACTION - Ensure atomic privilege assignment
+        await _unitOfWork.BeginTransactionAsync();
+        
         try
         {
             _logger.LogInformation("Assigning privileges to plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
 
             // Check admin access
             if (tokenModel?.RoleID != (int)RoleId.Admin && tokenModel?.RoleID != (int)RoleId.Provider)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
 
             // Check if plan exists
             var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
             if (plan == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
+            }
 
             // Validate and assign privileges
             int assignedCount = 0;
+            var invalidPrivileges = new List<Guid>();
+            
             foreach (var privilege in privileges)
             {
                 // Validate privilege exists
@@ -523,31 +573,81 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 if (privilegeEntity == null)
                 {
                     _logger.LogWarning("Privilege {PrivilegeId} not found, skipping", privilege.PrivilegeId);
+                    invalidPrivileges.Add(privilege.PrivilegeId);
                     continue;
                 }
 
                 // Create plan privilege
                 var planPrivilege = new SubscriptionPlanPrivilege
                 {
+                    Id = Guid.NewGuid(),
                     SubscriptionPlanId = planId,
                     PrivilegeId = privilege.PrivilegeId,
                     Value = privilege.Value,
                     UsagePeriodId = privilege.UsagePeriodId,
                     DurationMonths = privilege.DurationMonths,
                     ExpirationDate = privilege.ExpirationDate,
+                    DailyLimit = privilege.DailyLimit,
+                    WeeklyLimit = privilege.WeeklyLimit,
+                    MonthlyLimit = privilege.MonthlyLimit,
+                    PrivilegeBaseCost = privilege.PrivilegeBaseCost,
+                    UnitCost = privilege.UnitCost,
+                    IsActive = true,
+                    CreatedBy = tokenModel.UserID,
                     CreatedDate = DateTime.UtcNow
                 };
 
                 await _planPrivilegeRepository.AddAsync(planPrivilege);
                 assignedCount++;
             }
+            
+            // If ALL privileges were invalid, fail
+            if (assignedCount == 0 && privileges.Any())
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = "All provided privileges are invalid. No privileges assigned.", 
+                    StatusCode = 400 
+                };
+            }
+            
+            // If plan has auto-calculated pricing, recalculate price
+            if (plan.IsAutoCalculatedPrice && assignedCount > 0)
+            {
+                _logger.LogInformation("Recalculating price for auto-priced plan {PlanId} after privilege assignment", planId);
+                
+                var breakdown = await _pricingService.CalculatePricingBreakdownAsync(planId);
+                plan.Price = breakdown.FinalPrice;
+                plan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
+                plan.UpdatedBy = tokenModel.UserID;
+                plan.UpdatedDate = DateTime.UtcNow;
+                
+                await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+                
+                _logger.LogInformation("Recalculated price for plan {PlanName}: ${Price}", plan.Name, breakdown.FinalPrice);
+            }
 
-            return new JsonModel { data = new object(), Message = $"Successfully assigned {assignedCount} privileges to plan", StatusCode = 200 };
+            // COMMIT TRANSACTION
+            await _unitOfWork.CommitTransactionAsync();
+            
+            var message = invalidPrivileges.Any()
+                ? $"Successfully assigned {assignedCount} privileges to plan. {invalidPrivileges.Count} invalid privileges skipped."
+                : $"Successfully assigned {assignedCount} privileges to plan";
+
+            return new JsonModel 
+            { 
+                data = new { assignedCount, skippedCount = invalidPrivileges.Count, invalidPrivileges }, 
+                Message = message, 
+                StatusCode = 200 
+            };
         }
         catch (Exception ex)
         {
+            await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error assigning privileges to plan {PlanId}", planId);
-            return new JsonModel { data = new object(), Message = "Failed to assign privileges to plan", StatusCode = 500 };
+            return new JsonModel { data = new object(), Message = $"Failed to assign privileges to plan: {ex.Message}", StatusCode = 500 };
         }
     }
 
@@ -556,25 +656,37 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// </summary>
     public async Task<JsonModel> RemovePrivilegeFromPlanAsync(Guid planId, Guid privilegeId, TokenModel tokenModel)
     {
+        // BEGIN TRANSACTION - Ensure atomic privilege removal and price recalculation
+        await _unitOfWork.BeginTransactionAsync();
+        
         try
         {
             _logger.LogInformation("Removing privilege {PrivilegeId} from plan {PlanId} by user {UserId}", privilegeId, planId, tokenModel?.UserID ?? 0);
 
             // Check admin access
             if (tokenModel?.RoleID != (int)RoleId.Admin && tokenModel?.RoleID != (int)RoleId.Provider)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
 
             // Check if plan exists
             var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
             if (plan == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
+            }
 
             // Find and remove the privilege
             var planPrivileges = await _planPrivilegeRepository.GetByPlanIdAsync(planId);
             var planPrivilege = planPrivileges.FirstOrDefault(pp => pp.PrivilegeId == privilegeId);
             
             if (planPrivilege == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Privilege not found in plan", StatusCode = 404 };
+            }
 
             // Soft delete - set audit properties
             planPrivilege.IsDeleted = true;
@@ -584,13 +696,34 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             planPrivilege.UpdatedDate = DateTime.UtcNow;
             
             await _planPrivilegeRepository.UpdatePlanPrivilegeAsync(planPrivilege);
+            
+            // If plan has auto-calculated pricing, recalculate price
+            if (plan.IsAutoCalculatedPrice)
+            {
+                _logger.LogInformation("Recalculating price for auto-priced plan {PlanId} after privilege removal", planId);
+                
+                var breakdown = await _pricingService.CalculatePricingBreakdownAsync(planId);
+                plan.Price = breakdown.FinalPrice;
+                plan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
+                plan.UpdatedBy = tokenModel.UserID;
+                plan.UpdatedDate = DateTime.UtcNow;
+                
+                await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+                
+                _logger.LogInformation("Recalculated price for plan {PlanName}: ${OldPrice} → ${NewPrice}", 
+                    plan.Name, plan.Price, breakdown.FinalPrice);
+            }
+
+            // COMMIT TRANSACTION
+            await _unitOfWork.CommitTransactionAsync();
 
             return new JsonModel { data = true, Message = "Privilege removed from plan successfully", StatusCode = 200 };
         }
         catch (Exception ex)
         {
+            await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error removing privilege {PrivilegeId} from plan {PlanId}", privilegeId, planId);
-            return new JsonModel { data = new object(), Message = "Failed to remove privilege from plan", StatusCode = 500 };
+            return new JsonModel { data = new object(), Message = $"Failed to remove privilege from plan: {ex.Message}", StatusCode = 500 };
         }
     }
 
@@ -599,43 +732,79 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// </summary>
     public async Task<JsonModel> UpdatePlanPrivilegeAsync(Guid planId, Guid privilegeId, PlanPrivilegeDto updatedPrivilegeDto, TokenModel tokenModel)
     {
+        // BEGIN TRANSACTION - Ensure atomic privilege update and price recalculation
+        await _unitOfWork.BeginTransactionAsync();
+        
         try
         {
             _logger.LogInformation("Updating privilege {PrivilegeId} in plan {PlanId} by user {UserId}", privilegeId, planId, tokenModel?.UserID ?? 0);
 
             // Check admin access
             if (tokenModel?.RoleID != (int)RoleId.Admin && tokenModel?.RoleID != (int)RoleId.Provider)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
+            }
 
             // Check if plan exists
             var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
             if (plan == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
+            }
 
             // Find the privilege
             var planPrivileges = await _planPrivilegeRepository.GetByPlanIdAsync(planId);
             var planPrivilege = planPrivileges.FirstOrDefault(pp => pp.PrivilegeId == privilegeId);
             
             if (planPrivilege == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
                 return new JsonModel { data = new object(), Message = "Privilege not found in plan", StatusCode = 404 };
+            }
 
             // Update the privilege
             planPrivilege.Value = updatedPrivilegeDto.Value;
             planPrivilege.UsagePeriodId = updatedPrivilegeDto.UsagePeriodId;
             planPrivilege.DurationMonths = updatedPrivilegeDto.DurationMonths;
             planPrivilege.ExpirationDate = updatedPrivilegeDto.ExpirationDate;
+            planPrivilege.DailyLimit = updatedPrivilegeDto.DailyLimit;
+            planPrivilege.WeeklyLimit = updatedPrivilegeDto.WeeklyLimit;
+            planPrivilege.MonthlyLimit = updatedPrivilegeDto.MonthlyLimit;
+            planPrivilege.PrivilegeBaseCost = updatedPrivilegeDto.PrivilegeBaseCost;
             planPrivilege.UnitCost = updatedPrivilegeDto.UnitCost;  // Update unit cost for overage billing
             planPrivilege.UpdatedBy = tokenModel.UserID;
             planPrivilege.UpdatedDate = DateTime.UtcNow;
 
             await _planPrivilegeRepository.UpdatePlanPrivilegeAsync(planPrivilege);
+            
+            // If plan has auto-calculated pricing, recalculate price
+            if (plan.IsAutoCalculatedPrice)
+            {
+                _logger.LogInformation("Recalculating price for auto-priced plan {PlanId} after privilege update", planId);
+                
+                var breakdown = await _pricingService.CalculatePricingBreakdownAsync(planId);
+                plan.Price = breakdown.FinalPrice;
+                plan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
+                plan.UpdatedBy = tokenModel.UserID;
+                plan.UpdatedDate = DateTime.UtcNow;
+                
+                await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+                
+                _logger.LogInformation("Recalculated price for plan {PlanName}: ${NewPrice}", plan.Name, breakdown.FinalPrice);
+            }
+
+            // COMMIT TRANSACTION
+            await _unitOfWork.CommitTransactionAsync();
 
             return new JsonModel { data = true, Message = "Plan privilege updated successfully", StatusCode = 200 };
         }
         catch (Exception ex)
         {
+            await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error updating privilege {PrivilegeId} in plan {PlanId}", privilegeId, planId);
-            return new JsonModel { data = new object(), Message = "Failed to update plan privilege", StatusCode = 500 };
+            return new JsonModel { data = new object(), Message = $"Failed to update plan privilege: {ex.Message}", StatusCode = 500 };
         }
     }
 
@@ -796,8 +965,9 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error updating Stripe prices for plan {PlanName}. Proceeding with local update only.", existingPlan.Name);
-                        // Don't fail the entire operation if Stripe update fails
+                        _logger.LogError(ex, "Error updating Stripe prices for plan {PlanName}. Failing operation to maintain DB-Stripe consistency.", existingPlan.Name);
+                        // CRITICAL FIX: Don't proceed with database-only update - throw to trigger rollback
+                        throw new InvalidOperationException($"Failed to synchronize price changes with Stripe. Update aborted to maintain consistency. Error: {ex.Message}", ex);
                     }
                 }
                 else
@@ -828,9 +998,9 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error updating Stripe product for plan {PlanName}. Proceeding with local update only.", existingPlan.Name);
-                        existingPlan.Name = originalName;
-                        existingPlan.Description = originalDescription;
+                        _logger.LogError(ex, "Error updating Stripe product for plan {PlanName}. Failing operation to maintain DB-Stripe consistency.", existingPlan.Name);
+                        // CRITICAL FIX: Don't revert entity - throw to trigger rollback and fail operation
+                        throw new InvalidOperationException($"Failed to synchronize product changes with Stripe. Update aborted to maintain consistency. Error: {ex.Message}", ex);
                     }
                 }
             }

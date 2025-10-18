@@ -8,20 +8,21 @@ namespace SmartTelehealth.API.Controllers;
 
 /// <summary>
 /// Controller for managing privilege-based billing operations
+/// UPDATED: Now uses consolidated ISubscriptionBillingService
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
 public class PrivilegeBasedBillingController : BaseController
 {
-    private readonly IPrivilegeBasedBillingService _privilegeBasedBillingService;
+    private readonly ISubscriptionBillingService _subscriptionBillingService;
     private readonly ILogger<PrivilegeBasedBillingController> _logger;
 
     public PrivilegeBasedBillingController(
-        IPrivilegeBasedBillingService privilegeBasedBillingService,
+        ISubscriptionBillingService subscriptionBillingService,
         ILogger<PrivilegeBasedBillingController> logger)
     {
-        _privilegeBasedBillingService = privilegeBasedBillingService;
+        _subscriptionBillingService = subscriptionBillingService;
         _logger = logger;
     }
 
@@ -34,7 +35,7 @@ public class PrivilegeBasedBillingController : BaseController
     public async Task<JsonModel> CalculatePlanBasePrice([FromBody] CalculatePlanPriceDto calculateDto)
     {
         var token = GetToken(HttpContext);
-        return await _privilegeBasedBillingService.CalculatePlanBasePriceAsync(calculateDto, token);
+        return await _subscriptionBillingService.CalculatePlanBasePriceAsync(calculateDto, token);
     }
 
     /// <summary>
@@ -46,7 +47,7 @@ public class PrivilegeBasedBillingController : BaseController
     public async Task<JsonModel> ProcessPrivilegeUsage([FromBody] ProcessPrivilegeUsageDto usageDto)
     {
         var token = GetToken(HttpContext);
-        return await _privilegeBasedBillingService.ProcessPrivilegeUsageAsync(usageDto, token);
+        return await _subscriptionBillingService.ProcessPrivilegeUsageAsync(usageDto, token);
     }
 
     /// <summary>
@@ -58,7 +59,7 @@ public class PrivilegeBasedBillingController : BaseController
     public async Task<JsonModel> ProcessSubscriptionRenewal(Guid subscriptionId)
     {
         var token = GetToken(HttpContext);
-        return await _privilegeBasedBillingService.ProcessSubscriptionRenewalAsync(subscriptionId, token);
+        return await _subscriptionBillingService.ProcessSubscriptionRenewalAsync(subscriptionId, token);
     }
 
     /// <summary>
@@ -70,7 +71,7 @@ public class PrivilegeBasedBillingController : BaseController
     public async Task<JsonModel> GetPrivilegeUsageSummary(int userId)
     {
         var token = GetToken(HttpContext);
-        return await _privilegeBasedBillingService.GetPrivilegeUsageSummaryAsync(userId, token);
+        return await _subscriptionBillingService.GetPrivilegeUsageSummaryAsync(userId, token);
     }
 
     /// <summary>
@@ -81,7 +82,7 @@ public class PrivilegeBasedBillingController : BaseController
     public async Task<JsonModel> GetMyPrivilegeUsageSummary()
     {
         var token = GetToken(HttpContext);
-        return await _privilegeBasedBillingService.GetPrivilegeUsageSummaryAsync(token.UserID, token);
+        return await _subscriptionBillingService.GetPrivilegeUsageSummaryAsync(token.UserID, token);
     }
 
 }

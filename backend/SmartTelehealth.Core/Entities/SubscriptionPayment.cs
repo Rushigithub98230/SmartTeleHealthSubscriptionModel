@@ -64,7 +64,13 @@ public class SubscriptionPayment : BaseEntity
         /// <summary>Payment for refunds and credits</summary>
         Refund,
         /// <summary>Payment for billing adjustments</summary>
-        Adjustment
+        Adjustment,
+        /// <summary>Payment for overage charges when usage exceeds plan limits</summary>
+        Overage,
+        /// <summary>Payment for upfront credit purchases</summary>
+        Upfront,
+        /// <summary>Payment for recurring charges</summary>
+        Recurring
     }
 
     /// <summary>
@@ -81,6 +87,21 @@ public class SubscriptionPayment : BaseEntity
     /// Used for subscription-based payment operations and tracking.
     /// </summary>
     public virtual Subscription Subscription { get; set; } = null!;
+    
+    /// <summary>
+    /// Foreign key reference to the BillingRecord that this payment is associated with.
+    /// Links this payment to the specific billing record for proper tracking.
+    /// Required for payment-billing record linkage and audit trail.
+    /// </summary>
+    [Required]
+    public Guid BillingRecordId { get; set; }
+    
+    /// <summary>
+    /// Navigation property to the BillingRecord that this payment is associated with.
+    /// Provides access to billing record information for payment management.
+    /// Used for payment-billing record operations and tracking.
+    /// </summary>
+    public virtual BillingRecord BillingRecord { get; set; } = null!;
     
     /// <summary>
     /// Foreign key reference to the Currency for this payment.

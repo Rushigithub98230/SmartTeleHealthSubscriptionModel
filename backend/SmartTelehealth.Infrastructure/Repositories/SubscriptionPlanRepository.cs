@@ -520,4 +520,100 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
     }
 
     #endregion
+    
+    #region Plan Versioning Operations (Healthcare-Specific)
+    
+    /// <summary>
+    /// Gets the latest version of a plan by its parent/original plan ID.
+    /// Healthcare Feature: Supports plan versioning for price changes.
+    /// </summary>
+    public async Task<SubscriptionPlan?> GetLatestVersionOfPlanAsync(Guid planIdOrParentId)
+    {
+        // Find if this is a parent plan or a child plan
+        var plan = await _context.SubscriptionPlans
+            .FirstOrDefaultAsync(p => p.Id == planIdOrParentId);
+        
+        if (plan == null) return null;
+        
+        // Get the root parent plan ID
+        var parentId = plan.ParentPlanId ?? plan.Id;
+        
+        // Get the latest version from the plan family
+        return await _context.SubscriptionPlans
+            .Include(sp => sp.PlanPrivileges)
+                .ThenInclude(pp => pp.Privilege)
+            .Include(sp => sp.BillingCycle)
+            .Include(sp => sp.Currency)
+            .Include(sp => sp.Category)
+            .Where(p => (p.Id == parentId || p.ParentPlanId == parentId) && p.IsLatestVersion)
+            .OrderByDescending(p => p.VersionNumber)
+            .FirstOrDefaultAsync();
+    }
+    
+    /// <summary>
+    /// Gets all versions of a plan (including parent).
+    /// Healthcare Feature: View complete plan version history.
+    /// </summary>
+    public async Task<IEnumerable<SubscriptionPlan>> GetAllVersionsOfPlanAsync(Guid planIdOrParentId)
+    {
+        var plan = await _context.SubscriptionPlans
+            .FirstOrDefaultAsync(p => p.Id == planIdOrParentId);
+        
+        if (plan == null) return Enumerable.Empty<SubscriptionPlan>();
+        
+        // Get the root parent plan ID
+        var parentId = plan.ParentPlanId ?? plan.Id;
+        
+        // Get all versions in the plan family
+        return await _context.SubscriptionPlans
+            .Include(sp => sp.PlanPrivileges)
+                .ThenInclude(pp => pp.Privilege)
+            .Include(sp => sp.BillingCycle)
+            .Include(sp => sp.Currency)
+            .Include(sp => sp.Category)
+            .Where(p => p.Id == parentId || p.ParentPlanId == parentId)
+            .OrderBy(p => p.VersionNumber)
+            .ToListAsync();
+    }
+    
+    /// <summary>
+    /// Creates a new version of an existing plan.
+    /// Healthcare Feature: Marks previous versions as not latest and sets up new version.
+    /// </summary>
+    public async Task<SubscriptionPlan> CreateNewPlanVersionAsync(SubscriptionPlan newVersion)
+    {
+        // Mark all previous versions as not latest
+        var parentId = newVersion.ParentPlanId ?? newVersion.Id;
+        var previousVersions = await _context.SubscriptionPlans
+            .Where(p => (p.Id == parentId || p.ParentPlanId == parentId) && p.IsLatestVersion)
+            .ToListAsync();
+        
+        foreach (var prev in previousVersions)
+        {
+            prev.IsLatestVersion = false;
+        }
+        
+        // Set new version properties
+        newVersion.IsLatestVersion = true;
+        newVersion.VersionCreatedDate = DateTime.UtcNow;
+        
+        // Add new version to context
+        await _context.SubscriptionPlans.AddAsync(newVersion);
+        await _context.SaveChangesAsync();
+        
+        return newVersion;
+    }
+    
+    /// <summary>
+    /// Gets count of active subscriptions for a plan.
+    /// Healthcare Feature: Determine if plan version migration is needed.
+    /// </summary>
+    public async Task<int> GetActiveSubscriptionsCountAsync(Guid planId)
+    {
+        return await _context.Subscriptions
+            .CountAsync(s => s.SubscriptionPlanId == planId && 
+                            s.Status == Subscription.SubscriptionStatuses.Active);
+    }
+    
+    #endregion
 } 

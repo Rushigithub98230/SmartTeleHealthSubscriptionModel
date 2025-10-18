@@ -55,7 +55,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
     {
         using var scope = _serviceProvider.CreateScope();
         var subscriptionRepository = scope.ServiceProvider.GetRequiredService<ISubscriptionRepository>();
-        var billingService = scope.ServiceProvider.GetRequiredService<IBillingService>();
+        var billingService = scope.ServiceProvider.GetRequiredService<ISubscriptionBillingService>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
         var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
@@ -84,7 +84,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
 
     private async Task ProcessDueSubscriptionsAsync(
         ISubscriptionRepository subscriptionRepository,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService,
         INotificationService notificationService,
           
         IUserService userService)
@@ -124,7 +124,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
     private async Task ProcessSubscriptionBillingAsync(
         Subscription subscription,
         ISubscriptionRepository subscriptionRepository,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService,
         INotificationService notificationService,
           
         IUserService userService)
@@ -210,7 +210,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
 
     private async Task<JsonModel> ProcessPaymentWithRetryAsync(
         Guid billingRecordId,
-        IBillingService billingService)
+        ISubscriptionBillingService billingService)
     {
         // Create system-level token for background service operations
         var systemToken = new TokenModel
@@ -268,7 +268,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
         Subscription subscription,
         string errorMessage,
         ISubscriptionRepository subscriptionRepository,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService,
         INotificationService notificationService,
           
         IUserService userService)
@@ -331,7 +331,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
 
     private async Task ProcessFailedPaymentRetriesAsync(
         ISubscriptionRepository subscriptionRepository,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService,
         INotificationService notificationService,
           
         IUserService userService)
@@ -520,7 +520,7 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
         {
             using var scope = _serviceProvider.CreateScope();
             var subscriptionRepository = scope.ServiceProvider.GetRequiredService<ISubscriptionRepository>();
-            var billingService = scope.ServiceProvider.GetRequiredService<IBillingService>();
+            var billingService = scope.ServiceProvider.GetRequiredService<ISubscriptionBillingService>();
             
             // Create system-level token for background service operations
             var systemToken = new TokenModel

@@ -23,7 +23,7 @@ namespace SmartTelehealth.API.Controllers
 public class StripeWebhookController : BaseController
 {
     private readonly ISubscriptionService _subscriptionService;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService;
     private readonly IBillingRepository _billingRepository;
     private readonly INotificationService _notificationService;
     private readonly ICommunicationService _communicationService;
@@ -38,9 +38,10 @@ public class StripeWebhookController : BaseController
 
     /// <summary>
     /// Initializes a new instance of the StripeWebhookController with required services.
+    /// UPDATED: Now uses consolidated ISubscriptionBillingService
     /// </summary>
     /// <param name="subscriptionService">Service for subscription management operations</param>
-    /// <param name="billingService">Service for billing and payment operations</param>
+    /// <param name="billingService">Service for billing and payment operations (consolidated)</param>
     /// <param name="billingRepository">Repository for billing data access</param>
     /// <param name="notificationService">Service for notification management</param>
     /// <param name="stripeService">Service for Stripe integration operations</param>
@@ -49,7 +50,7 @@ public class StripeWebhookController : BaseController
     /// <param name="configuration">Configuration for webhook settings and retry logic</param>
     public StripeWebhookController(
         ISubscriptionService subscriptionService,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService,
         IBillingRepository billingRepository,
         INotificationService notificationService,
         ICommunicationService communicationService,

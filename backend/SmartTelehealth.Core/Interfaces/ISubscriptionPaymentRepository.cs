@@ -12,6 +12,8 @@ public interface ISubscriptionPaymentRepository : IRepositoryBase<SubscriptionPa
     Task<IEnumerable<SubscriptionPayment>> GetPendingPaymentsAsync();
     Task<IEnumerable<SubscriptionPayment>> GetFailedPaymentsAsync();
     Task<SubscriptionPayment?> GetByPaymentIntentIdAsync(string paymentIntentId);
+    Task<SubscriptionPayment?> GetByBillingRecordIdAsync(Guid billingRecordId);
+    Task<IEnumerable<SubscriptionPayment>> GetFailedPaymentsDueForRetryAsync(DateTime now, int maxResults = 100);
     
     // Database-level filtering, pagination, and sorting
     Task<(IEnumerable<SubscriptionPayment> Payments, int TotalCount)> GetPaymentsWithFilteringAsync(

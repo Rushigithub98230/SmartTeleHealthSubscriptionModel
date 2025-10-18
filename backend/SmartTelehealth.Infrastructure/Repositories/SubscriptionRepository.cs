@@ -478,6 +478,17 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .CountAsync();
     }
 
+    public async Task<IEnumerable<Subscription>> GetActiveSubscriptionsByPlanIdAsync(Guid planId)
+    {
+        return await _context.Subscriptions
+            .Include(s => s.User)
+            .Include(s => s.SubscriptionPlan)
+            .Include(s => s.BillingCycle)
+            .Where(s => s.SubscriptionPlanId == planId && 
+                       s.Status == Subscription.SubscriptionStatuses.Active)
+            .ToListAsync();
+    }
+
     public async Task<IEnumerable<Subscription>> GetSubscriptionsInDateRangeAsync(DateTime startDate, DateTime endDate)
     {
         return await _context.Subscriptions
@@ -850,5 +861,26 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             //     : query.OrderBy(s => s.BillingInterval),
             _ => query.OrderByDescending(s => s.CreatedDate)
         };
+    }
+    
+    /// <summary>
+    /// Gets all privilege usage records for a subscription
+    /// </summary>
+    public async Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetSubscriptionPrivilegeUsagesAsync(Guid subscriptionId)
+    {
+        return await _context.UserSubscriptionPrivilegeUsages
+            .Include(u => u.SubscriptionPlanPrivilege)
+                .ThenInclude(p => p.Privilege)
+            .Where(u => u.SubscriptionId == subscriptionId)
+            .ToListAsync();
+    }
+    
+    /// <summary>
+    /// Updates a privilege usage record
+    /// </summary>
+    public async Task UpdatePrivilegeUsageAsync(UserSubscriptionPrivilegeUsage usage)
+    {
+        _context.UserSubscriptionPrivilegeUsages.Update(usage);
+        await _context.SaveChangesAsync();
     }
 } 

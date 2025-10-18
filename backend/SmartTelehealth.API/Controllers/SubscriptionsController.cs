@@ -170,6 +170,140 @@ public class SubscriptionsController : BaseController
     }
 
     /// <summary>
+    /// Purchases additional privilege credits for a subscription with immediate upfront payment.
+    /// This endpoint implements the workflow requirement:
+    /// "Once a user has used all their included privileges, any additional usage 
+    /// would require upfront payment. Only after this payment would the extra 
+    /// privilege be added to their account, allowing them to continue using the service."
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription to add credits to</param>
+    /// <param name="dto">DTO containing privilege name, quantity, and payment method ID</param>
+    /// <returns>JsonModel containing purchase details and updated credit information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates the subscription is active
+    /// - Calculates the cost: quantity × unit cost per privilege
+    /// - Creates a billing record for the overage charge
+    /// - Processes payment IMMEDIATELY (upfront, not deferred)
+    /// - If payment succeeds: Adds credits to the user's AllowedValue
+    /// - If payment fails: Returns error, no credits added
+    /// - Sends confirmation notification
+    /// 
+    /// Example Request:
+    /// POST /api/subscriptions/{id}/purchase-credits
+    /// {
+    ///   "privilegeName": "Teleconsultation",
+    ///   "quantity": 2,
+    ///   "paymentMethodId": "pm_xxxxxxxxxxxxx"
+    /// }
+    /// 
+    /// Example Success Response (200):
+    /// {
+    ///   "data": {
+    ///     "creditsAdded": 2,
+    ///     "unitCost": 20.00,
+    ///     "totalPaid": 40.00,
+    ///     "previousLimit": 5,
+    ///     "newLimit": 7,
+    ///     "currentUsed": 5,
+    ///     "newRemaining": 2
+    ///   },
+    ///   "message": "Successfully purchased 2 additional Teleconsultation credits for $40.00"
+    /// }
+    /// 
+    /// Example Failure Response (400):
+    /// {
+    ///   "data": { "paymentFailed": true },
+    ///   "message": "Payment failed: Insufficient funds. Credits not added."
+    /// }
+    /// 
+    /// Access Control:
+    /// - Users can purchase credits for their own subscriptions
+    /// - Admins can purchase credits for any subscription
+    /// - Returns 403 Forbidden if user doesn't have access
+    /// </remarks>
+    [HttpPost("{id}/purchase-credits")]
+    public async Task<JsonModel> PurchaseAdditionalCredits(
+        string id,
+        [FromBody] PurchaseAdditionalCreditsDto dto)
+    {
+        if (!Guid.TryParse(id, out var subscriptionId))
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Invalid subscription ID format",
+                StatusCode = 400
+            };
+        }
+
+        return await _subscriptionService.PurchaseAdditionalCreditsAsync(
+            subscriptionId,
+            dto,
+            GetToken(HttpContext)
+        );
+    }
+
+    /// <summary>
+    /// Checks if a privilege is available for use and provides purchase information if limit exceeded.
+    /// This endpoint helps the frontend determine if a service can be accessed or if payment is required.
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription</param>
+    /// <param name="privilegeName">The name of the privilege to check</param>
+    /// <param name="requestedAmount">The amount of privilege usage requested (default: 1)</param>
+    /// <returns>JsonModel with availability status and purchase details if needed</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns 200 OK if privilege is available (user can proceed)
+    /// - Returns 402 Payment Required if limit exceeded (includes purchase details)
+    /// - Returns 403 Forbidden if privilege is disabled in the plan
+    /// - Returns 429 Too Many Requests if time-based limits exceeded
+    /// 
+    /// Example Response when limit exceeded (402):
+    /// {
+    ///   "data": {
+    ///     "available": false,
+    ///     "limitExceeded": true,
+    ///     "remaining": 0,
+    ///     "requested": 1,
+    ///     "shortfall": 1,
+    ///     "unitCost": 20.00,
+    ///     "requiredPayment": 20.00,
+    ///     "message": "You've used all your included Teleconsultation credits...",
+    ///     "purchaseDetails": {
+    ///       "privilegeName": "Teleconsultation",
+    ///       "quantity": 1,
+    ///       "totalCost": 20.00
+    ///     }
+    ///   },
+    ///   "statusCode": 402
+    /// }
+    /// </remarks>
+    [HttpGet("{id}/check-privilege/{privilegeName}")]
+    public async Task<JsonModel> CheckPrivilegeAvailability(
+        string id,
+        string privilegeName,
+        [FromQuery] int requestedAmount = 1)
+    {
+        if (!Guid.TryParse(id, out var subscriptionId))
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Invalid subscription ID format",
+                StatusCode = 400
+            };
+        }
+
+        return await _privilegeService.CheckPrivilegeAvailabilityAsync(
+            subscriptionId,
+            privilegeName,
+            requestedAmount,
+            GetToken(HttpContext)
+        );
+    }
+
+    /// <summary>
     /// Upgrades a subscription to a different plan.
     /// This endpoint handles plan upgrades, including prorated billing, privilege changes,
     /// and Stripe subscription updates.
@@ -1036,7 +1170,7 @@ public class SubscriptionsController : BaseController
         [FromQuery] string? sortOrder = null)
     {
         var token = GetToken(HttpContext);
-        return await _subscriptionService.GetUserSubscriptionsWithFilteringAsync(token.UserID, page, pageSize, searchTerm, status, planId, startDate, endDate, sortBy, sortOrder, token);
+        return await _subscriptionService.GetUserSubscriptionsWithFilteringAsync(page, pageSize, searchTerm, status, planId, startDate, endDate, sortBy, sortOrder, token);
     }
 
     /// <summary>

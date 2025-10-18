@@ -120,6 +120,112 @@ public class SubscriptionPlan : BaseEntity
     /// </summary>
     public DateTime? DiscountValidUntil { get; set; }
     
+    // ═══════════════════════════════════════════════════════════
+    // BILLING CYCLE DISCOUNTS (Solution A Implementation)
+    // ═══════════════════════════════════════════════════════════
+    
+    /// <summary>
+    /// Discount percentage applied when user selects monthly billing cycle.
+    /// Value between 0 and 100 representing percentage discount.
+    /// Example: 0 = no discount, 5 = 5% off monthly billing.
+    /// </summary>
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal MonthlyBillingDiscount { get; set; } = 0m;
+    
+    /// <summary>
+    /// Discount percentage applied when user selects quarterly billing cycle.
+    /// Value between 0 and 100 representing percentage discount.
+    /// Example: 2 = 2% off quarterly billing, 5 = 5% off.
+    /// </summary>
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal QuarterlyBillingDiscount { get; set; } = 0m;
+    
+    /// <summary>
+    /// Discount percentage applied when user selects annual billing cycle.
+    /// Value between 0 and 100 representing percentage discount.
+    /// Example: 8.33 = 8.33% off (equivalent to 1 month free), 10 = 10% off.
+    /// </summary>
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal AnnualBillingDiscount { get; set; } = 0m;
+    
+    // ═══════════════════════════════════════════════════════════
+    // PLAN VERSIONING (Issue #1 Fix)
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Version number of this plan (e.g., 1, 2, 3).
+    /// When plan price/features change, create new version instead of modifying.
+    /// </summary>
+    public int VersionNumber { get; set; } = 1;
+
+    /// <summary>
+    /// Indicates if this is the latest version of the plan.
+    /// Only latest version is available for NEW subscriptions.
+    /// </summary>
+    public bool IsLatestVersion { get; set; } = true;
+
+    /// <summary>
+    /// Reference to the parent plan if this is a versioned plan.
+    /// Null for the original plan (v1), points to original for v2+.
+    /// </summary>
+    public Guid? ParentPlanId { get; set; }
+
+    /// <summary>
+    /// Navigation to parent plan for versioning hierarchy.
+    /// </summary>
+    public virtual SubscriptionPlan? ParentPlan { get; set; }
+
+    /// <summary>
+    /// Collection of child versions of this plan.
+    /// </summary>
+    public virtual ICollection<SubscriptionPlan> ChildVersions { get; set; } = new List<SubscriptionPlan>();
+
+    // ═══════════════════════════════════════════════════════════
+    // PRIVILEGE-BASED PRICING (Healthcare Model)
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Indicates if plan price is auto-calculated from privileges (true) or manually set (false).
+    /// Choice 1c: Support both options.
+    /// </summary>
+    public bool IsAutoCalculatedPrice { get; set; } = true;
+
+    /// <summary>
+    /// Total cost of all privileges in this plan.
+    /// Auto-calculated: Sum of (Privilege.Value × Privilege.PrivilegeBaseCost).
+    /// </summary>
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal PrivilegesTotalCost { get; set; } = 0;
+
+    /// <summary>
+    /// Admin commission percentage for this plan.
+    /// Choice 2c: Per-plan override of global default.
+    /// Null = use global default.
+    /// </summary>
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal? AdminCommissionPercent { get; set; }
+
+    /// <summary>
+    /// Fixed admin commission amount (alternative to percentage).
+    /// </summary>
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal? AdminCommissionFixed { get; set; }
+
+    // ═══════════════════════════════════════════════════════════
+    // MIGRATION & NOTIFICATION SETTINGS (Choice 4d)
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Number of days advance notice before migrating users to new plan version.
+    /// Choice 4d: Configurable per plan (e.g., 7, 10, 30, 60, 90 days).
+    /// </summary>
+    public int PriceChangeNoticeDays { get; set; } = 10; // Healthcare default
+
+    /// <summary>
+    /// Date when this plan version was created (for migration tracking).
+    /// </summary>
+    public DateTime VersionCreatedDate { get; set; } = DateTime.UtcNow;
+    
     // Foreign keys
     /// <summary>
     /// Foreign key reference to the BillingCycle that defines this plan's billing frequency.
@@ -311,5 +417,25 @@ public class SubscriptionPlan : BaseEntity
     public bool IsCurrentlyAvailable => IsActive && 
         (!EffectiveDate.HasValue || EffectiveDate.Value <= DateTime.UtcNow) &&
         (!ExpirationDate.HasValue || ExpirationDate.Value >= DateTime.UtcNow);
+    
+    /// <summary>
+    /// Calculated final price: PrivilegesTotalCost + Commission.
+    /// Used when IsAutoCalculatedPrice = true.
+    /// </summary>
+    [NotMapped]
+    public decimal CalculatedPrice
+    {
+        get
+        {
+            if (!IsAutoCalculatedPrice)
+                return Price; // Use manually set price
+            
+            var commission = AdminCommissionPercent.HasValue
+                ? PrivilegesTotalCost * (AdminCommissionPercent.Value / 100)
+                : AdminCommissionFixed ?? 0;
+            
+            return PrivilegesTotalCost + commission;
+        }
+    }
 }
 #endregion 

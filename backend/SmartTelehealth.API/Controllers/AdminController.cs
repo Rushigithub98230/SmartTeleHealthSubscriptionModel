@@ -20,7 +20,7 @@ namespace SmartTelehealth.API.Controllers;
 public class AdminController : BaseController
 {
     private readonly ISubscriptionService _subscriptionService;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService;
     private readonly ICategoryService _categoryService;
     private readonly IProviderService _providerService;
     private readonly IUserService _userService;
@@ -29,9 +29,10 @@ public class AdminController : BaseController
 
     /// <summary>
     /// Initializes a new instance of the AdminController with required services.
+    /// UPDATED: Now uses consolidated ISubscriptionBillingService
     /// </summary>
     /// <param name="subscriptionService">Service for subscription management operations</param>
-    /// <param name="billingService">Service for billing and payment operations</param>
+    /// <param name="billingService">Service for billing and payment operations (consolidated)</param>
     /// <param name="categoryService">Service for category management operations</param>
     /// <param name="providerService">Service for provider management operations</param>
     /// <param name="userService">Service for user management operations</param>
@@ -39,7 +40,7 @@ public class AdminController : BaseController
     /// <param name="analyticsService">Service for analytics and reporting</param>
     public AdminController(
         ISubscriptionService subscriptionService,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService,
         ICategoryService categoryService,
         IProviderService providerService,
         IUserService userService,

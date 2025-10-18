@@ -12,7 +12,7 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
 {
     #region Basic CRUD Operations
     
-    // Basic CRUD methods are inherited from IRepositoryBase<SubscriptionPlan>
+    
     
     // Custom methods with different names to avoid overriding base methods
     Task<SubscriptionPlan?> GetByIdWithDetailsAsync(Guid id);
@@ -102,6 +102,42 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
     /// <param name="privilegeId">The privilege ID</param>
     /// <returns>Plan privilege configuration or null if not found</returns>
     Task<SubscriptionPlanPrivilege?> GetPlanPrivilegeAsync(Guid planId, Guid privilegeId);
+    
+    #endregion
+    
+    #region Plan Versioning Operations (Healthcare-Specific)
+    
+    /// <summary>
+    /// Gets the latest version of a plan by its parent/original plan ID.
+    /// Healthcare Feature: Enables plan versioning for price changes.
+    /// </summary>
+    /// <param name="planIdOrParentId">Plan ID or parent plan ID</param>
+    /// <returns>Latest version of the plan or null if not found</returns>
+    Task<SubscriptionPlan?> GetLatestVersionOfPlanAsync(Guid planIdOrParentId);
+    
+    /// <summary>
+    /// Gets all versions of a plan (including parent).
+    /// Healthcare Feature: View complete plan version history.
+    /// </summary>
+    /// <param name="planIdOrParentId">Plan ID or parent plan ID</param>
+    /// <returns>Collection of all plan versions ordered by version number</returns>
+    Task<IEnumerable<SubscriptionPlan>> GetAllVersionsOfPlanAsync(Guid planIdOrParentId);
+    
+    /// <summary>
+    /// Creates a new version of an existing plan.
+    /// Healthcare Feature: Marks previous versions as not latest and sets up new version.
+    /// </summary>
+    /// <param name="newVersion">The new plan version to create</param>
+    /// <returns>Created plan version</returns>
+    Task<SubscriptionPlan> CreateNewPlanVersionAsync(SubscriptionPlan newVersion);
+    
+    /// <summary>
+    /// Gets count of active subscriptions for a plan.
+    /// Healthcare Feature: Determine if plan version migration is needed.
+    /// </summary>
+    /// <param name="planId">The subscription plan ID</param>
+    /// <returns>Number of active subscriptions</returns>
+    Task<int> GetActiveSubscriptionsCountAsync(Guid planId);
     
     #endregion
 } 

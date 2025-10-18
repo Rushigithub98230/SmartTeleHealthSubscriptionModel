@@ -211,6 +211,27 @@ namespace SmartTelehealth.Application.DTOs
         public bool IsTrending { get; set; } = false;
         
         public int? DisplayOrder { get; set; } // Added property
+        
+        // ═══════════════════════════════════════════════════════════
+        // HEALTHCARE PRICING MODEL (Choices 1c, 2c, 4d)
+        // ═══════════════════════════════════════════════════════════
+        
+        /// <summary>
+        /// Choice 1c: Pricing mode selection.
+        /// </summary>
+        public bool IsAutoCalculatedPrice { get; set; } = true;
+        
+        /// <summary>
+        /// Choice 2c: Per-plan commission override.
+        /// </summary>
+        public decimal? AdminCommissionPercent { get; set; }
+        
+        public decimal? AdminCommissionFixed { get; set; }
+        
+    /// <summary>
+    /// Choice 4d: Configurable notice period per plan.
+    /// </summary>
+    public int PriceChangeNoticeDays { get; set; } = 10;
     }
 
     public class SubscriptionStatusHistoryDto

@@ -50,6 +50,10 @@ public static class DependencyInjection
         services.AddScoped<IPrivilegeUsageHistoryRepository, PrivilegeUsageHistoryRepository>();
         services.AddScoped<IPrivilegeRepository, PrivilegeRepository>();
         services.AddScoped<IProcessedWebhookEventRepository, ProcessedWebhookEventRepository>();
+        
+        // Healthcare-specific subscription management repositories
+        services.AddScoped<ISystemSettingsRepository, SystemSettingsRepository>();
+        services.AddScoped<IScheduledPlanMigrationRepository, ScheduledPlanMigrationRepository>();
         services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
         services.AddScoped<IMedicationDeliveryRepository, MedicationDeliveryRepository>();
         services.AddScoped<IMedicationShipmentRepository, MedicationShipmentRepository>();
@@ -109,6 +113,12 @@ public static class DependencyInjection
 
         // Register Application AutomatedBillingService as a scoped service
         services.AddScoped<IAutomatedBillingService, SmartTelehealth.Application.Services.AutomatedBillingService>();
+        
+        // Register Healthcare-Specific Scheduled Migration Background Service
+        services.AddHostedService<ScheduledMigrationBackgroundService>();
+        
+        // Register Privilege Reset Background Service (Solution A Implementation)
+        services.AddHostedService<PrivilegeResetBackgroundService>();
 
         // Cloud Storage Services (temporarily removed for focused testing)
         // services.AddScoped<AzureBlobStorageService>();

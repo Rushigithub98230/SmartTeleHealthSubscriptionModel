@@ -18,22 +18,23 @@ namespace SmartTelehealth.API.Controllers;
 public class PaymentController : BaseController
 {
     private readonly IStripeService _stripeService;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService;
     private readonly ISubscriptionService _subscriptionService;
     private readonly IAuditService _auditService;
     private readonly IPaymentSecurityService _paymentSecurityService;
 
     /// <summary>
     /// Initializes a new instance of the PaymentController with required services.
+    /// UPDATED: Now uses consolidated ISubscriptionBillingService
     /// </summary>
     /// <param name="stripeService">Service for Stripe payment gateway integration</param>
-    /// <param name="billingService">Service for billing-related operations</param>
+    /// <param name="billingService">Service for billing-related operations (consolidated)</param>
     /// <param name="subscriptionService">Service for subscription management</param>
     /// <param name="auditService">Service for audit logging and tracking</param>
     /// <param name="paymentSecurityService">Service for payment security and validation</param>
     public PaymentController(
         IStripeService stripeService,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService,
         ISubscriptionService subscriptionService,
         IAuditService auditService,
         IPaymentSecurityService paymentSecurityService)

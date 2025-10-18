@@ -32,10 +32,12 @@ public class SubscriptionService : ISubscriptionService
     private readonly IUserService _userService;
     private readonly ISubscriptionPlanPrivilegeRepository _planPrivilegeRepo;
     private readonly IUserSubscriptionPrivilegeUsageRepository _usageRepo;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService; // UPDATED: Use consolidated service
     private readonly ISubscriptionNotificationService _subscriptionNotificationService;
     private readonly IPrivilegeRepository _privilegeRepository;
     private readonly ICategoryService _categoryService;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPaymentService _paymentService; // SRP Refactoring: Added for payment method delegation
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionService with all required dependencies
@@ -53,6 +55,8 @@ public class SubscriptionService : ISubscriptionService
     /// <param name="subscriptionNotificationService">Service for subscription-specific notifications</param>
     /// <param name="privilegeRepository">Repository for privilege data access</param>
     /// <param name="categoryService">Service for category management operations</param>
+    /// <param name="unitOfWork">Unit of work for transaction management</param>
+    /// <param name="paymentService">Service for payment method management (SRP Refactoring)</param>
     public SubscriptionService(
         ISubscriptionRepository subscriptionRepository,
         IMapper mapper,
@@ -64,10 +68,12 @@ public class SubscriptionService : ISubscriptionService
         IUserService userService,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepo,
         IUserSubscriptionPrivilegeUsageRepository usageRepo,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService, // UPDATED: Use consolidated service
         ISubscriptionNotificationService subscriptionNotificationService,
         IPrivilegeRepository privilegeRepository,
-        ICategoryService categoryService)
+        ICategoryService categoryService,
+        IUnitOfWork unitOfWork,
+        IPaymentService paymentService)
     {
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
@@ -83,6 +89,8 @@ public class SubscriptionService : ISubscriptionService
         _subscriptionNotificationService = subscriptionNotificationService ?? throw new ArgumentNullException(nameof(subscriptionNotificationService));
         _privilegeRepository = privilegeRepository ?? throw new ArgumentNullException(nameof(privilegeRepository));
         _categoryService = categoryService ?? throw new ArgumentNullException(nameof(categoryService));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _paymentService = paymentService ?? throw new ArgumentNullException(nameof(paymentService)); // SRP Refactoring
     }
 
     /// <summary>
@@ -160,15 +168,11 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    public async Task<JsonModel> GetUserSubscriptionsWithFilteringAsync(int userId, int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
+    public async Task<JsonModel> GetUserSubscriptionsWithFilteringAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
     {
         try
         {
-            // Validate token permissions - user can only access their own subscriptions unless admin
-            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
+            var userId = tokenModel.UserID; // Get userId from token
 
             _logger.LogInformation("Retrieving user subscriptions with database-level filtering - UserId: {UserId}, Page: {Page}, PageSize: {PageSize}, SearchTerm: {SearchTerm}",
                 userId, page, pageSize, searchTerm);
@@ -210,7 +214,7 @@ public class SubscriptionService : ISubscriptionService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting user subscriptions with filtering for user {UserId}", userId);
+            _logger.LogError(ex, "Error getting user subscriptions with filtering for user {UserId}", tokenModel.UserID);
             return new JsonModel { data = new object(), Message = "Failed to retrieve user subscriptions", StatusCode = 500 };
         }
     }
@@ -219,44 +223,16 @@ public class SubscriptionService : ISubscriptionService
     /// <summary>
     /// Ensures a Stripe customer exists for the user, creating one if necessary
     /// </summary>
+    // SRP Refactoring: Removed duplicate EnsureStripeCustomerAsync - now using centralized method in StripeService
     private async Task<string> EnsureStripeCustomerAsync(UserDto user, TokenModel tokenModel)
     {
-        // If user already has Stripe customer ID, return it
-        if (!string.IsNullOrEmpty(user.StripeCustomerId))
-        {
-            _logger.LogInformation("User {UserId} already has Stripe customer ID: {StripeCustomerId}", user.Id, user.StripeCustomerId);
-            return user.StripeCustomerId;
-        }
-        
-        // Create new Stripe customer
-        _logger.LogInformation("Creating new Stripe customer for user {UserId} with email {Email}", user.Id, user.Email);
-        
-        var stripeCustomerId = await _stripeService.CreateCustomerAsync(
-            user.Email, 
-            user.FullName, 
+        return await _stripeService.EnsureStripeCustomerAsync(
+            user.Id,
+            user.Email,
+            user.FullName,
+            user.StripeCustomerId,
             tokenModel
         );
-        
-        // Update user with Stripe customer ID
-        try
-        {
-            // Create update DTO with Stripe customer ID
-            var updateUserDto = new UpdateUserDto
-            {
-                StripeCustomerId = stripeCustomerId
-            };
-            
-            await _userService.UpdateUserAsync(user.Id, updateUserDto, tokenModel);
-            
-            _logger.LogInformation("Successfully updated user {UserId} with Stripe customer ID: {StripeCustomerId}", user.Id, stripeCustomerId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to update user {UserId} with Stripe customer ID {StripeCustomerId}. Customer created but user not updated.", user.Id, stripeCustomerId);
-            // Don't fail the entire operation if user update fails
-        }
-        
-        return stripeCustomerId;
     }
 
     /// <summary>
@@ -290,6 +266,7 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
+    // SRP Refactoring: Removed duplicate CalculateNextBillingDateAsync - now uses BillingService.CalculateNextBillingDate()
     /// <summary>
     /// Calculates the next billing date based on billing cycle ID
     /// </summary>
@@ -299,53 +276,32 @@ public class SubscriptionService : ISubscriptionService
         {
             // Get the billing cycle from the database
             var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(billingCycleId);
-            if (billingCycle == null)
-            {
-                _logger.LogWarning("Billing cycle {BillingCycleId} not found, using default monthly calculation", billingCycleId);
-                return startDate.AddMonths(1);
-            }
-
-            var billingCycleName = billingCycle.Name.ToLower();
-            return billingCycleName switch
-            {
-                "monthly" => startDate.AddMonths(1),
-                "quarterly" => startDate.AddMonths(3),
-                "annual" => startDate.AddYears(1),
-                _ => startDate.AddMonths(1) // Default fallback
-            };
+            
+            // Use centralized calculation from BillingService
+            return _billingService.CalculateNextBillingDate(startDate, billingCycle);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting billing cycle {BillingCycleId}, using default monthly calculation", billingCycleId);
-            return startDate.AddMonths(1);
+            _logger.LogError(ex, "Error calculating next billing date for billing cycle {BillingCycleId}", billingCycleId);
+            return startDate.AddMonths(1); // Safe fallback
         }
     }
 
+    // SRP Refactoring: Removed duplicate CalculateEndDateAsync - now uses BillingService.CalculateNextBillingDate()
     private async Task<DateTime> CalculateEndDateAsync(DateTime startDate, Guid billingCycleId)
     {
         try
         {
             // Get the billing cycle from the database
             var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(billingCycleId);
-            if (billingCycle == null)
-            {
-                _logger.LogWarning("Billing cycle {BillingCycleId} not found, using default monthly calculation", billingCycleId);
-                return startDate.AddMonths(1);
-            }
-
-            var billingCycleName = billingCycle.Name.ToLower();
-            return billingCycleName switch
-            {
-                "monthly" => startDate.AddMonths(1),
-                "quarterly" => startDate.AddMonths(3),
-                "annual" => startDate.AddYears(1),
-                _ => startDate.AddMonths(1) // Default fallback
-            };
+            
+            // Use centralized calculation from BillingService
+            return _billingService.CalculateNextBillingDate(startDate, billingCycle);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating end date for billing cycle {BillingCycleId}", billingCycleId);
-            return startDate.AddMonths(1); // Default fallback
+            return startDate.AddMonths(1); // Safe fallback
         }
     }
 
@@ -392,10 +348,19 @@ public class SubscriptionService : ISubscriptionService
     /// - Admins can access any subscription's billing history
     /// - Users can only access their own subscription's billing history
     /// </remarks>
+    /// <summary>
+    /// SRP Refactoring: This method violates Single Responsibility Principle.
+    /// Billing history retrieval should be handled by BillingService directly, not through SubscriptionService.
+    /// This method is kept for backward compatibility but will be removed in a future release.
+    /// Please use BillingService.GetSubscriptionBillingHistoryAsync directly.
+    /// </summary>
+    [Obsolete("This method violates SRP. Use BillingService.GetSubscriptionBillingHistoryAsync directly. This will be removed in the next release.")]
     public async Task<JsonModel> GetBillingHistoryAsync(string subscriptionId, TokenModel tokenModel)
     {
         try
         {
+            _logger.LogWarning("DEPRECATED: GetBillingHistoryAsync called from SubscriptionService. Use BillingService instead.");
+            
             // Retrieve subscription to validate it exists
             var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
             if (subscription == null)
@@ -448,17 +413,16 @@ public class SubscriptionService : ISubscriptionService
     /// - Users can only access their own payment methods
     /// - Returns 403 Forbidden if access is denied
     /// </remarks>
+    /// <summary>
+    /// SRP Refactoring: This method has been moved to PaymentService.
+    /// This wrapper is kept temporarily for backward compatibility and will be removed in a future release.
+    /// Please use PaymentService.GetPaymentMethodsAsync instead.
+    /// </summary>
+    [Obsolete("This method has been moved to PaymentService. Use PaymentService.GetPaymentMethodsAsync instead. This will be removed in the next release.")]
     public async Task<JsonModel> GetPaymentMethodsAsync(int userId, TokenModel tokenModel)
     {
-        // Validate token permissions - user can only access their own payment methods unless admin
-        if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
-        {
-            return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-        }
-
-        // Retrieve payment methods from Stripe service
-        var methods = await _stripeService.GetCustomerPaymentMethodsAsync(userId.ToString(), tokenModel);
-        return new JsonModel { data = methods, Message = "Payment methods retrieved successfully", StatusCode = 200 };
+        _logger.LogWarning("DEPRECATED: GetPaymentMethodsAsync called from SubscriptionService. Use PaymentService instead.");
+        return await _paymentService.GetPaymentMethodsAsync(userId, tokenModel);
     }
 
     /// <summary>
@@ -481,18 +445,16 @@ public class SubscriptionService : ISubscriptionService
     /// - Users can only add payment methods to their own account
     /// - Returns 403 Forbidden if access is denied
     /// </remarks>
+    /// <summary>
+    /// SRP Refactoring: This method has been moved to PaymentService.
+    /// This wrapper is kept temporarily for backward compatibility and will be removed in a future release.
+    /// Please use PaymentService.AddPaymentMethodAsync instead.
+    /// </summary>
+    [Obsolete("This method has been moved to PaymentService. Use PaymentService.AddPaymentMethodAsync instead. This will be removed in the next release.")]
     public async Task<JsonModel> AddPaymentMethodAsync(int userId, string paymentMethodId, TokenModel tokenModel)
     {
-        // Validate token permissions - user can only add payment methods to their own account unless admin
-        if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
-        {
-            return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-        }
-
-        // Add payment method to user's Stripe customer account
-        var methodId = await _stripeService.AddPaymentMethodAsync(userId.ToString(), paymentMethodId, tokenModel);
-        var method = new PaymentMethodDto { Id = methodId };
-        return new JsonModel { data = method, Message = "Payment method added", StatusCode = 200 };
+        _logger.LogWarning("DEPRECATED: AddPaymentMethodAsync called from SubscriptionService. Use PaymentService instead.");
+        return await _paymentService.AddPaymentMethodAsync(userId, paymentMethodId, tokenModel);
     }
 
     /// <summary>
@@ -982,10 +944,19 @@ public class SubscriptionService : ISubscriptionService
 
 
 
+    /// <summary>
+    /// SRP Refactoring: This method violates Single Responsibility Principle.
+    /// Category management should be handled by CategoryService directly, not exposed through SubscriptionService.
+    /// This method is kept for backward compatibility but will be removed in a future release.
+    /// Please use CategoryService.GetAllCategoriesAsync directly.
+    /// </summary>
+    [Obsolete("This method violates SRP. Use CategoryService.GetAllCategoriesAsync directly. This will be removed in the next release.")]
     public async Task<JsonModel> GetAllCategoriesAsync(int page, int pageSize, string? searchTerm, bool? isActive, TokenModel tokenModel)
     {
         try
         {
+            _logger.LogWarning("DEPRECATED: GetAllCategoriesAsync called from SubscriptionService. Use CategoryService instead.");
+            
             // Admin only method - validate admin role
             if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.RoleID != (int)RoleId.Provider)
             {
@@ -1008,10 +979,19 @@ public class SubscriptionService : ISubscriptionService
 
 
     // Example: Booking a consultation using privilege system
+    /// <summary>
+    /// SRP Refactoring: This method violates Single Responsibility Principle.
+    /// Consultation booking is healthcare domain logic and should be in ConsultationService, not SubscriptionService.
+    /// This method is kept for backward compatibility but will be removed in a future release.
+    /// Please implement consultation booking in ConsultationService.
+    /// </summary>
+    [Obsolete("This method violates SRP. Consultation booking should be in ConsultationService. This will be removed in the next release.")]
     public async Task<JsonModel> BookConsultationAsync(int userId, Guid subscriptionId, TokenModel tokenModel)
     {
         try
         {
+            _logger.LogWarning("DEPRECATED: BookConsultationAsync called from SubscriptionService. This should be in ConsultationService.");
+            
             // Validate input parameters
             if (userId <= 0)
             {
@@ -1096,11 +1076,19 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    // Example: Medication supply using privilege system
+    /// <summary>
+    /// SRP Refactoring: This method violates Single Responsibility Principle.
+    /// Medication supply/pharmacy logic should be in MedicationService, not SubscriptionService.
+    /// This method is kept for backward compatibility but will be removed in a future release.
+    /// Please implement medication supply requests in MedicationService.
+    /// </summary>
+    [Obsolete("This method violates SRP. Medication supply should be in MedicationService. This will be removed in the next release.")]
     public async Task<JsonModel> RequestMedicationSupplyAsync(int userId, Guid subscriptionId, TokenModel tokenModel)
     {
         try
         {
+            _logger.LogWarning("DEPRECATED: RequestMedicationSupplyAsync called from SubscriptionService. This should be in MedicationService.");
+            
             // Validate input parameters
             if (userId <= 0)
             {
@@ -1745,6 +1733,330 @@ public class SubscriptionService : ISubscriptionService
         {
             _logger.LogError(ex, "Error retrieving subscriptions with advanced filtering");
             return new JsonModel { data = new object(), Message = "Error retrieving subscriptions", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Allows users to purchase additional privilege credits with immediate upfront payment.
+    /// This implements the workflow requirement:
+    /// "Once a user has used all their included privileges, any additional usage 
+    /// would require upfront payment. Only after this payment would the extra 
+    /// privilege be added to their account, allowing them to continue using the service."
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID to add credits to</param>
+    /// <param name="dto">DTO containing privilege name, quantity, and payment method</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel with purchase details or error information</returns>
+    /// <remarks>
+    /// Workflow:
+    /// 1. Validate subscription is active
+    /// 2. Get privilege configuration and calculate cost (quantity × unitCost)
+    /// 3. Create billing record for upfront payment
+    /// 4. Process payment IMMEDIATELY (not deferred)
+    /// 5. If payment succeeds: Add credits to AllowedValue
+    /// 6. If payment fails: Return error, no credits added
+    /// 7. Send confirmation notification
+    /// 
+    /// This ensures payment is received BEFORE credits are added to the account.
+    /// </remarks>
+    public async Task<JsonModel> PurchaseAdditionalCreditsAsync(
+        Guid subscriptionId,
+        PurchaseAdditionalCreditsDto dto,
+        TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "User {UserId} purchasing {Quantity} {PrivilegeName} credits for subscription {SubscriptionId}",
+                tokenModel.UserID, dto.Quantity, dto.PrivilegeName, subscriptionId
+            );
+
+            // STEP 1: Get and validate subscription
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
+            
+            if (subscription == null)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = "Subscription not found",
+                    StatusCode = 404
+                };
+            }
+
+            // STEP 2: Validate subscription is active
+            if (subscription.Status != Subscription.SubscriptionStatuses.Active &&
+                subscription.Status != Subscription.SubscriptionStatuses.TrialActive)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = $"Cannot purchase credits. Subscription status is {subscription.Status}. Only active subscriptions can purchase additional credits.",
+                    StatusCode = 400
+                };
+            }
+
+            // STEP 3: Validate user access (must be subscription owner or admin)
+            if (tokenModel.RoleID != (int)RoleId.Admin && 
+                tokenModel.UserID != subscription.UserId)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = "Access denied. You can only purchase credits for your own subscription.",
+                    StatusCode = 403
+                };
+            }
+
+            // STEP 4: Get plan privilege configuration
+            var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(subscription.SubscriptionPlanId);
+            
+            var planPrivilege = planPrivileges
+                .FirstOrDefault(pp => pp.Privilege != null && pp.Privilege.Name == dto.PrivilegeName);
+            
+            if (planPrivilege == null)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = $"Privilege '{dto.PrivilegeName}' not found in your subscription plan",
+                    StatusCode = 404
+                };
+            }
+
+            // STEP 5: Check if privilege is disabled in the plan
+            if (planPrivilege.IsDisabled)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = $"Privilege '{dto.PrivilegeName}' is not available in your plan",
+                    StatusCode = 400
+                };
+            }
+
+            // STEP 6: Get current privilege usage
+            var usages = await _usageRepo.GetBySubscriptionIdAsync(subscriptionId);
+            
+            var usage = usages
+                .FirstOrDefault(u => u.SubscriptionPlanPrivilegeId == planPrivilege.Id);
+            
+            if (usage == null)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = "Privilege usage record not found. Please contact support.",
+                    StatusCode = 500
+                };
+            }
+
+            // STEP 7: Calculate cost (quantity × unit cost)
+            decimal totalCost = dto.Quantity * planPrivilege.UnitCost;
+
+            if (totalCost <= 0)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = "Invalid cost calculated. Unit cost must be greater than zero.",
+                    StatusCode = 400
+                };
+            }
+
+            _logger.LogInformation(
+                "Calculated cost: {Quantity} credits × ${UnitCost} = ${TotalCost}",
+                dto.Quantity, planPrivilege.UnitCost, totalCost
+            );
+
+            // STEP 8: Validate payment method
+            var isValidPaymentMethod = await _stripeService.ValidatePaymentMethodAsync(dto.PaymentMethodId, tokenModel);
+            if (!isValidPaymentMethod)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = "Invalid payment method. Please add a valid payment method.",
+                    StatusCode = 400
+                };
+            }
+
+            // STEP 9: BEGIN TRANSACTION for data consistency
+            await _unitOfWork.BeginTransactionAsync();
+            
+            try
+            {
+                // STEP 10: Create billing record for upfront payment
+                var billingRecord = new BillingRecord
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = subscription.UserId,
+                    SubscriptionId = subscription.Id,
+                    CurrencyId = subscription.SubscriptionPlan.CurrencyId,
+                    Amount = totalCost,
+                    TaxAmount = 0,
+                    ShippingAmount = 0,
+                    TotalAmount = totalCost,
+                    Status = BillingRecord.BillingStatus.Pending,
+                    Type = BillingRecord.BillingType.Overage,
+                    Description = $"Purchase {dto.Quantity} additional {dto.PrivilegeName} credits @ ${planPrivilege.UnitCost} each",
+                    BillingDate = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow, // Due immediately for upfront payment
+                    IsRecurring = false,
+                    PaymentMethod = dto.PaymentMethodId,
+                    IsActive = true,
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow
+                };
+
+                var createdBilling = await _billingService.CreateBillingRecordAsync(
+                    _mapper.Map<CreateBillingRecordDto>(billingRecord),
+                    tokenModel
+                );
+
+                if (createdBilling.StatusCode != 200 || createdBilling.data == null)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    return new JsonModel 
+                    { 
+                        data = new object(),
+                        Message = "Failed to create billing record",
+                        StatusCode = 500
+                    };
+                }
+
+                var billingRecordDto = (BillingRecordDto)createdBilling.data;
+
+                _logger.LogInformation(
+                    "Created billing record {BillingRecordId} for ${Amount}",
+                    billingRecordDto.Id, totalCost
+                );
+
+                // STEP 11: PROCESS UPFRONT PAYMENT IMMEDIATELY (CRITICAL!)
+                // This is where we enforce "payment before credits" requirement
+                var billingRecordId = Guid.Parse(billingRecordDto.Id);
+                var paymentResult = await _billingService.ProcessPaymentAsync(
+                    billingRecordId,
+                    tokenModel
+                );
+
+                // STEP 12: Check if payment succeeded
+                if (paymentResult.StatusCode != 200)
+                {
+                    // PAYMENT FAILED - Rollback entire transaction
+                    await _unitOfWork.RollbackTransactionAsync();
+                    
+                    _logger.LogWarning(
+                        "Payment failed for billing record {BillingRecordId}: {Message}. Credits NOT added.",
+                        billingRecordDto.Id, paymentResult.Message
+                    );
+
+                    return new JsonModel
+                    {
+                        data = new
+                        {
+                            paymentFailed = true,
+                            reason = paymentResult.Message,
+                            creditsAdded = 0,
+                            amountCharged = 0
+                        },
+                        Message = $"Payment failed: {paymentResult.Message}. Additional credits were not added to your account.",
+                        StatusCode = 400
+                    };
+                }
+
+                // STEP 13: PAYMENT SUCCESSFUL - Add credits to AllowedValue
+                // This is the KEY operation that adds credits after successful payment
+                var previousAllowedValue = usage.AllowedValue;
+                var previousRemaining = usage.RemainingValue;
+
+                usage.AllowedValue += dto.Quantity; // ADD CREDITS HERE!
+                usage.UpdatedBy = tokenModel.UserID;
+                usage.UpdatedDate = DateTime.UtcNow;
+
+                await _usageRepo.UpdateAsync(usage);
+
+                _logger.LogInformation(
+                    "✓ Payment successful! Updated AllowedValue from {PreviousValue} to {NewValue} for privilege {PrivilegeName}",
+                    previousAllowedValue, usage.AllowedValue, dto.PrivilegeName
+                );
+
+                // STEP 14: COMMIT TRANSACTION
+                // Only commit if payment successful and credits added
+                await _unitOfWork.CommitTransactionAsync();
+
+                _logger.LogInformation(
+                    "✓ Transaction committed. Successfully purchased {Quantity} {PrivilegeName} credits for user {UserId}",
+                    dto.Quantity, dto.PrivilegeName, tokenModel.UserID
+                );
+
+                // STEP 15: Send confirmation notification
+                try
+                {
+                    await _subscriptionNotificationService.SendBulkNotificationAsync(
+                        new List<string> { subscriptionId.ToString() },
+                        "Additional Credits Purchased",
+                        $"You've successfully purchased {dto.Quantity} additional {dto.PrivilegeName} credits for ${totalCost}. " +
+                        $"Your new limit is {usage.AllowedValue} (previously {previousAllowedValue}). " +
+                        $"You have {usage.RemainingValue} credits remaining.",
+                        "credits_purchased",
+                        tokenModel
+                    );
+                }
+                catch (Exception notificationEx)
+                {
+                    // Don't fail the entire operation if notification fails
+                    _logger.LogWarning(notificationEx, 
+                        "Failed to send notification for credit purchase, but purchase was successful");
+                }
+
+                // STEP 16: Return success response with complete details
+                return new JsonModel
+                {
+                    data = new PurchaseCreditsResponseDto
+                    {
+                        SubscriptionId = subscriptionId,
+                        PrivilegeName = dto.PrivilegeName,
+                        CreditsAdded = dto.Quantity,
+                        UnitCost = planPrivilege.UnitCost,
+                        TotalPaid = totalCost,
+                        PreviousLimit = previousAllowedValue,
+                        NewLimit = usage.AllowedValue,
+                        CurrentUsed = usage.UsedValue,
+                        NewRemaining = usage.RemainingValue,
+                        BillingRecordId = billingRecordId,
+                        PurchasedAt = DateTime.UtcNow
+                    },
+                    Message = $"Successfully purchased {dto.Quantity} additional {dto.PrivilegeName} credits for ${totalCost}. Your new limit is {usage.AllowedValue}.",
+                    StatusCode = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                // ROLLBACK on any error
+                await _unitOfWork.RollbackTransactionAsync();
+                
+                _logger.LogError(ex, 
+                    "Error in transaction while purchasing credits for subscription {SubscriptionId}. Transaction rolled back.",
+                    subscriptionId
+                );
+                
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Error purchasing {Quantity} {PrivilegeName} credits for subscription {SubscriptionId}",
+                dto.Quantity, dto.PrivilegeName, subscriptionId
+            );
+
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Error processing credit purchase. Please try again or contact support.",
+                StatusCode = 500
+            };
         }
     }
 

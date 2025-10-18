@@ -25,6 +25,7 @@ public class StripeService : IStripeService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<StripeService> _logger;
+    private readonly IUserRepository _userRepository; // SRP Refactoring: Added for EnsureStripeCustomer
     private readonly int _maxRetries = 3;
     private readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(1);
     
@@ -33,12 +34,17 @@ public class StripeService : IStripeService
     /// </summary>
     /// <param name="configuration">Configuration instance containing Stripe settings</param>
     /// <param name="logger">Logger instance for logging operations and errors</param>
+    /// <param name="userRepository">Repository for user data access (SRP Refactoring)</param>
     /// <exception cref="ArgumentNullException">Thrown when configuration or logger is null</exception>
     /// <exception cref="InvalidOperationException">Thrown when Stripe secret key is not configured</exception>
-    public StripeService(IConfiguration configuration, ILogger<StripeService> logger)
+    public StripeService(
+        IConfiguration configuration, 
+        ILogger<StripeService> logger,
+        IUserRepository userRepository)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         
         // Validate and set Stripe API key from configuration
         var secretKey = _configuration["StripeSettings:SecretKey"];
@@ -1534,5 +1540,95 @@ public class StripeService : IStripeService
             }
         });
     }
+    #endregion
+
+    #region SRP Refactoring: Centralized Stripe Customer Management
+
+    /// <summary>
+    /// Ensures a Stripe customer exists for the given user. If the user already has a Stripe customer ID,
+    /// it returns that ID. Otherwise, it creates a new Stripe customer and updates the user record.
+    /// SRP Refactoring: Centralized from 3 duplicate implementations (SubscriptionService, SubscriptionLifecycleService, StripeSynchronizationService)
+    /// </summary>
+    /// <param name="userId">The user's ID</param>
+    /// <param name="email">The user's email address</param>
+    /// <param name="fullName">The user's full name</param>
+    /// <param name="existingStripeCustomerId">The user's existing Stripe customer ID (if any)</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>The Stripe customer ID (existing or newly created)</returns>
+    /// <remarks>
+    /// This method:
+    /// - Checks if user already has a Stripe customer ID
+    /// - If yes, returns the existing ID
+    /// - If no, creates a new Stripe customer
+    /// - Updates the user record with the new Stripe customer ID
+    /// - Handles errors gracefully with logging
+    /// 
+    /// This centralizes critical Stripe customer creation logic that was previously duplicated
+    /// in multiple services, ensuring consistency and reducing maintenance burden.
+    /// </remarks>
+    public async Task<string> EnsureStripeCustomerAsync(
+        int userId,
+        string email,
+        string fullName,
+        string? existingStripeCustomerId,
+        TokenModel tokenModel)
+    {
+        try
+        {
+            // If user already has Stripe customer ID, return it
+            if (!string.IsNullOrEmpty(existingStripeCustomerId))
+            {
+                _logger.LogInformation("User {UserId} already has Stripe customer ID: {StripeCustomerId}", 
+                    userId, existingStripeCustomerId);
+                return existingStripeCustomerId;
+            }
+            
+            // Create new Stripe customer
+            _logger.LogInformation("Creating new Stripe customer for user {UserId} with email {Email}", 
+                userId, email);
+            
+            var stripeCustomerId = await CreateCustomerAsync(email, fullName, tokenModel);
+            
+            // Update user with Stripe customer ID
+            try
+            {
+                var user = await _userRepository.GetByIdAsync(userId);
+                if (user != null)
+                {
+                    user.StripeCustomerId = stripeCustomerId;
+                    user.UpdatedDate = DateTime.UtcNow;
+                    user.UpdatedBy = tokenModel?.UserID;
+                    
+                    await _userRepository.UpdateAsync(user);
+                    
+                    _logger.LogInformation(
+                        "Successfully updated user {UserId} with Stripe customer ID: {StripeCustomerId}", 
+                        userId, stripeCustomerId);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "User {UserId} not found for Stripe customer ID update. Customer {StripeCustomerId} created but user not updated.",
+                        userId, stripeCustomerId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, 
+                    "Error updating user {UserId} with Stripe customer ID {StripeCustomerId}. Customer created but user update failed.",
+                    userId, stripeCustomerId);
+                // Don't throw - customer was created successfully in Stripe
+                // Return the customer ID even if user update failed
+            }
+            
+            return stripeCustomerId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ensuring Stripe customer for user {UserId}", userId);
+            throw;
+        }
+    }
+
     #endregion
 } 

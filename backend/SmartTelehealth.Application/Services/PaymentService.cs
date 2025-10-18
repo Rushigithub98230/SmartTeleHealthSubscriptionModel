@@ -3,6 +3,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Entities;
+using SmartTelehealth.Core.Enums;
 using AutoMapper;
 using Microsoft.Extensions.Logging;
 
@@ -31,6 +32,9 @@ public class PaymentService : IPaymentService
     private readonly IStripeService _stripeService;
     private readonly IMapper _mapper;
     private readonly ILogger<PaymentService> _logger;
+    private readonly ISubscriptionPaymentRepository _subscriptionPaymentRepository;
+    private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
     /// <summary>
     /// Initializes a new instance of the PaymentService with all required dependencies
@@ -40,18 +44,27 @@ public class PaymentService : IPaymentService
     /// <param name="stripeService">Service for core Stripe API operations</param>
     /// <param name="mapper">AutoMapper instance for entity-DTO mapping</param>
     /// <param name="logger">Logger instance for logging operations and errors</param>
+    /// <param name="subscriptionPaymentRepository">Repository for subscription payment data access operations</param>
+    /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
+    /// <param name="unitOfWork">Unit of work for transaction management</param>
     public PaymentService(
         IStripeBillingService stripeBillingService,
         IBillingRepository billingRepository,
         IStripeService stripeService,
         IMapper mapper,
-        ILogger<PaymentService> logger)
+        ILogger<PaymentService> logger,
+        ISubscriptionPaymentRepository subscriptionPaymentRepository,
+        ISubscriptionRepository subscriptionRepository,
+        IUnitOfWork unitOfWork)
     {
         _stripeBillingService = stripeBillingService ?? throw new ArgumentNullException(nameof(stripeBillingService));
         _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
         _stripeService = stripeService ?? throw new ArgumentNullException(nameof(stripeService));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _subscriptionPaymentRepository = subscriptionPaymentRepository ?? throw new ArgumentNullException(nameof(subscriptionPaymentRepository));
+        _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
     #region Core Payment Processing
@@ -75,20 +88,35 @@ public class PaymentService : IPaymentService
                 return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
             }
 
-            // Delegate to StripeBillingService for Stripe-specific payment processing
-            var paymentResult = await _stripeBillingService.ProcessStripePaymentAsync(billingRecordId, tokenModel);
+            SubscriptionPayment subscriptionPayment = null;
             
-            if (paymentResult.StatusCode == 200)
+            // Create or get existing SubscriptionPayment for subscription-related billing
+            // Includes: Subscription, Overage, Recurring (all subscription-related charges)
+            if ((billingRecord.Type == BillingRecord.BillingType.Subscription || 
+                 billingRecord.Type == BillingRecord.BillingType.Overage ||
+                 billingRecord.Type == BillingRecord.BillingType.Recurring) && 
+                billingRecord.SubscriptionId.HasValue)
+            {
+                subscriptionPayment = await GetOrCreateSubscriptionPaymentAsync(billingRecord, tokenModel);
+            }
+            
+            // Process payment through Stripe
+            var stripeResult = await _stripeBillingService.ProcessStripePaymentAsync(billingRecordId, tokenModel);
+            
+            // Update payment records with transaction safety
+            await UpdatePaymentRecordsAsync(billingRecord, subscriptionPayment, stripeResult, tokenModel);
+            
+            if (stripeResult.StatusCode == 200)
             {
                 _logger.LogInformation("Payment processed successfully for billing record {BillingRecordId}", billingRecordId);
             }
             else
             {
                 _logger.LogWarning("Payment processing failed for billing record {BillingRecordId}: {Message}", 
-                    billingRecordId, paymentResult.Message);
+                    billingRecordId, stripeResult.Message);
             }
             
-            return paymentResult;
+            return stripeResult;
         }
         catch (Exception ex)
         {
@@ -911,6 +939,344 @@ public class PaymentService : IPaymentService
             _logger.LogError(ex, "Error getting payment schedule for subscription {SubscriptionId}", subscriptionId);
             return new JsonModel { data = new object(), Message = "Error retrieving payment schedule", StatusCode = 500 };
         }
+    }
+
+    #endregion
+
+    #region Payment Method Management (SRP Refactoring - Moved from SubscriptionService)
+
+    /// <summary>
+    /// Retrieves all payment methods for a specific user
+    /// SRP Refactoring: Moved from SubscriptionService to PaymentService where it belongs
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user whose payment methods to retrieve</param>
+    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
+    /// <returns>JsonModel containing the user's payment methods or error information</returns>
+    /// <remarks>
+    /// Access Control:
+    /// - Admins can retrieve any user's payment methods
+    /// - Users can only retrieve their own payment methods
+    /// </remarks>
+    public async Task<JsonModel> GetPaymentMethodsAsync(int userId, TokenModel tokenModel)
+    {
+        try
+        {
+            // Validate token permissions - user can only access their own payment methods unless admin
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
+            {
+                _logger.LogWarning("Access denied: User {RequestingUserId} attempted to access payment methods for user {TargetUserId}", 
+                    tokenModel.UserID, userId);
+                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
+            }
+
+            _logger.LogInformation("Retrieving payment methods for user {UserId}", userId);
+
+            // Retrieve payment methods from Stripe service
+            var methods = await _stripeService.GetCustomerPaymentMethodsAsync(userId.ToString(), tokenModel);
+            
+            _logger.LogInformation("Successfully retrieved payment methods for user {UserId}", userId);
+            return new JsonModel { data = methods, Message = "Payment methods retrieved successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving payment methods for user {UserId}", userId);
+            return new JsonModel { data = new object(), Message = "Error retrieving payment methods", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Adds a payment method to a user's account
+    /// SRP Refactoring: Moved from SubscriptionService to PaymentService where it belongs
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user to add the payment method to</param>
+    /// <param name="paymentMethodId">The Stripe payment method ID to add</param>
+    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
+    /// <returns>JsonModel containing the added payment method or error information</returns>
+    /// <remarks>
+    /// Access Control:
+    /// - Admins can add payment methods to any user's account
+    /// - Users can only add payment methods to their own account
+    /// </remarks>
+    public async Task<JsonModel> AddPaymentMethodAsync(int userId, string paymentMethodId, TokenModel tokenModel)
+    {
+        try
+        {
+            // Validate token permissions - user can only add payment methods to their own account unless admin
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
+            {
+                _logger.LogWarning("Access denied: User {RequestingUserId} attempted to add payment method for user {TargetUserId}", 
+                    tokenModel.UserID, userId);
+                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
+            }
+
+            _logger.LogInformation("Adding payment method {PaymentMethodId} for user {UserId}", paymentMethodId, userId);
+
+            // Add payment method to user's Stripe customer account
+            var methodId = await _stripeService.AddPaymentMethodAsync(userId.ToString(), paymentMethodId, tokenModel);
+            var method = new PaymentMethodDto { Id = methodId };
+            
+            _logger.LogInformation("Successfully added payment method for user {UserId}", userId);
+            return new JsonModel { data = method, Message = "Payment method added successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding payment method {PaymentMethodId} for user {UserId}", paymentMethodId, userId);
+            return new JsonModel { data = new object(), Message = "Error adding payment method", StatusCode = 500 };
+        }
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Gets or creates a SubscriptionPayment for the given billing record to prevent duplicates
+    /// </summary>
+    private async Task<SubscriptionPayment> GetOrCreateSubscriptionPaymentAsync(BillingRecord billingRecord, TokenModel tokenModel)
+    {
+        // Check if SubscriptionPayment already exists for this billing record
+        var existingPayment = await _subscriptionPaymentRepository.GetByBillingRecordIdAsync(billingRecord.Id);
+        if (existingPayment != null)
+        {
+            _logger.LogInformation("Found existing SubscriptionPayment {PaymentId} for billing record {BillingRecordId}", 
+                existingPayment.Id, billingRecord.Id);
+            return existingPayment;
+        }
+
+        // Get subscription details
+        var subscription = await _subscriptionRepository.GetByIdAsync(billingRecord.SubscriptionId.Value);
+        if (subscription == null)
+        {
+            throw new InvalidOperationException($"Subscription {billingRecord.SubscriptionId} not found for billing record {billingRecord.Id}");
+        }
+
+        // Calculate billing period
+        var (billingPeriodStart, billingPeriodEnd) = CalculateBillingPeriod(subscription, billingRecord);
+
+        // Determine payment type based on billing record type
+        var paymentType = MapBillingTypeToPaymentType(billingRecord.Type);
+        
+        // Create description based on billing type
+        var description = billingRecord.Type switch
+        {
+            BillingRecord.BillingType.Overage => $"Overage charges for {subscription.SubscriptionPlan?.Name ?? "subscription"}",
+            BillingRecord.BillingType.Recurring => $"Recurring payment for {subscription.SubscriptionPlan?.Name ?? "subscription"}",
+            _ => $"Subscription payment for {subscription.SubscriptionPlan?.Name ?? "Unknown Plan"}"
+        };
+
+        // Create new SubscriptionPayment
+        var subscriptionPayment = new SubscriptionPayment
+        {
+            Id = Guid.NewGuid(),
+            SubscriptionId = billingRecord.SubscriptionId.Value,
+            BillingRecordId = billingRecord.Id,
+            CurrencyId = billingRecord.CurrencyId,
+            Amount = billingRecord.Amount,
+            TaxAmount = billingRecord.TaxAmount,
+            NetAmount = billingRecord.TotalAmount,
+            Description = description,
+            Status = SubscriptionPayment.PaymentStatus.Pending,
+            Type = paymentType,
+            DueDate = billingRecord.DueDate ?? DateTime.UtcNow.AddDays(30),
+            BillingPeriodStart = billingPeriodStart,
+            BillingPeriodEnd = billingPeriodEnd,
+            AttemptCount = 0,
+            CreatedBy = tokenModel.UserID,
+            CreatedDate = DateTime.UtcNow
+        };
+
+        var createdPayment = await _subscriptionPaymentRepository.CreateAsync(subscriptionPayment);
+        _logger.LogInformation("Created new SubscriptionPayment {PaymentId} for billing record {BillingRecordId}", 
+            createdPayment.Id, billingRecord.Id);
+
+        return createdPayment;
+    }
+
+    /// <summary>
+    /// Calculates billing period for subscription payment using LastBillingDate logic
+    /// </summary>
+    private (DateTime start, DateTime end) CalculateBillingPeriod(Subscription subscription, BillingRecord billingRecord)
+    {
+        var now = DateTime.UtcNow;
+        
+        // For first payment (no LastBillingDate), use subscription start date
+        if (!subscription.LastBillingDate.HasValue)
+        {
+            var start = subscription.StartDate;
+            var end = start.AddMonths(1).AddDays(-1); // End of first month
+            return (start, end);
+        }
+
+        // For renewal payments, use LastBillingDate + 1 day as start
+        var periodStart = subscription.LastBillingDate.Value.AddDays(1);
+        var periodEnd = periodStart.AddMonths(1).AddDays(-1); // End of billing period
+
+        return (periodStart, periodEnd);
+    }
+
+    /// <summary>
+    /// Updates payment records with transaction safety
+    /// </summary>
+    private async Task UpdatePaymentRecordsAsync(BillingRecord billingRecord, SubscriptionPayment subscriptionPayment, 
+        JsonModel stripeResult, TokenModel tokenModel)
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var isSuccess = stripeResult.StatusCode == 200;
+            
+            if (subscriptionPayment != null)
+            {
+                // Update SubscriptionPayment
+                subscriptionPayment.AttemptCount++;
+                subscriptionPayment.UpdatedBy = tokenModel.UserID;
+                subscriptionPayment.UpdatedDate = DateTime.UtcNow;
+
+                if (isSuccess)
+                {
+                    subscriptionPayment.Status = SubscriptionPayment.PaymentStatus.Succeeded;
+                    subscriptionPayment.PaidAt = DateTime.UtcNow;
+                    subscriptionPayment.StripePaymentIntentId = billingRecord.StripePaymentIntentId;
+                    subscriptionPayment.StripeInvoiceId = billingRecord.StripeInvoiceId;
+                    // ReceiptUrl property doesn't exist in BillingRecord - removed
+                }
+                else
+                {
+                    subscriptionPayment.Status = SubscriptionPayment.PaymentStatus.Failed;
+                    subscriptionPayment.FailedAt = DateTime.UtcNow;
+                    subscriptionPayment.FailureReason = stripeResult.Message;
+                    subscriptionPayment.NextRetryAt = CalculateNextRetry(subscriptionPayment.AttemptCount);
+                }
+
+                await _subscriptionPaymentRepository.UpdateAsync(subscriptionPayment);
+            }
+
+            // Update BillingRecord status
+            billingRecord.Status = isSuccess ? BillingRecord.BillingStatus.Paid : BillingRecord.BillingStatus.Failed;
+            billingRecord.UpdatedBy = tokenModel.UserID;
+            billingRecord.UpdatedDate = DateTime.UtcNow;
+
+            if (isSuccess)
+            {
+                billingRecord.PaidAt = DateTime.UtcNow;
+            }
+
+            await _billingRepository.UpdateAsync(billingRecord);
+
+            // Update subscription LastBillingDate if payment succeeded
+            if (isSuccess && subscriptionPayment != null)
+            {
+                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionPayment.SubscriptionId);
+                if (subscription != null)
+                {
+                    subscription.LastBillingDate = subscriptionPayment.BillingPeriodEnd;
+                    subscription.NextBillingDate = CalculateNextBillingDate(subscription);
+                    subscription.UpdatedBy = tokenModel.UserID;
+                    subscription.UpdatedDate = DateTime.UtcNow;
+                    await _subscriptionRepository.UpdateAsync(subscription);
+                    
+                    // Reset privilege usage for new billing period
+                    await ResetPrivilegesForNewBillingPeriodAsync(subscription, tokenModel);
+                }
+            }
+
+            await _unitOfWork.CommitTransactionAsync();
+            _logger.LogInformation("Successfully updated payment records for billing record {BillingRecordId}", billingRecord.Id);
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error updating payment records for billing record {BillingRecordId}", billingRecord.Id);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Resets privilege usage for new billing period (scales to billing cycle)
+    /// </summary>
+    private async Task ResetPrivilegesForNewBillingPeriodAsync(Subscription subscription, TokenModel tokenModel)
+    {
+        try
+        {
+            var usageRecords = await _subscriptionRepository.GetSubscriptionPrivilegeUsagesAsync(subscription.Id);
+            var billingCycleDays = subscription.BillingCycle.DurationInDays;
+            var monthsInCycle = billingCycleDays / 30.0m;
+            
+            foreach (var usage in usageRecords)
+            {
+                var planPrivilege = subscription.SubscriptionPlan.PlanPrivileges
+                    .FirstOrDefault(p => p.Id == usage.SubscriptionPlanPrivilegeId);
+                
+                if (planPrivilege != null)
+                {
+                    var monthlyLimit = planPrivilege.MonthlyLimit ?? planPrivilege.Value;
+                    var allowedForCycle = monthlyLimit == -1 ? -1 : (int)Math.Ceiling(monthlyLimit * monthsInCycle);
+                    
+                    usage.UsedValue = 0;
+                    usage.AllowedValue = allowedForCycle;
+                    usage.UsagePeriodStart = subscription.LastBillingDate.Value.AddDays(1);
+                    usage.UsagePeriodEnd = subscription.NextBillingDate;
+                    usage.UpdatedBy = tokenModel.UserID;
+                    usage.UpdatedDate = DateTime.UtcNow;
+                    
+                    await _subscriptionRepository.UpdatePrivilegeUsageAsync(usage);
+                    
+                    _logger.LogInformation("Reset privilege {PrivilegeId} for subscription {SubscriptionId}: AllowedValue={AllowedValue}, Period={Start} to {End}",
+                        planPrivilege.PrivilegeId, subscription.Id, allowedForCycle, usage.UsagePeriodStart, usage.UsagePeriodEnd);
+                }
+            }
+            
+            _logger.LogInformation("Reset {Count} privilege usages for subscription {SubscriptionId}", 
+                usageRecords.Count(), subscription.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting privileges for subscription {SubscriptionId}", subscription.Id);
+            // Don't throw - privilege reset failure shouldn't fail the payment
+        }
+    }
+    
+    /// <summary>
+    /// Calculates next retry time using smart retry scheduling
+    /// </summary>
+    private DateTime CalculateNextRetry(int attemptCount)
+    {
+        return attemptCount switch
+        {
+            1 => DateTime.UtcNow.AddHours(1),    // 1 hour
+            2 => DateTime.UtcNow.AddDays(1),     // 1 day
+            3 => DateTime.UtcNow.AddDays(3),     // 3 days
+            _ => DateTime.UtcNow.AddDays(7)      // 7 days for any additional attempts
+        };
+    }
+
+    /// <summary>
+    /// Calculates next billing date for subscription
+    /// </summary>
+    private DateTime CalculateNextBillingDate(Subscription subscription)
+    {
+        if (!subscription.LastBillingDate.HasValue)
+        {
+            return subscription.StartDate.AddMonths(1);
+        }
+
+        return subscription.LastBillingDate.Value.AddMonths(1);
+    }
+
+    /// <summary>
+    /// Maps BillingRecord.BillingType to SubscriptionPayment.PaymentType
+    /// </summary>
+    private SubscriptionPayment.PaymentType MapBillingTypeToPaymentType(BillingRecord.BillingType billingType)
+    {
+        return billingType switch
+        {
+            BillingRecord.BillingType.Subscription => SubscriptionPayment.PaymentType.Subscription,
+            BillingRecord.BillingType.Overage => SubscriptionPayment.PaymentType.Overage,
+            BillingRecord.BillingType.Recurring => SubscriptionPayment.PaymentType.Recurring,
+            BillingRecord.BillingType.Upfront => SubscriptionPayment.PaymentType.Upfront,
+            BillingRecord.BillingType.Refund => SubscriptionPayment.PaymentType.Refund,
+            _ => SubscriptionPayment.PaymentType.Subscription // Default to Subscription for unknown types
+        };
     }
 
     #endregion

@@ -125,7 +125,17 @@ public class SubscriptionPlanPrivilege : BaseEntity
     public int? MonthlyLimit { get; set; }
     
     /// <summary>
-    /// Cost per unit for this privilege when used beyond the plan limits (overage).
+    /// BASE COST: Cost per unit for THIS PLAN (contributes to plan's base price).
+    /// Used to calculate: Plan Price = Σ(Value × PrivilegeBaseCost) + Commission.
+    /// Example: 5 consultations × $3 base cost = $15 contribution to plan price.
+    /// </summary>
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal PrivilegeBaseCost { get; set; } = 0;
+    
+    /// <summary>
+    /// OVERAGE COST: Cost per unit when user exceeds limit.
+    /// Healthcare Rule: Overage uses LATEST plan version pricing to prevent abuse.
+    /// Example: 6th consultation costs $15 (from latest plan, not user's old plan).
     /// Used for calculating overage charges when users exceed their plan limits.
     /// This allows different plans to charge different rates for the same privilege.
     /// Example: Basic plan charges $2 per teleconsultation overage, Premium plan charges $4.

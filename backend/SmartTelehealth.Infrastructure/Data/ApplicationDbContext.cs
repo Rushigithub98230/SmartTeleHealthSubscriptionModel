@@ -103,6 +103,10 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
     public DbSet<ChatAttachment> ChatAttachments { get; set; }
     public DbSet<ServiceConstraint> ServiceConstraints { get; set; }
     
+    // Healthcare-specific subscription management entities
+    public DbSet<SystemSettings> SystemSettings { get; set; }
+    public DbSet<ScheduledPlanMigration> ScheduledPlanMigrations { get; set; }
+    
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -159,6 +163,10 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         
         // Add missing entity configurations
         ConfigureProcessedWebhookEvent(builder);
+        
+        // Healthcare-specific subscription management entities
+        ConfigureSystemSettings(builder);
+        ConfigureScheduledPlanMigration(builder);
         
         // Configure BaseEntity relationships for all entities
         ConfigureBaseEntityRelationships(builder);
@@ -620,6 +628,22 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Features).HasMaxLength(1000);
             entity.Property(e => e.Terms).HasMaxLength(500);
             
+            // ═══════════════════════════════════════════════════════════
+            // PLAN VERSIONING & PRICING (Healthcare Model)
+            // ═══════════════════════════════════════════════════════════
+            
+            // Versioning Properties
+            entity.Property(e => e.VersionNumber).HasDefaultValue(1);
+            entity.Property(e => e.IsLatestVersion).HasDefaultValue(true);
+            entity.Property(e => e.PriceChangeNoticeDays).HasDefaultValue(10);
+            entity.Property(e => e.VersionCreatedDate).HasDefaultValue(DateTime.UtcNow);
+            
+            // Pricing Properties
+            entity.Property(e => e.IsAutoCalculatedPrice).HasDefaultValue(true);
+            entity.Property(e => e.PrivilegesTotalCost).HasPrecision(18, 2).HasDefaultValue(0);
+            entity.Property(e => e.AdminCommissionPercent).HasPrecision(5, 2);
+            entity.Property(e => e.AdminCommissionFixed).HasPrecision(18, 2);
+            
             // Foreign Key Relationships
             entity.HasOne(e => e.BillingCycle)
                 .WithMany()
@@ -634,6 +658,12 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.HasOne(e => e.Category)
                 .WithMany(c => c.SubscriptionPlans)
                 .HasForeignKey(e => e.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Plan versioning relationship (parent-child hierarchy)
+            entity.HasOne(e => e.ParentPlan)
+                .WithMany(e => e.ChildVersions)
+                .HasForeignKey(e => e.ParentPlanId)
                 .OnDelete(DeleteBehavior.Restrict);
                 
             // Collection Relationships
@@ -656,6 +686,9 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.HasIndex(e => e.BillingCycleId);
             entity.HasIndex(e => e.CurrencyId);
             entity.HasIndex(e => e.StripeProductId);
+            entity.HasIndex(e => e.IsLatestVersion);
+            entity.HasIndex(e => e.ParentPlanId);
+            entity.HasIndex(e => new { e.ParentPlanId, e.VersionNumber });
         });
     }
     
@@ -2205,7 +2238,10 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Value).IsRequired();
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.DurationMonths).HasDefaultValue(1);
-            entity.Property(e => e.UnitCost).HasPrecision(18, 2);
+            
+            // Pricing Properties (Healthcare Model)
+            entity.Property(e => e.PrivilegeBaseCost).HasPrecision(18, 2).HasDefaultValue(0);
+            entity.Property(e => e.UnitCost).HasPrecision(18, 2).HasDefaultValue(0);
             
             // DateTime Properties
             entity.Property(e => e.EffectiveDate);
@@ -2318,6 +2354,80 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.HasIndex(e => e.ProcessedAt);
             entity.HasIndex(e => e.IsSuccess);
             entity.HasIndex(e => new { e.EventType, e.IsSuccess });
+        });
+    }
+    
+    private void ConfigureSystemSettings(ModelBuilder builder)
+    {
+        builder.Entity<SystemSettings>(entity =>
+        {
+            entity.ToTable("SystemSettings");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.DefaultAdminCommissionPercent)
+                .HasPrecision(5, 2)
+                .HasDefaultValue(20);
+            
+            entity.Property(e => e.DefaultPriceChangeNoticeDays)
+                .HasDefaultValue(10);
+            
+            entity.Property(e => e.MaxFailedPaymentAttempts)
+                .HasDefaultValue(3);
+            
+            entity.Property(e => e.LastUpdated)
+                .HasDefaultValue(DateTime.UtcNow);
+            
+            // Seed default settings (singleton pattern)
+            entity.HasData(new SystemSettings
+            {
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                DefaultAdminCommissionPercent = 20,
+                DefaultPriceChangeNoticeDays = 10,
+                MaxFailedPaymentAttempts = 3,
+                LastUpdated = DateTime.UtcNow,
+                IsActive = true,
+                CreatedBy = 0,
+                CreatedDate = DateTime.UtcNow
+            });
+        });
+    }
+    
+    private void ConfigureScheduledPlanMigration(ModelBuilder builder)
+    {
+        builder.Entity<ScheduledPlanMigration>(entity =>
+        {
+            entity.ToTable("ScheduledPlanMigrations");
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.NotificationDate).IsRequired();
+            entity.Property(e => e.ScheduledMigrationDate).IsRequired();
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(50).HasDefaultValue("Pending");
+            entity.Property(e => e.UserDecision).HasMaxLength(50);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            
+            // Foreign key relationships
+            entity.HasOne(e => e.Subscription)
+                .WithMany()
+                .HasForeignKey(e => e.SubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            entity.HasOne(e => e.FromPlan)
+                .WithMany()
+                .HasForeignKey(e => e.FromPlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            entity.HasOne(e => e.ToPlan)
+                .WithMany()
+                .HasForeignKey(e => e.ToPlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.SubscriptionId);
+            entity.HasIndex(e => e.FromPlanId);
+            entity.HasIndex(e => e.ToPlanId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.ScheduledMigrationDate);
+            entity.HasIndex(e => new { e.Status, e.ScheduledMigrationDate });
         });
     }
     

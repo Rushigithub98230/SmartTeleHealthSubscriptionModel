@@ -73,6 +73,7 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     Task<Subscription?> GetActiveSubscriptionByUserIdAsync(int userId);
     Task<int> GetActiveSubscriptionsCountAsync();
     Task<int> GetCancelledSubscriptionsCountAsync();
+    Task<IEnumerable<Subscription>> GetActiveSubscriptionsByPlanIdAsync(Guid planId);
     
     // Usage tracking methods
     Task<IEnumerable<Subscription>> GetSubscriptionsWithResetUsageAsync();
@@ -83,4 +84,8 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     
     // Currency methods
     Task<MasterCurrency?> GetCurrencyByIdAsync(Guid currencyId);
+    
+    // Privilege usage methods (Solution A Implementation)
+    Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetSubscriptionPrivilegeUsagesAsync(Guid subscriptionId);
+    Task UpdatePrivilegeUsageAsync(UserSubscriptionPrivilegeUsage usage);
 } 

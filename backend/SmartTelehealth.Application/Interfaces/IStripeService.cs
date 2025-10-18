@@ -51,4 +51,7 @@ public interface IStripeService
     
     // Webhook Processing
     Task<bool> ProcessWebhookAsync(string json, string signature, TokenModel tokenModel);
+    
+    // SRP Refactoring: Centralized Stripe Customer Management
+    Task<string> EnsureStripeCustomerAsync(int userId, string email, string fullName, string? existingStripeCustomerId, TokenModel tokenModel);
 } 

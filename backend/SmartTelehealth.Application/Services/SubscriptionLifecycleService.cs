@@ -38,7 +38,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     private readonly IUserService _userService;
     private readonly ISubscriptionPlanPrivilegeRepository _planPrivilegeRepo;
     private readonly IUserSubscriptionPrivilegeUsageRepository _usageRepo;
-    private readonly IBillingService _billingService;
+    private readonly ISubscriptionBillingService _billingService; // UPDATED: Use consolidated service
     private readonly ISubscriptionNotificationService _subscriptionNotificationService;
     private readonly IPrivilegeRepository _privilegeRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -55,7 +55,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         IUserService userService,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepo,
         IUserSubscriptionPrivilegeUsageRepository usageRepo,
-        IBillingService billingService,
+        ISubscriptionBillingService billingService, // UPDATED: Use consolidated service
         ISubscriptionNotificationService subscriptionNotificationService,
         IPrivilegeRepository privilegeRepository,
         IUnitOfWork unitOfWork)
@@ -152,7 +152,23 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 }
             }
 
-            // Step 6: Create Stripe Subscription with proper billing cycle logic
+            // Step 6: Get and validate billing cycle
+            var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(createDto.BillingCycleId);
+            if (billingCycle == null)
+                return new JsonModel { data = new object(), Message = "Billing cycle not found", StatusCode = 404 };
+            
+            // Validate billing cycle is appropriate for plan
+            if (!BillingCycleValidator.IsValidBillingCycleForPlan(plan, billingCycle))
+            {
+                return new JsonModel 
+                { 
+                    data = new object(),
+                    Message = $"Billing cycle '{billingCycle.Name}' is not available for this plan",
+                    StatusCode = 400
+                };
+            }
+            
+            // Step 7: Create Stripe Subscription with proper billing cycle logic
             string stripeSubscriptionId = null;
             // Get the appropriate Stripe price ID based on the selected billing cycle
             string stripePriceId = await GetStripePriceIdForBillingCycleAsync(plan, createDto.BillingCycleId);
@@ -176,7 +192,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 return new JsonModel { data = new object(), Message = "Failed to create payment subscription", StatusCode = 500 };
             }
 
-            // 7. Create local subscription entity with Stripe IDs
+            // Step 8: Create local subscription entity with Stripe IDs
             var entity = _mapper.Map<Subscription>(createDto);
             
             // NEW: Set Stripe integration fields
@@ -185,8 +201,26 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.StripePriceId = stripePriceId;
             entity.PaymentMethodId = createDto.PaymentMethodId;
             
-            // Set the current price from the plan
-            entity.CurrentPrice = plan.Price;
+            // FIXED: Calculate price for chosen billing cycle with discount support
+            var monthlyPrice = plan.Price;
+            var billingCycleDays = billingCycle.DurationInDays;
+            var monthsInCycle = billingCycleDays / 30.0m;
+            var basePrice = monthlyPrice * monthsInCycle;
+
+            // Apply billing cycle discount
+            var discountPercent = billingCycle.Name.ToLower() switch
+            {
+                "annual" or "yearly" => plan.AnnualBillingDiscount,
+                "quarterly" => plan.QuarterlyBillingDiscount,
+                "monthly" => plan.MonthlyBillingDiscount,
+                _ => 0m
+            };
+
+            var discount = basePrice * (discountPercent / 100);
+            entity.CurrentPrice = basePrice - discount;
+            
+            _logger.LogInformation("Calculated subscription price for {BillingCycle} billing: BasePrice={BasePrice}, Discount={Discount}%, FinalPrice={FinalPrice}",
+                billingCycle.Name, basePrice, discountPercent, entity.CurrentPrice);
             
             // Trial logic
             if (plan.IsTrialAllowed && plan.TrialDurationInDays > 0)
@@ -221,18 +255,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 created = await _subscriptionRepository.CreateSubscriptionAsync(entity);
                 
-                // Add status history
-                await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                    SubscriptionId = created.Id,
-                    FromStatus = null,
-                    ToStatus = created.Status,
-                    ChangedAt = DateTime.UtcNow,
-                    ChangedByUserId = tokenModel.UserID,
-                    // Set audit properties for creation
-                    IsActive = true,
-                    CreatedBy = tokenModel.UserID,
-                    CreatedDate = DateTime.UtcNow
-                });
+                // SRP Refactoring: Use centralized status history helper method
+                await RecordStatusChangeAsync(
+                    created.Id,
+                    null,
+                    created.Status,
+                    "Subscription created",
+                    tokenModel
+                );
                 
                 // COMMIT TRANSACTION
                 await _unitOfWork.CommitTransactionAsync();
@@ -379,14 +409,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
                 
-                // Add status history
-                await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                    SubscriptionId = updated.Id,
-                    FromStatus = oldStatus,
-                    ToStatus = updated.Status,
-                    Reason = reason,
-                    ChangedAt = DateTime.UtcNow
-                });
+                // SRP Refactoring: Use centralized status history helper method
+                await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, reason, tokenModel);
                 
                 // COMMIT TRANSACTION
                 await _unitOfWork.CommitTransactionAsync();
@@ -537,13 +561,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
                 
-                // Add status history
-                await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                    SubscriptionId = updated.Id,
-                    FromStatus = oldStatus,
-                    ToStatus = updated.Status,
-                    ChangedAt = DateTime.UtcNow
-                });
+                // SRP Refactoring: Use centralized status history helper method
+                await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription paused", tokenModel);
                 
                 // COMMIT TRANSACTION
                 await _unitOfWork.CommitTransactionAsync();
@@ -659,13 +678,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
                 
-                // Add status history
-                await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                    SubscriptionId = updated.Id,
-                    FromStatus = oldStatus,
-                    ToStatus = updated.Status,
-                    ChangedAt = DateTime.UtcNow
-                });
+                // SRP Refactoring: Use centralized status history helper method
+                await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription resumed", tokenModel);
                 
                 // COMMIT TRANSACTION
                 await _unitOfWork.CommitTransactionAsync();
@@ -782,13 +796,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             
             var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
             
-            // Add status history
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
-                SubscriptionId = updated.Id,
-                FromStatus = oldStatus,
-                ToStatus = updated.Status,
-                ChangedAt = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription reactivated", tokenModel);
             
             // Send reactivation notification
             var userResult = await _userService.GetUserByIdAsync(updated.UserId, tokenModel);
@@ -1325,20 +1334,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Active,
-                Reason = reason ?? "Subscription activated",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Subscription activated", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1386,20 +1383,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Paused,
-                Reason = reason ?? "Subscription paused",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Paused, reason ?? "Subscription paused", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1440,20 +1425,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Active,
-                Reason = reason ?? "Subscription resumed",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Subscription resumed", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1495,20 +1468,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.CancelledAt = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Cancelled,
-                Reason = reason ?? "Subscription cancelled",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Cancelled, reason ?? "Subscription cancelled", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1548,20 +1509,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Suspended,
-                Reason = reason ?? "Subscription suspended",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Suspended, reason ?? "Subscription suspended", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1610,20 +1559,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.RenewedAt = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Active,
-                Reason = reason ?? "Subscription renewed",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Subscription renewed", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1665,20 +1602,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedDate = DateTime.UtcNow;
             subscription.ExpiredAt = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Expired,
-                Reason = reason ?? "Subscription expired",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Expired, reason ?? "Subscription expired", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1726,20 +1651,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.PaymentFailed,
-                Reason = reason ?? "Payment failed",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.PaymentFailed, reason ?? "Payment failed", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1792,20 +1705,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = Subscription.SubscriptionStatuses.Active,
-                Reason = reason ?? "Payment succeeded",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Payment succeeded", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -1859,20 +1760,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = tokenModel?.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscriptionId,
-                FromStatus = oldStatus,
-                ToStatus = newStatus,
-                Reason = reason ?? $"Status updated to {newStatus}",
-                ChangedAt = DateTime.UtcNow,
-                ChangedByUserId = tokenModel?.UserID,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = tokenModel?.UserID,
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscriptionId, oldStatus, newStatus, reason ?? $"Status updated to {newStatus}", tokenModel);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
             
@@ -2497,21 +2386,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             subscription.UpdatedBy = null; // System action
             subscription.UpdatedDate = DateTime.UtcNow;
 
-            // Add status history
-            await _statusHistoryRepository.CreateAsync(new SubscriptionStatusHistory
-            {
-                SubscriptionId = subscription.Id,
-                FromStatus = subscription.Status,
-                ToStatus = subscription.Status, // Same status, but trial extended
-                Reason = $"Trial extended by {additionalDays} days. {reason}",
-                ChangedAt = DateTime.UtcNow,
-
-                ChangedByUserId = null, // System action
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = null, // System action
-                CreatedDate = DateTime.UtcNow
-            });
+            // SRP Refactoring: Use centralized status history helper method
+            await RecordStatusChangeAsync(subscription.Id, subscription.Status, subscription.Status, $"Trial extended by {additionalDays} days. {reason}", null);
 
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
 
@@ -2597,19 +2473,10 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     /// <summary>
     /// Calculate next billing date based on billing cycle
     /// </summary>
+    // SRP Refactoring: Removed duplicate CalculateNextBillingDate - now uses BillingService.CalculateNextBillingDate()
     private DateTime CalculateNextBillingDate(Subscription subscription)
     {
-        var billingCycle = subscription.BillingCycle;
-        
-        return billingCycle.Name.ToLower() switch
-        {
-            "monthly" => DateTime.UtcNow.AddMonths(1),
-            "quarterly" => DateTime.UtcNow.AddMonths(3),
-            "annual" => DateTime.UtcNow.AddYears(1),
-            "weekly" => DateTime.UtcNow.AddDays(7),
-            "daily" => DateTime.UtcNow.AddDays(1),
-            _ => DateTime.UtcNow.AddMonths(1) // Default to monthly
-        };
+        return _billingService.CalculateNextBillingDate(DateTime.UtcNow, subscription.BillingCycle);
     }
 
     /// <summary>
@@ -2813,6 +2680,43 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     }
 
     /// <summary>
+    /// SRP Refactoring: Centralized helper method to record subscription status changes.
+    /// This eliminates the 20+ duplicate status history creation blocks throughout this service.
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID</param>
+    /// <param name="fromStatus">The previous status</param>
+    /// <param name="toStatus">The new status</param>
+    /// <param name="reason">Reason for the status change</param>
+    /// <param name="tokenModel">Token for audit trail</param>
+    private async Task RecordStatusChangeAsync(
+        Guid subscriptionId,
+        string fromStatus,
+        string toStatus,
+        string? reason,
+        TokenModel tokenModel)
+    {
+        var historyEntry = new SubscriptionStatusHistory
+        {
+            SubscriptionId = subscriptionId,
+            FromStatus = fromStatus,
+            ToStatus = toStatus,
+            Reason = reason ?? $"Status changed to {toStatus}",
+            ChangedAt = DateTime.UtcNow,
+            ChangedByUserId = tokenModel?.UserID,
+            IsActive = true,
+            CreatedBy = tokenModel?.UserID,
+            CreatedDate = DateTime.UtcNow
+        };
+        
+        await _statusHistoryRepository.CreateAsync(historyEntry);
+        
+        _logger.LogDebug(
+            "Status history recorded for subscription {SubscriptionId}: {FromStatus} → {ToStatus}",
+            subscriptionId, fromStatus, toStatus
+        );
+    }
+
+    /// <summary>
     /// Validates if a bulk action is appropriate for a subscription's current status
     /// </summary>
     private async Task<bool> ValidateBulkActionAsync(string currentStatus, string action)
@@ -2848,44 +2752,16 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     /// <summary>
     /// Ensures a Stripe customer exists for the user, creating one if necessary
     /// </summary>
+    // SRP Refactoring: Removed duplicate EnsureStripeCustomerAsync - now using centralized method in StripeService
     private async Task<string> EnsureStripeCustomerAsync(UserDto user, TokenModel tokenModel)
     {
-        // If user already has Stripe customer ID, return it
-        if (!string.IsNullOrEmpty(user.StripeCustomerId))
-        {
-            _logger.LogInformation("User {UserId} already has Stripe customer ID: {StripeCustomerId}", user.Id, user.StripeCustomerId);
-            return user.StripeCustomerId;
-        }
-        
-        // Create new Stripe customer
-        _logger.LogInformation("Creating new Stripe customer for user {UserId} with email {Email}", user.Id, user.Email);
-        
-        var stripeCustomerId = await _stripeService.CreateCustomerAsync(
-            user.Email, 
-            user.FullName, 
+        return await _stripeService.EnsureStripeCustomerAsync(
+            user.Id,
+            user.Email,
+            user.FullName,
+            user.StripeCustomerId,
             tokenModel
         );
-        
-        // Update user with Stripe customer ID
-        try
-        {
-            // Create update DTO with Stripe customer ID
-            var updateUserDto = new UpdateUserDto
-            {
-                StripeCustomerId = stripeCustomerId
-            };
-            
-            await _userService.UpdateUserAsync(user.Id, updateUserDto, tokenModel);
-            
-            _logger.LogInformation("Successfully updated user {UserId} with Stripe customer ID: {StripeCustomerId}", user.Id, stripeCustomerId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to update user {UserId} with Stripe customer ID {StripeCustomerId}. Customer created but user not updated.", user.Id, stripeCustomerId);
-            // Don't fail the entire operation if user update fails
-        }
-        
-        return stripeCustomerId;
     }
 
     /// <summary>
@@ -2922,59 +2798,39 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     /// <summary>
     /// Calculates the next billing date based on billing cycle ID
     /// </summary>
+    // SRP Refactoring: Removed duplicate CalculateNextBillingDateAsync - now uses BillingService.CalculateNextBillingDate()
     private async Task<DateTime> CalculateNextBillingDateAsync(DateTime startDate, Guid billingCycleId)
     {
         try
         {
             // Get the billing cycle from the database
             var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(billingCycleId);
-            if (billingCycle == null)
-            {
-                _logger.LogWarning("Billing cycle {BillingCycleId} not found, using default monthly calculation", billingCycleId);
-                return startDate.AddMonths(1);
-            }
-
-            var billingCycleName = billingCycle.Name.ToLower();
-            return billingCycleName switch
-            {
-                "monthly" => startDate.AddMonths(1),
-                "quarterly" => startDate.AddMonths(3),
-                "annual" => startDate.AddYears(1),
-                _ => startDate.AddMonths(1) // Default fallback
-            };
+            
+            // Use centralized calculation from BillingService
+            return _billingService.CalculateNextBillingDate(startDate, billingCycle);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting billing cycle {BillingCycleId}, using default monthly calculation", billingCycleId);
-            return startDate.AddMonths(1);
+            _logger.LogError(ex, "Error calculating next billing date for billing cycle {BillingCycleId}", billingCycleId);
+            return startDate.AddMonths(1); // Safe fallback
         }
     }
 
+    // SRP Refactoring: Removed duplicate CalculateEndDateAsync - now uses BillingService.CalculateNextBillingDate()
     private async Task<DateTime> CalculateEndDateAsync(DateTime startDate, Guid billingCycleId)
     {
         try
         {
             // Get the billing cycle from the database
             var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(billingCycleId);
-            if (billingCycle == null)
-            {
-                _logger.LogWarning("Billing cycle {BillingCycleId} not found, using default monthly calculation", billingCycleId);
-                return startDate.AddMonths(1);
-            }
-
-            var billingCycleName = billingCycle.Name.ToLower();
-            return billingCycleName switch
-            {
-                "monthly" => startDate.AddMonths(1),
-                "quarterly" => startDate.AddMonths(3),
-                "annual" => startDate.AddYears(1),
-                _ => startDate.AddMonths(1) // Default fallback
-            };
+            
+            // Use centralized calculation from BillingService
+            return _billingService.CalculateNextBillingDate(startDate, billingCycle);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating end date for billing cycle {BillingCycleId}", billingCycleId);
-            return startDate.AddMonths(1); // Default fallback
+            return startDate.AddMonths(1); // Safe fallback
         }
     }
 
@@ -2991,21 +2847,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogInformation("Creating initial billing record for subscription {SubscriptionId}", subscription.Id);
 
-            var billingRecordDto = new CreateBillingRecordDto
-            {
-                UserId = subscription.UserId,
-                SubscriptionId = subscription.Id.ToString(),
-                Amount = plan.Price,
-                CurrencyId = null, // Currency is handled by the subscription
-                PaymentMethod = "stripe",
-                Status = BillingRecord.BillingStatus.Pending.ToString(),
-                Description = $"Initial billing for {plan.Name} subscription",
-                BillingDate = DateTime.UtcNow,
-                DueDate = subscription.NextBillingDate,
-                Type = BillingRecord.BillingType.Subscription.ToString()
-            };
-
-            var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, tokenModel);
+            // SRP Refactoring: Use centralized billing record factory method
+            var billingResult = await _billingService.CreateSubscriptionBillingAsync(
+                subscription,
+                plan.Price,
+                $"Initial billing for {plan.Name} subscription",
+                subscription.NextBillingDate,
+                tokenModel
+            );
             
             if (billingResult.StatusCode == 200)
             {

@@ -49,5 +49,8 @@ namespace SmartTelehealth.Application.Interfaces
         
         // Comprehensive filtering method
         Task<JsonModel> GetSubscriptionsWithFilteringAsync(SubscriptionFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false);
+        
+        // Purchase additional privilege credits with upfront payment
+        Task<JsonModel> PurchaseAdditionalCreditsAsync(Guid subscriptionId, PurchaseAdditionalCreditsDto dto, TokenModel tokenModel);
     }
 } 

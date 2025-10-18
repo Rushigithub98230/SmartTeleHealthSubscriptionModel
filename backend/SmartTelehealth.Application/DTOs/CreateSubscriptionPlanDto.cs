@@ -92,6 +92,37 @@ public class CreateSubscriptionPlanDto
     
     // Privilege configuration - NEW
     public List<PlanPrivilegeDto> Privileges { get; set; } = new List<PlanPrivilegeDto>();
+    
+    // ═══════════════════════════════════════════════════════════
+    // HEALTHCARE PRICING MODEL (Choices 1c, 2c, 4d)
+    // ═══════════════════════════════════════════════════════════
+    
+    /// <summary>
+    /// Choice 1c: Pricing mode selection.
+    /// true = Auto-calculate from privileges, false = Manual price entry.
+    /// </summary>
+    public bool IsAutoCalculatedPrice { get; set; } = true;
+    
+    /// <summary>
+    /// Choice 2c: Per-plan commission override (percentage).
+    /// Null = use global default from SystemSettings.
+    /// </summary>
+    [Range(0, 100, ErrorMessage = "Commission must be between 0 and 100%")]
+    public decimal? AdminCommissionPercent { get; set; }
+    
+    /// <summary>
+    /// Choice 2c: Per-plan commission override (fixed amount).
+    /// Alternative to percentage-based commission.
+    /// </summary>
+    [Range(0, double.MaxValue)]
+    public decimal? AdminCommissionFixed { get; set; }
+    
+    /// <summary>
+    /// Choice 4d: Configurable notice period per plan.
+    /// How many days notice users get before price changes.
+    /// </summary>
+    [Range(7, 365, ErrorMessage = "Notice period must be between 7 and 365 days")]
+    public int PriceChangeNoticeDays { get; set; } = 10; // Healthcare default
 }
 
 /// <summary>
@@ -130,7 +161,21 @@ public class PlanPrivilegeDto
     [Range(0, int.MaxValue, ErrorMessage = "Monthly limit must be 0 or positive")]
     public int? MonthlyLimit { get; set; }      // Max per month (null = no limit)
     
-    // Unit cost for overage billing
+    // ═══════════════════════════════════════════════════════════
+    // HEALTHCARE PRICING MODEL
+    // ═══════════════════════════════════════════════════════════
+    
+    /// <summary>
+    /// Base cost per unit for plan pricing calculation.
+    /// Used to calculate: Plan Price = Σ(Value × PrivilegeBaseCost) + Commission.
+    /// </summary>
+    [Range(0, double.MaxValue, ErrorMessage = "Base cost must be 0 or positive")]
+    public decimal PrivilegeBaseCost { get; set; } = 0;
+    
+    /// <summary>
+    /// Overage cost per unit when user exceeds limits.
+    /// Healthcare Rule: Uses LATEST plan version pricing to prevent abuse.
+    /// </summary>
     [Range(0, double.MaxValue, ErrorMessage = "Unit cost must be 0 or positive")]
     public decimal UnitCost { get; set; } = 0;  // Cost per unit when used beyond limits
     
