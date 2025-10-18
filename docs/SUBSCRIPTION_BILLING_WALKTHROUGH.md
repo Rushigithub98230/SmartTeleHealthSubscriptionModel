@@ -15,15 +15,8 @@
 3. [Complete User Journey - Sarah's Story](#3-complete-user-journey---sarahs-story)
 4. [Admin Workflow - Plan Creation](#4-admin-workflow---plan-creation)
 5. [Technical Implementation Details](#5-technical-implementation-details)
-6. [Billing Cycle Comparison](#6-billing-cycle-comparison)
-7. [Payment Methods & User Dashboard](#7-payment-methods--user-dashboard)
-8. [Frontend Experience Mockups](#8-frontend-experience-mockups)
-9. [Business Rules & Logic](#9-business-rules--logic)
-10. [Error Handling & Edge Cases](#10-error-handling--edge-cases)
-11. [Monitoring & Alerts](#11-monitoring--alerts)
-12. [Verification & Testing](#12-verification--testing)
-13. [Complete Flow Diagram](#13-complete-flow-diagram)
-14. [Summary & Key Takeaways](#14-summary--key-takeaways)
+
+**Note:** This document covers core subscription and billing concepts. For additional details on business rules, error handling, monitoring, verification, testing, and deployment, please refer to the supplementary documentation listed at the end of this document.
 
 ---
 
@@ -400,13 +393,15 @@ Discount Amount = Base Amount × (Discount Percentage ÷ 100)
 Final Amount = Base Amount - Discount Amount
 ```
 
-**Example:**
+**Example (Exact Calculation - As Used by Backend):**
 - Monthly Price: $150
 - Billing Cycle: Annual (365 days)
-- Discount: 15%
-- Base: $150 × 12.17 = $1,825
+- Months in cycle: 365 ÷ 30 = 12.166...
+- Base: $150 × 12.166 = $1,825
 - Discount: $1,825 × 0.15 = $273.75
 - Final: $1,825 - $273.75 = **$1,551.25**
+
+**Note:** Throughout this document, we use simplified examples with rounded values (e.g., 12 months for annual) for easier understanding. The actual backend system uses precise calculations as shown above.
 
 **3. Why This Approach is Fair:**
 - Users paying for 365 days get privileges for 365 days
@@ -427,8 +422,8 @@ This section walks through a complete, real-world example from purchase to renew
 **Frontend: Plan Selection**
 - Sarah visits the site and selects "Family Care" plan ($150/month base)
 - She chooses **Annual Billing** for the 15% discount
-- System shows: $1,530/year (save $270!)
-- Privileges: 120 video consultations, unlimited chat, 240 uploads for the full year
+- System shows: $1,530/year (save $270!) *[Simplified example; actual calculation may vary slightly]*
+- Privileges: 122 video consultations (scaled: 10/month × 12.17 months), unlimited chat, 244 uploads for the full year
 
 **API Call:**
 ```
@@ -445,13 +440,13 @@ Body: { userId:12345, planId:"family-care-guid", billingCycleId:"annual-guid", p
    - Discount: 15% = $273.75
    - Final: $1,530
 5. **Create Subscription** with Status: `PendingPayment`, NextBillingDate: Jan 1, 2026
-6. **Calculate Privileges** (`PrivilegeService.CalculatePrivilegeAllocationAsync()` - Line 1195):
+6. **Calculate Privileges** (`PrivilegeService.CalculatePrivilegeAllocationAsync()` - Line 1207):
    - Video: 10/mo × 12.17 = 122 (rounded up to 122 for year)
    - Uploads: 20/mo × 12.17 = 244 (rounded to 244 for year)
 7. **Insert Records**:
    ```sql
    INSERT INTO Subscriptions (...) VALUES (CurrentPrice:1530, NextBillingDate:'2026-01-01', Status:'PendingPayment');
-   INSERT INTO UserSubscriptionPrivilegeUsages (...) VALUES (AllowedValue:120, UsedValue:0, UsagePeriodEnd:'2026-01-01');
+   INSERT INTO UserSubscriptionPrivilegeUsages (...) VALUES (AllowedValue:122, UsedValue:0, UsagePeriodEnd:'2026-01-01');
    ```
 
 **Payment Processing** (`PaymentService.ProcessPaymentAsync()` - Line 78):
@@ -469,7 +464,7 @@ Body: { userId:12345, planId:"family-care-guid", billingCycleId:"annual-guid", p
    await _unitOfWork.CommitTransactionAsync();
    ```
 
-**Result**: Subscription active, Sarah has 120 consultations valid until Jan 1, 2026.
+**Result**: Subscription active, Sarah has 122 consultations valid until Jan 1, 2026.
 
 ---
 
@@ -477,9 +472,9 @@ Body: { userId:12345, planId:"family-care-guid", billingCycleId:"annual-guid", p
 
 **Frontend: Usage Dashboard**
 ```
-Video Consultations: █░░░░░░░░░░░░░░ 0/120 (0%)
+Video Consultations: █░░░░░░░░░░░░░░ 0/122 (0%)
 Chat Messages: Unlimited (45 sent)
-Document Uploads: ░░░░░░░░░░░░░░ 0/240 (0%)
+Document Uploads: ░░░░░░░░░░░░░░ 0/244 (0%)
 ```
 
 Sarah books a video consultation for her daughter's fever.
@@ -494,11 +489,11 @@ Body: { subscriptionId:"sub-guid", privilegeName:"Video Consultation", amount:1 
 1. **Get Usage Record** (Line 260):
    ```csharp
    var usage = await _usageRepo.GetBySubscriptionAndPrivilegeAsync(subscriptionId, privilegeId);
-   // Current: AllowedValue=120, UsedValue=0
+   // Current: AllowedValue=122, UsedValue=0
    ```
 2. **Check Availability** (Line 290):
    ```csharp
-   if (usage.UsedValue + amount > usage.AllowedValue) return false; // 0+1 < 120 ✓
+   if (usage.UsedValue + amount > usage.AllowedValue) return false; // 0+1 < 122 ✓
    ```
 3. **Update Usage** (Line 300):
    ```sql
@@ -511,18 +506,18 @@ Body: { subscriptionId:"sub-guid", privilegeName:"Video Consultation", amount:1 
    INSERT INTO PrivilegeUsageHistory (AmountUsed:1, Timestamp:Now, Description:'Video consultation');
    ```
 
-**Result**: Consultation proceeds. Dashboard now shows 1/120 used.
+**Result**: Consultation proceeds. Dashboard now shows 1/122 used.
 
 ---
 
 ### Scene 3: Overage Scenario (December 15, 2025 - Day 350)
 
-Heavy year for Sarah's family - they've used all 120 consultations. Son gets sick, needs one more.
+Heavy year for Sarah's family - they've used all 122 consultations. Son gets sick, needs one more.
 
 **Frontend: Overage Popup**
 ```
 ⚠️ Plan Limit Reached
-You've used all 120 consultations.
+You've used all 122 consultations.
 Additional consultation: $25
 
 [Cancel] [Pay & Continue]
@@ -530,13 +525,13 @@ Additional consultation: $25
 
 Sarah clicks "Pay & Continue"
 
-**Service** (`AutomatedBillingService.ProcessOverageChargesAsync()` - Line 1769):
-1. **Calculate Overage** (Line 1775):
+**Service** (`AutomatedBillingService.ProcessOverageChargesAsync()` - Line 1667):
+1. **Calculate Overage**:
    ```csharp
-   var overage = usedValue - allowedValue; // 121 - 120 = 1
+   var overage = usedValue - allowedValue; // 123 - 122 = 1
    var overageAmount = overage * privilegeOveragePrice; // 1 × $25 = $25
    ```
-2. **Create Overage Billing** (`CreateOverageBillingRecordAsync()` - Line 1850):
+2. **Create Overage Billing** (`CreateOverageBillingRecordAsync()` - Line 1583):
    ```sql
    INSERT INTO BillingRecords (
        Amount:25, Type:Overage, Status:Pending,
@@ -548,10 +543,10 @@ Sarah clicks "Pay & Continue"
    - Update records to `Paid`
 4. **Allow Privilege**:
    ```sql
-   UPDATE UserSubscriptionPrivilegeUsages SET UsedValue = 121;
+   UPDATE UserSubscriptionPrivilegeUsages SET UsedValue = 123;
    ```
 
-**Result**: Consultation proceeds, $25 charged, Sarah's dashboard shows 121/120 (1 over).
+**Result**: Consultation proceeds, $25 charged, Sarah's dashboard shows 123/122 (1 over).
 
 ---
 
@@ -560,13 +555,13 @@ Sarah clicks "Pay & Continue"
 **Background Service**: `AutomatedBillingService` runs at 2:00 AM daily
 
 **Processing** (`ProcessSubscriptionBillingAsync()`):
-1. **Find Due Subscriptions** (Line 728):
+1. **Find Due Subscriptions** (Line 618):
    ```csharp
    var dueSubscriptions = await _subscriptionRepo.GetSubscriptionsDueForBilling(DateTime.UtcNow);
    // Found: Sarah's subscription (NextBillingDate = Jan 1, 2026)
    ```
 
-2. **Price Migration Check** (`MigrateSubscriptionPricingIfNeededAsync()` - Line 679):
+2. **Price Migration Check** (`MigrateSubscriptionPricingIfNeededAsync()` - Line 577):
    ```csharp
    var expectedPrice = CalculateBillingAmountAsync(subscription);
    if (subscription.CurrentPrice != expectedPrice) {
@@ -575,7 +570,7 @@ Sarah clicks "Pay & Continue"
    }
    ```
 
-3. **Calculate Billing Amount** (`CalculateBillingAmountAsync()` - Line 1047):
+3. **Calculate Billing Amount** (`CalculateBillingAmountAsync()` - Line 932):
    ```csharp
    var monthlyPrice = plan.Price; // $150
    var monthsInCycle = billingCycleDays / 30.0m; // 12.17
@@ -598,7 +593,7 @@ Sarah clicks "Pay & Continue"
 **A) Payment Succeeds** ✅
 
 ```csharp
-// UpdatePaymentRecordsAsync() - Line 1125
+// UpdatePaymentRecordsAsync() - Line 1120
 using var transaction = await _unitOfWork.BeginTransactionAsync();
 
 // Update billing/payment records
@@ -980,7 +975,7 @@ The system uses 9 core services that work together to manage subscriptions, bill
 4. UpdatePaymentRecordsAsync() - Transaction-safe updates (Line 120)
 ```
 
-**UpdatePaymentRecordsAsync()** - Line 1125
+**UpdatePaymentRecordsAsync()** - Line 1120
 ```csharp
 // Transaction-safe record updates
 using var transaction = await _unitOfWork.BeginTransactionAsync();
@@ -1026,7 +1021,7 @@ foreach (var usage in usageRecords) {
 
 **Key Methods:**
 
-**ProcessSubscriptionBillingAsync(subscription, tokenModel)** - Line 728
+**ProcessSubscriptionBillingAsync(subscription, tokenModel)** - Line 618
 ```csharp
 // Called by daily background job for subscriptions due for billing
 await MigrateSubscriptionPricingIfNeededAsync(subscription, tokenModel);  // Auto-fix pricing
@@ -1035,7 +1030,7 @@ var billingRecord = await CreateBillingRecordAsync(subscription, billingAmount);
 var paymentResult = await _billingService.ProcessPaymentAsync(billingRecord.Id, tokenModel);
 ```
 
-**CalculateBillingAmountAsync(subscription, tokenModel)** - Line 1047
+**CalculateBillingAmountAsync(subscription, tokenModel)** - Line 932
 ```csharp
 // Calculates accurate billing amount with scaling and discounts
 var monthlyPrice = plan.Price;
@@ -1050,7 +1045,7 @@ var adjustments = await CalculateAdjustmentAmountAsync(subscription, tokenModel)
 return Math.Max(basePrice - billingCycleDiscount - additionalDiscounts + adjustments, 0.01m);
 ```
 
-**CalculateBillingCycleDiscount(plan, billingCycle, basePrice)** - Line 1071
+**CalculateBillingCycleDiscount(plan, billingCycle, basePrice)** - Line 969
 ```csharp
 // Applies billing cycle-specific discounts
 var discountPercent = billingCycle.Name.ToLower() switch {
@@ -1062,7 +1057,7 @@ var discountPercent = billingCycle.Name.ToLower() switch {
 return basePrice * (discountPercent / 100);
 ```
 
-**MigrateSubscriptionPricingIfNeededAsync(subscription, tokenModel)** - Line 679
+**MigrateSubscriptionPricingIfNeededAsync(subscription, tokenModel)** - Line 577
 ```csharp
 // Auto-corrects pricing for existing subscriptions
 var expectedPrice = await CalculateBillingAmountAsync(subscription, tokenModel);
@@ -1074,7 +1069,7 @@ if (Math.Abs(subscription.CurrentPrice - expectedPrice) > 0.01m) {
 }
 ```
 
-**ProcessOverageChargesAsync(subscription, tokenModel)** - Line 1769
+**ProcessOverageChargesAsync(subscription, tokenModel)** - Line 1667
 ```csharp
 // Handles overage billing when users exceed limits
 var usages = await GetPrivilegeUsagesAsync(subscription.Id);
@@ -1158,7 +1153,7 @@ await _usageRepo.UpdateAsync(usage);
 await _historyRepo.AddAsync(new PrivilegeUsageHistory { /* ... */ });
 ```
 
-**CalculatePrivilegeAllocationAsync(subscriptionId, planPrivilege)** - Line 1195
+**CalculatePrivilegeAllocationAsync(subscriptionId, planPrivilege)** - Line 1207
 ```csharp
 // Dynamically calculates privilege allocation based on billing cycle
 private async Task<(int allowedValue, DateTime periodStart, DateTime periodEnd)> 

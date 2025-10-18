@@ -629,52 +629,40 @@ public class SubscriptionService : ISubscriptionService
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
-            // Process payment through Stripe
-            var paymentResult = await _stripeService.ProcessPaymentAsync(
-                paymentRequest.PaymentMethodId,
-                paymentRequest.Amount,
-                paymentRequest.Currency ?? "usd",
-                tokenModel
-            );
-
-            if (paymentResult.Status == "succeeded")
+            // FIXED: Create billing record FIRST (proper order)
+            var billingRecordDto = new CreateBillingRecordDto
             {
-                // Update subscription status if needed
-                if (subscription.Status == Subscription.SubscriptionStatuses.PaymentFailed)
-                {
-                    subscription.Status = Subscription.SubscriptionStatuses.Active;
-                    subscription.FailedPaymentAttempts = 0; // Reset failed payment attempts
-                    subscription.LastPaymentError = null; // Clear last payment error
-                    await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
-                }
+                UserId = subscription.UserId,
+                SubscriptionId = subscription.Id.ToString(),
+                Amount = paymentRequest.Amount,
+                CurrencyId = subscription.SubscriptionPlan?.CurrencyId ?? Guid.Empty,
+                Status = BillingRecord.BillingStatus.Pending.ToString(),  // Pending status, not Paid
+                Type = BillingRecord.BillingType.Subscription.ToString(),
+                Description = paymentRequest.Description ?? $"Payment for subscription {subscription.Id}",
+                BillingDate = DateTime.UtcNow,
+                DueDate = DateTime.UtcNow
+            };
 
-                // Create billing record for successful payment
-                var billingRecordDto = new CreateBillingRecordDto
-                {
-                    UserId = subscription.UserId,
-                    SubscriptionId = subscription.Id.ToString(),
-                    Amount = paymentRequest.Amount,
-                    CurrencyId = subscription.SubscriptionPlan?.CurrencyId ?? Guid.Empty, // Get currency ID from subscription plan
-                    Status = "Paid",
-                    Type = "Subscription",
-                    Description = $"Payment for subscription {subscription.Id}",
-                    BillingDate = DateTime.UtcNow,
-                    DueDate = DateTime.UtcNow
-                };
-
-                var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, tokenModel);
-                if (billingResult.StatusCode != 200)
-                {
-                    // Log warning but don't fail the payment
-                    _logger.LogWarning("Failed to create billing record for payment: {BillingResult}", billingResult.Message);
-                }
-
-                return new JsonModel { data = paymentResult, Message = "Payment processed successfully", StatusCode = 200 };
-            }
-            else
+            var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, tokenModel);
+            if (billingResult.StatusCode != 200 || billingResult.data == null)
             {
-                return new JsonModel { data = new object(), Message = $"Payment failed: {paymentResult.ErrorMessage}", StatusCode = 400 };
+                _logger.LogError("Failed to create billing record for subscription {SubscriptionId}", subscriptionId);
+                return new JsonModel { data = new object(), Message = "Failed to create billing record", StatusCode = 500 };
             }
+
+            // FIXED: Delegate to PaymentService for proper flow
+            // This ensures: SubscriptionPayment creation, privilege reset, transaction safety
+            var billingRecordId = Guid.Parse(((BillingRecordDto)billingResult.data).Id);
+            
+            _logger.LogInformation("Processing payment via PaymentService for billing record {BillingRecordId}, subscription {SubscriptionId}", 
+                billingRecordId, subscriptionId);
+            
+            // Delegate to PaymentService which handles:
+            // 1. Create SubscriptionPayment record
+            // 2. Process via StripeBillingService
+            // 3. Update all records in transaction
+            // 4. Reset privileges if subscription billing
+            return await _paymentService.ProcessPaymentAsync(billingRecordId, tokenModel);
         }
         catch (Exception ex)
         {
@@ -1411,66 +1399,6 @@ public class SubscriptionService : ISubscriptionService
         {
             _logger.LogError(ex, "Error checking privilege usage for subscription {SubscriptionId}", subscriptionId);
             return new JsonModel { data = new object(), Message = "Failed to check privilege usage", StatusCode = 500 };
-        }
-    }
-
-    // Increment privilege usage (to be called after successful action)
-    public async Task IncrementPrivilegeUsageAsync(string subscriptionId, string privilegeName)
-    {
-        var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
-        if (subscription == null) return;
-        var planPrivileges = await _planPrivilegeRepo.GetByPlanIdAsync(subscription.SubscriptionPlanId);
-        var planPrivilege = planPrivileges.FirstOrDefault(p => p.Privilege.Name == privilegeName);
-        if (planPrivilege == null) return;
-        var usages = await _usageRepo.GetBySubscriptionIdAsync(subscription.Id);
-        var usage = usages.FirstOrDefault(u => u.SubscriptionPlanPrivilegeId == planPrivilege.Id);
-        if (usage == null)
-        {
-            usage = new UserSubscriptionPrivilegeUsage
-            {
-                SubscriptionId = subscription.Id,
-                SubscriptionPlanPrivilegeId = planPrivilege.Id,
-                UsedValue = 1,
-                UsagePeriodStart = DateTime.UtcNow,
-                UsagePeriodEnd = DateTime.UtcNow.AddMonths(1)
-            };
-            await _usageRepo.AddAsync(usage);
-        }
-        else
-        {
-            usage.UsedValue += 1;
-            await _usageRepo.UpdateUsageAsync(usage);
-        }
-    }
-
-    // Reset usage counters for all active subscriptions (to be called by a scheduler/cron job at billing cycle start)
-    public async Task ResetAllUsageCountersAsync()
-    {
-        var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
-        foreach (var subscription in activeSubscriptions)
-        {
-            var usages = await _usageRepo.GetBySubscriptionIdAsync(subscription.Id);
-            foreach (var usage in usages)
-            {
-                usage.UsedValue = 0;
-                await _usageRepo.UpdateUsageAsync(usage);
-            }
-        }
-    }
-
-    // Expire unused benefits (e.g., free consults) if not used within the period
-    public async Task ExpireUnusedBenefitsAsync()
-    {
-        var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
-        foreach (var subscription in activeSubscriptions)
-        {
-            var usages = await _usageRepo.GetBySubscriptionIdAsync(subscription.Id);
-            foreach (var usage in usages)
-            {
-                // For now, just reset to 0 at expiry; can be extended for carry-over logic
-                usage.UsedValue = 0;
-                await _usageRepo.UpdateUsageAsync(usage);
-            }
         }
     }
 

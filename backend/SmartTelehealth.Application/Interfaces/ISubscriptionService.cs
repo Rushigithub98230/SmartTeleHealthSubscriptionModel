@@ -40,9 +40,6 @@ namespace SmartTelehealth.Application.Interfaces
         Task<JsonModel> RequestMedicationSupplyAsync(int userId, Guid subscriptionId, TokenModel tokenModel);
         Task<JsonModel> RetryPaymentAsync(string subscriptionId, PaymentRequestDto paymentRequest, TokenModel tokenModel);
         
-        // Privilege usage tracking
-        Task IncrementPrivilegeUsageAsync(string subscriptionId, string privilegeName);
-        
         // Additional admin methods
         Task<JsonModel> GetSubscriptionBillingHistoryAsync(string subscriptionId, TokenModel tokenModel);
         Task<JsonModel> GetSubscriptionPrivilegeUsageAsync(string subscriptionId, TokenModel tokenModel);

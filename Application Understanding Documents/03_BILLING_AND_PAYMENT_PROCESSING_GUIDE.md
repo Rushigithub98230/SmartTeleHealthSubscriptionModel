@@ -1,5 +1,15 @@
 # 📘 Billing and Payment Processing - Developer Guide
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **Key Updates:**
+> - ✅ Billing cycle-based recurring charges (not monthly-only)
+> - ✅ Price scaling formula: `monthlyPrice × (billingCycleDays / 30) - discount`
+> - ✅ Billing cycle discounts: MonthlyBillingDiscount, QuarterlyBillingDiscount, AnnualBillingDiscount
+> - ✅ See **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for formulas and examples
+
+---
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Billing Types](#billing-types)
@@ -20,7 +30,7 @@
 This module handles all financial transactions related to subscriptions, including:
 - Creating billing records for subscription fees
 - Processing overage charges (when users exceed limits)
-- Handling automated monthly renewals
+- Handling automated recurring renewals (billing cycle-based: monthly/quarterly/annual)
 - Managing payment failures and retries
 - Processing refunds and adjustments
 - Integrating with Stripe for payment processing
@@ -28,10 +38,11 @@ This module handles all financial transactions related to subscriptions, includi
 ### Key Responsibilities
 
 - ✅ **Billing Record Management**: Create and track all billing events
-- ✅ **Payment Processing**: Handle payments through Stripe
+- ✅ **Payment Processing**: Handle payments through Stripe with transaction safety
 - ✅ **Overage Billing**: Charge for usage beyond plan limits
-- ✅ **Automated Renewals**: Process recurring monthly charges
-- ✅ **Payment Retry Logic**: Handle failed payments gracefully
+- ✅ **Automated Renewals**: Process recurring charges (billing cycle-aware: monthly/quarterly/annual)
+- ✅ **Payment Retry Logic**: Handle failed payments gracefully (3 attempts with exponential backoff)
+- ✅ **Privilege Reset**: Reset privileges when payment succeeds
 - ✅ **Refund Processing**: Manage refunds and credits
 - ✅ **Invoice Generation**: Create and track invoices
 
@@ -191,10 +202,19 @@ ILogger<SubscriptionBillingService> _logger
 **Location:** `SmartTelehealth.Application/Services/AutomatedBillingService.cs`
 
 **Responsibilities:**
-- Automated monthly billing
-- Recurring payment processing
+- Automated recurring billing (billing cycle-aware: monthly/quarterly/annual)
+- Price migration for existing subscriptions
+- Billing amount calculation with scaling and discounts
+- Overage charge processing
 - Failed payment retry logic
-- Overdue payment handling
+- Subscription suspension after max retries
+
+**Key Methods (Current):**
+- ProcessRecurringBillingAsync() - Daily job
+- MigrateSubscriptionPricingIfNeededAsync() - Line 577
+- CalculateBillingAmountAsync() - Line 932
+- CalculateBillingCycleDiscount() - Line 969
+- ProcessOverageChargesAsync() - Line 1667
 
 ---
 

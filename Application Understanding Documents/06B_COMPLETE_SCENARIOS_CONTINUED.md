@@ -1,5 +1,12 @@
 # 📘 Complete End-to-End Scenarios (Continued)
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **Note:** Examples show monthly billing. Current system supports Monthly/Quarterly/Annual.
+> **Formulas:** See **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for billing cycle scaling
+
+---
+
 ## SCENARIO 2: User Consumes Privileges & Overage
 
 ### Complete Flow from Service Usage to Overage Payment

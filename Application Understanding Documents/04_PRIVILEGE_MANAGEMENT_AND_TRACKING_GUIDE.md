@@ -1,5 +1,20 @@
 # 📘 Privilege Management and Tracking - Developer Guide
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **Key Updates:**
+> - ✅ **Dynamic Privilege Allocation**: Privileges scale to billing cycle using `Math.Ceiling(monthlyLimit × monthsInCycle)`
+> - ✅ **Payment-Triggered Reset**: Resets happen when payment succeeds, not time-based
+> - ✅ **Period Alignment**: Usage periods match billing cycle (30/90/365 days)
+> - ✅ See **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for complete formulas
+
+**Example:**
+- Monthly billing (30 days): 10 consultations
+- Quarterly billing (90 days): 30 consultations
+- Annual billing (365 days): 122 consultations (10 × 12.17, rounded up)
+
+---
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Core Concepts](#core-concepts)

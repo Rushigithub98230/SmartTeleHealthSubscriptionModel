@@ -1,5 +1,18 @@
 # 📘 Service & Method Interaction Map - Developer Guide
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **⚠️ Important:** Some legacy methods (IncrementPrivilegeUsageAsync, ResetAllUsageCountersAsync) have been removed.
+> 
+> **New Methods Added:**
+> - PrivilegeService.CalculatePrivilegeAllocationAsync() - Line 1207
+> - PaymentService.ResetPrivilegesForNewBillingPeriodAsync() - Line 1197
+> - AutomatedBillingService.CalculateBillingAmountAsync() - Line 932
+> 
+> **See:** **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for current method list and line numbers
+
+---
+
 ## Complete Method-to-Method Call Chains
 
 This document shows you **exactly** which methods call which other methods, so you can trace the execution flow through the codebase.

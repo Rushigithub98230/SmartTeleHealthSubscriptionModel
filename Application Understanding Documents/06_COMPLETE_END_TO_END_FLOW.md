@@ -1,5 +1,12 @@
 # 📘 Complete End-to-End Subscription Flow - Developer Guide
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **Note:** Examples in this document show monthly billing. Current system supports Monthly/Quarterly/Annual.
+> **Formulas:** See **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for billing cycle scaling
+
+---
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Scenario 1: Happy Path (No Issues)](#scenario-1-happy-path)

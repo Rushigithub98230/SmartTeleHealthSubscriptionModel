@@ -1,5 +1,16 @@
 # 📘 Subscription Plan Management - Developer Guide
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **System Version:** Billing Cycle-Based System with Dynamic Scaling
+> 
+> **Key Updates in This Guide:**
+> - ✅ Billing cycle discount fields (Monthly/Quarterly/Annual)
+> - ✅ BillingCycleValidator for billing cycle restrictions
+> - ✅ Dynamic price and privilege calculations based on selected billing cycle
+
+---
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Core Concepts](#core-concepts)

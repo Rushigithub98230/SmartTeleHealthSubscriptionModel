@@ -1,5 +1,14 @@
 # 📘 Complete System Summary - All Scenarios & Quick Reference
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **Key Updates:**
+> - Scenario #5 "Monthly Renewal" → Now "Billing Cycle-Based Renewal" (monthly/quarterly/annual)
+> - All billing now uses billing cycle scaling formulas
+> - See **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for complete formulas
+
+---
+
 ## Table of Contents
 1. [All 20 Scenarios](#all-20-scenarios)
 2. [Database Quick Reference](#database-quick-reference)

@@ -1,5 +1,15 @@
 # 📘 User Subscription Lifecycle - Developer Guide
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **Key Updates:**
+> - ✅ Users select billing cycle at subscription (Monthly/Quarterly/Annual)
+> - ✅ Price and privileges scale to selected billing cycle
+> - ✅ BillingCycleValidator ensures appropriate billing cycle for plan
+> - ✅ See **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for formulas
+
+---
+
 ## Table of Contents
 1. [Overview](#overview)
 2. [Subscription States](#subscription-states)

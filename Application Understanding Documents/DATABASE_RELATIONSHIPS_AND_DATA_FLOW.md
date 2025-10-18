@@ -1,5 +1,15 @@
 # 📊 Database Relationships & Data Flow - Visual Guide
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **⚠️ Missing from Diagrams:** SubscriptionPlan now includes MonthlyBillingDiscount, QuarterlyBillingDiscount, AnnualBillingDiscount fields
+> 
+> **For Complete Schema:** See `backend/SmartTelehealth.Core/Entities/SubscriptionPlan.cs`
+> 
+> **Still Accurate:** Entity relationships, foreign keys, core database structure
+
+---
+
 ## Complete Database Schema with Relationships
 
 ---

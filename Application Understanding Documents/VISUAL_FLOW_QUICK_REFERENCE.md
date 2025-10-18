@@ -1,6 +1,13 @@
 # 📊 Visual Flow Quick Reference Guide
 ## All Major Flows on One Page
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **Note:** Flows show monthly examples. Current system supports Monthly/Quarterly/Annual billing cycles.
+> **Formulas:** See **CURRENT_IMPLEMENTATION_QUICK_REFERENCE.md** for billing cycle calculations
+
+---
+
 **Use this for:** Quick visualization of system flows during development
 
 ---

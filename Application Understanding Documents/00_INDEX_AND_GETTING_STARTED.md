@@ -7,6 +7,18 @@
 
 ---
 
+> **✨ CURRENT IMPLEMENTATION** | Updated October 18, 2025
+> 
+> **System Version:** Solution A - Billing Cycle-Based Privilege Scaling
+> 
+> **Key Features:**
+> - ✅ Multiple billing cycles (Monthly, Quarterly, Annual)
+> - ✅ Dynamic privilege scaling: `Math.Ceiling(monthlyLimit × monthsInCycle)`
+> - ✅ Smart price calculation: `monthlyPrice × (days/30) - discount`
+> - ✅ Payment-triggered privilege resets (not time-based)
+
+---
+
 ## 🎯 Purpose of This Documentation
 
 Welcome to the **SmartTelehealth Subscription Management System**! This documentation set is designed to help you, as a new developer, understand our complete subscription management flow from the ground up.
@@ -563,12 +575,26 @@ SubscriptionPayment (pay_001):
 
 ### Q4: Why do we reset privileges on renewal?
 
-**A:** Because subscriptions are **period-based**:
-- User pays $275 for **one month** of service
-- Gets 5 consultations **for that month**
-- Next month: New payment ($275) = Fresh 5 consultations
+**A:** Because subscriptions are **period-based** and tied to billing cycles:
 
-**Without reset:** User could accumulate unlimited consultations over time, defeating the purpose of monthly limits.
+**For Monthly Billing:**
+- User pays $150/month for 30 days of service
+- Gets 10 consultations for that month
+- Next month: New payment ($150) = Fresh 10 consultations
+
+**For Annual Billing:**
+- User pays $1,530/year for 365 days of service
+- Gets 122 consultations for the ENTIRE YEAR (10 × 12.17 months, rounded)
+- Next year: New payment ($1,530) = Fresh 122 consultations
+
+**Key Points:**
+- ✅ Monthly billing → Reset every 30 days
+- ✅ Quarterly billing → Reset every 90 days
+- ✅ Annual billing → Reset every 365 days
+- ✅ Reset happens when payment succeeds, not on arbitrary dates
+- ✅ Privileges scale to billing cycle: `Math.Ceiling(monthlyLimit × (billingCycleDays / 30))`
+
+**Without reset:** User could accumulate unlimited consultations, defeating the purpose of limits.
 
 ### Q5: What happens if webhook fails?
 
