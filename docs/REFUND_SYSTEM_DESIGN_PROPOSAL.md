@@ -26,6 +26,208 @@ All required systems have been cross-checked and verified working correctly:
 
 ---
 
+## 🔄 **HOW THE BACKEND ACTUALLY WORKS** (Code-Verified Flow)
+
+### **Flow 1: Subscription Creation & Privilege Initialization**
+
+```
+STEP-BY-STEP ACTUAL CODE FLOW:
+═══════════════════════════════════════════════════════════════
+
+1. User Subscribes to Plan
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   POST /api/subscriptions
+   Body: {
+     planId: "guid",
+     billingCycleId: "guid" // Monthly/Quarterly/Yearly
+   }
+
+2. Subscription Creation (SubscriptionLifecycleService.cs Lines 206-220)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   billingCycleDays = billingCycle.DurationInDays
+   monthsInCycle = billingCycleDays / 30.0m
+   
+   Examples:
+   - Monthly: 30 / 30 = 1.0 month
+   - Quarterly: 90 / 30 = 3.0 months
+   - Yearly: 365 / 30 = 12.17 months
+   
+   basePrice = plan.Price × monthsInCycle
+   discount = basePrice × (discountPercent / 100)
+   CurrentPrice = basePrice - discount
+
+3. NextBillingDate Calculated (Line 240 → Line 1572-1580)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Monthly: StartDate.AddMonths(1)      → Jan 1 → Feb 1
+   Quarterly: StartDate.AddMonths(3)    → Jan 1 → Apr 1
+   Yearly: StartDate.AddYears(1)        → Jan 1, 2025 → Jan 1, 2026 ✅
+
+4. Subscription Created
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   StartDate: Jan 1, 2025
+   NextBillingDate: 
+     - Monthly: Feb 1, 2025 (resets monthly)
+     - Quarterly: Apr 1, 2025 (resets quarterly)
+     - Yearly: Jan 1, 2026 (resets ONCE per year) ✅
+   
+   ⚠️ IMPORTANT: Privileges NOT initialized yet!
+   They are created on FIRST USE (lazy loading)
+
+5. User Uses Privilege for FIRST TIME (PrivilegeService.cs Lines 260-274)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   if (usage == null) {  // First time using this privilege
+     
+     // Call CalculatePrivilegeAllocationAsync (Lines 1215-1224)
+     monthsInCycle = billingCycleDays / 30.0m
+     allowedForCycle = Ceiling(monthlyLimit × monthsInCycle)
+     
+     periodStart = LastBillingDate + 1 day OR StartDate
+     periodEnd = NextBillingDate
+     
+     // Create usage record
+     UserSubscriptionPrivilegeUsage {
+       SubscriptionId: subscription.Id
+       AllowedValue: allowedForCycle    // 10 for monthly, 30 for quarterly, 122 for yearly
+       UsedValue: amount                 // Starts incrementing
+       UsagePeriodStart: periodStart
+       UsagePeriodEnd: periodEnd         // = NextBillingDate
+     }
+   }
+
+6. Privilege Usage Continues
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Each use: UsedValue += amount
+   Tracked continuously until period ends
+
+7. Billing Cycle Ends (Renewal)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Monthly: Feb 1 arrives → RESET
+   Quarterly: Apr 1 arrives → RESET
+   Yearly: Jan 1, 2026 arrives → RESET (after full year!)
+```
+
+### **Flow 2: Privilege Reset at Renewal**
+
+```
+ACTUAL CODE FLOW (SubscriptionBillingService.cs Lines 297-337):
+═══════════════════════════════════════════════════════════════
+
+ProcessSubscriptionRenewalAsync() is called when NextBillingDate arrives:
+
+1. Get Subscription & Plan
+   subscription = GetByIdWithDetailsAsync(subscriptionId)
+   plan = GetByIdWithDetailsAsync(subscription.SubscriptionPlanId)
+
+2. Get All Privilege Usages for User
+   privilegeUsages = GetByUserIdAsync(subscription.UserId)
+
+3. FOR EACH privilege usage:
+   a) Find matching plan privilege
+      planPrivilege = plan.PlanPrivileges.Find(pp => pp.Id == usage.SubscriptionPlanPrivilegeId)
+   
+   b) Reset BOTH values:
+      usage.UsedValue = 0                    ✅ Reset to zero
+      usage.AllowedValue = planPrivilege.Value  ✅ Reset to plan default
+      usage.ResetAt = DateTime.UtcNow
+   
+   c) Update in database
+   
+4. Update NextBillingDate
+   Monthly: NextBillingDate.AddMonths(1)
+   Quarterly: NextBillingDate.AddMonths(3)  
+   Yearly: NextBillingDate.AddYears(1)
+
+5. Commit Transaction
+
+CRITICAL INSIGHTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Privileges reset based on BILLING CYCLE, not calendar month
+✅ Monthly plan: Resets 12 times/year (every payment)
+✅ Annual plan: Resets 1 time/year (once annually)
+✅ Reset = UsedValue back to 0, AllowedValue back to plan default
+✅ Purchased extra credits (AllowedValue > plan.Value) are removed at reset
+```
+
+### **Flow 3: Base Price Calculation with Admin Commission**
+
+```
+ACTUAL CODE (SubscriptionBillingService.cs Lines 110-137):
+═══════════════════════════════════════════════════════════════
+
+CalculatePlanBasePriceAsync():
+
+1. Get Plan Privileges
+   planPrivileges = GetPlanPrivilegesAsync(planId)
+
+2. FOR EACH privilege in plan:
+   privilegeLimit = planPrivilege.Value (e.g., 10)
+   privilegeCost = privilegeLimit × planPrivilege.UnitCost
+   totalBasePrice += privilegeCost
+
+3. Calculate Admin Commission
+   if (AdminCommissionPercentage > 0):
+     adminCommission = totalBasePrice × (AdminCommissionPercentage / 100)
+   else:
+     adminCommission = AdminCommissionFixed  ✅ ALWAYS FIXED IN YOUR SYSTEM
+
+4. Final Price
+   finalPrice = totalBasePrice + adminCommission
+
+EXAMPLE (Monthly Plan):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation: 10 × $20 = $200
+Medication: 5 × $10 = $50
+Total Privilege Cost: $250
+Admin Commission (FIXED): $25
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL PRICE: $275
+
+⚠️ This is the MONTHLY price. For annual, multiply by 12.17:
+Annual Price: $275 × 12.17 ≈ $3,347
+```
+
+### **Flow 4: Refund Calculation (MUST Match This)**
+
+```
+REFUND SHOULD WORK LIKE THIS (Based on Backend Flow):
+═══════════════════════════════════════════════════════════════
+
+1. Get Subscription
+   subscription = GetByIdWithDetailsAsync(subscriptionId)
+   plan = subscription.SubscriptionPlan
+   billingCycle = subscription.BillingCycle
+
+2. Calculate Cycle Multiplier (SAME AS ALLOCATION)
+   monthsInCycle = billingCycle.DurationInDays / 30.0m
+   
+3. FOR EACH privilege in plan.PlanPrivileges:
+   monthlyLimit = planPrivilege.MonthlyLimit ?? planPrivilege.Value
+   limitInCycle = Ceiling(monthlyLimit × monthsInCycle)
+   privilegeTotalCost = limitInCycle × planPrivilege.UnitCost
+   
+   // Get usage
+   usage = GetUserSubscriptionPrivilegeUsage(subscriptionId, planPrivilege.Id)
+   usedQuantity = usage?.UsedValue ?? 0
+   privilegeUsedCost = usedQuantity × planPrivilege.UnitCost
+   
+   totalPrivilegeCost += privilegeTotalCost
+   totalUsedCost += privilegeUsedCost
+   totalUnits += limitInCycle
+   usedUnits += usedQuantity
+
+4. Check Eligibility
+   usagePercentage = (usedUnits / totalUnits) × 100
+   isEligible = usagePercentage < 50%
+
+5. Calculate Refund
+   if (isEligible):
+     refundAmount = totalPrivilegeCost - totalUsedCost
+   
+   ⚠️ Admin commission NOT included (platform keeps it)
+```
+
+---
+
 ## 📋 TABLE OF CONTENTS
 
 1. [Overview](#overview)
