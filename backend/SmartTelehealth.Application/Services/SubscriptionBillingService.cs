@@ -1656,7 +1656,27 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 ? billingRecord.TotalAmount * (adjustmentDto.Percentage.Value / 100)
                 : adjustmentDto.Amount;
 
-            billingRecord.TotalAmount += actualAdjustmentAmount;
+            // Determine if adjustment should be added or subtracted based on type
+            // Discounts, Credits, and Refunds should REDUCE the total amount
+            // LateFee, ServiceFee, and TaxAdjustment should INCREASE the total amount
+            bool isDeduction = adjustmentDto.Type == BillingAdjustment.AdjustmentType.Discount ||
+                               adjustmentDto.Type == BillingAdjustment.AdjustmentType.Credit ||
+                               adjustmentDto.Type == BillingAdjustment.AdjustmentType.Refund;
+
+            // Apply adjustment correctly based on type
+            if (isDeduction)
+            {
+                billingRecord.TotalAmount -= actualAdjustmentAmount;
+                _logger.LogInformation("Applied deduction of ${Amount} ({Type}) to billing record {BillingRecordId}. New total: ${NewTotal}", 
+                    actualAdjustmentAmount, adjustmentDto.Type, billingRecordId, billingRecord.TotalAmount);
+            }
+            else
+            {
+                billingRecord.TotalAmount += actualAdjustmentAmount;
+                _logger.LogInformation("Applied charge of ${Amount} ({Type}) to billing record {BillingRecordId}. New total: ${NewTotal}", 
+                    actualAdjustmentAmount, adjustmentDto.Type, billingRecordId, billingRecord.TotalAmount);
+            }
+
             billingRecord.ProcessedAt = DateTime.UtcNow;
 
             await _billingRepository.CreateAdjustmentAsync(adjustment);
