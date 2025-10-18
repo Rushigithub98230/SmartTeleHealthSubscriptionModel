@@ -5,7 +5,24 @@
 > This document outlines the proposed refund system design for the SmartTeleHealth subscription platform.  
 > **Implementation Status:** ❌ **NOT IMPLEMENTED**  
 > **Last Updated:** October 18, 2025  
-> **Author:** Development Team
+> **Author:** Development Team  
+> **Cross-Verification:** ✅ **ALL SUPPORTING SYSTEMS VERIFIED & READY**
+
+---
+
+## ✅ **PREREQUISITE SYSTEMS VERIFICATION**
+
+All required systems have been cross-checked and verified working correctly:
+
+| System | Status | Verification Details |
+|--------|--------|---------------------|
+| **Privilege Management** | ✅ VERIFIED | `SubscriptionPlanPrivilege` has `Value`, `MonthlyLimit`, `UnitCost` |
+| **User Subscription** | ✅ VERIFIED | Proper billing cycle tracking, plan relationships |
+| **Usage Tracking** | ✅ VERIFIED | `UserSubscriptionPrivilegeUsage.UsedValue` tracks per-privilege usage |
+| **Billing Mechanism** | ✅ VERIFIED | Correctly calculates: `Price = PrivilegeCost + AdminCommission` |
+| **Privilege Reset** | ✅ VERIFIED | Resets `UsedValue=0` and `AllowedValue=PlanDefault` at renewal |
+
+**Conclusion:** ✅ **Infrastructure is ready to support refund implementation**
 
 ---
 
@@ -31,10 +48,11 @@ The SmartTeleHealth platform requires a **Usage-Based Refund System** that fairl
 
 - ✅ **NO Grace Period** - No automatic refunds based on time
 - ✅ **Usage-Based Only** - Refunds based solely on privilege consumption
-- ✅ **50% Usage Threshold** - Refund only if user consumed < 50% of privileges
+- ✅ **50% Usage Threshold** - Refund only if user consumed < 50% of privileges across ALL privilege types
 - ✅ **Billing Cycle Aware** - Calculate based on entire billing cycle (Monthly/Quarterly/Yearly)
-- ✅ **Fair Cost Calculation** - Refund = SubscriptionFee - (UsedPrivileges × UnitCost) - ProportionalCommission
-- ✅ **Admin Commission Proportional** - Refund proportional admin commission for unused services
+- ✅ **Multi-Privilege Support** - Aggregates usage across all privilege types (consultations, medications, follow-ups, etc.)
+- ✅ **Simple Refund Formula** - Refund = Total Privilege Cost - Used Privilege Cost
+- ✅ **Admin Commission NON-REFUNDABLE** - Admin commission is ALWAYS retained by platform (covers operational costs)
 
 ---
 
@@ -154,69 +172,82 @@ Rationale:
 
 ## 🧮 REFUND CALCULATION FORMULA
 
-### Master Formula:
+### Master Formula (Corrected):
 
 ```
 Step 1: Calculate Total Privileges in Billing Cycle
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-For each privilege:
+For each privilege in plan:
   MonthlyLimit = privilege.MonthlyLimit ?? privilege.Value
   CycleMultiplier = { Monthly: 1, Quarterly: 3, Yearly: 12 }
   LimitInCycle = MonthlyLimit × CycleMultiplier
+  PrivilegeCost = LimitInCycle × UnitCost
   
 TotalUnitsInCycle = Σ(LimitInCycle) for all privileges
+TotalPrivilegeCost = Σ(PrivilegeCost) for all privileges
 
 
-Step 2: Calculate Privilege Usage
+Step 2: Calculate Actual Privilege Usage
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 For each privilege:
-  Used = usage.UsedValue (from UserSubscriptionPrivilegeUsage)
+  Used = usage.UsedValue (from UserSubscriptionPrivilegeUsage table)
+  UsedCost = Used × UnitCost
   
 TotalUnitsUsed = Σ(Used) for all privileges
-UsagePercentage = (TotalUnitsUsed / TotalUnitsInCycle) × 100
-
-
-Step 3: Check Eligibility
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-IsEligible = UsagePercentage < 50%
-
-If NOT eligible → STOP, return NO REFUND
-
-
-Step 4: Calculate Used Privilege Cost
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-For each privilege:
-  UsedCost = privilege.Used × privilege.UnitCost
-  
 TotalUsedPrivilegeCost = Σ(UsedCost) for all privileges
 
 
-Step 5: Calculate Unused Privilege Cost
+Step 3: Calculate Overall Usage Percentage
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-For each privilege:
-  TotalCost = privilege.LimitInCycle × privilege.UnitCost
-  
-TotalPrivilegeCost = Σ(TotalCost) for all privileges
-UnusedPrivilegeCost = TotalPrivilegeCost - TotalUsedPrivilegeCost
+UsagePercentage = (TotalUnitsUsed / TotalUnitsInCycle) × 100
 
 
-Step 6: Calculate Admin Commission Refund
+Step 4: Check Refund Eligibility
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-If AdminCommissionPercentage exists:
-  AdminCommission = TotalPrivilegeCost × (AdminCommissionPercentage / 100)
-Else if AdminCommissionFixed exists:
-  AdminCommission = AdminCommissionFixed
+IsEligible = UsagePercentage < 50%
 
-UnusedPercentage = UnusedPrivilegeCost / TotalPrivilegeCost
-ProportionalAdminCommissionRefund = AdminCommission × UnusedPercentage
+If NOT eligible (UsagePercentage >= 50%) → STOP, return NO REFUND
 
 
-Step 7: Calculate Total Refund
+Step 5: Calculate Refund Amount (if eligible)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RefundAmount = UnusedPrivilegeCost + ProportionalAdminCommissionRefund
+RefundAmount = TotalPrivilegeCost - TotalUsedPrivilegeCost
 
 Ensure non-negative:
 RefundAmount = MAX(0, ROUND(RefundAmount, 2))
+
+
+⚠️ IMPORTANT: Admin Commission is NEVER REFUNDED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AdminCommission = plan.AdminCommissionFixed (ALWAYS FIXED)
+Platform ALWAYS keeps admin commission (covers operational costs)
+Refund ONLY includes unused privilege costs
+```
+
+### **Subscription Fee Structure:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ TOTAL SUBSCRIPTION FEE BREAKDOWN                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Total Privilege Cost:       $XXX (sum of all privileges)    │
+│ Admin Commission (FIXED):   $YYY (NON-REFUNDABLE)          │
+│ ─────────────────────────────────────────────────────────── │
+│ TOTAL SUBSCRIPTION FEE:     $XXX + $YYY                     │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│ REFUND CALCULATION                                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Total Privilege Cost:       $XXX                            │
+│ Used Privilege Cost:        $ZZZ                            │
+│ ─────────────────────────────────────────────────────────── │
+│ REFUND AMOUNT:              $XXX - $ZZZ                     │
+│                                                             │
+│ Admin Commission:           NOT INCLUDED IN REFUND ❌       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -283,7 +314,7 @@ RefundAmount = MAX(0, ROUND(RefundAmount, 2))
 
 ## 📊 DETAILED EXAMPLES & TEST CASES
 
-### **Example 1: Monthly Plan - Eligible for Refund**
+### **Example 1: Monthly Plan - Eligible for Refund** ✅
 
 ```
 ═══════════════════════════════════════════════════════════════
@@ -291,58 +322,72 @@ PLAN CONFIGURATION
 ═══════════════════════════════════════════════════════════════
 Plan Name: Basic Monthly
 Billing Cycle: Monthly (30 days)
+
 Privileges:
-  - Teleconsultation: 10 sessions @ $20/session
-  - Medication Refills: 5 refills @ $10/refill
-  
-Total Privilege Cost:
-  (10 × $20) + (5 × $10) = $200 + $50 = $250
-  
-Admin Commission: 10% = $25
-Total Subscription Fee: $275
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Privilege          | Limit | Unit Cost | Total Cost
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |  10   |   $20     |   $200
+Medication Refills |   5   |   $10     |    $50
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL PRIVILEGE COST:                      $250
+
+Admin Commission (FIXED):                   $25
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL SUBSCRIPTION FEE:                    $275
 
 ═══════════════════════════════════════════════════════════════
 USER USAGE (After 2 weeks)
 ═══════════════════════════════════════════════════════════════
-Teleconsultation: 3 used (out of 10)
-Medication Refills: 2 used (out of 5)
+Privilege          | Available | Used | Remaining
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |    10     |   3  |     7
+Medication Refills |     5     |   2  |     3
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTALS             |    15     |   5  |    10
 
-Total Units: 10 + 5 = 15 units
-Used Units: 3 + 2 = 5 units
-Usage %: 5 / 15 = 33.33% < 50% ✅ ELIGIBLE
+Overall Usage: 5 / 15 = 33.33% < 50% ✅ ELIGIBLE
 
 ═══════════════════════════════════════════════════════════════
 REFUND CALCULATION
 ═══════════════════════════════════════════════════════════════
-Used Privilege Costs:
-  - Teleconsultation: 3 × $20 = $60
-  - Medication: 2 × $10 = $20
-  Total Used: $80
 
-Unused Privilege Costs:
-  - Teleconsultation: (10-3) × $20 = $140
-  - Medication: (5-2) × $10 = $30
-  Total Unused: $170
+1. Used Privilege Costs:
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Teleconsultation: 3 × $20 = $60
+   Medication: 2 × $10 = $20
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Total Used: $80
 
-Admin Commission Breakdown:
-  Total Admin Commission: $25
-  Unused %: $170 / $250 = 68%
-  Proportional Commission Refund: $25 × 68% = $17
+2. Total Privilege Cost: $250
 
-TOTAL REFUND: $170 + $17 = $187
+3. Refund Calculation:
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Refund = Total Privilege Cost - Used Privilege Cost
+   Refund = $250 - $80
+   Refund = $170 ✅
+
+4. Admin Commission:
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Admin Commission: $25 (PLATFORM KEEPS - NOT REFUNDED) ❌
 
 ═══════════════════════════════════════════════════════════════
-VERIFICATION
+FINAL SUMMARY
 ═══════════════════════════════════════════════════════════════
-User Paid: $275
-User Consumed: $80 (privileges) + $8 (commission) = $88
-User Refunded: $187
-Balance: $88 + $187 = $275 ✅ CORRECT
+User Paid:          $275
+Platform Keeps:
+  - Used Privileges: $80
+  - Admin Commission: $25 (NON-REFUNDABLE)
+  - Total Kept: $105
+
+User Refunded:      $170
+
+Verification: $105 + $170 = $275 ✅ CORRECT
 ```
 
 ---
 
-### **Example 2: Quarterly Plan - Eligible for Refund**
+### **Example 2: Quarterly Plan - Eligible for Refund** ✅
 
 ```
 ═══════════════════════════════════════════════════════════════
@@ -350,55 +395,76 @@ PLAN CONFIGURATION
 ═══════════════════════════════════════════════════════════════
 Plan Name: Standard Quarterly
 Billing Cycle: Quarterly (3 months)
-Monthly Privileges:
-  - Teleconsultation: 10 sessions/month @ $20/session
-  - Medication Refills: 5 refills/month @ $10/refill
-  
-Quarterly Calculation:
-  Teleconsultation: 10 × 3 = 30 sessions @ $20 = $600
-  Medication: 5 × 3 = 15 refills @ $10 = $150
-  
-Total Privilege Cost: $750
-Admin Commission: 10% = $75
-Total Subscription Fee: $825
+
+Monthly Privilege Limits:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Privilege          | Monthly | Unit Cost | Monthly Cost
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |   10    |   $20     |   $200
+Medication Refills |    5    |   $10     |    $50
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL MONTHLY:                              $250
+
+Quarterly Limits (×3 months):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Privilege          | Quarterly | Unit Cost | Quarterly Cost
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |    30     |   $20     |   $600
+Medication Refills |    15     |   $10     |   $150
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL PRIVILEGE COST:                         $750
+
+Admin Commission (FIXED):                      $75
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL SUBSCRIPTION FEE:                       $825
 
 ═══════════════════════════════════════════════════════════════
-USER USAGE (After 6 weeks)
+USER USAGE (After 6 weeks into quarter)
 ═══════════════════════════════════════════════════════════════
-Teleconsultation: 12 used (out of 30)
-Medication Refills: 6 used (out of 15)
+Privilege          | Available | Used | Remaining
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |    30     |  12  |    18
+Medication Refills |    15     |   6  |     9
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTALS             |    45     |  18  |    27
 
-Total Units: 30 + 15 = 45 units
-Used Units: 12 + 6 = 18 units
-Usage %: 18 / 45 = 40% < 50% ✅ ELIGIBLE
+Overall Usage: 18 / 45 = 40.00% < 50% ✅ ELIGIBLE
 
 ═══════════════════════════════════════════════════════════════
 REFUND CALCULATION
 ═══════════════════════════════════════════════════════════════
-Used Privilege Costs:
-  - Teleconsultation: 12 × $20 = $240
-  - Medication: 6 × $10 = $60
-  Total Used: $300
 
-Unused Privilege Costs:
-  - Teleconsultation: (30-12) × $20 = $360
-  - Medication: (15-6) × $10 = $90
-  Total Unused: $450
+1. Used Privilege Costs:
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Teleconsultation: 12 × $20 = $240
+   Medication: 6 × $10 = $60
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Total Used: $300
 
-Admin Commission Breakdown:
-  Total Admin Commission: $75
-  Unused %: $450 / $750 = 60%
-  Proportional Commission Refund: $75 × 60% = $45
+2. Total Privilege Cost: $750
 
-TOTAL REFUND: $450 + $45 = $495
+3. Refund Calculation:
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Refund = Total Privilege Cost - Used Privilege Cost
+   Refund = $750 - $300
+   Refund = $450 ✅
+
+4. Admin Commission:
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Admin Commission: $75 (PLATFORM KEEPS - NOT REFUNDED) ❌
 
 ═══════════════════════════════════════════════════════════════
-VERIFICATION
+FINAL SUMMARY
 ═══════════════════════════════════════════════════════════════
-User Paid: $825
-User Consumed: $300 (privileges) + $30 (commission) = $330
-User Refunded: $495
-Balance: $330 + $495 = $825 ✅ CORRECT
+User Paid:          $825
+Platform Keeps:
+  - Used Privileges: $300
+  - Admin Commission: $75 (NON-REFUNDABLE)
+  - Total Kept: $375
+
+User Refunded:      $450
+
+Verification: $375 + $450 = $825 ✅ CORRECT
 ```
 
 ---
@@ -765,7 +831,7 @@ backend/
 
 ---
 
-## 📐 REFUND CALCULATION PSEUDOCODE
+## 📐 REFUND CALCULATION PSEUDOCODE (CORRECTED)
 
 ```
 FUNCTION CalculateRefund(subscriptionId):
@@ -775,8 +841,8 @@ FUNCTION CalculateRefund(subscriptionId):
   plan = subscription.SubscriptionPlan
   billingCycle = subscription.BillingCycle
   
-  // Determine cycle multiplier
-  cycleMultiplier = SWITCH billingCycle.Name:
+  // Determine billing cycle multiplier
+  cycleMultiplier = SWITCH billingCycle.Name.ToLower():
     CASE "monthly": 1
     CASE "quarterly": 3
     CASE "yearly" OR "annual": 12
@@ -784,60 +850,95 @@ FUNCTION CalculateRefund(subscriptionId):
   
   // Initialize counters
   totalUnitsInCycle = 0
-  usedUnits = 0
+  totalUnitsUsed = 0
   totalPrivilegeCost = 0
-  usedPrivilegeCost = 0
+  totalUsedPrivilegeCost = 0
+  privilegeBreakdown = []
   
-  // Calculate for each privilege
-  FOR EACH privilege IN plan.PlanPrivileges:
-    monthlyLimit = privilege.MonthlyLimit ?? privilege.Value
+  // Calculate for EACH privilege type in plan
+  FOR EACH planPrivilege IN plan.PlanPrivileges:
     
-    IF monthlyLimit <= 0 THEN CONTINUE // Skip unlimited/disabled
+    // Get monthly limit for this privilege
+    monthlyLimit = planPrivilege.MonthlyLimit ?? planPrivilege.Value
     
+    // Skip unlimited (-1) or disabled (0) privileges
+    IF monthlyLimit <= 0 THEN CONTINUE
+    
+    // Calculate limit for entire billing cycle
     limitInCycle = CEILING(monthlyLimit × cycleMultiplier)
-    used = GetUsage(subscriptionId, privilege.Id)
-    unitCost = privilege.UnitCost
     
+    // Get user's actual usage for THIS privilege
+    usageRecord = GetUserSubscriptionPrivilegeUsage(
+      subscriptionId, planPrivilege.Id)
+    usedQuantity = usageRecord?.UsedValue ?? 0
+    
+    // Get unit cost for THIS privilege
+    unitCost = planPrivilege.UnitCost
+    
+    // Calculate costs for THIS privilege
+    privilegeTotalCost = limitInCycle × unitCost
+    privilegeUsedCost = usedQuantity × unitCost
+    privilegeRemainingCost = (limitInCycle - usedQuantity) × unitCost
+    
+    // Aggregate totals
     totalUnitsInCycle += limitInCycle
-    usedUnits += used
-    totalPrivilegeCost += (limitInCycle × unitCost)
-    usedPrivilegeCost += (used × unitCost)
+    totalUnitsUsed += usedQuantity
+    totalPrivilegeCost += privilegeTotalCost
+    totalUsedPrivilegeCost += privilegeUsedCost
+    
+    // Store breakdown for transparency
+    privilegeBreakdown.ADD({
+      name: planPrivilege.Privilege.Name,
+      limitInCycle: limitInCycle,
+      used: usedQuantity,
+      remaining: limitInCycle - usedQuantity,
+      unitCost: unitCost,
+      usedCost: privilegeUsedCost,
+      remainingCost: privilegeRemainingCost
+    })
   
-  // Calculate usage percentage
-  usagePercentage = (usedUnits / totalUnitsInCycle) × 100
+  // Calculate overall usage percentage (aggregate across ALL privileges)
+  overallUsagePercentage = totalUnitsInCycle > 0
+    ? (totalUnitsUsed / totalUnitsInCycle) × 100
+    : 0
   
-  // Check eligibility
-  IF usagePercentage >= 50 THEN
+  // Get refund threshold from plan (default 50%)
+  usageThreshold = plan.RefundUsageThresholdPercentage ?? 50.0
+  
+  // Check eligibility: Must be STRICTLY LESS THAN threshold
+  isEligible = overallUsagePercentage < usageThreshold
+  
+  // If NOT eligible, return with zero refund
+  IF NOT isEligible THEN
     RETURN {
       isEligible: FALSE,
       refundAmount: 0,
-      message: "Used " + usagePercentage + "% (threshold: 50%)"
+      usagePercentage: overallUsagePercentage,
+      message: "Used " + overallUsagePercentage + "% (threshold: " + usageThreshold + "%)"
     }
   
-  // Calculate unused privilege cost
-  unusedPrivilegeCost = totalPrivilegeCost - usedPrivilegeCost
+  // ⭐ CALCULATE REFUND (SIMPLE FORMULA)
+  refundAmount = totalPrivilegeCost - totalUsedPrivilegeCost
   
-  // Calculate admin commission
-  IF plan.AdminCommissionPercentage > 0 THEN
-    adminCommission = totalPrivilegeCost × (plan.AdminCommissionPercentage / 100)
-  ELSE IF plan.AdminCommissionFixed EXISTS THEN
-    adminCommission = plan.AdminCommissionFixed
-  ELSE
-    adminCommission = 0
-  
-  // Calculate proportional commission refund
-  unusedPercentage = unusedPrivilegeCost / totalPrivilegeCost
-  proportionalCommissionRefund = adminCommission × unusedPercentage
-  
-  // Calculate total refund
-  refundAmount = unusedPrivilegeCost + proportionalCommissionRefund
+  // Ensure non-negative and round to 2 decimals
   refundAmount = MAX(0, ROUND(refundAmount, 2))
+  
+  // Get admin commission (for display only - NOT refunded)
+  adminCommission = plan.AdminCommissionFixed ?? 0
+  totalSubscriptionFee = totalPrivilegeCost + adminCommission
   
   RETURN {
     isEligible: TRUE,
     refundAmount: refundAmount,
-    usagePercentage: usagePercentage,
-    breakdown: { ... }
+    overallUsagePercentage: overallUsagePercentage,
+    usageThreshold: usageThreshold,
+    totalUnitsInCycle: totalUnitsInCycle,
+    totalUnitsUsed: totalUnitsUsed,
+    totalPrivilegeCost: totalPrivilegeCost,
+    totalUsedPrivilegeCost: totalUsedPrivilegeCost,
+    adminCommission: adminCommission,  // NOT refunded, for display only
+    totalSubscriptionFee: totalSubscriptionFee,
+    privilegeBreakdown: privilegeBreakdown
   }
 ```
 
@@ -1022,37 +1123,82 @@ Reason for Refund:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ REFUND POLICY - SMARTTELEHEALTH SUBSCRIPTION PLATFORM      │
+│ (✅ Cross-Verified with Existing Infrastructure)           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │ 1. ELIGIBILITY REQUIREMENT:                                 │
 │    → Must have used LESS THAN 50% of privileges             │
-│    → Calculated across ALL privileges in billing cycle      │
+│    → Calculated across ALL privilege types in cycle         │
+│    → Aggregate calculation (not per-privilege)              │
 │                                                             │
-│ 2. CALCULATION METHOD:                                      │
-│    → Refund = SubscriptionFee - UsedServices                │
-│    → UsedServices = Σ(UsedQty × UnitCost) + PropCommission │
-│    → Proportional admin commission refunded for unused      │
+│ 2. CALCULATION METHOD (CORRECTED):                          │
+│    → Refund = Total Privilege Cost - Used Privilege Cost    │
+│    → Admin Commission is NEVER refunded (FIXED amount)      │
+│    → Platform keeps commission to cover operations          │
 │                                                             │
-│ 3. BILLING CYCLE AWARENESS:                                 │
-│    → Monthly: Calculate against 1x monthly limit            │
-│    → Quarterly: Calculate against 3x monthly limit          │
-│    → Yearly: Calculate against 12x monthly limit            │
+│ 3. MULTI-PRIVILEGE SUPPORT:                                 │
+│    → Each privilege type tracked independently              │
+│    → Consultation, Medication, Follow-up, Lab Tests, etc.   │
+│    → Each has own: limit, unit cost, usage tracking         │
+│    → Aggregated for overall usage percentage                │
 │                                                             │
-│ 4. NO GRACE PERIOD:                                         │
+│ 4. BILLING CYCLE AWARENESS:                                 │
+│    → Monthly: Limit × 1 (e.g., 10 consultations)           │
+│    → Quarterly: Limit × 3 (e.g., 30 consultations)         │
+│    → Yearly: Limit × 12 (e.g., 120 consultations)          │
+│                                                             │
+│ 5. NO GRACE PERIOD:                                         │
 │    → No automatic 7-day or 30-day full refund               │
-│    → Usage-based calculation from day 1                     │
+│    → Pure usage-based calculation from day 1                │
+│    → No time-based refund windows                           │
 │                                                             │
-│ 5. TRANSACTION SAFETY:                                      │
+│ 6. TRANSACTION SAFETY:                                      │
 │    → ACID-compliant refund processing                       │
 │    → Rollback on Stripe failure                             │
-│    → All-or-nothing refund                                  │
+│    → All-or-nothing refund (verified in codebase)          │
 │                                                             │
-│ 6. AUDIT TRAIL:                                             │
+│ 7. AUDIT TRAIL:                                             │
 │    → All refunds logged in PaymentRefund table              │
 │    → Billing adjustment created for audit                   │
 │    → Email confirmation sent to user                        │
+│    → Subscription cancelled upon refund                     │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
+```
+
+### **Critical Clarifications:**
+
+```
+⚠️ ADMIN COMMISSION HANDLING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Admin commission is ALWAYS FIXED (not percentage)
+Platform ALWAYS keeps admin commission (non-refundable)
+Commission covers: platform operations, support, infrastructure
+
+Verified in code:
+- Field: SubscriptionPlan.AdminCommissionFixed (Line 212)
+- Used in: SubscriptionBillingService.CalculatePlanBasePriceAsync()
+- Formula: FinalPrice = TotalPrivilegeCost + AdminCommissionFixed
+
+
+⚠️ REFUND FORMULA (SIMPLIFIED):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Refund = Total Privilege Cost - Used Privilege Cost
+
+That's it! No commission calculation needed.
+
+
+⚠️ MULTI-PRIVILEGE AGGREGATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Calculate usage percentage across ALL privileges:
+  - Teleconsultation: 14/30 used
+  - Medication: 5/15 used
+  - Follow-up: 2/6 used
+  - Lab Tests: 1/3 used
+  
+  Total: 22/54 = 40.74% < 50% ✅ ELIGIBLE
+
+Not calculated per-privilege, but as aggregate!
 ```
 
 ---
@@ -1245,6 +1391,149 @@ Assertion:
   ASSERT UsedUnits == 18
   ASSERT IsEligible == true
 ```
+
+---
+
+## 📊 **COMPREHENSIVE MULTI-PRIVILEGE EXAMPLE (QUARTERLY)**
+
+### **Real-World Scenario: Family Quarterly Plan**
+
+```
+═══════════════════════════════════════════════════════════════
+PLAN CONFIGURATION
+═══════════════════════════════════════════════════════════════
+Plan Name: Family Quarterly Health Plan
+Billing Cycle: Quarterly (3 months)
+Cycle Multiplier: 3x
+
+Monthly Privilege Limits:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Privilege          | Monthly | Unit Cost | Monthly Cost
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |   10    |   $20     |   $200
+Medication Refills |    5    |   $12     |    $60
+Follow-up Appts    |    2    |   $15     |    $30
+Lab Test Reviews   |    1    |   $25     |    $25
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL MONTHLY:                              $315
+
+Quarterly Limits (×3 months):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Privilege          | Quarterly | Unit Cost | Quarterly Cost
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |    30     |   $20     |   $600
+Medication Refills |    15     |   $12     |   $180
+Follow-up Appts    |     6     |   $15     |    $90
+Lab Test Reviews   |     3     |   $25     |    $75
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL PRIVILEGE COST:                        $945
+
+Admin Commission (FIXED):                     $55
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL SUBSCRIPTION FEE:                    $1,000
+
+═══════════════════════════════════════════════════════════════
+USER USAGE (After 6 weeks - requesting refund)
+═══════════════════════════════════════════════════════════════
+Privilege          | Available | Used | Remaining
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |    30     |  14  |    16
+Medication Refills |    15     |   5  |    10
+Follow-up Appts    |     6     |   2  |     4
+Lab Test Reviews   |     3     |   1  |     2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTALS             |    54     |  22  |    32
+
+Overall Usage: 22 / 54 = 40.74% < 50% ✅ ELIGIBLE FOR REFUND
+
+═══════════════════════════════════════════════════════════════
+DETAILED REFUND CALCULATION
+═══════════════════════════════════════════════════════════════
+
+Step 1: Calculate Used Privilege Costs (Per Privilege)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Privilege          | Used | Unit Cost | Used Cost
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |  14  |   $20     |   $280
+Medication Refills |   5  |   $12     |    $60
+Follow-up Appts    |   2  |   $15     |    $30
+Lab Test Reviews   |   1  |   $25     |    $25
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL USED PRIVILEGE COST:                    $395
+
+Step 2: Calculate Total Privilege Cost
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Total Privilege Cost (from plan): $945
+
+Step 3: Calculate Refund
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Refund = Total Privilege Cost - Used Privilege Cost
+Refund = $945 - $395
+Refund = $550 ✅
+
+Step 4: Admin Commission
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Admin Commission: $55 (PLATFORM KEEPS - NOT REFUNDED) ❌
+
+═══════════════════════════════════════════════════════════════
+FINAL SUMMARY
+═══════════════════════════════════════════════════════════════
+User Paid:          $1,000
+
+Platform Keeps:
+  - Teleconsultation used: $280
+  - Medication used: $60
+  - Follow-up used: $30
+  - Lab Tests used: $25
+  - Subtotal Used Privileges: $395
+  - Admin Commission: $55 (NON-REFUNDABLE)
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TOTAL PLATFORM KEEPS: $450
+
+User Refunded:
+  - Unused Privilege Cost: $550
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  TOTAL USER REFUND: $550
+
+Verification: $450 + $550 = $1,000 ✅ CORRECT
+
+Per-Privilege Refund Breakdown:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Privilege          | Unused Units | Unit Cost | Refund
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Teleconsultation   |     16       |   $20     |  $320
+Medication Refills |     10       |   $12     |  $120
+Follow-up Appts    |      4       |   $15     |   $60
+Lab Test Reviews   |      2       |   $25     |   $50
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL REFUND:                                 $550 ✅
+```
+
+### **Key Takeaways from This Example:**
+
+✅ **Multi-Privilege Aggregation Works:**
+- 4 different privilege types
+- Each tracked independently
+- Aggregated for overall usage percentage (40.74%)
+- Individual costs calculated per privilege
+
+✅ **Billing Cycle Multiplier Applied:**
+- Monthly limits: 10, 5, 2, 1
+- Quarterly limits: 30, 15, 6, 3 (all ×3)
+
+✅ **50% Threshold Check:**
+- 22 used / 54 available = 40.74%
+- 40.74% < 50% ✅ ELIGIBLE
+
+✅ **Admin Commission Non-Refundable:**
+- Platform keeps $55 commission
+- Only unused privilege costs refunded
+- Fair to both parties
+
+✅ **Simple, Transparent Calculation:**
+- Easy to understand
+- Easy to verify
+- Easy to explain to users
 
 ---
 
