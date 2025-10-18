@@ -120,11 +120,23 @@ public class PrivilegeService : IPrivilegeService
             // Get current usage and calculate remaining
             var usage = (await _usageRepo.GetBySubscriptionIdAsync(subscriptionId))
                 .FirstOrDefault(u => u.SubscriptionPlanPrivilegeId == planPrivilege.Id);
-            var used = usage?.UsedValue ?? 0;
-            var remaining = Math.Max(0, planPrivilege.Value - used);
             
-            _logger.LogInformation("Remaining privilege '{PrivilegeName}' for subscription {SubscriptionId} by user {UserId}: {Remaining}", 
-                privilegeName, subscriptionId, tokenModel.UserID, remaining);
+            // If no usage record exists yet, use plan's Value as initial limit
+            if (usage == null)
+            {
+                var initialLimit = planPrivilege.Value == -1 ? int.MaxValue : Math.Max(0, planPrivilege.Value);
+                _logger.LogInformation("No usage record yet for privilege '{PrivilegeName}' for subscription {SubscriptionId}. Using plan limit: {InitialLimit}", 
+                    privilegeName, subscriptionId, initialLimit);
+                return initialLimit;
+            }
+            
+            // Use the DYNAMIC AllowedValue (can increase with credit purchases) not the static plan Value!
+            var used = usage.UsedValue;
+            var allowed = usage.AllowedValue;
+            var remaining = allowed == -1 ? int.MaxValue : Math.Max(0, allowed - used);
+            
+            _logger.LogInformation("Remaining privilege '{PrivilegeName}' for subscription {SubscriptionId} by user {UserId}: {Remaining} (Allowed: {Allowed}, Used: {Used})", 
+                privilegeName, subscriptionId, tokenModel.UserID, remaining, allowed, used);
             return remaining;
         }
         catch (Exception ex)
@@ -245,14 +257,15 @@ public class PrivilegeService : IPrivilegeService
                     .FirstOrDefault(u => u.SubscriptionPlanPrivilegeId == planPrivilege.Id);
                 if (unlimitedUsage == null)
                 {
+                    var (allowedValue, periodStart, periodEnd) = await CalculatePrivilegeAllocationAsync(subscriptionId, planPrivilege);
                     unlimitedUsage = new UserSubscriptionPrivilegeUsage
                     {
                         SubscriptionId = subscriptionId,
                         SubscriptionPlanPrivilegeId = planPrivilege.Id,
                         UsedValue = amount,
-                        AllowedValue = -1,
-                        UsagePeriodStart = DateTime.UtcNow,
-                        UsagePeriodEnd = DateTime.UtcNow.AddMonths(1),
+                        AllowedValue = allowedValue,
+                        UsagePeriodStart = periodStart,
+                        UsagePeriodEnd = periodEnd,
                         LastUsedAt = DateTime.UtcNow,
                         // Set audit properties for creation
                         IsActive = true,
@@ -286,14 +299,15 @@ public class PrivilegeService : IPrivilegeService
                 .FirstOrDefault(u => u.SubscriptionPlanPrivilegeId == planPrivilege.Id);
             if (limitedUsage == null)
             {
+                var (allowedValue, periodStart, periodEnd) = await CalculatePrivilegeAllocationAsync(subscriptionId, planPrivilege);
                 limitedUsage = new UserSubscriptionPrivilegeUsage
                 {
                     SubscriptionId = subscriptionId,
                     SubscriptionPlanPrivilegeId = planPrivilege.Id,
                     UsedValue = amount,
-                    AllowedValue = planPrivilege.Value,
-                    UsagePeriodStart = DateTime.UtcNow,
-                    UsagePeriodEnd = DateTime.UtcNow.AddMonths(1),
+                    AllowedValue = allowedValue,
+                    UsagePeriodStart = periodStart,
+                    UsagePeriodEnd = periodEnd,
                     LastUsedAt = DateTime.UtcNow,
                     // Set audit properties for creation
                     IsActive = true,
@@ -996,5 +1010,224 @@ public class PrivilegeService : IPrivilegeService
             };
         }
     }
+    #endregion
+
+    #region Privilege Availability Check with Purchase Information
+
+    /// <summary>
+    /// Checks if a privilege can be used and returns detailed information for purchasing if limit exceeded.
+    /// This method implements the requirement:
+    /// "Once a user has used all their included privileges, any additional usage 
+    /// would require upfront payment."
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID to check</param>
+    /// <param name="privilegeName">The name of the privilege to check</param>
+    /// <param name="requestedAmount">The amount of privilege usage requested</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel with availability status and purchase details if needed</returns>
+    /// <remarks>
+    /// Returns:
+    /// - 200 OK if privilege is available (user can proceed)
+    /// - 402 Payment Required if limit exceeded (includes purchase information)
+    /// - 403 Forbidden if privilege is disabled
+    /// - 404 Not Found if subscription or privilege not found
+    /// </remarks>
+    public async Task<JsonModel> CheckPrivilegeAvailabilityAsync(
+        Guid subscriptionId,
+        string privilegeName,
+        int requestedAmount,
+        TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "Checking privilege '{PrivilegeName}' availability for subscription {SubscriptionId}, requested amount: {Amount}",
+                privilegeName, subscriptionId, requestedAmount
+            );
+
+            // Validate input
+            if (requestedAmount <= 0)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Requested amount must be greater than zero",
+                    StatusCode = 400
+                };
+            }
+
+            // Get the plan privilege configuration
+            var planPrivilege = await GetPlanPrivilegeAsync(subscriptionId, privilegeName);
+            
+            if (planPrivilege == null)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = $"Privilege '{privilegeName}' not found in subscription plan",
+                    StatusCode = 404
+                };
+            }
+
+            // Check if privilege is disabled
+            if (planPrivilege.Value == 0)
+            {
+                return new JsonModel
+                {
+                    data = new
+                    {
+                        available = false,
+                        disabled = true,
+                        message = $"Privilege '{privilegeName}' is not included in your subscription plan"
+                    },
+                    Message = $"Privilege '{privilegeName}' is not available in your plan",
+                    StatusCode = 403
+                };
+            }
+
+            // Handle unlimited privileges
+            if (planPrivilege.Value == -1)
+            {
+                return new JsonModel
+                {
+                    data = new
+                    {
+                        available = true,
+                        unlimited = true,
+                        privilegeName = privilegeName,
+                        message = "You have unlimited access to this privilege"
+                    },
+                    Message = "Privilege is available (unlimited)",
+                    StatusCode = 200
+                };
+            }
+
+            // Check time-based limits first
+            if (!await CheckTimeBasedLimitsAsync(subscriptionId, planPrivilege, requestedAmount))
+            {
+                return new JsonModel
+                {
+                    data = new
+                    {
+                        available = false,
+                        timeLimitExceeded = true,
+                        privilegeName = privilegeName,
+                        dailyLimit = planPrivilege.DailyLimit,
+                        weeklyLimit = planPrivilege.WeeklyLimit,
+                        monthlyLimit = planPrivilege.MonthlyLimit,
+                        message = "Time-based usage limit exceeded. Please wait for the limit to reset."
+                    },
+                    Message = "Time-based usage limit exceeded",
+                    StatusCode = 429 // Too Many Requests
+                };
+            }
+
+            // Get remaining privilege amount
+            var remaining = await GetRemainingPrivilegeAsync(subscriptionId, privilegeName, tokenModel);
+
+            // Check if user has enough remaining credits
+            if (remaining >= requestedAmount)
+            {
+                // User has sufficient credits - allow usage
+                return new JsonModel
+                {
+                    data = new
+                    {
+                        available = true,
+                        privilegeName = privilegeName,
+                        remaining = remaining,
+                        requested = requestedAmount,
+                        afterUse = remaining - requestedAmount,
+                        message = "Privilege is available"
+                    },
+                    Message = "Privilege is available",
+                    StatusCode = 200
+                };
+            }
+
+            // LIMIT EXCEEDED - Return 402 Payment Required with purchase details
+            var shortfall = requestedAmount - remaining;
+            var requiredPayment = shortfall * planPrivilege.UnitCost;
+
+            _logger.LogWarning(
+                "Privilege '{PrivilegeName}' limit exceeded for subscription {SubscriptionId}. " +
+                "Remaining: {Remaining}, Requested: {Requested}, Shortfall: {Shortfall}, Cost: ${Cost}",
+                privilegeName, subscriptionId, remaining, requestedAmount, shortfall, requiredPayment
+            );
+
+            return new JsonModel
+            {
+                data = new
+                {
+                    available = false,
+                    limitExceeded = true,
+                    privilegeName = privilegeName,
+                    remaining = remaining,
+                    requested = requestedAmount,
+                    shortfall = shortfall,
+                    unitCost = planPrivilege.UnitCost,
+                    requiredPayment = requiredPayment,
+                    message = $"You've used all your included {privilegeName} credits. Purchase {shortfall} additional credit{(shortfall > 1 ? "s" : "")} for ${requiredPayment:F2} to continue.",
+                    purchaseEndpoint = $"/api/subscriptions/{subscriptionId}/purchase-credits",
+                    purchaseDetails = new
+                    {
+                        privilegeName = privilegeName,
+                        quantity = shortfall,
+                        unitCost = planPrivilege.UnitCost,
+                        totalCost = requiredPayment
+                    }
+                },
+                Message = $"Insufficient {privilegeName} credits. {remaining} remaining, {requestedAmount} requested. Purchase {shortfall} additional credit{(shortfall > 1 ? "s" : "")} for ${requiredPayment:F2}.",
+                StatusCode = 402 // Payment Required
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, 
+                "Error checking privilege availability for '{PrivilegeName}' in subscription {SubscriptionId}",
+                privilegeName, subscriptionId
+            );
+
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Error checking privilege availability",
+                StatusCode = 500
+            };
+        }
+    }
+
+    #endregion
+    
+    #region Privilege Allocation Calculation (Solution A Implementation)
+    
+    /// <summary>
+    /// Calculates privilege allocation scaled to billing cycle
+    /// </summary>
+    private async Task<(int allowedValue, DateTime periodStart, DateTime periodEnd)> CalculatePrivilegeAllocationAsync(
+        Guid subscriptionId, 
+        SubscriptionPlanPrivilege planPrivilege)
+    {
+        var subscription = await _subscriptionRepo.GetByIdWithDetailsAsync(subscriptionId);
+        if (subscription == null)
+            throw new InvalidOperationException($"Subscription {subscriptionId} not found");
+        
+        var billingCycleDays = subscription.BillingCycle.DurationInDays;
+        var monthsInCycle = billingCycleDays / 30.0m;
+        
+        // Calculate allowed value for billing cycle
+        var monthlyLimit = planPrivilege.MonthlyLimit ?? planPrivilege.Value;
+        var allowedForCycle = monthlyLimit == -1 ? -1 : (int)Math.Ceiling(monthlyLimit * monthsInCycle);
+        
+        // Set period to match billing cycle
+        var periodStart = subscription.LastBillingDate?.AddDays(1) ?? subscription.StartDate;
+        var periodEnd = subscription.NextBillingDate;
+        
+        _logger.LogDebug("Calculated privilege allocation for subscription {SubscriptionId}: MonthlyLimit={MonthlyLimit}, Months={Months}, AllowedForCycle={AllowedForCycle}",
+            subscriptionId, monthlyLimit, monthsInCycle, allowedForCycle);
+        
+        return (allowedForCycle, periodStart, periodEnd);
+    }
+    
     #endregion
 } 
