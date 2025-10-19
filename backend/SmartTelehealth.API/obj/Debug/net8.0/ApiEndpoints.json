@@ -1523,6 +1523,84 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "SmartTelehealth.API.Controllers.SystemSettingsController",
+    "Method": "GetSettings",
+    "RelativePath": "api/admin/SystemSettings",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SystemSettingsController",
+    "Method": "UpdateSettings",
+    "RelativePath": "api/admin/SystemSettings",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "updateDto",
+        "Type": "SmartTelehealth.API.Controllers.UpdateSystemSettingsDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SystemSettingsController",
+    "Method": "GetSettingsHistory",
+    "RelativePath": "api/admin/SystemSettings/history",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SystemSettingsController",
+    "Method": "ResetToDefaults",
+    "RelativePath": "api/admin/SystemSettings/reset",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "SmartTelehealth.API.Controllers.AppointmentsController",
     "Method": "GetUserAppointments",
     "RelativePath": "api/Appointments",
@@ -9639,6 +9717,120 @@
     ]
   },
   {
+    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegeBasedBillingController",
+    "Method": "CalculatePlanBasePrice",
+    "RelativePath": "api/PrivilegeBasedBilling/calculate-plan-price",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "calculateDto",
+        "Type": "SmartTelehealth.Application.DTOs.CalculatePlanPriceDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegeBasedBillingController",
+    "Method": "GetMyPrivilegeUsageSummary",
+    "RelativePath": "api/PrivilegeBasedBilling/my-usage-summary",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegeBasedBillingController",
+    "Method": "ProcessPrivilegeUsage",
+    "RelativePath": "api/PrivilegeBasedBilling/process-usage",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "usageDto",
+        "Type": "SmartTelehealth.Application.DTOs.ProcessPrivilegeUsageDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegeBasedBillingController",
+    "Method": "ProcessSubscriptionRenewal",
+    "RelativePath": "api/PrivilegeBasedBilling/renew-subscription/{subscriptionId}",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "subscriptionId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.PrivilegeBasedBillingController",
+    "Method": "GetPrivilegeUsageSummary",
+    "RelativePath": "api/PrivilegeBasedBilling/usage-summary/{userId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "SmartTelehealth.API.Controllers.ProviderFeeController",
     "Method": "CreateFee",
     "RelativePath": "api/ProviderFee",
@@ -12042,6 +12234,131 @@
   },
   {
     "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "CalculatePlanPrice",
+    "RelativePath": "api/SubscriptionPlans/{planId}/calculate-price",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "GetPricingBreakdown",
+    "RelativePath": "api/SubscriptionPlans/{planId}/pricing-breakdown",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "GetScheduledMigrations",
+    "RelativePath": "api/SubscriptionPlans/{planId}/scheduled-migrations",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "CreatePlanVersion",
+    "RelativePath": "api/SubscriptionPlans/{planId}/versions",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "updateDto",
+        "Type": "SmartTelehealth.Application.DTOs.UpdateSubscriptionPlanDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
+    "Method": "GetPlanVersions",
+    "RelativePath": "api/SubscriptionPlans/{planId}/versions",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "planId",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionPlansController",
     "Method": "GetActivePlans",
     "RelativePath": "api/SubscriptionPlans/active",
     "HttpMethod": "GET",
@@ -13265,6 +13582,40 @@
   },
   {
     "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionsController",
+    "Method": "CheckPrivilegeAvailability",
+    "RelativePath": "api/Subscriptions/{id}/check-privilege/{privilegeName}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "privilegeName",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "requestedAmount",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionsController",
     "Method": "PauseSubscription",
     "RelativePath": "api/Subscriptions/{id}/pause",
     "HttpMethod": "POST",
@@ -13303,6 +13654,35 @@
       {
         "Name": "paymentRequest",
         "Type": "SmartTelehealth.Application.DTOs.PaymentRequestDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.SubscriptionsController",
+    "Method": "PurchaseAdditionalCredits",
+    "RelativePath": "api/Subscriptions/{id}/purchase-credits",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "dto",
+        "Type": "SmartTelehealth.Application.DTOs.PurchaseAdditionalCreditsDto",
         "IsRequired": true
       }
     ],
@@ -15070,6 +15450,24 @@
   },
   {
     "ContainingType": "SmartTelehealth.API.Controllers.UsersController",
+    "Method": "GetUserStatistics",
+    "RelativePath": "api/Users/statistics",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.UsersController",
     "Method": "GetUserStats",
     "RelativePath": "api/Users/stats",
     "HttpMethod": "GET",
@@ -15097,6 +15495,48 @@
       {
         "Name": "token",
         "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.UserSubscriptionController",
+    "Method": "GetMyScheduledMigration",
+    "RelativePath": "api/UserSubscription/my-subscription/migration",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.UserSubscriptionController",
+    "Method": "RespondToMigration",
+    "RelativePath": "api/UserSubscription/my-subscription/migration/respond",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "response",
+        "Type": "SmartTelehealth.Application.DTOs.MigrationResponseDto",
         "IsRequired": true
       }
     ],

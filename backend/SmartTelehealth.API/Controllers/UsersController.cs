@@ -849,5 +849,87 @@ namespace SmartTelehealth.API.Controllers
         {
             return await _userService.UpdatePatientMedicalHistoryAsync(patientId, medicalHistoryDto, GetToken(HttpContext));
         }
+
+        /// <summary>
+        /// Retrieves user statistics for admin dashboard.
+        /// This endpoint returns counts of users by role and status.
+        /// </summary>
+        /// <returns>JsonModel containing user statistics</returns>
+        /// <remarks>
+        /// This endpoint:
+        /// - Returns total user count
+        /// - Returns active user count
+        /// - Returns counts by role (Client, Provider, Admin)
+        /// - Access restricted to administrators
+        /// - Used for admin dashboard and reporting
+        /// </remarks>
+        [HttpGet("statistics")]
+        [Authorize(Roles = "Admin")]
+        public async Task<JsonModel> GetUserStatistics()
+        {
+            try
+            {
+                // Call with correct parameter order: TokenModel first, then optional parameters
+                var allUsersResult = await _userService.GetAllUsersAsync(
+                    GetToken(HttpContext), 
+                    searchText: null, 
+                    role: null, 
+                    isActive: null, 
+                    page: 1, 
+                    pageSize: 10000
+                );
+                
+                if (allUsersResult.StatusCode != 200 || allUsersResult.data == null)
+                {
+                    return new JsonModel
+                    {
+                        data = new
+                        {
+                            totalUsers = 0,
+                            activeUsers = 0,
+                            totalClients = 0,
+                            totalProviders = 0,
+                            totalAdmins = 0
+                        },
+                        Message = "User statistics retrieved successfully",
+                        StatusCode = 200
+                    };
+                }
+
+                var users = allUsersResult.data as List<UserDto> ?? new List<UserDto>();
+                
+                var stats = new
+                {
+                    totalUsers = users.Count,
+                    activeUsers = users.Where(u => u.IsActive).Count(),
+                    totalClients = users.Where(u => u.UserType?.Equals("Client", StringComparison.OrdinalIgnoreCase) == true).Count(),
+                    totalProviders = users.Where(u => u.UserType?.Equals("Provider", StringComparison.OrdinalIgnoreCase) == true).Count(),
+                    totalAdmins = users.Where(u => u.UserType?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true).Count()
+                };
+
+                return new JsonModel
+                {
+                    data = stats,
+                    Message = "User statistics retrieved successfully",
+                    StatusCode = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                return new JsonModel
+                {
+                    data = new
+                    {
+                        totalUsers = 0,
+                        activeUsers = 0,
+                        totalClients = 0,
+                        totalProviders = 0,
+                        totalAdmins = 0
+                    },
+                    Message = $"Error retrieving user statistics: {ex.Message}",
+                    StatusCode = 500
+                };
+            }
+        }
     }
 } 

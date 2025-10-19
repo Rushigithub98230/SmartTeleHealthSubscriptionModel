@@ -38,7 +38,7 @@ public class SystemSettingsRepository : RepositoryBase<SystemSettings>, ISystemS
                 MaxFailedPaymentAttempts = 3,
                 LastUpdated = DateTime.UtcNow,
                 IsActive = true,
-                CreatedBy = 0,
+                CreatedBy = null,  // System-generated, no user created this
                 CreatedDate = DateTime.UtcNow
             };
             

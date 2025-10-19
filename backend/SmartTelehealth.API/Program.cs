@@ -174,7 +174,8 @@ if (!app.Environment.IsEnvironment("Test"))
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
         
-        context.Database.EnsureCreated();
+        // Apply pending migrations
+        context.Database.Migrate();
         // Seed the database
         await SeedData.SeedAsync(context, userManager, roleManager);
     }

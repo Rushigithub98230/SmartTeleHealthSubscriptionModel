@@ -90,8 +90,9 @@ public class AuthController : BaseController
                     email = user.Email,
                     firstName = user.FirstName,
                     lastName = user.LastName,
-                    role = "Admin",
-                    phoneNumber = user.PhoneNumber
+                    role = user.UserType ?? "Client",  // Return actual user role from database
+                    phoneNumber = user.PhoneNumber,
+                    permissions = GetUserPermissions(user.UserType)  // Add role-based permissions
                 }
             },
             Message = "Login successful",
@@ -340,7 +341,7 @@ public class AuthController : BaseController
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Name, $"{user.FirstName} {user.LastName}"),
-                new Claim(ClaimTypes.Role, "Admin"),
+                new Claim(ClaimTypes.Role, user.UserType ?? "Client"),  // Use actual user role
                 new Claim("UserId", user.Id.ToString()),
                 new Claim("RoleId", user.UserRoleId.ToString())
             }),
@@ -352,5 +353,51 @@ public class AuthController : BaseController
 
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
+    }
+
+    /// <summary>
+    /// Returns role-based permissions for the user.
+    /// This method provides granular permissions based on the user's role,
+    /// enabling fine-grained access control in the frontend application.
+    /// </summary>
+    /// <param name="userType">The user's role/type (Admin, Provider, Client)</param>
+    /// <returns>Array of permission strings for the given role</returns>
+    private string[] GetUserPermissions(string? userType)
+    {
+        return userType?.ToLower() switch
+        {
+            "admin" => new[] 
+            { 
+                "manage_users", 
+                "manage_plans", 
+                "view_analytics", 
+                "manage_subscriptions",
+                "manage_categories",
+                "manage_providers",
+                "manage_billing",
+                "view_all_appointments",
+                "manage_system_settings"
+            },
+            "provider" => new[] 
+            { 
+                "view_appointments", 
+                "manage_patients", 
+                "view_subscriptions",
+                "create_prescriptions",
+                "view_medical_records",
+                "manage_availability"
+            },
+            "client" => new[] 
+            { 
+                "view_own_subscription", 
+                "book_appointments", 
+                "view_own_profile",
+                "view_own_appointments",
+                "view_own_billing",
+                "update_own_profile",
+                "cancel_appointments"
+            },
+            _ => new[] { "view_own_profile" }  // Default minimal permissions
+        };
     }
 } 

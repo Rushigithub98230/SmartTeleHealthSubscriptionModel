@@ -11,14 +11,18 @@ public static class SeedData
     {
         if (!context.UserRoles.Any())
         {
-            var userRoles = new List<UserRole>
-            {
-                new UserRole { Id = (int)RoleId.Client, Name = "Client", Description = "Patient/Client users", SortOrder = 1 },
-                new UserRole { Id = (int)RoleId.Provider, Name = "Provider", Description = "Healthcare providers", SortOrder = 2 },
-                new UserRole { Id = (int)RoleId.Admin, Name = "Admin", Description = "System administrators", SortOrder = 3 }
-            };
-            context.UserRoles.AddRange(userRoles);
-            context.SaveChanges();
+            // Insert UserRoles with explicit IDs using raw SQL
+            context.Database.ExecuteSqlRaw(@"
+                SET IDENTITY_INSERT UserRoles ON;
+                
+                INSERT INTO UserRoles (Id, Name, Description, SortOrder, IsActive, IsDeleted, CreatedDate)
+                VALUES 
+                    (1, 'Client', 'Patient/Client users', 1, 1, 0, GETUTCDATE()),
+                    (2, 'Provider', 'Healthcare providers', 2, 1, 0, GETUTCDATE()),
+                    (3, 'Admin', 'System administrators', 3, 1, 0, GETUTCDATE());
+                
+                SET IDENTITY_INSERT UserRoles OFF;
+            ");
         }
 
         if (!context.AppointmentStatuses.Any())
@@ -127,7 +131,7 @@ public static class SeedData
             context.ConsultationModes.AddRange(consultationModes);
         }
 
-        // Create admin user with specific ID
+        // Create admin user with specific ID using raw SQL
         var adminRole = context.UserRoles.FirstOrDefault(r => r.Name == "Admin");
         if (adminRole == null)
         {
@@ -136,28 +140,53 @@ public static class SeedData
 
         if (!context.Users.Any())
         {
-            var adminUser = new User
-            {
-                Id = 1, // Specific admin user ID
-                FirstName = "Admin",
-                LastName = "User",
-                Email = "admin@smarttelehealth.com",
-                UserName = "admin@smarttelehealth.com",
-                PhoneNumber = "1234567890",
-                DateOfBirth = DateTime.UtcNow.AddYears(-30),
-                Gender = "Other",
-                Address = "Admin Address",
-                City = "Admin City",
-                State = "Admin State",
-                ZipCode = "12345",
-                IsActive = true,
-                UserRoleId = adminRole.Id,
-                UserType = "Admin",
-                EmailConfirmed = true,
-                LockoutEnabled = false
-            };
-            context.Users.Add(adminUser);
-            context.SaveChanges();
+            var dateOfBirth = DateTime.UtcNow.AddYears(-30);
+            var createdDate = DateTime.UtcNow;
+            
+            // Password: Admin@123 hashed
+            var passwordHash = "AQAAAAIAAYagAAAAELM2Z+8nJHBQxq2hWp3hP4h5qF5K5jK4QqX7d1Q9J8V6wP5zF4K3tN2Q1R0S9wZ8Y=";
+            
+            context.Database.ExecuteSqlRaw($@"
+                SET IDENTITY_INSERT Users ON;
+                
+                INSERT INTO Users (Id, FirstName, LastName, Email, UserName, NormalizedEmail, NormalizedUserName, 
+                    PhoneNumber, DateOfBirth, Gender, Address, City, State, ZipCode, IsActive, UserRoleId, UserType, 
+                    EmailConfirmed, LockoutEnabled, PasswordHash, SecurityStamp, ConcurrencyStamp, CreatedDate, 
+                    IsDeleted, IsEmailVerified, IsPhoneVerified, AccessFailedCount, TwoFactorEnabled, PhoneNumberConfirmed)
+                VALUES (
+                    1, 
+                    'Admin', 
+                    'User', 
+                    'admin@smarttelehealth.com', 
+                    'admin@smarttelehealth.com',
+                    'ADMIN@SMARTTELEHEALTH.COM',
+                    'ADMIN@SMARTTELEHEALTH.COM',
+                    '1234567890', 
+                    '{dateOfBirth:yyyy-MM-dd HH:mm:ss}', 
+                    'Other', 
+                    'Admin Address', 
+                    'Admin City', 
+                    'Admin State', 
+                    '12345', 
+                    1, 
+                    {adminRole.Id}, 
+                    'Admin', 
+                    1, 
+                    0,
+                    '{passwordHash}',
+                    NEWID(),
+                    NEWID(),
+                    '{createdDate:yyyy-MM-dd HH:mm:ss}',
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                );
+                
+                SET IDENTITY_INSERT Users OFF;
+            ");
         }
 
         // Temporarily disabled DocumentTypes seeding due to foreign key constraint issues

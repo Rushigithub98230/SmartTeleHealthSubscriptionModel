@@ -2386,7 +2386,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
                 MaxFailedPaymentAttempts = 3,
                 LastUpdated = DateTime.UtcNow,
                 IsActive = true,
-                CreatedBy = 0,
+                CreatedBy = null,  // System-generated, no user created this
                 CreatedDate = DateTime.UtcNow
             });
         });
@@ -2457,25 +2457,28 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entityBuilder.Property("IsDeleted").HasDefaultValue(false);
             entityBuilder.Property("CreatedDate").HasDefaultValueSql("GETUTCDATE()");
             
-            // Configure CreatedBy relationship
+            // Configure CreatedBy relationship (optional FK for nullable int?)
             entityBuilder
                 .HasOne(typeof(User), "CreatedByUser")
                 .WithMany()
                 .HasForeignKey("CreatedBy")
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Configure UpdatedBy relationship
+            // Configure UpdatedBy relationship (optional FK for nullable int?)
             entityBuilder
                 .HasOne(typeof(User), "UpdatedByUser")
                 .WithMany()
                 .HasForeignKey("UpdatedBy")
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Configure DeletedBy relationship
+            // Configure DeletedBy relationship (optional FK for nullable int?)
             entityBuilder
                 .HasOne(typeof(User), "DeletedByUser")
                 .WithMany()
                 .HasForeignKey("DeletedBy")
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

@@ -6009,7 +6009,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("VersionCreatedDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 17, 13, 42, 16, 352, DateTimeKind.Utc).AddTicks(3518));
+                        .HasDefaultValue(new DateTime(2025, 10, 18, 15, 47, 4, 66, DateTimeKind.Utc).AddTicks(9706));
 
                     b.Property<int>("VersionNumber")
                         .ValueGeneratedOnAdd()
@@ -6283,7 +6283,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("LastUpdated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 17, 13, 42, 16, 443, DateTimeKind.Utc).AddTicks(7613));
+                        .HasDefaultValue(new DateTime(2025, 10, 18, 15, 47, 4, 120, DateTimeKind.Utc).AddTicks(1694));
 
                     b.Property<int>("MaxFailedPaymentAttempts")
                         .ValueGeneratedOnAdd()
@@ -6310,13 +6310,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            CreatedBy = 0,
-                            CreatedDate = new DateTime(2025, 10, 17, 13, 42, 16, 443, DateTimeKind.Utc).AddTicks(7992),
+                            CreatedDate = new DateTime(2025, 10, 18, 15, 47, 4, 120, DateTimeKind.Utc).AddTicks(2315),
                             DefaultAdminCommissionPercent = 20m,
                             DefaultPriceChangeNoticeDays = 10,
                             IsActive = true,
                             IsDeleted = false,
-                            LastUpdated = new DateTime(2025, 10, 17, 13, 42, 16, 443, DateTimeKind.Utc).AddTicks(7990),
+                            LastUpdated = new DateTime(2025, 10, 18, 15, 47, 4, 120, DateTimeKind.Utc).AddTicks(2311),
                             MaxFailedPaymentAttempts = 3
                         });
                 });
@@ -8183,8 +8182,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.HasOne("SmartTelehealth.Core.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SmartTelehealth.Core.Entities.User", "DeletedByUser")
                         .WithMany()
@@ -8216,8 +8214,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.HasOne("SmartTelehealth.Core.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SmartTelehealth.Core.Entities.User", "DeletedByUser")
                         .WithMany()
