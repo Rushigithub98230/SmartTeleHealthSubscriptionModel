@@ -164,7 +164,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
                 case "quarterly":
                     newBillingDate = newBillingDate.AddMonths(3);
                     break;
-                case "annually":
+                case "annual":                    // ONLY "annual" (database standard)
                     newBillingDate = newBillingDate.AddYears(1);
                     break;
                 default:

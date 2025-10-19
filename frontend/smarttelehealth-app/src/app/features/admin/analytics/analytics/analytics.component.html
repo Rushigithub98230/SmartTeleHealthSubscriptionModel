@@ -1,0 +1,171 @@
+<!-- Advanced Analytics Page -->
+<div class="analytics-page">
+  <!-- Page Header -->
+  <div class="page-header bg-gradient text-white py-4 mb-4">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Advanced Analytics</h2>
+          <p class="mb-0 mt-2 opacity-75">Revenue, usage, and performance insights</p>
+        </div>
+        <div>
+          <a routerLink="/webadmin/dashboard" class="btn btn-light">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <!-- Revenue Metrics Row -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <i class="bi bi-cash-stack text-success fs-1 mb-3"></i>
+            <h3>${{revenueAnalytics?.totalRevenue | number:'1.2-2'}}</h3>
+            <p class="text-muted mb-0">Total Revenue</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <i class="bi bi-calendar-check text-primary fs-1 mb-3"></i>
+            <h3>${{revenueAnalytics?.subscriptionRevenue | number:'1.2-2'}}</h3>
+            <p class="text-muted mb-0">Subscription Revenue</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <i class="bi bi-plus-circle text-warning fs-1 mb-3"></i>
+            <h3>${{revenueAnalytics?.overageRevenue | number:'1.2-2'}}</h3>
+            <p class="text-muted mb-0">Overage Revenue</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <i class="bi bi-hospital text-info fs-1 mb-3"></i>
+            <h3>${{revenueAnalytics?.consultationRevenue | number:'1.2-2'}}</h3>
+            <p class="text-muted mb-0">Consultation Revenue</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-4 mb-4">
+      <!-- Revenue by Plan -->
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Revenue by Plan</h5>
+          </div>
+          <div class="card-body">
+            <div *ngIf="loading.revenue" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+            </div>
+
+            <!-- Chart Placeholder (Chart.js would render here) -->
+            <div *ngIf="!loading.revenue" class="chart-placeholder">
+              <div class="list-group">
+                <div class="list-group-item" *ngFor="let item of getPlanRevenueEntries()">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong>{{item.plan}}</strong>
+                    <span class="badge bg-success">${{item.revenue | number:'1.2-2'}}</span>
+                  </div>
+                  <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-primary" 
+                         [style.width.%]="(item.revenue / revenueAnalytics!.totalRevenue) * 100">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-center text-muted mt-3">
+                <small><i class="bi bi-info-circle me-1"></i>Chart.js visualization would render here</small>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscription Growth -->
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Subscription Growth</h5>
+          </div>
+          <div class="card-body">
+            <div *ngIf="loading.subscriptions" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+            </div>
+
+            <!-- Chart Placeholder -->
+            <div *ngIf="!loading.subscriptions" class="chart-placeholder">
+              <div class="text-center py-5">
+                <i class="bi bi-graph-up-arrow" style="font-size: 4rem; color: #4CAF50;"></i>
+                <h4 class="mt-3 text-success">{{subscriptionAnalytics?.growthRate | number:'1.1-1'}}%</h4>
+                <p class="text-muted">Growth Rate</p>
+                <p class="text-muted mt-4">
+                  <small><i class="bi bi-info-circle me-1"></i>Line chart with monthly growth would render here</small>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Usage Statistics -->
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-activity me-2"></i>Privilege Usage Statistics</h5>
+          </div>
+          <div class="card-body">
+            <div *ngIf="loading.usage" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+            </div>
+
+            <div *ngIf="!loading.usage && usageStatistics.length > 0">
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Privilege</th>
+                      <th>Total Usage</th>
+                      <th>Avg Per User</th>
+                      <th>Overage Count</th>
+                      <th>Overage Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let stat of usageStatistics">
+                      <td><strong>{{stat.privilegeName}}</strong></td>
+                      <td>{{stat.totalUsage | number}}</td>
+                      <td>{{stat.averageUsagePerUser | number:'1.1-1'}}</td>
+                      <td>{{stat.overageCount}}</td>
+                      <td class="text-success">${{stat.overageRevenue | number:'1.2-2'}}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div *ngIf="!loading.usage && usageStatistics.length === 0" class="text-center py-4">
+              <p class="text-muted">No usage statistics available</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

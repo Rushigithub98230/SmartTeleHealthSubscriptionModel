@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
@@ -478,14 +479,11 @@ public class PlanVersioningService : IPlanVersioningService
                 SubscriptionPlanId = newVersion.Id,
                 PrivilegeId = oldPrivilege.PrivilegeId,
                 Value = oldPrivilege.Value,
-                UsagePeriodId = oldPrivilege.UsagePeriodId,
+                // UsagePeriodId = oldPrivilege.UsagePeriodId, // REMOVED - not used
                 DurationMonths = oldPrivilege.DurationMonths,
                 Description = oldPrivilege.Description,
                 EffectiveDate = oldPrivilege.EffectiveDate,
                 ExpirationDate = oldPrivilege.ExpirationDate,
-                DailyLimit = oldPrivilege.DailyLimit,
-                WeeklyLimit = oldPrivilege.WeeklyLimit,
-                MonthlyLimit = oldPrivilege.MonthlyLimit,
                 
                 // Healthcare pricing fields
                 PrivilegeBaseCost = oldPrivilege.PrivilegeBaseCost,
@@ -633,21 +631,26 @@ public class PlanVersioningService : IPlanVersioningService
     /// Calculates the next billing date after a minimum date.
     /// Ensures proper notice period by pushing to next billing cycle if needed.
     /// </summary>
+    /// <summary>
+    /// Calculates the next billing date for a subscription after a minimum date.
+    /// REFACTORED: Now uses centralized BillingCycleCalculator for consistency.
+    /// </summary>
     private DateTime CalculateNextBillingDate(Subscription subscription, DateTime minimumDate)
     {
-        var billingCycleName = subscription.BillingCycle.Name.ToLower();
         var currentBillingDate = subscription.NextBillingDate;
         
+        // Keep advancing billing date until it's >= minimumDate
         while (currentBillingDate < minimumDate)
         {
-            currentBillingDate = billingCycleName switch
-            {
-                "monthly" => currentBillingDate.AddMonths(1),
-                "quarterly" => currentBillingDate.AddMonths(3),
-                "annually" or "annual" => currentBillingDate.AddYears(1),
-                _ => currentBillingDate.AddMonths(1) // Default to monthly
-            };
+            // Use centralized calculator for consistency
+            currentBillingDate = BillingCycleCalculator.CalculateNextBillingDate(
+                currentBillingDate, 
+                subscription.BillingCycle);
         }
+        
+        _logger.LogDebug("Calculated next billing date for subscription {SubscriptionId}: " +
+            "Original={Original:yyyy-MM-dd}, Minimum={Minimum:yyyy-MM-dd}, Result={Result:yyyy-MM-dd}",
+            subscription.Id, subscription.NextBillingDate, minimumDate, currentBillingDate);
         
         return currentBillingDate;
     }

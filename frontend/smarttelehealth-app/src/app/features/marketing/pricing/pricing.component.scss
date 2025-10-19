@@ -1,0 +1,51 @@
+// Pricing Component Styles
+
+.pricing-header {
+  background: linear-gradient(135deg, #1976D2 0%, #2196F3 100%);
+}
+
+.billing-toggle {
+  .btn {
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+}
+
+.pricing-card {
+  border: 2px solid transparent;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+
+  &.popular {
+    border-color: #FF9800;
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(255, 152, 0, 0.3);
+  }
+
+  &:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+
+    &.popular {
+      transform: translateY(-10px) scale(1.05);
+    }
+  }
+}
+
+.price-display {
+  .display-3 {
+    line-height: 1;
+  }
+}
+
+.savings-badge {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+

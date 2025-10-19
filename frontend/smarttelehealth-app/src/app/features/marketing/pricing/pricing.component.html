@@ -1,0 +1,108 @@
+<!-- Pricing Calculator Page -->
+<div class="pricing-page">
+  <!-- Header -->
+  <div class="pricing-header bg-primary text-white py-5 mb-5">
+    <div class="container text-center">
+      <h1 class="display-4 fw-bold mb-3">Choose Your Plan</h1>
+      <p class="lead mb-4">Flexible pricing for every healthcare need</p>
+      
+      <!-- Billing Cycle Selector -->
+      <div class="billing-toggle btn-group shadow-lg" role="group">
+        <button 
+          *ngFor="let cycle of billingCycles"
+          type="button" 
+          class="btn"
+          [ngClass]="selectedBillingCycle === cycle.id ? 'btn-light' : 'btn-outline-light'"
+          (click)="selectedBillingCycle = cycle.id">
+          {{cycle.name}}
+          <span class="badge bg-success ms-2" *ngIf="cycle.id === 'annual'">Save 15%</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Loading -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary"></div>
+    </div>
+
+    <!-- Pricing Cards -->
+    <div *ngIf="!loading" class="row g-4">
+      <div class="col-lg-4" *ngFor="let plan of plans">
+        <div class="card pricing-card h-100" [class.popular]="plan.isMostPopular">
+          <div class="card-header text-center" [class.bg-warning]="plan.isMostPopular">
+            <span class="badge bg-danger mb-2" *ngIf="plan.isMostPopular">
+              <i class="bi bi-star-fill"></i> MOST POPULAR
+            </span>
+            <h3 class="mb-0">{{plan.name}}</h3>
+          </div>
+          <div class="card-body text-center">
+            <div class="price-display mb-4">
+              <h1 class="display-3 fw-bold text-primary mb-0">
+                ${{calculatePrice(plan) | number:'1.0-0'}}
+              </h1>
+              <p class="text-muted">{{selectedCycleLabel}}</p>
+              <div *ngIf="getSavings(plan) > 0" class="savings-badge">
+                <span class="badge bg-success">
+                  Save ${{getSavings(plan) | number:'1.0-0'}}
+                </span>
+              </div>
+            </div>
+
+            <p class="text-muted mb-4">{{plan.shortDescription}}</p>
+
+            <!-- Features -->
+            <ul class="list-unstyled text-start mb-4">
+              <li class="mb-2" *ngFor="let priv of plan.planPrivileges?.slice(0, 5)">
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                <strong *ngIf="priv.value !== -1">{{priv.value}}</strong>
+                <strong *ngIf="priv.value === -1">Unlimited</strong>
+                Privileges
+              </li>
+              <li class="mb-2" *ngIf="plan.isTrialAllowed">
+                <i class="bi bi-gift text-info me-2"></i>
+                {{plan.trialDurationInDays}} days free trial
+              </li>
+            </ul>
+
+            <a [routerLink]="['/plans', plan.id]" class="btn btn-outline-primary w-100 mb-2">
+              View Details
+            </a>
+            <a routerLink="/web/register" class="btn btn-primary w-100">
+              Get Started
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison Info -->
+    <div class="card mt-5 bg-light">
+      <div class="card-body">
+        <h4 class="mb-3"><i class="bi bi-info-circle me-2"></i>All Plans Include:</h4>
+        <div class="row">
+          <div class="col-md-4">
+            <ul class="list-unstyled">
+              <li><i class="bi bi-check2 text-success me-2"></i>Secure video consultations</li>
+              <li><i class="bi bi-check2 text-success me-2"></i>24/7 access to healthcare</li>
+            </ul>
+          </div>
+          <div class="col-md-4">
+            <ul class="list-unstyled">
+              <li><i class="bi bi-check2 text-success me-2"></i>Prescription management</li>
+              <li><i class="bi bi-check2 text-success me-2"></i>Health records storage</li>
+            </ul>
+          </div>
+          <div class="col-md-4">
+            <ul class="list-unstyled">
+              <li><i class="bi bi-check2 text-success me-2"></i>Mobile app access</li>
+              <li><i class="bi bi-check2 text-success me-2"></i>HIPAA compliant</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

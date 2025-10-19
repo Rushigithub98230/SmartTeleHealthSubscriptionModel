@@ -1,0 +1,134 @@
+/* Global Styles for SmartTelehealth Application */
+/* Bootstrap is imported via angular.json */
+
+/* Custom CSS Variables */
+:root {
+  /* Primary Colors (Healthcare Blue) */
+  --primary-50: #E3F2FD;
+  --primary-100: #BBDEFB;
+  --primary-500: #2196F3;
+  --primary-700: #1976D2;
+  --primary-900: #0D47A1;
+  
+  /* Success (Green) */
+  --success-500: #4CAF50;
+  
+  /* Warning (Orange) */
+  --warning-500: #FF9800;
+  
+  /* Danger (Red) */
+  --danger-500: #F44336;
+  
+  /* Neutral (Gray) */
+  --gray-50: #FAFAFA;
+  --gray-100: #F5F5F5;
+  --gray-500: #9E9E9E;
+  --gray-900: #212121;
+}
+
+/* Global Resets */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--gray-900);
+  background-color: var(--gray-50);
+}
+
+/* Custom Bootstrap Overrides */
+.btn-primary {
+  background-color: var(--primary-500);
+  border-color: var(--primary-500);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-700);
+  border-color: var(--primary-700);
+}
+
+/* Status Badge Colors */
+.badge.bg-active {
+  background-color: var(--success-500) !important;
+}
+
+.badge.bg-pending {
+  background-color: var(--primary-500) !important;
+}
+
+.badge.bg-paused {
+  background-color: var(--warning-500) !important;
+}
+
+.badge.bg-cancelled,
+.badge.bg-expired {
+  background-color: var(--gray-500) !important;
+}
+
+.badge.bg-payment-failed,
+.badge.bg-suspended {
+  background-color: var(--danger-500) !important;
+}
+
+/* Card Shadows */
+.card {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: none;
+  border-radius: 8px;
+}
+
+.card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Progress Bar Styling */
+.progress {
+  border-radius: 10px;
+  background-color: var(--gray-100);
+}
+
+.progress-bar {
+  border-radius: 10px;
+}
+
+/* Stepper Styling */
+.bs-stepper-header {
+  padding: 20px 0;
+}
+
+.bs-stepper-circle {
+  background-color: var(--gray-500);
+  color: white;
+}
+
+.step.active .bs-stepper-circle {
+  background-color: var(--primary-500);
+}
+
+/* Utility Classes */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.text-truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Responsive Utilities */
+@media (max-width: 767px) {
+  .container {
+    padding: 15px;
+  }
+  
+  .card {
+    margin-bottom: 15px;
+  }
+}

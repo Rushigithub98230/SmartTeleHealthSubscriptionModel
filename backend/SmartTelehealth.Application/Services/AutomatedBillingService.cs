@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Enums;
@@ -378,7 +379,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             {
                 "monthly" => CalculateMonthlyProration(subscription, effectiveDate, subscription.CurrentPrice),
                 "quarterly" => CalculateQuarterlyProration(subscription, effectiveDate, subscription.CurrentPrice),
-                "yearly" => CalculateYearlyProration(subscription, effectiveDate, subscription.CurrentPrice),
+                "annual" => CalculateAnnualProration(subscription, effectiveDate, subscription.CurrentPrice),  // ONLY "annual"
                 "weekly" => CalculateWeeklyProration(subscription, effectiveDate, subscription.CurrentPrice),
                 "daily" => CalculateDailyProration(subscription, effectiveDate, subscription.CurrentPrice),
                 _ => CalculateMonthlyProration(subscription, effectiveDate, subscription.CurrentPrice)
@@ -485,7 +486,11 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// Calculates yearly proration based on effective date and amount
     /// Enhanced to handle leap years and proper rounding
     /// </summary>
-    private decimal CalculateYearlyProration(Subscription subscription, DateTime effectiveDate, decimal amount)
+    /// <summary>
+    /// Calculates annual proration (renamed from CalculateYearlyProration for consistency).
+    /// STANDARDIZED: Uses "annual" term to match database naming.
+    /// </summary>
+    private decimal CalculateAnnualProration(Subscription subscription, DateTime effectiveDate, decimal amount)
     {
         try
         {
@@ -584,10 +589,10 @@ public class AutomatedBillingService : IAutomatedBillingService
             var monthsInCycle = billingCycleDays / 30.0m;
             var expectedPrice = monthlyPrice * monthsInCycle;
             
-            // Apply discount
+            // Apply discount (STANDARDIZED: only "annual")
             var discountPercent = subscription.BillingCycle.Name.ToLower() switch
             {
-                "annual" or "yearly" => plan.AnnualBillingDiscount,
+                "annual" => plan.AnnualBillingDiscount,          // ONLY "annual" (database standard)
                 "quarterly" => plan.QuarterlyBillingDiscount,
                 "monthly" => plan.MonthlyBillingDiscount,
                 _ => 0m
@@ -964,35 +969,55 @@ public class AutomatedBillingService : IAutomatedBillingService
     }
     
     /// <summary>
-    /// Calculates billing cycle discount based on plan configuration
+    /// Calculates billing cycle discount based on plan configuration.
+    /// DEPRECATED: Use BillingCycleCalculator.CalculateBillingCycleDiscount() instead.
+    /// Kept for backward compatibility during transition.
     /// </summary>
+    [Obsolete("Use BillingCycleCalculator.CalculateBillingCycleDiscount() instead")]
     private decimal CalculateBillingCycleDiscount(SubscriptionPlan plan, MasterBillingCycle billingCycle, decimal basePrice)
     {
-        var discountPercent = billingCycle.Name.ToLower() switch
-        {
-            "annual" or "yearly" => plan.AnnualBillingDiscount,
-            "quarterly" => plan.QuarterlyBillingDiscount,
-            "monthly" => plan.MonthlyBillingDiscount,
-            _ => 0m
-        };
-        
-        return basePrice * (discountPercent / 100);
+        // Delegate to centralized calculator
+        return BillingCycleCalculator.CalculateBillingCycleDiscount(plan, billingCycle, basePrice);
     }
 
     /// <summary>
-    /// Calculates the renewal amount for a subscription
+    /// Calculates the renewal amount for a subscription.
+    /// REFACTORED: Now uses centralized BillingCycleCalculator for consistency.
     /// </summary>
     private async Task<decimal> CalculateRenewalAmountAsync(Subscription subscription, TokenModel tokenModel)
     {
         try
         {
-            // For renewals, use the current plan price
-            var renewalAmount = subscription.SubscriptionPlan?.Price ?? subscription.CurrentPrice;
+            var plan = subscription.SubscriptionPlan;
+            if (plan == null)
+            {
+                _logger.LogWarning("Subscription {SubscriptionId} has no plan, using CurrentPrice", subscription.Id);
+                return subscription.CurrentPrice;
+            }
             
-            // Apply any renewal discounts
+            // Use centralized calculator for price scaling
+            var basePrice = BillingCycleCalculator.ScalePriceToBillingCycle(plan.Price, subscription.BillingCycle);
+            
+            _logger.LogInformation("Renewal calculation for subscription {SubscriptionId}: " +
+                "MonthlyPrice=${MonthlyPrice}, Cycle={Cycle}, BasePrice=${BasePrice}",
+                subscription.Id, plan.Price, subscription.BillingCycle.Name, basePrice);
+            
+            // Use centralized calculator for billing cycle discount
+            var billingCycleDiscount = BillingCycleCalculator.CalculateBillingCycleDiscount(
+                plan, subscription.BillingCycle, basePrice);
+            
+            // Apply renewal-specific discounts (loyalty, promotional, etc.)
             var renewalDiscount = await CalculateRenewalDiscountAsync(subscription, tokenModel);
             
-            return Math.Max(renewalAmount - renewalDiscount, 0.01m);
+            // Calculate final renewal amount
+            var finalAmount = basePrice - billingCycleDiscount - renewalDiscount;
+            
+            _logger.LogInformation("Renewal amount calculated for subscription {SubscriptionId}: " +
+                "BasePrice=${BasePrice}, BillingCycleDiscount=${BCDiscount}, " +
+                "RenewalDiscount=${RenewalDiscount}, Final=${Final}",
+                subscription.Id, basePrice, billingCycleDiscount, renewalDiscount, finalAmount);
+            
+            return Math.Max(finalAmount, 0.01m);
         }
         catch (Exception ex)
         {
@@ -1195,10 +1220,18 @@ public class AutomatedBillingService : IAutomatedBillingService
             subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            // Extend subscription end date
-            if (subscription.EndDate.HasValue)
+            // REFACTORED: Extend subscription end date using centralized calculator
+            if (subscription.EndDate.HasValue && subscription.BillingCycle != null)
             {
-                subscription.EndDate = subscription.EndDate.Value.AddMonths(1); // Assuming monthly billing
+                var oldEndDate = subscription.EndDate.Value;
+                
+                // Use centralized calculator for consistency
+                subscription.EndDate = BillingCycleCalculator.ExtendByBillingCycle(
+                    subscription.EndDate.Value, 
+                    subscription.BillingCycle);
+                
+                _logger.LogInformation("Extended subscription {SubscriptionId} EndDate by {Cycle}: {OldDate:yyyy-MM-dd} → {NewDate:yyyy-MM-dd}",
+                    subscription.Id, subscription.BillingCycle.Name, oldEndDate, subscription.EndDate.Value);
             }
             
             await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
@@ -1331,26 +1364,25 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// <summary>
     /// Calculates the next billing date for a subscription
     /// </summary>
+    /// <summary>
+    /// Calculates the next billing date for a subscription based on billing cycle.
+    /// REFACTORED: Now uses centralized BillingCycleCalculator for consistency.
+    /// </summary>
     private DateTime CalculateNextBillingDate(Subscription subscription)
     {
         try
         {
-            var billingCycle = subscription.BillingCycle;
-            if (billingCycle == null)
-            {
-                // Default to monthly if no billing cycle specified
-                return DateTime.UtcNow.AddMonths(1);
-            }
+            // Use LastBillingDate or StartDate as base to maintain consistent billing schedule
+            var baseDate = subscription.LastBillingDate ?? subscription.StartDate;
 
-            return billingCycle.Name.ToLower() switch
-            {
-                "monthly" => DateTime.UtcNow.AddMonths(1),
-                "quarterly" => DateTime.UtcNow.AddMonths(3),
-                "yearly" => DateTime.UtcNow.AddYears(1),
-                "weekly" => DateTime.UtcNow.AddDays(7),
-                "daily" => DateTime.UtcNow.AddDays(1),
-                _ => DateTime.UtcNow.AddMonths(1)
-            };
+            // Use centralized calculator for consistency
+            var nextDate = BillingCycleCalculator.CalculateNextBillingDate(baseDate, subscription.BillingCycle);
+            
+            _logger.LogDebug("Calculated next billing date for subscription {SubscriptionId}: " +
+                "BaseDate={BaseDate:yyyy-MM-dd}, Cycle={Cycle}, NextDate={NextDate:yyyy-MM-dd}",
+                subscription.Id, baseDate, subscription.BillingCycle?.Name, nextDate);
+            
+            return nextDate;
         }
         catch (Exception ex)
         {
@@ -1543,18 +1575,18 @@ public class AutomatedBillingService : IAutomatedBillingService
 
             foreach (var privilege in planPrivileges)
             {
-                if (!privilege.HasOverageCharges || privilege.MonthlyLimit == null)
+                if (!privilege.HasOverageCharges)
                 {
                     continue; // No overage charges for unlimited privileges or privileges without unit costs
                 }
 
-                // Get actual usage for this privilege (this would need to be implemented with actual usage tracking)
+                // Get actual usage for this privilege
                 var actualUsage = await GetActualUsageForPrivilegeAsync(subscription.Id, privilege.PrivilegeId);
-                var monthlyLimit = privilege.MonthlyLimit.Value;
+                var totalLimit = privilege.Value; // Total privilege limit
 
-                if (actualUsage > monthlyLimit)
+                if (actualUsage > totalLimit)
                 {
-                    var overage = actualUsage - monthlyLimit;
+                    var overage = actualUsage - totalLimit;
                     var unitCost = privilege.UnitCost;
                     var overageCharge = overage * unitCost;
                     totalOverageCharge += overageCharge;

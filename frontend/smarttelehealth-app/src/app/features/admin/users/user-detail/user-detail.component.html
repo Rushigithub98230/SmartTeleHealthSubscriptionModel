@@ -1,0 +1,151 @@
+<!-- Admin User Detail -->
+<div class="container-fluid py-4">
+  <a routerLink="/webadmin/users" class="btn btn-outline-secondary mb-4">
+    <i class="bi bi-arrow-left me-2"></i>Back to Users
+  </a>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="text-center py-5">
+    <div class="spinner-border text-primary"></div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="alert alert-danger">{{error}}</div>
+
+  <!-- User Details -->
+  <div *ngIf="!loading && user" class="row">
+    <div class="col-lg-8">
+      <!-- Personal Info -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Personal Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <strong>Full Name:</strong> {{user.fullName}}
+            </div>
+            <div class="col-md-6">
+              <strong>Email:</strong> {{user.email}}
+              <span class="badge bg-success ms-2" *ngIf="user.isEmailVerified">
+                <i class="bi bi-check"></i> Verified
+              </span>
+            </div>
+            <div class="col-md-6">
+              <strong>Phone:</strong> {{user.phoneNumber || user.phone}}
+            </div>
+            <div class="col-md-6">
+              <strong>Date of Birth:</strong> {{user.dateOfBirth | date:'MMM d, yyyy'}}
+            </div>
+            <div class="col-md-6">
+              <strong>Gender:</strong> {{user.gender}}
+            </div>
+            <div class="col-md-6">
+              <strong>Role:</strong>
+              <span class="badge ms-2" [ngClass]="getRoleBadgeClass(user.role)">
+                {{user.role}}
+              </span>
+            </div>
+          </div>
+
+          <hr class="my-4">
+
+          <div class="row g-3">
+            <div class="col-12">
+              <strong>Address:</strong><br>
+              {{user.address}}<br>
+              {{user.city}}, {{user.state}} {{user.zipCode}}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscriptions -->
+      <div class="card">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Subscription History ({{subscriptions.length}})</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th>Status</th>
+                  <th>Price</th>
+                  <th>Start Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let sub of subscriptions">
+                  <td>{{sub.planName}}</td>
+                  <td><span class="badge bg-success">{{sub.status}}</span></td>
+                  <td>${{sub.currentPrice}}/mo</td>
+                  <td>{{sub.startDate | date:'MMM d, yyyy'}}</td>
+                  <td>
+                    <a [routerLink]="['/webadmin/subscriptions', sub.id]" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h6 class="mb-0">Account Status</h6>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <strong>Status:</strong>
+            <span class="badge ms-2" [ngClass]="user.isActive ? 'bg-success' : 'bg-danger'">
+              {{user.isActive ? 'Active' : 'Inactive'}}
+            </span>
+          </div>
+          <div class="mb-3">
+            <strong>Verified:</strong>
+            <span class="badge ms-2" [ngClass]="user.isVerified ? 'bg-success' : 'bg-warning'">
+              {{user.isVerified ? 'Yes' : 'No'}}
+            </span>
+          </div>
+          <div class="mb-3">
+            <strong>Registered:</strong><br>
+            {{user.createdDate | date:'MMM d, yyyy'}}
+          </div>
+          <div class="mb-3">
+            <strong>Last Login:</strong><br>
+            {{user.lastLoginAt | date:'MMM d, yyyy h:mm a'}}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header bg-white">
+          <h6 class="mb-0">Admin Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <button class="btn btn-primary btn-sm">
+              <i class="bi bi-envelope me-1"></i>Send Email
+            </button>
+            <button class="btn btn-warning btn-sm">
+              <i class="bi bi-ban me-1"></i>Suspend Account
+            </button>
+            <button class="btn btn-success btn-sm">
+              <i class="bi bi-check-circle me-1"></i>Activate Account
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

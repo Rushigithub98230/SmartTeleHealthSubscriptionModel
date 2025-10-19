@@ -3,6 +3,7 @@ using SmartTelehealth.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Application.DTOs;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.DTOs;
 
 namespace SmartTelehealth.Application.Services;
@@ -148,60 +149,7 @@ public class PrivilegeService : IPrivilegeService
     }
 
     // Check time-based limits for a privilege
-    private async Task<bool> CheckTimeBasedLimitsAsync(Guid subscriptionId, SubscriptionPlanPrivilege planPrivilege, int amount)
-    {
-        try
-        {
-            var now = DateTime.UtcNow;
-            var today = now.Date;
-            var weekStart = today.AddDays(-(int)today.DayOfWeek);
-            var monthStart = new DateTime(today.Year, today.Month, 1);
-
-            // Check daily limit
-            if (planPrivilege.DailyLimit.HasValue)
-            {
-                var dailyUsage = await _usageHistoryRepo.GetDailyUsageAsync(subscriptionId, planPrivilege.Id, today);
-                if (dailyUsage + amount > planPrivilege.DailyLimit.Value)
-                {
-                    _logger.LogWarning("Daily limit exceeded for privilege {PrivilegeId} on {Date}. Used: {Used}, Limit: {Limit}, Requested: {Requested}", 
-                        planPrivilege.Id, today, dailyUsage, planPrivilege.DailyLimit.Value, amount);
-                    return false;
-                }
-            }
-
-            // Check weekly limit
-            if (planPrivilege.WeeklyLimit.HasValue)
-            {
-                var weeklyUsage = await _usageHistoryRepo.GetWeeklyUsageAsync(subscriptionId, planPrivilege.Id, weekStart);
-                if (weeklyUsage + amount > planPrivilege.WeeklyLimit.Value)
-                {
-                    _logger.LogWarning("Weekly limit exceeded for privilege {PrivilegeId} for week starting {WeekStart}. Used: {Used}, Limit: {Limit}, Requested: {Requested}", 
-                        planPrivilege.Id, weekStart, weeklyUsage, planPrivilege.WeeklyLimit.Value, amount);
-                    return false;
-                }
-            }
-
-            // Check monthly limit
-            if (planPrivilege.MonthlyLimit.HasValue)
-            {
-                var monthlyUsage = await _usageHistoryRepo.GetMonthlyUsageAsync(subscriptionId, planPrivilege.Id, monthStart);
-                if (monthlyUsage + amount > planPrivilege.MonthlyLimit.Value)
-                {
-                    _logger.LogWarning("Monthly limit exceeded for privilege {PrivilegeId} for month starting {MonthStart}. Used: {Used}, Limit: {Limit}, Requested: {Requested}", 
-                        planPrivilege.Id, monthStart, monthlyUsage, planPrivilege.MonthlyLimit.Value, amount);
-                    return false;
-                }
-            }
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking time-based limits for privilege {PrivilegeId} in subscription {SubscriptionId}", 
-                planPrivilege.Id, subscriptionId);
-            return false;
-        }
-    }
+    // Time-based limit checking method removed - overage now only applies when total AllowedValue is exhausted
 
     /// <summary>
     /// Uses a privilege by incrementing the usage count with comprehensive validation
@@ -243,11 +191,7 @@ public class PrivilegeService : IPrivilegeService
             // Check if privilege is disabled
             if (planPrivilege.Value == 0) return false;
             
-            // Check time-based limits first (daily, weekly, monthly)
-            if (!await CheckTimeBasedLimitsAsync(subscriptionId, planPrivilege, amount))
-            {
-                return false;
-            }
+            // Time-based limits removed - only check total AllowedValue
             
             // Handle unlimited privileges
             if (planPrivilege.Value == -1)
@@ -969,10 +913,8 @@ public class PrivilegeService : IPrivilegeService
             }
 
             // Update the time-based limits
-            planPrivilege.DailyLimit = updateDto.DailyLimit;
-            planPrivilege.WeeklyLimit = updateDto.WeeklyLimit;
-            planPrivilege.MonthlyLimit = updateDto.MonthlyLimit;
-            planPrivilege.UsagePeriodId = updateDto.UsagePeriodId;
+            // Time-based limits removed
+            // planPrivilege.UsagePeriodId = updateDto.UsagePeriodId; // REMOVED - not used
             planPrivilege.DurationMonths = updateDto.DurationMonths;
             planPrivilege.UpdatedBy = token.UserID;
             planPrivilege.UpdatedDate = DateTime.UtcNow;
@@ -987,10 +929,7 @@ public class PrivilegeService : IPrivilegeService
                 data = new
                 {
                     PrivilegeId = updateDto.PrivilegeId,
-                    DailyLimit = updateDto.DailyLimit,
-                    WeeklyLimit = updateDto.WeeklyLimit,
-                    MonthlyLimit = updateDto.MonthlyLimit,
-                    UsagePeriodId = updateDto.UsagePeriodId,
+                    // UsagePeriodId = updateDto.UsagePeriodId, // REMOVED - not used
                     DurationMonths = updateDto.DurationMonths,
                     UpdatedDate = DateTime.UtcNow
                 },
@@ -1102,25 +1041,7 @@ public class PrivilegeService : IPrivilegeService
                 };
             }
 
-            // Check time-based limits first
-            if (!await CheckTimeBasedLimitsAsync(subscriptionId, planPrivilege, requestedAmount))
-            {
-                return new JsonModel
-                {
-                    data = new
-                    {
-                        available = false,
-                        timeLimitExceeded = true,
-                        privilegeName = privilegeName,
-                        dailyLimit = planPrivilege.DailyLimit,
-                        weeklyLimit = planPrivilege.WeeklyLimit,
-                        monthlyLimit = planPrivilege.MonthlyLimit,
-                        message = "Time-based usage limit exceeded. Please wait for the limit to reset."
-                    },
-                    Message = "Time-based usage limit exceeded",
-                    StatusCode = 429 // Too Many Requests
-                };
-            }
+            // Time-based limits removed - only check total AllowedValue below
 
             // Get remaining privilege amount
             var remaining = await GetRemainingPrivilegeAsync(subscriptionId, privilegeName, tokenModel);
@@ -1199,10 +1120,12 @@ public class PrivilegeService : IPrivilegeService
 
     #endregion
     
-    #region Privilege Allocation Calculation (Solution A Implementation)
+    #region Privilege Allocation (Corrected Implementation)
     
     /// <summary>
-    /// Calculates privilege allocation scaled to billing cycle
+    /// Gets privilege allocation using admin-set Value directly (no calculation).
+    /// CORRECTED: The Value field contains the total privilege count set by admin.
+    /// Monthly/Weekly/Daily limits are optional rate limiters checked separately.
     /// </summary>
     private async Task<(int allowedValue, DateTime periodStart, DateTime periodEnd)> CalculatePrivilegeAllocationAsync(
         Guid subscriptionId, 
@@ -1212,21 +1135,16 @@ public class PrivilegeService : IPrivilegeService
         if (subscription == null)
             throw new InvalidOperationException($"Subscription {subscriptionId} not found");
         
-        var billingCycleDays = subscription.BillingCycle.DurationInDays;
-        var monthsInCycle = billingCycleDays / 30.0m;
+        // CORRECTED: Use centralized calculator (now returns Value directly without calculation)
+        var (allowedValue, periodStart, periodEnd) = PrivilegeAllocationCalculator.CalculatePrivilegeAllocation(
+            subscription, 
+            planPrivilege);
         
-        // Calculate allowed value for billing cycle
-        var monthlyLimit = planPrivilege.MonthlyLimit ?? planPrivilege.Value;
-        var allowedForCycle = monthlyLimit == -1 ? -1 : (int)Math.Ceiling(monthlyLimit * monthsInCycle);
+        _logger.LogDebug("Retrieved privilege allocation for subscription {SubscriptionId}: " +
+            "AllowedValue={AllowedValue} (admin-set total), Period={Start:yyyy-MM-dd} to {End:yyyy-MM-dd}",
+            subscriptionId, allowedValue, periodStart, periodEnd);
         
-        // Set period to match billing cycle
-        var periodStart = subscription.LastBillingDate?.AddDays(1) ?? subscription.StartDate;
-        var periodEnd = subscription.NextBillingDate;
-        
-        _logger.LogDebug("Calculated privilege allocation for subscription {SubscriptionId}: MonthlyLimit={MonthlyLimit}, Months={Months}, AllowedForCycle={AllowedForCycle}",
-            subscriptionId, monthlyLimit, monthsInCycle, allowedForCycle);
-        
-        return (allowedForCycle, periodStart, periodEnd);
+        return (allowedValue, periodStart, periodEnd);
     }
     
     #endregion

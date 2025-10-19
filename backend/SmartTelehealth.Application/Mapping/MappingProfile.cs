@@ -370,28 +370,24 @@ public class MappingProfile : Profile
         CreateMap<SubscriptionPlanPrivilege, PlanPrivilegeDto>()
             .ForMember(dest => dest.PrivilegeId, opt => opt.MapFrom(src => src.PrivilegeId))
             .ForMember(dest => dest.Value, opt => opt.MapFrom(src => src.Value))
-            .ForMember(dest => dest.UsagePeriodId, opt => opt.MapFrom(src => src.UsagePeriodId))
+            // .ForMember(dest => dest.UsagePeriodId, opt => opt.MapFrom(src => src.UsagePeriodId)) // REMOVED - not used
             .ForMember(dest => dest.DurationMonths, opt => opt.MapFrom(src => src.DurationMonths))
             .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
             .ForMember(dest => dest.EffectiveDate, opt => opt.MapFrom(src => src.EffectiveDate))
             .ForMember(dest => dest.ExpirationDate, opt => opt.MapFrom(src => src.ExpirationDate))
-            .ForMember(dest => dest.DailyLimit, opt => opt.MapFrom(src => src.DailyLimit))
-            .ForMember(dest => dest.WeeklyLimit, opt => opt.MapFrom(src => src.WeeklyLimit))
-            .ForMember(dest => dest.MonthlyLimit, opt => opt.MapFrom(src => src.MonthlyLimit))
+            // Time-based limits removed
             .ForMember(dest => dest.UnitCost, opt => opt.MapFrom(src => src.UnitCost));
 
         CreateMap<PlanPrivilegeDto, SubscriptionPlanPrivilege>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.NewGuid()))
             .ForMember(dest => dest.PrivilegeId, opt => opt.MapFrom(src => src.PrivilegeId))
             .ForMember(dest => dest.Value, opt => opt.MapFrom(src => src.Value))
-            .ForMember(dest => dest.UsagePeriodId, opt => opt.MapFrom(src => src.UsagePeriodId))
+            // .ForMember(dest => dest.UsagePeriodId, opt => opt.MapFrom(src => src.UsagePeriodId)) // REMOVED - not used
             .ForMember(dest => dest.DurationMonths, opt => opt.MapFrom(src => src.DurationMonths))
             .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.Description))
             .ForMember(dest => dest.EffectiveDate, opt => opt.MapFrom(src => src.EffectiveDate))
             .ForMember(dest => dest.ExpirationDate, opt => opt.MapFrom(src => src.ExpirationDate))
-            .ForMember(dest => dest.DailyLimit, opt => opt.MapFrom(src => src.DailyLimit))
-            .ForMember(dest => dest.WeeklyLimit, opt => opt.MapFrom(src => src.WeeklyLimit))
-            .ForMember(dest => dest.MonthlyLimit, opt => opt.MapFrom(src => src.MonthlyLimit))
+            // Time-based limits removed
             .ForMember(dest => dest.UnitCost, opt => opt.MapFrom(src => src.UnitCost))
             .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => DateTime.UtcNow))
             .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => DateTime.UtcNow));
@@ -597,12 +593,10 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(src => src.CreatedDate))
             .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(src => src.UpdatedDate));
 
-        // UpdateTimeBasedLimitsDto mapping
+        // UpdateTimeBasedLimitsDto mapping (time-based limits removed)
         CreateMap<UpdateTimeBasedLimitsDto, SubscriptionPlanPrivilege>()
-            .ForMember(dest => dest.DailyLimit, opt => opt.MapFrom(src => src.DailyLimit))
-            .ForMember(dest => dest.WeeklyLimit, opt => opt.MapFrom(src => src.WeeklyLimit))
-            .ForMember(dest => dest.MonthlyLimit, opt => opt.MapFrom(src => src.MonthlyLimit))
-            .ForMember(dest => dest.UsagePeriodId, opt => opt.MapFrom(src => src.UsagePeriodId))
+            // Time-based limits removed
+            // .ForMember(dest => dest.UsagePeriodId, opt => opt.MapFrom(src => src.UsagePeriodId)) // REMOVED - not used
             .ForMember(dest => dest.DurationMonths, opt => opt.MapFrom(src => src.DurationMonths));
 
     }

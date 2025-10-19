@@ -1,0 +1,150 @@
+<!-- Plan Detail Page -->
+<div class="plan-detail-page">
+  <!-- Back Button -->
+  <div class="container mt-4">
+    <a routerLink="/plans" class="btn btn-outline-secondary mb-4">
+      <i class="bi bi-arrow-left me-2"></i>Back to Plans
+    </a>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="container text-center py-5">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+    <p class="mt-3">Loading plan details...</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="container">
+    <div class="alert alert-danger">{{error}}</div>
+  </div>
+
+  <!-- Plan Details -->
+  <div *ngIf="!loading && !error && plan" class="container">
+    <!-- Plan Header -->
+    <div class="row mb-5">
+      <div class="col-lg-8">
+        <div class="plan-header">
+          <span class="badge bg-primary mb-3" *ngIf="plan.isMostPopular">
+            <i class="bi bi-star-fill"></i> MOST POPULAR
+          </span>
+          <h1 class="display-4 fw-bold">{{plan.name}}</h1>
+          <p class="lead text-muted">{{plan.description}}</p>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card price-card sticky-top" style="top: 20px;">
+          <div class="card-body text-center">
+            <h2 class="price-amount text-primary mb-1">
+              ${{getCalculatedPrice() | number:'1.2-2'}}
+            </h2>
+            <p class="text-muted mb-4">
+              for {{billingCycles[selectedCycleIndex].months}} 
+              {{billingCycles[selectedCycleIndex].months === 1 ? 'month' : 'months'}}
+            </p>
+
+            <!-- Billing Cycle Selection -->
+            <div class="btn-group-vertical w-100 mb-4">
+              <button 
+                *ngFor="let cycle of billingCycles; let i = index"
+                class="btn text-start"
+                [ngClass]="selectedCycleIndex === i ? 'btn-primary' : 'btn-outline-primary'"
+                (click)="selectCycle(i)">
+                <div class="d-flex justify-content-between">
+                  <span>{{cycle.name}}</span>
+                  <span *ngIf="cycle.discount > 0" class="badge bg-success">
+                    {{cycle.discount}}% off
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            <button class="btn btn-success btn-lg w-100 mb-3" (click)="purchasePlan()">
+              <i class="bi bi-cart-plus me-2"></i>Subscribe Now
+            </button>
+
+            <p class="text-muted small mb-0" *ngIf="plan.isTrialAllowed">
+              <i class="bi bi-gift me-1"></i>
+              {{plan.trialDurationInDays}} days free trial available
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h4 class="mb-0">
+              <i class="bi bi-star me-2"></i>What's Included
+            </h4>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6" *ngFor="let privilege of plan.planPrivileges">
+                <div class="privilege-item mb-3">
+                  <i class="bi bi-check-circle-fill text-success me-2"></i>
+                  <strong *ngIf="privilege.value !== -1">{{privilege.value}}</strong>
+                  <strong *ngIf="privilege.value === -1">Unlimited</strong>
+                  Privilege Access
+                  <br>
+                  <small class="text-muted ms-4">Monthly limit: {{privilege.monthlyLimit}}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Plan Details -->
+        <div class="card">
+          <div class="card-header bg-white">
+            <h4 class="mb-0">
+              <i class="bi bi-info-circle me-2"></i>Plan Details
+            </h4>
+          </div>
+          <div class="card-body">
+            <div class="row g-4">
+              <div class="col-md-6">
+                <h6>Billing Information</h6>
+                <ul class="list-unstyled">
+                  <li class="mb-2">
+                    <i class="bi bi-cash me-2 text-primary"></i>
+                    Monthly: ${{plan.price | number:'1.2-2'}}
+                  </li>
+                  <li class="mb-2" *ngIf="plan.quarterlyBillingDiscount">
+                    <i class="bi bi-percent me-2 text-success"></i>
+                    Quarterly discount: {{plan.quarterlyBillingDiscount}}%
+                  </li>
+                  <li class="mb-2" *ngIf="plan.annualBillingDiscount">
+                    <i class="bi bi-percent me-2 text-success"></i>
+                    Annual discount: {{plan.annualBillingDiscount}}%
+                  </li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <h6>Plan Features</h6>
+                <ul class="list-unstyled">
+                  <li class="mb-2" *ngIf="plan.isTrialAllowed">
+                    <i class="bi bi-gift me-2 text-info"></i>
+                    {{plan.trialDurationInDays}} days free trial
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-arrow-repeat me-2 text-primary"></i>
+                    Auto-renewal available
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-shield-check me-2 text-success"></i>
+                    Secure payment processing
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

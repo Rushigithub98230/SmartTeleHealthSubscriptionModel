@@ -1,0 +1,303 @@
+<!-- User Dashboard -->
+<div class="dashboard-page">
+  <!-- Header -->
+  <div class="dashboard-header bg-primary text-white py-4 mb-4">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h2 class="mb-0">
+            <i class="bi bi-speedometer2"></i>
+            Welcome back, {{currentUser?.firstName}}!
+          </h2>
+          <p class="mb-0 mt-2 opacity-75">Here's your healthcare overview</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+          <a routerLink="/plans" class="btn btn-light">
+            <i class="bi bi-plus-circle me-2"></i>Browse Plans
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Quick Stats Row -->
+    <div class="row g-4 mb-4">
+      <!-- Active Subscriptions -->
+      <div class="col-md-4">
+        <div class="card stat-card h-100">
+          <div class="card-body text-center">
+            <div class="stat-icon bg-success bg-opacity-10 text-success mb-3">
+              <i class="bi bi-check-circle-fill fs-1"></i>
+            </div>
+            <h3 class="mb-0">{{subscriptions.length}}</h3>
+            <p class="text-muted mb-0">Active Subscriptions</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Next Billing Date -->
+      <div class="col-md-4">
+        <div class="card stat-card h-100">
+          <div class="card-body text-center">
+            <div class="stat-icon bg-primary bg-opacity-10 text-primary mb-3">
+              <i class="bi bi-calendar-event fs-1"></i>
+            </div>
+            <h5 class="mb-0" *ngIf="activeSubscription">
+              {{activeSubscription.nextBillingDate | date:'MMM d, y'}}
+            </h5>
+            <h5 class="mb-0" *ngIf="!activeSubscription">-</h5>
+            <p class="text-muted mb-0">Next Billing</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending Bills -->
+      <div class="col-md-4">
+        <div class="card stat-card h-100">
+          <div class="card-body text-center">
+            <div class="stat-icon bg-warning bg-opacity-10 text-warning mb-3">
+              <i class="bi bi-currency-dollar fs-1"></i>
+            </div>
+            <h3 class="mb-0">
+              {{getPendingBillingCount()}}
+            </h3>
+            <p class="text-muted mb-0">Pending Payments</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row g-4">
+      <!-- Left Column: Subscriptions & Privileges -->
+      <div class="col-lg-8">
+        <!-- Active Subscription Card -->
+        <div class="card mb-4 subscription-card">
+          <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                <i class="bi bi-card-checklist me-2"></i>Active Subscription
+              </h5>
+              <a routerLink="/web/subscriptions" class="btn btn-sm btn-outline-primary">
+                View All
+              </a>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- Loading State -->
+            <div *ngIf="loading.subscriptions" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+              <p class="mt-2 text-muted">Loading subscriptions...</p>
+            </div>
+
+            <!-- No Subscription -->
+            <div *ngIf="!loading.subscriptions && !activeSubscription" class="text-center py-4">
+              <i class="bi bi-inbox fs-1 text-muted"></i>
+              <p class="text-muted mt-2">No active subscription</p>
+              <a routerLink="/plans" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-2"></i>Subscribe to a Plan
+              </a>
+            </div>
+
+            <!-- Active Subscription Details -->
+            <div *ngIf="!loading.subscriptions && activeSubscription">
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <h4 class="mb-1">{{activeSubscription.planName}}</h4>
+                  <p class="text-muted mb-0">{{activeSubscription.planDescription}}</p>
+                </div>
+                <span class="badge" [ngClass]="getStatusBadgeClass(activeSubscription.status)">
+                  {{activeSubscription.status}}
+                </span>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <small class="text-muted d-block">Current Price</small>
+                  <strong class="fs-5">${{activeSubscription.currentPrice | number:'1.2-2'}}/month</strong>
+                </div>
+                <div class="col-md-6">
+                  <small class="text-muted d-block">Next Billing</small>
+                  <strong>{{activeSubscription.nextBillingDate | date:'MMM d, yyyy'}}</strong>
+                </div>
+                <div class="col-md-6">
+                  <small class="text-muted d-block">Auto Renew</small>
+                  <span class="badge" [ngClass]="activeSubscription.autoRenew ? 'bg-success' : 'bg-secondary'">
+                    {{activeSubscription.autoRenew ? 'Enabled' : 'Disabled'}}
+                  </span>
+                </div>
+                <div class="col-md-6">
+                  <small class="text-muted d-block">Start Date</small>
+                  <strong>{{activeSubscription.startDate | date:'MMM d, yyyy'}}</strong>
+                </div>
+              </div>
+
+              <hr class="my-3">
+
+              <div class="d-flex gap-2">
+                <a [routerLink]="['/web/subscriptions', activeSubscription.id]" class="btn btn-primary btn-sm">
+                  <i class="bi bi-gear me-1"></i>Manage
+                </a>
+                <a routerLink="/web/privileges" class="btn btn-outline-primary btn-sm">
+                  <i class="bi bi-activity me-1"></i>Usage
+                </a>
+                <a routerLink="/web/billing" class="btn btn-outline-secondary btn-sm">
+                  <i class="bi bi-receipt me-1"></i>Billing
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Privilege Usage Card -->
+        <div class="card privilege-card">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-activity me-2"></i>Privilege Usage
+            </h5>
+          </div>
+          <div class="card-body">
+            <!-- Loading State -->
+            <div *ngIf="loading.privileges" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+              <p class="mt-2 text-muted">Loading usage...</p>
+            </div>
+
+            <!-- No Active Subscription -->
+            <div *ngIf="!loading.privileges && !activeSubscription" class="text-center py-4">
+              <i class="bi bi-info-circle fs-1 text-muted"></i>
+              <p class="text-muted mt-2">Subscribe to a plan to track usage</p>
+            </div>
+
+            <!-- Privilege Usage Bars -->
+            <div *ngIf="!loading.privileges && privilegeUsage && privilegeUsage.privileges.length > 0">
+              <div class="privilege-item mb-4" *ngFor="let priv of privilegeUsage.privileges">
+                <div class="d-flex justify-content-between mb-2">
+                  <div>
+                    <strong>{{priv.privilegeName}}</strong>
+                    <span class="text-muted" *ngIf="priv.isUnlimited"> (Unlimited)</span>
+                  </div>
+                  <div>
+                    <span class="badge bg-primary" *ngIf="!priv.isUnlimited">
+                      {{priv.usedValue}} / {{priv.allowedValue}}
+                    </span>
+                    <span class="badge bg-success" *ngIf="priv.isUnlimited">
+                      Unlimited
+                    </span>
+                  </div>
+                </div>
+                
+                <div *ngIf="!priv.isUnlimited">
+                  <div class="progress" style="height: 10px;">
+                    <div 
+                      class="progress-bar" 
+                      [ngClass]="getProgressBarClass(getUsagePercentage(priv.usedValue, priv.allowedValue))"
+                      [style.width.%]="getUsagePercentage(priv.usedValue, priv.allowedValue)">
+                    </div>
+                  </div>
+                  <small class="text-muted">
+                    {{getUsagePercentage(priv.usedValue, priv.allowedValue)}}% used
+                    <span *ngIf="priv.remainingValue > 0">
+                      • {{priv.remainingValue}} remaining
+                    </span>
+                    <span *ngIf="priv.isExhausted" class="text-danger">
+                      • Exhausted
+                    </span>
+                  </small>
+                </div>
+              </div>
+
+              <div class="text-end mt-3">
+                <a routerLink="/web/privileges" class="btn btn-outline-primary btn-sm">
+                  <i class="bi bi-eye me-1"></i>View Detailed Usage
+                </a>
+              </div>
+            </div>
+
+            <!-- No Privileges -->
+            <div *ngIf="!loading.privileges && privilegeUsage && privilegeUsage.privileges.length === 0" class="text-center py-4">
+              <i class="bi bi-inbox fs-1 text-muted"></i>
+              <p class="text-muted mt-2">No privileges configured</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Recent Billing -->
+      <div class="col-lg-4">
+        <div class="card billing-card">
+          <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                <i class="bi bi-receipt me-2"></i>Recent Billing
+              </h5>
+              <a routerLink="/web/billing" class="btn btn-sm btn-outline-primary">
+                View All
+              </a>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <!-- Loading State -->
+            <div *ngIf="loading.billing" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+            </div>
+
+            <!-- Billing Records -->
+            <div *ngIf="!loading.billing && recentBilling.length > 0" class="list-group list-group-flush">
+              <div 
+                class="list-group-item" 
+                *ngFor="let bill of recentBilling">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                      <strong>{{bill.type}}</strong>
+                      <span class="badge badge-sm" [ngClass]="getBillingStatusClass(bill.status)">
+                        {{bill.status}}
+                      </span>
+                    </div>
+                    <small class="text-muted d-block">
+                      {{bill.billingDate | date:'MMM d, yyyy'}}
+                    </small>
+                    <div class="mt-2">
+                      <strong class="text-primary">${{bill.totalAmount | number:'1.2-2'}}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- No Billing Records -->
+            <div *ngIf="!loading.billing && recentBilling.length === 0" class="text-center py-4">
+              <i class="bi bi-inbox fs-1 text-muted"></i>
+              <p class="text-muted mt-2 mb-0">No billing records</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions Card -->
+        <div class="card mt-4">
+          <div class="card-header bg-white">
+            <h6 class="mb-0">
+              <i class="bi bi-lightning me-2"></i>Quick Actions
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="d-grid gap-2">
+              <a routerLink="/plans" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-plus-circle me-2"></i>Subscribe to Plan
+              </a>
+              <a routerLink="/web/payment-methods" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-credit-card me-2"></i>Payment Methods
+              </a>
+              <a routerLink="/web/profile" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-person me-2"></i>Edit Profile
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

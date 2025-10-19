@@ -1,0 +1,45 @@
+// Login Component Styles
+
+.login-page {
+  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+}
+
+.card {
+  border: none;
+  border-radius: 15px;
+}
+
+.btn-primary {
+  padding: 12px;
+  font-size: 1.1rem;
+  border-radius: 8px;
+}
+
+.form-control, .input-group-text {
+  border-radius: 8px;
+}
+
+.input-group {
+  .input-group-text {
+    background-color: white;
+    border-right: none;
+  }
+  
+  .form-control {
+    border-left: none;
+    
+    &:focus {
+      border-left: none;
+      box-shadow: none;
+    }
+  }
+}
+
+// Responsive
+@media (max-width: 767px) {
+  .card-body {
+    padding: 2rem 1.5rem !important;
+  }
+}
+
+

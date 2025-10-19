@@ -1,0 +1,131 @@
+// Admin Dashboard Styles
+
+.dashboard-header {
+  background: linear-gradient(135deg, #1976D2 0%, #2196F3 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.kpi-card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .card-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .card-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  .card-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.stat-card-primary {
+  border-left: 4px solid #2196F3;
+}
+
+.stat-card-success {
+  border-left: 4px solid #4CAF50;
+}
+
+.stat-card-info {
+  border-left: 4px solid #00BCD4;
+}
+
+.stat-card-warning {
+  border-left: 4px solid #FF9800;
+}
+
+.quick-action-card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  color: inherit;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    text-decoration: none;
+  }
+
+  .card-body {
+    padding: 2rem 1rem;
+  }
+}
+
+.card {
+  .card-header {
+    background-color: white;
+    border-bottom: 2px solid #f0f0f0;
+  }
+}
+
+.list-group-item {
+  border-left: none;
+  border-right: none;
+  
+  &:first-child {
+    border-top: none;
+  }
+}
+
+.progress {
+  border-radius: 10px;
+  background-color: #e9ecef;
+}
+
+.progress-bar {
+  border-radius: 10px;
+}
+
+// Responsive
+@media (max-width: 767px) {
+  .dashboard-header {
+    .btn {
+      display: block;
+      width: 100%;
+      margin: 0.5rem 0;
+    }
+  }
+
+  .kpi-card {
+    margin-bottom: 1rem;
+
+    .card-value {
+      font-size: 2rem;
+    }
+
+    .card-icon {
+      width: 50px;
+      height: 50px;
+
+      i {
+        font-size: 1.5rem !important;
+      }
+    }
+  }
+
+  .quick-action-card {
+    margin-bottom: 1rem;
+  }
+}
+
+

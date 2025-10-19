@@ -28,11 +28,11 @@ public static class BillingCycleValidator
         // Allow common combinations
         return billingCycle.Name.ToLower() switch
         {
-            "monthly" => true,
-            "quarterly" => true,
-            "annual" or "yearly" => true,
-            "weekly" => planMonthlyPrice <= 100, // Only for lower-cost plans
-            "daily" => planMonthlyPrice <= 50,   // Only for very low-cost plans
+            "monthly" => true,                          // Always allowed
+            "quarterly" => true,                        // Always allowed
+            "annual" => true,                           // Always allowed (ONLY "annual" - database standard)
+            "weekly" => planMonthlyPrice <= 100,       // Only for lower-cost plans
+            "daily" => planMonthlyPrice <= 50,         // Only for very low-cost plans
             _ => false
         };
     }

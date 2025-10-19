@@ -1,0 +1,26 @@
+// Footer Component Styles
+
+.footer {
+  background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+  
+  a {
+    transition: all 0.3s ease;
+
+    &:hover {
+      color: white !important;
+      transform: translateX(5px);
+      display: inline-block;
+    }
+  }
+
+  .social-links a:hover {
+    transform: scale(1.2);
+  }
+
+  h5, h6 {
+    color: white;
+    font-weight: 600;
+  }
+}
+
+

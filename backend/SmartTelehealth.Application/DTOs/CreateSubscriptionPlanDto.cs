@@ -123,6 +123,34 @@ public class CreateSubscriptionPlanDto
     /// </summary>
     [Range(7, 365, ErrorMessage = "Notice period must be between 7 and 365 days")]
     public int PriceChangeNoticeDays { get; set; } = 10; // Healthcare default
+    
+    // ═══════════════════════════════════════════════════════════
+    // BILLING CYCLE DISCOUNTS (Solution A Implementation)
+    // ═══════════════════════════════════════════════════════════
+    
+    /// <summary>
+    /// Discount percentage applied when user selects monthly billing cycle.
+    /// Value between 0 and 100 representing percentage discount.
+    /// Example: 0 = no discount, 5 = 5% off monthly billing.
+    /// </summary>
+    [Range(0, 100, ErrorMessage = "Monthly discount must be between 0 and 100%")]
+    public decimal MonthlyBillingDiscount { get; set; } = 0m;
+    
+    /// <summary>
+    /// Discount percentage applied when user selects quarterly billing cycle.
+    /// Value between 0 and 100 representing percentage discount.
+    /// Example: 2 = 2% off quarterly billing, 5 = 5% off.
+    /// </summary>
+    [Range(0, 100, ErrorMessage = "Quarterly discount must be between 0 and 100%")]
+    public decimal QuarterlyBillingDiscount { get; set; } = 0m;
+    
+    /// <summary>
+    /// Discount percentage applied when user selects annual billing cycle.
+    /// Value between 0 and 100 representing percentage discount.
+    /// Example: 8.33 = 8.33% off (equivalent to 1 month free), 10 = 10% off.
+    /// </summary>
+    [Range(0, 100, ErrorMessage = "Annual discount must be between 0 and 100%")]
+    public decimal AnnualBillingDiscount { get; set; } = 0m;
 }
 
 /// <summary>
@@ -138,8 +166,9 @@ public class PlanPrivilegeDto
     [Range(-1, int.MaxValue, ErrorMessage = "Value must be -1 (unlimited), 0 (disabled), or positive number")]
     public int Value { get; set; } // -1 for unlimited, 0 for disabled, >0 for limited
     
-    [Required]
-    public Guid UsagePeriodId { get; set; }
+    // REMOVED: Not used in business logic - privileges reset based on subscription billing cycle
+    // [Required]
+    // public Guid UsagePeriodId { get; set; }
     
     public int DurationMonths { get; set; } = 1;
     
@@ -150,16 +179,6 @@ public class PlanPrivilegeDto
     
     [CustomValidation(typeof(PlanPrivilegeDto), nameof(ValidateExpirationDate))]
     public DateTime? ExpirationDate { get; set; }
-    
-    // Time-based limits
-    [Range(0, int.MaxValue, ErrorMessage = "Daily limit must be 0 or positive")]
-    public int? DailyLimit { get; set; }        // Max per day (null = no limit)
-    
-    [Range(0, int.MaxValue, ErrorMessage = "Weekly limit must be 0 or positive")]
-    public int? WeeklyLimit { get; set; }       // Max per week (null = no limit)
-    
-    [Range(0, int.MaxValue, ErrorMessage = "Monthly limit must be 0 or positive")]
-    public int? MonthlyLimit { get; set; }      // Max per month (null = no limit)
     
     // ═══════════════════════════════════════════════════════════
     // HEALTHCARE PRICING MODEL

@@ -1,0 +1,85 @@
+<!-- Admin Billing Detail -->
+<div class="container-fluid py-4">
+  <a routerLink="/webadmin/billing" class="btn btn-outline-secondary mb-4">
+    <i class="bi bi-arrow-left me-2"></i>Back to Billing
+  </a>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="text-center py-5">
+    <div class="spinner-border text-primary"></div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="alert alert-danger">{{error}}</div>
+
+  <!-- Billing Details -->
+  <div *ngIf="!loading && billingRecord" class="row">
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between">
+            <h5 class="mb-0">Billing Record Details</h5>
+            <span class="badge" [ngClass]="getStatusBadgeClass(billingRecord.status)">
+              {{billingRecord.status}}
+            </span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <strong>User:</strong> {{billingRecord.userName}} ({{billingRecord.userEmail}})
+            </div>
+            <div class="col-md-6">
+              <strong>Invoice #:</strong> {{billingRecord.invoiceNumber || 'N/A'}}
+            </div>
+            <div class="col-md-6">
+              <strong>Type:</strong> <span class="badge bg-primary">{{billingRecord.type}}</span>
+            </div>
+            <div class="col-md-6">
+              <strong>Billing Date:</strong> {{billingRecord.billingDate | date:'MMM d, yyyy'}}
+            </div>
+            <div class="col-md-6">
+              <strong>Due Date:</strong> {{billingRecord.dueDate | date:'MMM d, yyyy'}}
+            </div>
+            <div class="col-md-6" *ngIf="billingRecord.paidAt">
+              <strong>Paid At:</strong> {{billingRecord.paidAt | date:'MMM d, yyyy h:mm a'}}
+            </div>
+            <div class="col-12">
+              <hr>
+              <h6>Amount Breakdown:</h6>
+              <div class="row">
+                <div class="col-md-4">Base Amount: ${{billingRecord.amount | number:'1.2-2'}}</div>
+                <div class="col-md-4">Tax: ${{billingRecord.taxAmount | number:'1.2-2'}}</div>
+                <div class="col-md-4"><strong>Total: ${{billingRecord.totalAmount | number:'1.2-2'}}</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Actions -->
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header bg-white">
+          <h6 class="mb-0">Admin Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <button class="btn btn-warning btn-sm" (click)="processRefund()" *ngIf="billingRecord.status === 'Paid'">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Process Refund
+            </button>
+            <button class="btn btn-primary btn-sm" (click)="resendInvoice()">
+              <i class="bi bi-envelope me-1"></i>Resend Invoice
+            </button>
+            <a [routerLink]="['/webadmin/users', billingRecord.userId]" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-person me-1"></i>View User
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

@@ -1,0 +1,74 @@
+<!-- Subscription Detail -->
+<div class="container py-4">
+  <a routerLink="/web/subscriptions" class="btn btn-outline-secondary mb-4">
+    <i class="bi bi-arrow-left me-2"></i>Back to Subscriptions
+  </a>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="text-center py-5">
+    <div class="spinner-border text-primary"></div>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="alert alert-danger">{{error}}</div>
+
+  <!-- Subscription Details -->
+  <div *ngIf="!loading && subscription" class="row">
+    <div class="col-lg-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <div class="d-flex justify-content-between">
+            <h4>{{subscription.planName}}</h4>
+            <span class="badge" [ngClass]="getStatusBadgeClass(subscription.status)">
+              {{subscription.status}}
+            </span>
+          </div>
+        </div>
+        <div class="card-body">
+          <p>{{subscription.planDescription}}</p>
+          
+          <div class="row g-3 mt-3">
+            <div class="col-md-6">
+              <strong>Current Price:</strong> ${{subscription.currentPrice | number:'1.2-2'}}/mo
+            </div>
+            <div class="col-md-6">
+              <strong>Next Billing:</strong> {{subscription.nextBillingDate | date:'MMM d, yyyy'}}
+            </div>
+            <div class="col-md-6">
+              <strong>Start Date:</strong> {{subscription.startDate | date:'MMM d, yyyy'}}
+            </div>
+            <div class="col-md-6">
+              <strong>Auto Renew:</strong> {{subscription.autoRenew ? 'Yes' : 'No'}}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0">Actions</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <button *ngIf="subscription.canPause" class="btn btn-warning" 
+                    (click)="pauseSubscription()" [disabled]="actionLoading">
+              <i class="bi bi-pause-circle me-2"></i>Pause
+            </button>
+            <button *ngIf="subscription.canResume" class="btn btn-success" 
+                    (click)="resumeSubscription()" [disabled]="actionLoading">
+              <i class="bi bi-play-circle me-2"></i>Resume
+            </button>
+            <button *ngIf="subscription.canCancel" class="btn btn-danger" 
+                    (click)="cancelSubscription()" [disabled]="actionLoading">
+              <i class="bi bi-x-circle me-2"></i>Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

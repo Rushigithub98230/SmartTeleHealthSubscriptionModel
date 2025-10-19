@@ -59,19 +59,14 @@ public class SubscriptionPlanPrivilege : BaseEntity
     public int Value { get; set; }
     
     /// <summary>
-    /// Foreign key reference to the UsagePeriod that defines how often this privilege can be used.
-    /// Determines the billing cycle for privilege usage limits.
-    /// Required for usage period management and billing.
+    /// REMOVED: UsagePeriodId was not used in business logic.
+    /// Privilege resets are based on subscription's BillingCycle, not a separate UsagePeriod.
+    /// See: PrivilegeAllocationCalculator.cs - uses subscription.BillingCycle.DurationInDays
     /// </summary>
-    [Required]
-    public Guid UsagePeriodId { get; set; }
+    // [Required]
+    // public Guid UsagePeriodId { get; set; }
     
-    /// <summary>
-    /// Navigation property to the UsagePeriod that defines how often this privilege can be used.
-    /// Provides access to usage period information and billing cycle details.
-    /// Used for usage period management and billing operations.
-    /// </summary>
-    public virtual MasterBillingCycle UsagePeriod { get; set; } = null!;
+    // public virtual MasterBillingCycle UsagePeriod { get; set; } = null!;
     
     /// <summary>
     /// Duration in months for this privilege in the subscription plan.
@@ -101,28 +96,6 @@ public class SubscriptionPlanPrivilege : BaseEntity
     /// Privileges are not available after this date.
     /// </summary>
     public DateTime? ExpirationDate { get; set; }
-    
-    // Time-based usage limits
-    /// <summary>
-    /// Maximum number of times this privilege can be used per day.
-    /// Null indicates no daily limit is enforced.
-    /// Used for daily usage limit enforcement and access control.
-    /// </summary>
-    public int? DailyLimit { get; set; }
-    
-    /// <summary>
-    /// Maximum number of times this privilege can be used per week.
-    /// Null indicates no weekly limit is enforced.
-    /// Used for weekly usage limit enforcement and access control.
-    /// </summary>
-    public int? WeeklyLimit { get; set; }
-    
-    /// <summary>
-    /// Maximum number of times this privilege can be used per month.
-    /// Null indicates no monthly limit is enforced.
-    /// Used for monthly usage limit enforcement and access control.
-    /// </summary>
-    public int? MonthlyLimit { get; set; }
     
     /// <summary>
     /// BASE COST: Cost per unit for THIS PLAN (contributes to plan's base price).
@@ -178,13 +151,6 @@ public class SubscriptionPlanPrivilege : BaseEntity
         (!EffectiveDate.HasValue || EffectiveDate.Value <= DateTime.UtcNow) &&
         (!ExpirationDate.HasValue || ExpirationDate.Value >= DateTime.UtcNow);
     
-    /// <summary>
-    /// Computed property that indicates whether this privilege has time-based restrictions.
-    /// Returns true if any daily, weekly, or monthly limits are set.
-    /// Used for time-based restriction checking and access control.
-    /// </summary>
-    [NotMapped]
-    public bool HasTimeRestrictions => DailyLimit.HasValue || WeeklyLimit.HasValue || MonthlyLimit.HasValue;
     
     /// <summary>
     /// Computed property that indicates whether this privilege has overage charges.

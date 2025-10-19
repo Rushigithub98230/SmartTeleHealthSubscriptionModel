@@ -27,6 +27,7 @@ public class StripeWebhookController : BaseController
     private readonly IBillingRepository _billingRepository;
     private readonly INotificationService _notificationService;
     private readonly ICommunicationService _communicationService;
+    private readonly IPaymentService _paymentService;
       
     private readonly IStripeService _stripeService;
     private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
@@ -54,6 +55,7 @@ public class StripeWebhookController : BaseController
         IBillingRepository billingRepository,
         INotificationService notificationService,
         ICommunicationService communicationService,
+        IPaymentService paymentService,
         IStripeService stripeService,
         ISubscriptionLifecycleService subscriptionLifecycleService,
         IWebhookIdempotencyService webhookIdempotencyService,
@@ -65,6 +67,7 @@ public class StripeWebhookController : BaseController
         _billingRepository = billingRepository;
         _notificationService = notificationService;
         _communicationService = communicationService;
+        _paymentService = paymentService;
         _stripeService = stripeService;
         _subscriptionLifecycleService = subscriptionLifecycleService;
         _webhookIdempotencyService = webhookIdempotencyService;
@@ -577,6 +580,30 @@ public class StripeWebhookController : BaseController
                             _logger.LogError("Failed to create billing record for successful payment. Invoice: {InvoiceId}, Error: {Error}", 
                                 invoice.Id, billingResult.Message);
                         }
+                        else
+                        {
+                            // CRITICAL FIX: Record external payment to create SubscriptionPayment, update billing dates, and reset privileges
+                            // Extract billing record ID from result
+                            var billingRecordId = ExtractBillingRecordId(billingResult);
+                            if (billingRecordId.HasValue)
+                            {
+                                var paymentRecordingResult = await _paymentService.RecordExternalPaymentAsync(billingRecordId.Value, GetToken(HttpContext));
+                                
+                                if (paymentRecordingResult.StatusCode != 200)
+                                {
+                                    _logger.LogError("Failed to record external payment for billing record {BillingRecordId}. Error: {Error}", 
+                                        billingRecordId.Value, paymentRecordingResult.Message);
+                                }
+                                else
+                                {
+                                    _logger.LogInformation("Successfully recorded external payment for billing record {BillingRecordId}", billingRecordId.Value);
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogError("Failed to extract billing record ID from billing result for invoice {InvoiceId}", invoice.Id);
+                            }
+                        }
 
                         // Send payment success email
                         var billingRecord = new BillingRecordDto 
@@ -908,6 +935,42 @@ public class StripeWebhookController : BaseController
         }
         
         return string.Empty;
+    }
+
+    private Guid? ExtractBillingRecordId(JsonModel billingResult)
+    {
+        try
+        {
+            if (billingResult.data == null) return null;
+            
+            // Try to get ID from different possible formats
+            var dataType = billingResult.data.GetType();
+            
+            // Check if data is a JObject or dynamic object
+            if (billingResult.data is Newtonsoft.Json.Linq.JObject jObject)
+            {
+                if (jObject["id"] != null && Guid.TryParse(jObject["id"].ToString(), out var idFromJObject))
+                    return idFromJObject;
+            }
+            else
+            {
+                // Try to get Id property via reflection
+                var idProperty = dataType.GetProperty("Id") ?? dataType.GetProperty("id");
+                if (idProperty != null)
+                {
+                    var idValue = idProperty.GetValue(billingResult.data);
+                    if (idValue != null && Guid.TryParse(idValue.ToString(), out var idFromProperty))
+                        return idFromProperty;
+                }
+            }
+            
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting billing record ID from result");
+            return null;
+        }
     }
 
     private string MapStripeStatusToLocal(string stripeStatus)

@@ -1,0 +1,38 @@
+<div class="card subscription-card h-100">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>{{subscription.planName}}</strong>
+    <span class="badge" [ngClass]="getStatusBadgeClass(subscription.status)">
+      {{subscription.status}}
+    </span>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small">{{subscription.planDescription}}</p>
+    
+    <div class="subscription-info">
+      <div class="info-item">
+        <small class="text-muted">Monthly Price</small>
+        <strong class="d-block">${{subscription.currentPrice | number:'1.2-2'}}</strong>
+      </div>
+      <div class="info-item">
+        <small class="text-muted">Next Billing</small>
+        <strong class="d-block">{{subscription.nextBillingDate | date:'MMM d, yyyy'}}</strong>
+        <small class="text-muted">({{getDaysUntilBilling(subscription.nextBillingDate)}} days)</small>
+      </div>
+      <div class="info-item">
+        <small class="text-muted">Auto Renew</small>
+        <span class="badge" [ngClass]="subscription.autoRenew ? 'bg-success' : 'bg-secondary'">
+          {{subscription.autoRenew ? 'On' : 'Off'}}
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="card-footer bg-white" *ngIf="showActions">
+    <div class="d-grid gap-2">
+      <button class="btn btn-outline-primary btn-sm" (click)="onViewDetailsClick()">
+        <i class="bi bi-eye me-1"></i>View Details
+      </button>
+    </div>
+  </div>
+</div>
+
+

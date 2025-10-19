@@ -1,0 +1,290 @@
+<!-- User Profile Page -->
+<div class="profile-page">
+  <!-- Page Header -->
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-person-circle"></i> My Profile
+          </h2>
+          <p class="text-muted mb-0">Manage your account settings</p>
+        </div>
+        <a routerLink="/web/dashboard" class="btn btn-outline-secondary">
+          <i class="bi bi-speedometer2 me-1"></i>Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-lg-3 mb-4">
+        <div class="card">
+          <div class="card-body">
+            <!-- Profile Photo -->
+            <div class="text-center mb-4">
+              <div class="profile-avatar mb-3">
+                <i class="bi bi-person-circle fs-1 text-primary"></i>
+              </div>
+              <h5 class="mb-0">{{currentUser?.fullName}}</h5>
+              <p class="text-muted small mb-0">{{currentUser?.email}}</p>
+            </div>
+
+            <!-- Navigation -->
+            <div class="list-group list-group-flush">
+              <a 
+                class="list-group-item list-group-item-action cursor-pointer"
+                [class.active]="activeTab === 'profile'"
+                (click)="switchTab('profile')">
+                <i class="bi bi-person me-2"></i>Personal Info
+              </a>
+              <a 
+                class="list-group-item list-group-item-action cursor-pointer"
+                [class.active]="activeTab === 'password'"
+                (click)="switchTab('password')">
+                <i class="bi bi-key me-2"></i>Change Password
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="col-lg-9">
+        <div class="card">
+          <div class="card-body p-4">
+            <!-- Success Alert -->
+            <div *ngIf="success" class="alert alert-success alert-dismissible fade show">
+              <i class="bi bi-check-circle-fill me-2"></i>
+              {{success}}
+              <button type="button" class="btn-close" (click)="success = null"></button>
+            </div>
+
+            <!-- Error Alert -->
+            <div *ngIf="error" class="alert alert-danger alert-dismissible fade show">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              {{error}}
+              <button type="button" class="btn-close" (click)="error = null"></button>
+            </div>
+
+            <!-- PROFILE TAB -->
+            <div *ngIf="activeTab === 'profile'">
+              <h4 class="mb-4">Personal Information</h4>
+              
+              <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+                <!-- Name -->
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label for="firstName" class="form-label">First Name <span class="text-danger">*</span></label>
+                    <input 
+                      type="text" 
+                      id="firstName"
+                      class="form-control" 
+                      formControlName="firstName"
+                      [class.is-invalid]="hasError(profileForm, 'firstName', 'required')">
+                    <div class="invalid-feedback" *ngIf="hasError(profileForm, 'firstName', 'required')">
+                      First name is required
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="lastName" class="form-label">Last Name <span class="text-danger">*</span></label>
+                    <input 
+                      type="text" 
+                      id="lastName"
+                      class="form-control" 
+                      formControlName="lastName"
+                      [class.is-invalid]="hasError(profileForm, 'lastName', 'required')">
+                    <div class="invalid-feedback" *ngIf="hasError(profileForm, 'lastName', 'required')">
+                      Last name is required
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Contact -->
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label for="email" class="form-label">Email</label>
+                    <input 
+                      type="email" 
+                      id="email"
+                      class="form-control" 
+                      formControlName="email">
+                    <small class="text-muted">Email cannot be changed</small>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="phoneNumber" class="form-label">Phone Number <span class="text-danger">*</span></label>
+                    <input 
+                      type="tel" 
+                      id="phoneNumber"
+                      class="form-control" 
+                      formControlName="phoneNumber"
+                      placeholder="1234567890"
+                      [class.is-invalid]="hasError(profileForm, 'phoneNumber', 'pattern')">
+                    <div class="invalid-feedback" *ngIf="hasError(profileForm, 'phoneNumber', 'pattern')">
+                      Enter 10 digits
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Personal Details -->
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label for="dateOfBirth" class="form-label">Date of Birth</label>
+                    <input 
+                      type="date" 
+                      id="dateOfBirth"
+                      class="form-control" 
+                      formControlName="dateOfBirth">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="gender" class="form-label">Gender</label>
+                    <select id="gender" class="form-select" formControlName="gender">
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Address -->
+                <h5 class="mt-4 mb-3">Address Information</h5>
+                <div class="mb-3">
+                  <label for="address" class="form-label">Street Address</label>
+                  <input 
+                    type="text" 
+                    id="address"
+                    class="form-control" 
+                    formControlName="address"
+                    placeholder="123 Main Street">
+                </div>
+
+                <div class="row mb-3">
+                  <div class="col-md-4">
+                    <label for="city" class="form-label">City</label>
+                    <input type="text" id="city" class="form-control" formControlName="city">
+                  </div>
+                  <div class="col-md-4">
+                    <label for="state" class="form-label">State</label>
+                    <input type="text" id="state" class="form-control" formControlName="state">
+                  </div>
+                  <div class="col-md-4">
+                    <label for="zipCode" class="form-label">ZIP Code</label>
+                    <input 
+                      type="text" 
+                      id="zipCode"
+                      class="form-control" 
+                      formControlName="zipCode"
+                      [class.is-invalid]="hasError(profileForm, 'zipCode', 'pattern')">
+                    <div class="invalid-feedback" *ngIf="hasError(profileForm, 'zipCode', 'pattern')">
+                      Enter 5 digits
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Emergency Contact -->
+                <h5 class="mt-4 mb-3">Emergency Contact</h5>
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label for="emergencyContact" class="form-label">Emergency Contact Name</label>
+                    <input 
+                      type="text" 
+                      id="emergencyContact"
+                      class="form-control" 
+                      formControlName="emergencyContact"
+                      placeholder="John Doe">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="emergencyPhone" class="form-label">Emergency Contact Phone</label>
+                    <input 
+                      type="tel" 
+                      id="emergencyPhone"
+                      class="form-control" 
+                      formControlName="emergencyPhone"
+                      placeholder="1234567890"
+                      [class.is-invalid]="hasError(profileForm, 'emergencyPhone', 'pattern')">
+                    <div class="invalid-feedback" *ngIf="hasError(profileForm, 'emergencyPhone', 'pattern')">
+                      Enter 10 digits
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                  <button type="button" class="btn btn-secondary" (click)="initForms()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Reset
+                  </button>
+                  <button type="submit" class="btn btn-primary" [disabled]="saving">
+                    <span *ngIf="saving" class="spinner-border spinner-border-sm me-2"></span>
+                    <i *ngIf="!saving" class="bi bi-check-circle me-1"></i>
+                    {{saving ? 'Saving...' : 'Save Changes'}}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- PASSWORD TAB -->
+            <div *ngIf="activeTab === 'password'">
+              <h4 class="mb-4">Change Password</h4>
+              
+              <form [formGroup]="passwordForm" (ngSubmit)="changePassword()">
+                <div class="mb-3">
+                  <label for="currentPassword" class="form-label">Current Password <span class="text-danger">*</span></label>
+                  <input 
+                    type="password" 
+                    id="currentPassword"
+                    class="form-control" 
+                    formControlName="currentPassword"
+                    [class.is-invalid]="hasError(passwordForm, 'currentPassword', 'required')">
+                  <div class="invalid-feedback">Current password is required</div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="newPassword" class="form-label">New Password <span class="text-danger">*</span></label>
+                  <input 
+                    type="password" 
+                    id="newPassword"
+                    class="form-control" 
+                    formControlName="newPassword"
+                    [class.is-invalid]="hasError(passwordForm, 'newPassword', 'required') || hasError(passwordForm, 'newPassword', 'minlength')">
+                  <div class="invalid-feedback" *ngIf="hasError(passwordForm, 'newPassword', 'required')">
+                    New password is required
+                  </div>
+                  <div class="invalid-feedback" *ngIf="hasError(passwordForm, 'newPassword', 'minlength')">
+                    Password must be at least 6 characters
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="confirmNewPassword" class="form-label">Confirm New Password <span class="text-danger">*</span></label>
+                  <input 
+                    type="password" 
+                    id="confirmNewPassword"
+                    class="form-control" 
+                    formControlName="confirmNewPassword"
+                    [class.is-invalid]="hasError(passwordForm, 'confirmNewPassword', 'required') || hasPasswordMismatch()">
+                  <div class="invalid-feedback" *ngIf="hasError(passwordForm, 'confirmNewPassword', 'required')">
+                    Please confirm your password
+                  </div>
+                  <div class="invalid-feedback" *ngIf="hasPasswordMismatch()">
+                    Passwords do not match
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" [disabled]="changingPassword">
+                  <span *ngIf="changingPassword" class="spinner-border spinner-border-sm me-2"></span>
+                  <i *ngIf="!changingPassword" class="bi bi-shield-lock me-1"></i>
+                  {{changingPassword ? 'Changing Password...' : 'Change Password'}}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

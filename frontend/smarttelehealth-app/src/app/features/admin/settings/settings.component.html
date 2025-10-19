@@ -1,0 +1,133 @@
+<!-- Admin Settings -->
+<div class="settings-page">
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0"><i class="bi bi-gear"></i> System Settings</h2>
+          <p class="text-muted mb-0">Configure system-wide settings</p>
+        </div>
+        <a routerLink="/webadmin/dashboard" class="btn btn-outline-secondary">
+          <i class="bi bi-speedometer2 me-1"></i>Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-lg-3 mb-4">
+        <div class="card">
+          <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action cursor-pointer" 
+               [class.active]="activeTab === 'general'"
+               (click)="switchTab('general')">
+              <i class="bi bi-sliders me-2"></i>General
+            </a>
+            <a class="list-group-item list-group-item-action cursor-pointer"
+               [class.active]="activeTab === 'billing'"
+               (click)="switchTab('billing')">
+              <i class="bi bi-credit-card me-2"></i>Billing
+            </a>
+            <a class="list-group-item list-group-item-action cursor-pointer"
+               [class.active]="activeTab === 'notifications'"
+               (click)="switchTab('notifications')">
+              <i class="bi bi-bell me-2"></i>Notifications
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="col-lg-9">
+        <div class="card">
+          <div class="card-body p-4">
+            <!-- Success Alert -->
+            <div *ngIf="success" class="alert alert-success">
+              <i class="bi bi-check-circle-fill me-2"></i>{{success}}
+            </div>
+
+            <form [formGroup]="settingsForm" (ngSubmit)="saveSettings()">
+              <!-- General Tab -->
+              <div *ngIf="activeTab === 'general'">
+                <h4 class="mb-4">General Settings</h4>
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Site Name</label>
+                    <input type="text" class="form-control" formControlName="siteName">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Support Email</label>
+                    <input type="email" class="form-control" formControlName="supportEmail">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Billing Tab -->
+              <div *ngIf="activeTab === 'billing'">
+                <h4 class="mb-4">Billing Settings</h4>
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Default Currency</label>
+                    <select class="form-select" formControlName="defaultCurrency">
+                      <option value="USD">USD - US Dollar</option>
+                      <option value="EUR">EUR - Euro</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Default Billing Cycle</label>
+                    <select class="form-select" formControlName="defaultBillingCycle">
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Annual">Annual</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Grace Period (Days)</label>
+                    <input type="number" class="form-control" formControlName="gracePeriodDays">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <div class="form-check mt-4">
+                      <input type="checkbox" class="form-check-input" formControlName="enableAutoRenew" id="autoRenew">
+                      <label class="form-check-label" for="autoRenew">Enable Auto-Renew by Default</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Notifications Tab -->
+              <div *ngIf="activeTab === 'notifications'">
+                <h4 class="mb-4">Notification Settings</h4>
+                <div class="form-check mb-3">
+                  <input type="checkbox" class="form-check-input" formControlName="enableNotifications" id="enableNotif">
+                  <label class="form-check-label" for="enableNotif">
+                    <strong>Enable Notifications</strong>
+                  </label>
+                </div>
+                <div class="form-check mb-3">
+                  <input type="checkbox" class="form-check-input" formControlName="enableEmailNotifications" id="emailNotif">
+                  <label class="form-check-label" for="emailNotif">Email Notifications</label>
+                </div>
+                <div class="form-check mb-3">
+                  <input type="checkbox" class="form-check-input" formControlName="enableSMSNotifications" id="smsNotif">
+                  <label class="form-check-label" for="smsNotif">SMS Notifications</label>
+                </div>
+              </div>
+
+              <!-- Save Button -->
+              <div class="d-flex justify-content-end mt-4">
+                <button type="submit" class="btn btn-primary" [disabled]="saving">
+                  <span *ngIf="saving" class="spinner-border spinner-border-sm me-2"></span>
+                  {{saving ? 'Saving...' : 'Save Settings'}}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

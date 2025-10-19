@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Enums;
@@ -201,26 +202,12 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.StripePriceId = stripePriceId;
             entity.PaymentMethodId = createDto.PaymentMethodId;
             
-            // FIXED: Calculate price for chosen billing cycle with discount support
-            var monthlyPrice = plan.Price;
-            var billingCycleDays = billingCycle.DurationInDays;
-            var monthsInCycle = billingCycleDays / 30.0m;
-            var basePrice = monthlyPrice * monthsInCycle;
-
-            // Apply billing cycle discount
-            var discountPercent = billingCycle.Name.ToLower() switch
-            {
-                "annual" or "yearly" => plan.AnnualBillingDiscount,
-                "quarterly" => plan.QuarterlyBillingDiscount,
-                "monthly" => plan.MonthlyBillingDiscount,
-                _ => 0m
-            };
-
-            var discount = basePrice * (discountPercent / 100);
-            entity.CurrentPrice = basePrice - discount;
+            // REFACTORED: Calculate price using centralized BillingCycleCalculator (single method)
+            entity.CurrentPrice = BillingCycleCalculator.CalculateSubscriptionPrice(plan, billingCycle);
             
-            _logger.LogInformation("Calculated subscription price for {BillingCycle} billing: BasePrice={BasePrice}, Discount={Discount}%, FinalPrice={FinalPrice}",
-                billingCycle.Name, basePrice, discountPercent, entity.CurrentPrice);
+            _logger.LogInformation("Calculated subscription price for {BillingCycle} billing: " +
+                "MonthlyPrice=${MonthlyPrice}, FinalPrice=${FinalPrice}",
+                billingCycle.Name, plan.Price, entity.CurrentPrice);
             
             // Trial logic
             if (plan.IsTrialAllowed && plan.TrialDurationInDays > 0)

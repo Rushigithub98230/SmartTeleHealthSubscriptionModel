@@ -1,0 +1,187 @@
+<!-- Privilege Usage Page -->
+<div class="privilege-usage-page">
+  <!-- Page Header -->
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-activity"></i> Privilege Usage
+          </h2>
+          <p class="text-muted mb-0">Track your subscription benefits and usage</p>
+        </div>
+        <div>
+          <a routerLink="/web/dashboard" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+          </a>
+          <a routerLink="/web/privileges/history" class="btn btn-primary">
+            <i class="bi bi-clock-history me-1"></i>View History
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+      <p class="mt-3 text-muted">Loading privilege usage...</p>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error" class="alert alert-danger">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      {{error}}
+    </div>
+
+    <!-- No Active Subscription -->
+    <div *ngIf="!loading && !error && !activeSubscription" class="text-center py-5">
+      <i class="bi bi-inbox" style="font-size: 5rem; color: #ccc;"></i>
+      <h4 class="mt-3 text-muted">No Active Subscription</h4>
+      <p class="text-muted">Subscribe to a plan to start tracking your usage</p>
+      <a routerLink="/plans" class="btn btn-primary btn-lg mt-3">
+        <i class="bi bi-plus-circle me-2"></i>Browse Plans
+      </a>
+    </div>
+
+    <!-- Privilege Usage Content -->
+    <div *ngIf="!loading && !error && activeSubscription && privilegeUsage">
+      <!-- Subscription Info Card -->
+      <div class="card mb-4">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <h5 class="mb-1">{{activeSubscription.planName}}</h5>
+              <p class="text-muted mb-0">
+                <i class="bi bi-calendar-range me-2"></i>
+                Usage Period: {{privilegeUsage.periodStart | date:'MMM d'}} - {{privilegeUsage.periodEnd | date:'MMM d, yyyy'}}
+              </p>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+              <span class="badge bg-success p-2 fs-6">
+                <i class="bi bi-check-circle me-1"></i>Active
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Privileges Grid -->
+      <div class="row g-4">
+        <div class="col-lg-6" *ngFor="let priv of privilegeUsage.privileges">
+          <div class="card privilege-card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">
+                <i class="bi bi-star-fill text-warning me-2"></i>
+                {{priv.privilegeName}}
+              </h6>
+              <span class="badge" [ngClass]="getStatusBadgeClass(priv.isExhausted, priv.isUnlimited)">
+                {{getStatusText(priv)}}
+              </span>
+            </div>
+            <div class="card-body">
+              <!-- Unlimited Privilege -->
+              <div *ngIf="priv.isUnlimited" class="text-center py-4">
+                <i class="bi bi-infinity" style="font-size: 4rem; color: #4CAF50;"></i>
+                <h4 class="mt-3 text-success">Unlimited Access</h4>
+                <p class="text-muted">No usage limits for this privilege</p>
+              </div>
+
+              <!-- Limited Privilege -->
+              <div *ngIf="!priv.isUnlimited">
+                <!-- Usage Numbers -->
+                <div class="usage-stats mb-4">
+                  <div class="row text-center">
+                    <div class="col-4">
+                      <div class="stat-box">
+                        <div class="stat-value text-primary">{{priv.usedValue}}</div>
+                        <div class="stat-label">Used</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="stat-box">
+                        <div class="stat-value" [class.text-danger]="priv.remainingValue === 0" [class.text-success]="priv.remainingValue > 0">
+                          {{priv.remainingValue}}
+                        </div>
+                        <div class="stat-label">Remaining</div>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="stat-box">
+                        <div class="stat-value text-secondary">{{priv.allowedValue}}</div>
+                        <div class="stat-label">Total</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between mb-2">
+                    <small class="text-muted">Usage Progress</small>
+                    <small class="fw-bold" [ngClass]="getProgressBarClass(getUsagePercentage(priv.usedValue, priv.allowedValue))">
+                      {{getUsagePercentage(priv.usedValue, priv.allowedValue)}}%
+                    </small>
+                  </div>
+                  <div class="progress" style="height: 20px;">
+                    <div 
+                      class="progress-bar" 
+                      [ngClass]="getProgressBarClass(getUsagePercentage(priv.usedValue, priv.allowedValue))"
+                      [style.width.%]="getUsagePercentage(priv.usedValue, priv.allowedValue)"
+                      role="progressbar">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Exhausted Warning -->
+                <div *ngIf="priv.isExhausted" class="alert alert-danger mb-0">
+                  <i class="bi bi-exclamation-circle me-2"></i>
+                  <strong>Limit Reached!</strong> You've used all available credits for this privilege.
+                  <a href="#" class="alert-link ms-2">Purchase More</a>
+                </div>
+
+                <!-- Low Balance Warning -->
+                <div *ngIf="!priv.isExhausted && priv.remainingValue > 0 && priv.remainingValue <= 5" class="alert alert-warning mb-0">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  <strong>Low Balance:</strong> Only {{priv.remainingValue}} remaining. Consider purchasing more.
+                </div>
+
+                <!-- Last Used -->
+                <div *ngIf="priv.lastUsedAt" class="mt-3">
+                  <small class="text-muted">
+                    <i class="bi bi-clock me-1"></i>
+                    Last used: {{priv.lastUsedAt | date:'MMM d, yyyy h:mm a'}}
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Privileges -->
+      <div *ngIf="privilegeUsage.privileges.length === 0" class="text-center py-5">
+        <i class="bi bi-inbox" style="font-size: 5rem; color: #ccc;"></i>
+        <h4 class="mt-3 text-muted">No Privileges Configured</h4>
+        <p class="text-muted">Your subscription plan doesn't have any privileges assigned yet.</p>
+      </div>
+
+      <!-- Info Card -->
+      <div class="card mt-4 bg-light">
+        <div class="card-body">
+          <h6>
+            <i class="bi bi-info-circle text-primary me-2"></i>
+            About Privilege Usage
+          </h6>
+          <p class="mb-2"><small>• Privileges reset at the end of each billing cycle</small></p>
+          <p class="mb-2"><small>• Usage is tracked in real-time</small></p>
+          <p class="mb-2"><small>• You can purchase additional credits if you reach your limit</small></p>
+          <p class="mb-0"><small>• View detailed usage history by clicking "View History" above</small></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

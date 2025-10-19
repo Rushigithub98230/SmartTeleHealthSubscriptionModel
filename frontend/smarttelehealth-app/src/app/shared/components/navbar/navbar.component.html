@@ -1,0 +1,100 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container">
+    <a class="navbar-brand" routerLink="/">
+      <i class="bi bi-hospital me-2"></i>
+      <strong>SmartTelehealth</strong>
+    </a>
+    
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <!-- Left Navigation -->
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">
+            Home
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/plans" routerLinkActive="active">
+            Plans
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/pricing" routerLinkActive="active">
+            Pricing
+          </a>
+        </li>
+      </ul>
+
+      <!-- Right Navigation -->
+      <ul class="navbar-nav">
+        <!-- Not Authenticated -->
+        <ng-container *ngIf="!isAuthenticated">
+          <li class="nav-item">
+            <a class="nav-link" routerLink="/web/login">
+              <i class="bi bi-box-arrow-in-right me-1"></i>Login
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="btn btn-light btn-sm ms-2" routerLink="/web/register">
+              Get Started
+            </a>
+          </li>
+        </ng-container>
+
+        <!-- Authenticated -->
+        <ng-container *ngIf="isAuthenticated">
+          <!-- User Menu Dropdown -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-person-circle me-1"></i>
+              {{currentUser?.firstName || 'User'}}
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+              <li><a class="dropdown-item" routerLink="/web/dashboard">
+                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+              </a></li>
+              <li><a class="dropdown-item" routerLink="/web/subscriptions">
+                <i class="bi bi-card-list me-2"></i>My Subscriptions
+              </a></li>
+              <li><a class="dropdown-item" routerLink="/web/privileges">
+                <i class="bi bi-activity me-2"></i>Privilege Usage
+              </a></li>
+              <li><a class="dropdown-item" routerLink="/web/billing">
+                <i class="bi bi-receipt me-2"></i>Billing
+              </a></li>
+              <li><a class="dropdown-item" routerLink="/web/profile">
+                <i class="bi bi-person me-2"></i>Profile
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li *ngIf="isAdmin">
+                <a class="dropdown-item text-primary" routerLink="/webadmin/dashboard">
+                  <i class="bi bi-shield-lock me-2"></i>Admin Panel
+                </a>
+              </li>
+              <li *ngIf="isAdmin"><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item text-danger" href="javascript:void(0)" (click)="logout()">
+                  <i class="bi bi-box-arrow-right me-2"></i>Logout
+                </a>
+              </li>
+            </ul>
+          </li>
+          
+          <!-- Direct Logout Button (Visible Alternative) -->
+          <li class="nav-item">
+            <button class="btn btn-outline-light btn-sm ms-2" (click)="logout()">
+              <i class="bi bi-box-arrow-right me-1"></i>
+              Logout
+            </button>
+          </li>
+        </ng-container>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+

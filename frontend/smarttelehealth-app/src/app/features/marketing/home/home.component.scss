@@ -1,0 +1,40 @@
+// Home Component Styles
+
+.hero {
+  background: linear-gradient(135deg, #1976D2 0%, #2196F3 100%);
+  min-height: 500px;
+}
+
+.features {
+  .card {
+    transition: transform 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-5px);
+    }
+  }
+}
+
+.featured-plans {
+  .card {
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+  }
+}
+
+.footer {
+  a {
+    text-decoration: none;
+    transition: color 0.3s ease;
+    
+    &:hover {
+      color: white !important;
+    }
+  }
+}
+
+

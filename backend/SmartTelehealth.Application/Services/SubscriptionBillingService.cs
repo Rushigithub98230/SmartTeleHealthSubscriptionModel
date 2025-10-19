@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.DTOs;
@@ -122,9 +123,6 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     PrivilegeId = privilege.Id,
                     PrivilegeName = privilege.Name,
                     PrivilegeLimit = planPrivilege.Value,
-                    DailyLimit = planPrivilege.DailyLimit,
-                    WeeklyLimit = planPrivilege.WeeklyLimit,
-                    MonthlyLimit = planPrivilege.MonthlyLimit,
                     UnitCost = planPrivilege.UnitCost,
                     TotalCost = privilegeCost
                 });
@@ -205,10 +203,11 @@ public class SubscriptionBillingService : ISubscriptionBillingService
 
             await RecordUsageEventAsync(usageDto.UserId, usageDto.PrivilegeId, usageDto.UsageCount, tokenModel);
 
-            var overageResult = await CheckTimeBasedLimitsAsync(usageDto.UserId, usageDto.PrivilegeId, planPrivilege, tokenModel);
+            // Time-based limits removed - overage only when total AllowedValue exhausted
+            var currentUsage = await _privilegeUsageRepository.GetByUserAndPrivilegeAsync(usageDto.UserId, usageDto.PrivilegeId);
+            var isOverLimit = currentUsage != null && currentUsage.UsedValue >= currentUsage.AllowedValue;
             
-            decimal extraCharge = overageResult.TotalOverageCharge;
-            var isOverLimit = overageResult.IsOverLimit;
+            decimal extraCharge = 0; // No automatic overage charges
 
             await _unitOfWork.BeginTransactionAsync();
             try
@@ -236,7 +235,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     UserId = usageDto.UserId,
                     PrivilegeId = usageDto.PrivilegeId,
                     UsedCount = privilegeUsage.UsedValue,
-                    Limit = planPrivilege.DailyLimit ?? 0,
+                    Limit = planPrivilege.Value, // Total privilege limit
                     IsOverLimit = isOverLimit,
                     ExtraCharge = extraCharge,
                     ProcessedAt = DateTime.UtcNow
@@ -315,7 +314,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 
                 foreach (var usage in privilegeUsages)
                 {
-                    // Find the corresponding plan privilege to get the default limit
+                    // Find the corresponding plan privilege to get the admin-set total
                     var planPrivilege = plan.PlanPrivileges.FirstOrDefault(pp => pp.Id == usage.SubscriptionPlanPrivilegeId);
                     
                     if (planPrivilege != null)
@@ -323,14 +322,14 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                         // Reset BOTH UsedValue AND AllowedValue to plan defaults
                         // This ensures purchased extra credits do NOT carry over to the next billing cycle
                         usage.UsedValue = 0; // Reset usage counter to zero
-                        usage.AllowedValue = planPrivilege.Value; // Reset to plan's default limit (e.g., 5, NOT 6 if user purchased 1 extra)
+                        usage.AllowedValue = planPrivilege.Value; // Reset to admin-set total (e.g., 152, NOT calculated)
                         usage.ResetAt = DateTime.UtcNow;
                         usage.UpdatedBy = tokenModel.UserID;
                         usage.UpdatedDate = DateTime.UtcNow;
                         await _privilegeUsageRepository.UpdatePrivilegeUsageAsync(usage);
                         
                         _logger.LogInformation(
-                            "✓ Reset privilege {PrivilegeName} (ID: {PrivilegeId}) for subscription {SubscriptionId}: UsedValue=0, AllowedValue={AllowedValue} (plan default limit)",
+                            "✓ Reset privilege {PrivilegeName} (ID: {PrivilegeId}) for subscription {SubscriptionId}: UsedValue=0, AllowedValue={AllowedValue} (admin-set total)",
                             planPrivilege.Privilege?.Name ?? "Unknown", usage.SubscriptionPlanPrivilegeId, subscriptionId, usage.AllowedValue
                         );
                     }
@@ -420,9 +419,9 @@ public class SubscriptionBillingService : ISubscriptionBillingService
 
                 privilegeLookup.TryGetValue(usage.PrivilegeId, out var privilege);
                 
-                var dailyLimit = planPrivilege.DailyLimit ?? 0;
-                var isOverLimit = usage.UsedValue > dailyLimit;
-                var overageCount = isOverLimit ? usage.UsedValue - dailyLimit : 0;
+                var totalLimit = planPrivilege.Value; // Total privilege limit
+                var isOverLimit = usage.UsedValue > totalLimit;
+                var overageCount = isOverLimit ? usage.UsedValue - totalLimit : 0;
                 var overageCharge = overageCount * planPrivilege.UnitCost;
                 totalOverageCharges += overageCharge;
 
@@ -431,12 +430,12 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     PrivilegeId = usage.PrivilegeId,
                     PrivilegeName = privilege?.Name,
                     UsedCount = usage.UsedValue,
-                    DailyLimit = dailyLimit,
+                    TotalLimit = totalLimit,
                     UnitCost = planPrivilege.UnitCost,
                     IsOverLimit = isOverLimit,
                     OverageCount = overageCount,
                     OverageCharge = overageCharge,
-                    RemainingCount = Math.Max(0, dailyLimit - usage.UsedValue),
+                    RemainingCount = Math.Max(0, totalLimit - usage.UsedValue),
                     BillingCycle = subscription.BillingCycle?.Name ?? "Unknown"
                 });
             }
@@ -469,6 +468,11 @@ public class SubscriptionBillingService : ISubscriptionBillingService
 
     #region Privilege-Based Billing Helper Methods
     
+    /// <summary>
+    /// Gets or creates privilege usage record with proper allocation.
+    /// CORRECTED: Now uses admin-set Value directly (no calculation).
+    /// The Value field contains the total privilege count set by admin for the billing cycle.
+    /// </summary>
     private async Task<UserSubscriptionPrivilegeUsage> GetOrCreatePrivilegeUsageAsync(int userId, Guid privilegeId, Guid subscriptionId)
     {
         var existingUsage = await _privilegeUsageRepository.GetByUserAndPrivilegeAsync(userId, privilegeId);
@@ -477,18 +481,49 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             return existingUsage;
         }
 
+        // Get subscription and plan privilege to get the admin-set Value
+        var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
+        if (subscription == null)
+        {
+            throw new InvalidOperationException($"Subscription {subscriptionId} not found");
+        }
+
+        var planPrivilege = await _subscriptionPlanRepository.GetPlanPrivilegeAsync(
+            subscription.SubscriptionPlanId, 
+            privilegeId);
+        
+        if (planPrivilege == null)
+        {
+            throw new InvalidOperationException($"Privilege {privilegeId} not found in plan");
+        }
+
+        // CORRECTED: Use centralized calculator (now returns Value directly without calculation)
+        var (allowedValue, periodStart, periodEnd) = PrivilegeAllocationCalculator.CalculatePrivilegeAllocation(
+            subscription, 
+            planPrivilege);
+
+        // Create complete privilege usage record
+        // AllowedValue = admin-set Value (e.g., 152), NOT calculated from monthly limit
         var newUsage = new UserSubscriptionPrivilegeUsage
         {
             Id = Guid.NewGuid(),
             SubscriptionId = subscriptionId,
-            SubscriptionPlanPrivilegeId = Guid.Empty,
+            SubscriptionPlanPrivilegeId = planPrivilege.Id,
             PrivilegeId = privilegeId,
             UsedValue = 0,
+            AllowedValue = allowedValue,      // ✅ Admin-set total!
+            UsagePeriodStart = periodStart,   // ✅ Set!
+            UsagePeriodEnd = periodEnd,       // ✅ Set!
+            LastUsedAt = null,
             IsActive = true,
             IsDeleted = false,
             CreatedDate = DateTime.UtcNow,
-            CreatedBy = 1
+            CreatedBy = 1  // TODO: Should use tokenModel.UserID if available
         };
+
+        _logger.LogInformation("Creating privilege usage for subscription {SubscriptionId}, privilege {PrivilegeId}: " +
+            "AllowedValue={AllowedValue} (admin-set total), Period={Start:yyyy-MM-dd} to {End:yyyy-MM-dd}",
+            subscriptionId, privilegeId, allowedValue, periodStart, periodEnd);
 
         await _privilegeUsageRepository.CreatePrivilegeUsageAsync(newUsage);
         return newUsage;
@@ -506,65 +541,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         }
     }
 
-    private async Task<OverageResult> CheckTimeBasedLimitsAsync(int userId, Guid privilegeId, SubscriptionPlanPrivilege planPrivilege, TokenModel tokenModel)
-    {
-        var result = new OverageResult();
-        var currentTime = DateTime.UtcNow;
-
-        if (planPrivilege.DailyLimit.HasValue)
-        {
-            var dailyUsage = await GetDailyUsageAsync(userId, privilegeId, currentTime);
-            if (dailyUsage > planPrivilege.DailyLimit.Value)
-            {
-                var dailyOverage = dailyUsage - planPrivilege.DailyLimit.Value;
-                result.DailyOverageCharge = dailyOverage * planPrivilege.UnitCost;
-                result.IsOverLimit = true;
-            }
-        }
-
-        if (planPrivilege.WeeklyLimit.HasValue)
-        {
-            var weeklyUsage = await GetWeeklyUsageAsync(userId, privilegeId, currentTime);
-            if (weeklyUsage > planPrivilege.WeeklyLimit.Value)
-            {
-                var weeklyOverage = weeklyUsage - planPrivilege.WeeklyLimit.Value;
-                result.WeeklyOverageCharge = weeklyOverage * planPrivilege.UnitCost;
-                result.IsOverLimit = true;
-            }
-        }
-
-        if (planPrivilege.MonthlyLimit.HasValue)
-        {
-            var monthlyUsage = await GetMonthlyUsageAsync(userId, privilegeId, currentTime);
-            if (monthlyUsage > planPrivilege.MonthlyLimit.Value)
-            {
-                var monthlyOverage = monthlyUsage - planPrivilege.MonthlyLimit.Value;
-                result.MonthlyOverageCharge = monthlyOverage * planPrivilege.UnitCost;
-                result.IsOverLimit = true;
-            }
-        }
-
-        result.TotalOverageCharge = result.DailyOverageCharge + result.WeeklyOverageCharge + result.MonthlyOverageCharge;
-        return result;
-    }
-
-    private async Task<int> GetDailyUsageAsync(int userId, Guid privilegeId, DateTime currentTime)
-    {
-        var usage = await _privilegeUsageRepository.GetByUserAndPrivilegeAsync(userId, privilegeId);
-        return usage?.UsedValue ?? 0;
-    }
-
-    private async Task<int> GetWeeklyUsageAsync(int userId, Guid privilegeId, DateTime currentTime)
-    {
-        var usage = await _privilegeUsageRepository.GetByUserAndPrivilegeAsync(userId, privilegeId);
-        return usage?.UsedValue ?? 0;
-    }
-
-    private async Task<int> GetMonthlyUsageAsync(int userId, Guid privilegeId, DateTime currentTime)
-    {
-        var usage = await _privilegeUsageRepository.GetByUserAndPrivilegeAsync(userId, privilegeId);
-        return usage?.UsedValue ?? 0;
-    }
+    // Time-based limit checking methods removed - overage now only applies when total AllowedValue is exhausted
 
     private async Task BatchOverageChargeAsync(Subscription subscription, Guid privilegeId, decimal overageCharge, TokenModel tokenModel)
     {
@@ -921,6 +898,30 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         {
             var billingRecord = _mapper.Map<BillingRecord>(createDto);
             
+            // FIXED: Calculate TotalAmount if not already set
+            // TotalAmount = Amount + TaxAmount + ShippingAmount
+            if (billingRecord.TotalAmount == 0)
+            {
+                billingRecord.TotalAmount = billingRecord.Amount + billingRecord.TaxAmount + billingRecord.ShippingAmount;
+                
+                _logger.LogInformation("Calculated TotalAmount for billing record: Amount=${Amount}, Tax=${Tax}, Shipping=${Shipping}, Total=${Total}",
+                    billingRecord.Amount, billingRecord.TaxAmount, billingRecord.ShippingAmount, billingRecord.TotalAmount);
+            }
+            
+            // Validate TotalAmount is not negative
+            if (billingRecord.TotalAmount < 0)
+            {
+                _logger.LogError("Invalid TotalAmount calculated: ${TotalAmount}. Amount=${Amount}, Tax=${Tax}, Shipping=${Shipping}",
+                    billingRecord.TotalAmount, billingRecord.Amount, billingRecord.TaxAmount, billingRecord.ShippingAmount);
+                
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = "Invalid billing amount calculated", 
+                    StatusCode = 400 
+                };
+            }
+            
             billingRecord.Status = BillingRecord.BillingStatus.Pending;
             billingRecord.IsActive = true;
             billingRecord.CreatedBy = tokenModel.UserID;
@@ -928,6 +929,9 @@ public class SubscriptionBillingService : ISubscriptionBillingService
 
             var createdRecord = await _billingRepository.CreateBillingRecordAsync(billingRecord);
             var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
+            
+            _logger.LogInformation("Created billing record {BillingRecordId} for user {UserId}: Amount=${Amount}, TotalAmount=${TotalAmount}",
+                createdRecord.Id, createdRecord.UserId, createdRecord.Amount, createdRecord.TotalAmount);
             
             return new JsonModel { data = billingRecordDto, Message = "Billing record created successfully", StatusCode = 200 };
         }
@@ -1573,7 +1577,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             {
                 "monthly" => currentDate.AddMonths(1),
                 "quarterly" => currentDate.AddMonths(3),
-                "yearly" => currentDate.AddYears(1),
+                "annual" => currentDate.AddYears(1),              // ONLY "annual" (database standard)
                 "weekly" => currentDate.AddDays(7),
                 "daily" => currentDate.AddDays(1),
                 _ => currentDate.AddDays(billingCycle.DurationInDays)
@@ -2463,6 +2467,34 @@ public class SubscriptionBillingService : ISubscriptionBillingService
     /// </summary>
     public async Task<JsonModel> GetPaymentScheduleAsync(Guid subscriptionId, TokenModel tokenModel)
         => await _paymentService.GetPaymentScheduleAsync(subscriptionId, tokenModel);
+    
+    #endregion
+    
+    #region Billing Cycles (For User Purchase Flow)
+    
+    /// <summary>
+    /// Gets all active billing cycles for user subscription purchase flow.
+    /// Used in frontend to dynamically load billing cycle options.
+    /// </summary>
+    public async Task<IEnumerable<MasterBillingCycle>> GetAllBillingCyclesAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Retrieving all active billing cycles for purchase flow");
+            
+            // Get all billing cycles from subscription repository
+            var cycles = await _subscriptionRepository.GetAllBillingCyclesAsync();
+            
+            _logger.LogInformation("Retrieved {Count} active billing cycles", cycles.Count());
+            
+            return cycles;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving billing cycles");
+            throw;
+        }
+    }
     
     #endregion
 }

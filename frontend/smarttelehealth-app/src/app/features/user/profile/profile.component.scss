@@ -1,0 +1,52 @@
+// Profile Component Styles
+
+.profile-avatar {
+  i {
+    font-size: 5rem;
+  }
+}
+
+.list-group-item {
+  border-left: none;
+  border-right: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: #f8f9fa;
+  }
+
+  &.active {
+    background-color: #2196F3;
+    color: white;
+    border-color: #2196F3;
+
+    i {
+      color: white;
+    }
+  }
+}
+
+.card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+h5 {
+  color: #1976D2;
+  border-bottom: 2px solid #E3F2FD;
+  padding-bottom: 10px;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+// Responsive
+@media (max-width: 991px) {
+  .col-lg-3 {
+    margin-bottom: 2rem;
+  }
+}
+
+

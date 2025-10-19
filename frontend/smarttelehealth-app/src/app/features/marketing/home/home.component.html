@@ -1,0 +1,181 @@
+<!-- Marketing Home Page -->
+
+<!-- Hero Section -->
+<section class="hero bg-primary text-white py-5">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-lg-6">
+        <h1 class="display-4 fw-bold mb-4">Your Health, Simplified</h1>
+        <p class="lead mb-4">
+          Access quality healthcare from the comfort of your home with our comprehensive telehealth subscription plans.
+        </p>
+        <div class="d-flex gap-3">
+          <a routerLink="/plans" class="btn btn-light btn-lg">
+            <i class="bi bi-grid-3x3"></i> View Plans
+          </a>
+          <a routerLink="/web/register" class="btn btn-outline-light btn-lg">
+            Get Started
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-6 d-none d-lg-block">
+        <!-- Placeholder for hero image -->
+        <div class="text-center">
+          <i class="bi bi-hospital" style="font-size: 10rem; opacity: 0.8;"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features Section -->
+<section class="features py-5">
+  <div class="container">
+    <h2 class="text-center mb-5">Why Choose SmartTelehealth?</h2>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card h-100 text-center p-4">
+          <div class="card-body">
+            <i class="bi bi-camera-video text-primary" style="font-size: 3rem;"></i>
+            <h5 class="card-title mt-3">Video Consultations</h5>
+            <p class="card-text">
+              Connect with certified healthcare providers through secure video calls.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 text-center p-4">
+          <div class="card-body">
+            <i class="bi bi-clock-history text-primary" style="font-size: 3rem;"></i>
+            <h5 class="card-title mt-3">24/7 Access</h5>
+            <p class="card-text">
+              Get healthcare support whenever you need it, day or night.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 text-center p-4">
+          <div class="card-body">
+            <i class="bi bi-shield-check text-primary" style="font-size: 3rem;"></i>
+            <h5 class="card-title mt-3">Secure & Private</h5>
+            <p class="card-text">
+              Your health information is protected with enterprise-grade security.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Featured Plans Section -->
+<section class="featured-plans py-5 bg-light">
+  <div class="container">
+    <h2 class="text-center mb-5">Our Popular Plans</h2>
+    
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading plans...</span>
+      </div>
+    </div>
+    
+    <!-- Featured Plans Grid -->
+    <div *ngIf="!loading" class="row g-4">
+      <div class="col-md-4" *ngFor="let plan of featuredPlans">
+        <div class="card h-100">
+          <div class="card-header text-center bg-white">
+            <span class="badge bg-primary mb-2" *ngIf="plan.isMostPopular">
+              <i class="bi bi-star-fill"></i> Most Popular
+            </span>
+            <h4 class="card-title">{{plan.name}}</h4>
+          </div>
+          <div class="card-body">
+            <div class="text-center mb-4">
+              <h2 class="display-5 fw-bold text-primary">
+                ${{plan.price | number:'1.2-2'}}
+              </h2>
+              <p class="text-muted">per month</p>
+            </div>
+            <p class="card-text">{{plan.shortDescription || plan.description}}</p>
+            
+            <!-- Plan Features Preview -->
+            <ul class="list-unstyled mt-3">
+              <li class="mb-2" *ngIf="plan.planPrivileges && plan.planPrivileges.length > 0">
+                <i class="bi bi-check-circle text-success"></i>
+                {{plan.planPrivileges.length}} Privileges Included
+              </li>
+              <li class="mb-2" *ngIf="plan.isTrialAllowed">
+                <i class="bi bi-check-circle text-success"></i>
+                {{plan.trialDurationInDays}} Days Free Trial
+              </li>
+              <li class="mb-2">
+                <i class="bi bi-check-circle text-success"></i>
+                Save up to {{plan.annualBillingDiscount}}% with Annual Billing
+              </li>
+            </ul>
+          </div>
+          <div class="card-footer bg-white">
+            <a [routerLink]="['/plans', plan.id]" class="btn btn-outline-primary w-100">
+              View Details
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="text-center mt-5">
+      <a routerLink="/plans" class="btn btn-primary btn-lg">
+        View All Plans
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta py-5 bg-primary text-white">
+  <div class="container text-center">
+    <h2 class="mb-4">Ready to Get Started?</h2>
+    <p class="lead mb-4">
+      Join thousands of satisfied patients who trust SmartTelehealth for their healthcare needs.
+    </p>
+    <a routerLink="/web/register" class="btn btn-light btn-lg">
+      Create Free Account
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer py-4 bg-dark text-white">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4">
+        <h5>SmartTelehealth</h5>
+        <p>Quality healthcare at your fingertips.</p>
+      </div>
+      <div class="col-md-4">
+        <h6>Quick Links</h6>
+        <ul class="list-unstyled">
+          <li><a routerLink="/plans" class="text-white-50">Subscription Plans</a></li>
+          <li><a routerLink="/web/login" class="text-white-50">Login</a></li>
+          <li><a routerLink="/web/register" class="text-white-50">Sign Up</a></li>
+        </ul>
+      </div>
+      <div class="col-md-4">
+        <h6>Contact</h6>
+        <p class="text-white-50">
+          <i class="bi bi-envelope"></i> support@smarttelehealth.com<br>
+          <i class="bi bi-telephone"></i> 1-800-TELEHEALTH
+        </p>
+      </div>
+    </div>
+    <hr class="my-4">
+    <p class="text-center text-white-50 mb-0">
+      &copy; 2025 SmartTelehealth. All rights reserved.
+    </p>
+  </div>
+</footer>
+
+

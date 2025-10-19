@@ -1,0 +1,24 @@
+// Analytics Page Styles
+
+.page-header {
+  background: linear-gradient(135deg, #1976D2 0%, #2196F3 100%);
+}
+
+.card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chart-placeholder {
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.progress {
+  border-radius: 10px;
+}
+
+

@@ -1,0 +1,610 @@
+<!-- Admin Create Plan - 4-Step Stepper Form -->
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <!-- Page Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+          <i class="bi bi-plus-circle text-primary"></i>
+          Create Subscription Plan
+        </h2>
+        <button class="btn btn-outline-secondary" routerLink="/webadmin/plans">
+          <i class="bi bi-x-lg"></i> Cancel
+        </button>
+      </div>
+
+      <!-- Main Card with Stepper -->
+      <div class="card shadow">
+        <div class="card-body p-4">
+          <!-- Bootstrap Stepper Header -->
+          <div class="stepper-header mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="step-item" [class.active]="currentStep === 1" [class.completed]="currentStep > 1">
+                <div class="step-circle">
+                  <i *ngIf="currentStep > 1" class="bi bi-check-lg"></i>
+                  <span *ngIf="currentStep <= 1">1</span>
+                </div>
+                <div class="step-label">Basic Info</div>
+              </div>
+              <div class="step-line"></div>
+              <div class="step-item" [class.active]="currentStep === 2" [class.completed]="currentStep > 2">
+                <div class="step-circle">
+                  <i *ngIf="currentStep > 2" class="bi bi-check-lg"></i>
+                  <span *ngIf="currentStep <= 2">2</span>
+                </div>
+                <div class="step-label">Privileges</div>
+              </div>
+              <div class="step-line"></div>
+              <div class="step-item" [class.active]="currentStep === 3" [class.completed]="currentStep > 3">
+                <div class="step-circle">
+                  <i *ngIf="currentStep > 3" class="bi bi-check-lg"></i>
+                  <span *ngIf="currentStep <= 3">3</span>
+                </div>
+                <div class="step-label">Billing & Discounts</div>
+              </div>
+              <div class="step-line"></div>
+              <div class="step-item" [class.active]="currentStep === 4">
+                <div class="step-circle">4</div>
+                <div class="step-label">Review & Create</div>
+              </div>
+            </div>
+          </div>
+
+          <hr>
+
+          <!-- Error Display -->
+          <div *ngIf="error" class="alert alert-danger alert-dismissible fade show">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {{error}}
+            <button type="button" class="btn-close" (click)="error = null"></button>
+          </div>
+
+          <!-- STEP 1: BASIC INFO -->
+          <div *ngIf="currentStep === 1" class="step-content">
+            <h4 class="mb-4">Step 1: Basic Information</h4>
+            <form [formGroup]="basicInfoForm">
+              <div class="row">
+                <!-- Plan Name -->
+                <div class="col-md-6 mb-3">
+                  <label for="name" class="form-label">Plan Name <span class="text-danger">*</span></label>
+                  <input 
+                    type="text" 
+                    id="name"
+                    class="form-control" 
+                    formControlName="name"
+                    placeholder="e.g., Family Care Plan">
+                  <div class="form-text">Maximum 100 characters</div>
+                </div>
+
+                <!-- Category -->
+                <div class="col-md-6 mb-3">
+                  <label for="category" class="form-label">Category <span class="text-danger">*</span></label>
+                  <select id="category" class="form-select" formControlName="categoryId">
+                    <option value="">Select Category</option>
+                    <option *ngFor="let cat of categories" [value]="cat.id">
+                      {{cat.name}}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <!-- Billing Cycle -->
+                <div class="col-md-6 mb-3">
+                  <label for="billingCycle" class="form-label">Default Billing Cycle <span class="text-danger">*</span></label>
+                  <select id="billingCycle" class="form-select" formControlName="billingCycleId">
+                    <option value="">Select Billing Cycle</option>
+                    <option *ngFor="let bc of billingCycles" [value]="bc.id">
+                      {{bc.name}} ({{bc.durationInDays}} days)
+                    </option>
+                  </select>
+                  <div class="form-text">Primary billing cycle for this plan</div>
+                </div>
+
+                <!-- Currency -->
+                <div class="col-md-6 mb-3">
+                  <label for="currency" class="form-label">Currency <span class="text-danger">*</span></label>
+                  <select id="currency" class="form-select" formControlName="currencyId">
+                    <option value="">Select Currency</option>
+                    <option *ngFor="let curr of currencies" [value]="curr.id">
+                      {{curr.code}} - {{curr.name}}
+                    </option>
+                  </select>
+                  <div class="form-text">Plan pricing currency</div>
+                </div>
+              </div>
+
+              <!-- Description -->
+              <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea 
+                  id="description"
+                  class="form-control" 
+                  rows="3" 
+                  formControlName="description"
+                  placeholder="Describe what this plan offers..."></textarea>
+                <div class="form-text">Maximum 500 characters</div>
+              </div>
+
+              <!-- Short Description -->
+              <div class="mb-3">
+                <label for="shortDescription" class="form-label">Short Description</label>
+                <input 
+                  type="text" 
+                  id="shortDescription"
+                  class="form-control" 
+                  formControlName="shortDescription"
+                  placeholder="Brief one-liner for cards">
+                <div class="form-text">Maximum 200 characters - shown on plan cards</div>
+              </div>
+
+              <div class="row">
+                <!-- Monthly Base Price -->
+                <div class="col-md-4 mb-3">
+                  <label for="price" class="form-label">Monthly Base Price <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input 
+                      type="number" 
+                      id="price"
+                      class="form-control" 
+                      formControlName="price"
+                      placeholder="150.00"
+                      step="0.01">
+                  </div>
+                  <div class="form-text">Price per month</div>
+                </div>
+
+                <!-- Display Order -->
+                <div class="col-md-4 mb-3">
+                  <label for="displayOrder" class="form-label">Display Order</label>
+                  <input 
+                    type="number" 
+                    id="displayOrder"
+                    class="form-control" 
+                    formControlName="displayOrder"
+                    placeholder="0">
+                  <div class="form-text">Lower numbers appear first</div>
+                </div>
+
+                <!-- Trial Duration -->
+                <div class="col-md-4 mb-3">
+                  <label for="trialDuration" class="form-label">Trial Duration (Days)</label>
+                  <input 
+                    type="number" 
+                    id="trialDuration"
+                    class="form-control" 
+                    formControlName="trialDurationInDays"
+                    [disabled]="!basicInfoForm.value.isTrialAllowed"
+                    placeholder="7">
+                </div>
+              </div>
+
+              <!-- Checkboxes -->
+              <div class="row">
+                <div class="col-md-3 mb-3">
+                  <div class="form-check">
+                    <input 
+                      type="checkbox" 
+                      id="isTrialAllowed"
+                      class="form-check-input" 
+                      formControlName="isTrialAllowed">
+                    <label class="form-check-label" for="isTrialAllowed">
+                      Allow Trial Period
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <div class="form-check">
+                    <input 
+                      type="checkbox" 
+                      id="isFeatured"
+                      class="form-check-input" 
+                      formControlName="isFeatured">
+                    <label class="form-check-label" for="isFeatured">
+                      Featured Plan
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <div class="form-check">
+                    <input 
+                      type="checkbox" 
+                      id="isMostPopular"
+                      class="form-check-input" 
+                      formControlName="isMostPopular">
+                    <label class="form-check-label" for="isMostPopular">
+                      Most Popular
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <div class="form-check">
+                    <input 
+                      type="checkbox" 
+                      id="isTrending"
+                      class="form-check-input" 
+                      formControlName="isTrending">
+                    <label class="form-check-label" for="isTrending">
+                      Trending Plan
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </form>
+            
+            <!-- Step 1 Actions -->
+            <div class="d-flex justify-content-end mt-4">
+              <button class="btn btn-primary btn-lg" (click)="nextStep()">
+                Next: Configure Privileges <i class="bi bi-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- STEP 2: CONFIGURE PRIVILEGES -->
+          <div *ngIf="currentStep === 2" class="step-content">
+            <h4 class="mb-4">Step 2: Configure Privileges</h4>
+
+            <!-- Selected Privileges Table -->
+            <div *ngIf="selectedPrivileges.length > 0" class="mb-4">
+              <h6>Configured Privileges ({{selectedPrivileges.length}})</h6>
+              <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 30%;">Privilege Name</th>
+                      <th style="width: 15%;">
+                        Total Count
+                        <br><small class="fw-normal text-muted">Per billing period</small>
+                      </th>
+                      <th style="width: 18%;">Unit Cost ($)
+                        <br><small class="fw-normal text-muted">For price calc</small>
+                      </th>
+                      <th style="width: 18%;">Overage Price ($)
+                        <br><small class="fw-normal text-muted">When exceeded</small>
+                      </th>
+                      <th style="width: 19%;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let priv of selectedPrivileges; let i = index">
+                      <td>
+                        <strong>{{getPrivilegeName(priv.privilegeId)}}</strong>
+                      </td>
+                      <!-- Total Count (Required - Main Field) -->
+                      <td>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm" 
+                          [(ngModel)]="priv.value"
+                          (ngModelChange)="onPrivilegeValueChange()"
+                          placeholder="e.g., 180"
+                          min="-1"
+                          required
+                          title="Total count for billing period">
+                        <small class="text-muted d-block">-1 = unlimited</small>
+                        <small class="text-muted d-block">0 = disabled</small>
+                      </td>
+                      
+                      <!-- Unit Cost (For Price Calculation) -->
+                      <td>
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text">$</span>
+                          <input 
+                            type="number" 
+                            class="form-control" 
+                            [(ngModel)]="priv.privilegeBaseCost"
+                            (ngModelChange)="onPrivilegeValueChange()"
+                            placeholder="10.00"
+                            step="0.01"
+                            min="0"
+                            title="Cost per unit for plan pricing">
+                        </div>
+                        <small class="text-muted d-block">Per unit cost</small>
+                      </td>
+                      
+                      <!-- Overage Price (When User Exceeds Limit) -->
+                      <td>
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text">$</span>
+                          <input 
+                            type="number" 
+                            class="form-control" 
+                            [(ngModel)]="priv.privilegeBaseCost"
+                            placeholder="10.00"
+                            step="0.01">
+                        </div>
+                      </td>
+                      <td>
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text">$</span>
+                          <input 
+                            type="number" 
+                            class="form-control" 
+                            [(ngModel)]="priv.unitCost"
+                            placeholder="15.00"
+                            step="0.01">
+                        </div>
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm" 
+                          [(ngModel)]="priv.dailyLimit"
+                          placeholder="Optional"
+                          min="0">
+                      </td>
+                      <td>
+                        <input 
+                          type="number" 
+                          class="form-control form-control-sm" 
+                          [(ngModel)]="priv.weeklyLimit"
+                          placeholder="Optional"
+                          min="0">
+                      </td>
+                      <td>
+                        <button 
+                          class="btn btn-sm btn-danger" 
+                          (click)="removePrivilege(i)"
+                          title="Remove privilege">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Add Privilege Dropdown -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Add Privilege to Plan</label>
+              <div class="d-flex gap-2 flex-wrap">
+                <button 
+                  *ngFor="let privilege of getAvailablePrivileges()" 
+                  class="btn btn-outline-primary btn-sm"
+                  (click)="addPrivilege(privilege)">
+                  <i class="bi bi-plus-circle me-1"></i>
+                  {{privilege.name}}
+                </button>
+                <div *ngIf="getAvailablePrivileges().length === 0" class="text-muted">
+                  <small>All privileges have been added</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Help Text -->
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Note:</strong> Monthly limits are automatically scaled for quarterly and annual billing cycles. 
+              For example, 10/month = 30/quarter and 122/year.
+            </div>
+
+            <!-- Step 2 Actions -->
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-secondary btn-lg" (click)="previousStep()">
+                <i class="bi bi-arrow-left me-2"></i> Back
+              </button>
+              <button class="btn btn-primary btn-lg" (click)="nextStep()">
+                Next: Billing Settings <i class="bi bi-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- STEP 3: BILLING & DISCOUNTS -->
+          <div *ngIf="currentStep === 3" class="step-content">
+            <h4 class="mb-4">Step 3: Billing Cycle Discounts</h4>
+            <form [formGroup]="billingForm">
+              <div class="row">
+                <!-- Monthly Discount -->
+                <div class="col-md-4 mb-3">
+                  <label for="monthlyDiscount" class="form-label">Monthly Billing Discount (%)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      id="monthlyDiscount"
+                      class="form-control" 
+                      formControlName="monthlyBillingDiscount"
+                      min="0" 
+                      max="100"
+                      step="0.1">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text">Default: 0% (no discount)</div>
+                </div>
+
+                <!-- Quarterly Discount -->
+                <div class="col-md-4 mb-3">
+                  <label for="quarterlyDiscount" class="form-label">Quarterly Billing Discount (%)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      id="quarterlyDiscount"
+                      class="form-control" 
+                      formControlName="quarterlyBillingDiscount"
+                      min="0" 
+                      max="100"
+                      step="0.1">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text">Recommended: 2-5%</div>
+                </div>
+
+                <!-- Annual Discount -->
+                <div class="col-md-4 mb-3">
+                  <label for="annualDiscount" class="form-label">Annual Billing Discount (%)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      id="annualDiscount"
+                      class="form-control" 
+                      formControlName="annualBillingDiscount"
+                      min="0" 
+                      max="100"
+                      step="0.1">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text">Recommended: 10-15%</div>
+                </div>
+              </div>
+
+              <!-- Healthcare Pricing Model -->
+              <hr class="my-4">
+              <h5 class="mb-3">Healthcare Pricing Model</h5>
+              
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <div class="form-check form-switch">
+                    <input 
+                      type="checkbox" 
+                      id="autoCalculate"
+                      class="form-check-input" 
+                      formControlName="isAutoCalculatedPrice">
+                    <label class="form-check-label" for="autoCalculate">
+                      Auto-calculate price from privileges
+                    </label>
+                  </div>
+                  <div class="form-text">
+                    When enabled, plan price = Sum(Privilege Value × Base Cost) + Commission
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="commission" class="form-label">Admin Commission (%)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      id="commission"
+                      class="form-control" 
+                      formControlName="adminCommissionPercent"
+                      min="0" 
+                      max="100"
+                      step="0.1">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text">Percentage added to privilege costs</div>
+                </div>
+              </div>
+
+              <!-- Price Change Notice -->
+              <div class="mb-3">
+                <label for="noticeDays" class="form-label">Price Change Notice Period (Days)</label>
+                <input 
+                  type="number" 
+                  id="noticeDays"
+                  class="form-control" 
+                  formControlName="priceChangeNoticeDays"
+                  min="7" 
+                  max="365">
+                <div class="form-text">Days notice before price changes (default: 10)</div>
+              </div>
+            </form>
+
+            <!-- Step 3 Actions -->
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-secondary btn-lg" (click)="previousStep()">
+                <i class="bi bi-arrow-left me-2"></i> Back
+              </button>
+              <button class="btn btn-primary btn-lg" (click)="nextStep()">
+                Next: Review <i class="bi bi-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- STEP 4: REVIEW & CREATE -->
+          <div *ngIf="currentStep === 4" class="step-content">
+            <h4 class="mb-4">Step 4: Review & Create Plan</h4>
+
+            <!-- Plan Summary -->
+            <div class="card bg-light mb-4">
+              <div class="card-body">
+                <h5 class="card-title">{{basicInfoForm.value.name}}</h5>
+                <p class="card-text">{{basicInfoForm.value.description}}</p>
+                
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <p class="mb-2"><strong>Monthly Price:</strong> ${{basicInfoForm.value.price | number:'1.2-2'}}</p>
+                    <p class="mb-2"><strong>Category:</strong> {{getCategoryName(basicInfoForm.value.categoryId)}}</p>
+                    <p class="mb-2"><strong>Trial:</strong> {{basicInfoForm.value.isTrialAllowed ? basicInfoForm.value.trialDurationInDays + ' days' : 'None'}}</p>
+                  </div>
+                  <div class="col-md-6">
+                    <p class="mb-2"><strong>Privileges Configured:</strong> {{selectedPrivileges.length}}</p>
+                    <p class="mb-2"><strong>Auto-calculated Price:</strong> {{billingForm.value.isAutoCalculatedPrice ? 'Yes' : 'No'}}</p>
+                    <p class="mb-2" *ngIf="billingForm.value.isAutoCalculatedPrice">
+                      <strong>Calculated Price:</strong> ${{calculateFinalPrice() | number:'1.2-2'}}/month
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Privileges Summary -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <h6 class="mb-0">Privileges ({{selectedPrivileges.length}})</h6>
+              </div>
+              <div class="card-body">
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item" *ngFor="let priv of selectedPrivileges">
+                    <div class="d-flex justify-content-between">
+                      <span>
+                        <strong>{{getPrivilegeName(priv.privilegeId)}}</strong>
+                      </span>
+                      <span>
+                        <span class="badge bg-primary me-2">
+                          {{priv.monthlyLimit === -1 ? 'Unlimited' : priv.monthlyLimit + '/month'}}
+                        </span>
+                        <span class="badge bg-success">
+                          Overage: ${{priv.unitCost}}
+                        </span>
+                      </span>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Billing Discounts Summary -->
+            <div class="card mb-4">
+              <div class="card-header">
+                <h6 class="mb-0">Billing Cycle Discounts</h6>
+              </div>
+              <div class="card-body">
+                <div class="row text-center">
+                  <div class="col-md-4">
+                    <h6>Monthly</h6>
+                    <p class="text-muted mb-0">{{billingForm.value.monthlyBillingDiscount}}% discount</p>
+                  </div>
+                  <div class="col-md-4">
+                    <h6>Quarterly</h6>
+                    <p class="text-success mb-0">{{billingForm.value.quarterlyBillingDiscount}}% discount</p>
+                  </div>
+                  <div class="col-md-4">
+                    <h6>Annual</h6>
+                    <p class="text-success mb-0">{{billingForm.value.annualBillingDiscount}}% discount</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 4 Actions -->
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-secondary btn-lg" (click)="previousStep()">
+                <i class="bi bi-arrow-left me-2"></i> Back
+              </button>
+              <button 
+                class="btn btn-success btn-lg" 
+                (click)="submitPlan()"
+                [disabled]="creating">
+                <span *ngIf="creating" class="spinner-border spinner-border-sm me-2"></span>
+                <i *ngIf="!creating" class="bi bi-check-circle me-2"></i>
+                {{creating ? 'Creating Plan...' : 'Create Plan'}}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

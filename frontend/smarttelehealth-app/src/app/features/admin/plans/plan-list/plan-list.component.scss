@@ -1,0 +1,70 @@
+// Admin Plan List Styles
+
+.page-header {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.table {
+  font-size: 0.9rem;
+
+  tbody tr {
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background-color: #f8f9fa;
+    }
+  }
+
+  th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+  }
+}
+
+.feature-badges {
+  .badge {
+    font-size: 0.7rem;
+    font-weight: normal;
+  }
+}
+
+.btn-group {
+  .btn {
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+.pagination {
+  .page-link {
+    cursor: pointer;
+  }
+}
+
+// Responsive
+@media (max-width: 767px) {
+  .page-header {
+    .btn {
+      display: block;
+      width: 100%;
+      margin: 0.5rem 0;
+    }
+  }
+
+  .table {
+    font-size: 0.8rem;
+
+    .badge {
+      font-size: 0.7rem;
+    }
+  }
+}
+
+

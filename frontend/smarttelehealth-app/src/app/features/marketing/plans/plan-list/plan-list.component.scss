@@ -1,0 +1,48 @@
+// Plan List Component Styles
+
+.plan-card {
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  
+  &:hover {
+    border-color: var(--primary-500);
+    transform: translateY(-10px);
+    box-shadow: 0 8px 20px rgba(33, 150, 243, 0.3);
+  }
+}
+
+.price-display {
+  .price-amount {
+    display: block;
+  }
+  
+  .price-period {
+    font-size: 1rem;
+  }
+}
+
+.plan-features {
+  li {
+    i {
+      margin-right: 8px;
+    }
+  }
+}
+
+.savings-badge {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+// Responsive adjustments
+@media (max-width: 767px) {
+  .plan-card {
+    margin-bottom: 20px;
+  }
+}
+
+

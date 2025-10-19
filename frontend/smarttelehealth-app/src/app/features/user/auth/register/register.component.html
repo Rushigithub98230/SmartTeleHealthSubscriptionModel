@@ -1,0 +1,282 @@
+<!-- User Registration Page -->
+<div class="register-page min-vh-100 d-flex align-items-center bg-light py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card shadow-lg">
+          <div class="card-body p-5">
+            <!-- Header -->
+            <div class="text-center mb-4">
+              <h2 class="text-primary">
+                <i class="bi bi-person-plus-fill"></i> Create Your Account
+              </h2>
+              <p class="text-muted">Join SmartTelehealth for quality healthcare</p>
+            </div>
+
+            <!-- Success Message -->
+            <div *ngIf="success" class="alert alert-success" role="alert">
+              <i class="bi bi-check-circle-fill me-2"></i>
+              <strong>Registration successful!</strong> Redirecting to login...
+            </div>
+
+            <!-- Error Alert -->
+            <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              {{error}}
+              <button type="button" class="btn-close" (click)="error = null"></button>
+            </div>
+
+            <!-- Registration Form -->
+            <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" *ngIf="!success">
+              <!-- Personal Information -->
+              <h5 class="mb-3">Personal Information</h5>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="firstName" class="form-label">First Name <span class="text-danger">*</span></label>
+                  <input 
+                    type="text" 
+                    id="firstName"
+                    class="form-control" 
+                    formControlName="firstName"
+                    placeholder="John"
+                    [class.is-invalid]="hasError('firstName', 'required')">
+                  <div class="invalid-feedback" *ngIf="hasError('firstName', 'required')">
+                    First name is required
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="lastName" class="form-label">Last Name <span class="text-danger">*</span></label>
+                  <input 
+                    type="text" 
+                    id="lastName"
+                    class="form-control" 
+                    formControlName="lastName"
+                    placeholder="Doe"
+                    [class.is-invalid]="hasError('lastName', 'required')">
+                  <div class="invalid-feedback" *ngIf="hasError('lastName', 'required')">
+                    Last name is required
+                  </div>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="dateOfBirth" class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                  <input 
+                    type="date" 
+                    id="dateOfBirth"
+                    class="form-control" 
+                    formControlName="dateOfBirth"
+                    [class.is-invalid]="hasError('dateOfBirth', 'required')">
+                  <div class="invalid-feedback" *ngIf="hasError('dateOfBirth', 'required')">
+                    Date of birth is required
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="gender" class="form-label">Gender <span class="text-danger">*</span></label>
+                  <select 
+                    id="gender"
+                    class="form-select" 
+                    formControlName="gender"
+                    [class.is-invalid]="hasError('gender', 'required')">
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="PreferNotToSay">Prefer not to say</option>
+                  </select>
+                  <div class="invalid-feedback" *ngIf="hasError('gender', 'required')">
+                    Gender is required
+                  </div>
+                </div>
+              </div>
+
+              <!-- Contact Information -->
+              <h5 class="mb-3 mt-4">Contact Information</h5>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                  <input 
+                    type="email" 
+                    id="email"
+                    class="form-control" 
+                    formControlName="email"
+                    placeholder="john.doe@example.com"
+                    [class.is-invalid]="hasError('email', 'required') || hasError('email', 'email')">
+                  <div class="invalid-feedback" *ngIf="hasError('email', 'required')">
+                    Email is required
+                  </div>
+                  <div class="invalid-feedback" *ngIf="hasError('email', 'email')">
+                    Please enter a valid email
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="phoneNumber" class="form-label">Phone Number <span class="text-danger">*</span></label>
+                  <input 
+                    type="tel" 
+                    id="phoneNumber"
+                    class="form-control" 
+                    formControlName="phoneNumber"
+                    placeholder="1234567890"
+                    [class.is-invalid]="hasError('phoneNumber', 'required') || hasError('phoneNumber', 'pattern')">
+                  <div class="form-text">10 digits, no spaces or dashes</div>
+                  <div class="invalid-feedback" *ngIf="hasError('phoneNumber', 'required')">
+                    Phone number is required
+                  </div>
+                  <div class="invalid-feedback" *ngIf="hasError('phoneNumber', 'pattern')">
+                    Enter 10 digits (e.g., 1234567890)
+                  </div>
+                </div>
+              </div>
+
+              <!-- Address -->
+              <h5 class="mb-3 mt-4">Address</h5>
+              <div class="mb-3">
+                <label for="address" class="form-label">Street Address <span class="text-danger">*</span></label>
+                <input 
+                  type="text" 
+                  id="address"
+                  class="form-control" 
+                  formControlName="address"
+                  placeholder="123 Main Street"
+                  [class.is-invalid]="hasError('address', 'required')">
+                <div class="invalid-feedback" *ngIf="hasError('address', 'required')">
+                  Address is required
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label for="city" class="form-label">City <span class="text-danger">*</span></label>
+                  <input 
+                    type="text" 
+                    id="city"
+                    class="form-control" 
+                    formControlName="city"
+                    placeholder="New York"
+                    [class.is-invalid]="hasError('city', 'required')">
+                  <div class="invalid-feedback" *ngIf="hasError('city', 'required')">
+                    City is required
+                  </div>
+                </div>
+
+                <div class="col-md-4 mb-3">
+                  <label for="state" class="form-label">State <span class="text-danger">*</span></label>
+                  <input 
+                    type="text" 
+                    id="state"
+                    class="form-control" 
+                    formControlName="state"
+                    placeholder="NY"
+                    [class.is-invalid]="hasError('state', 'required')">
+                  <div class="invalid-feedback" *ngIf="hasError('state', 'required')">
+                    State is required
+                  </div>
+                </div>
+
+                <div class="col-md-4 mb-3">
+                  <label for="zipCode" class="form-label">ZIP Code <span class="text-danger">*</span></label>
+                  <input 
+                    type="text" 
+                    id="zipCode"
+                    class="form-control" 
+                    formControlName="zipCode"
+                    placeholder="10001"
+                    [class.is-invalid]="hasError('zipCode', 'required') || hasError('zipCode', 'pattern')">
+                  <div class="invalid-feedback" *ngIf="hasError('zipCode', 'required')">
+                    ZIP code is required
+                  </div>
+                  <div class="invalid-feedback" *ngIf="hasError('zipCode', 'pattern')">
+                    Enter 5 digits
+                  </div>
+                </div>
+              </div>
+
+              <!-- Password -->
+              <h5 class="mb-3 mt-4">Account Security</h5>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                  <input 
+                    type="password" 
+                    id="password"
+                    class="form-control" 
+                    formControlName="password"
+                    placeholder="Minimum 6 characters"
+                    [class.is-invalid]="hasError('password', 'required') || hasError('password', 'minlength')">
+                  <div class="invalid-feedback" *ngIf="hasError('password', 'required')">
+                    Password is required
+                  </div>
+                  <div class="invalid-feedback" *ngIf="hasError('password', 'minlength')">
+                    Password must be at least 6 characters
+                  </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="confirmPassword" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                  <input 
+                    type="password" 
+                    id="confirmPassword"
+                    class="form-control" 
+                    formControlName="confirmPassword"
+                    placeholder="Re-enter password"
+                    [class.is-invalid]="hasError('confirmPassword', 'required') || hasPasswordMismatch()">
+                  <div class="invalid-feedback" *ngIf="hasError('confirmPassword', 'required')">
+                    Please confirm your password
+                  </div>
+                  <div class="invalid-feedback" *ngIf="hasPasswordMismatch()">
+                    Passwords do not match
+                  </div>
+                </div>
+              </div>
+
+              <!-- Terms Agreement -->
+              <div class="mb-4">
+                <div class="form-check">
+                  <input 
+                    type="checkbox" 
+                    id="agreeToTerms"
+                    class="form-check-input" 
+                    formControlName="agreeToTerms"
+                    [class.is-invalid]="hasError('agreeToTerms', 'required')">
+                  <label class="form-check-label" for="agreeToTerms">
+                    I agree to the <a href="#" class="text-decoration-none">Terms of Service</a> 
+                    and <a href="#" class="text-decoration-none">Privacy Policy</a> <span class="text-danger">*</span>
+                  </label>
+                  <div class="invalid-feedback d-block" *ngIf="hasError('agreeToTerms', 'required')">
+                    You must agree to the terms
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <button 
+                type="submit" 
+                class="btn btn-primary btn-lg w-100 mb-3"
+                [disabled]="loading">
+                <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                <i *ngIf="!loading" class="bi bi-person-check me-2"></i>
+                {{loading ? 'Creating Account...' : 'Create Account'}}
+              </button>
+
+              <!-- Login Link -->
+              <div class="text-center">
+                <p class="mb-0">
+                  Already have an account?
+                  <a routerLink="/web/login" class="text-decoration-none fw-bold">
+                    Sign In
+                  </a>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

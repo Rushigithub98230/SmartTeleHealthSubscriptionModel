@@ -132,5 +132,12 @@ public interface ISubscriptionBillingService
     
     DateTime CalculateNextBillingDate(DateTime currentDate, MasterBillingCycle billingCycle);
     Task<DateTime> CalculateNextBillingDateForSubscriptionAsync(Guid subscriptionId, TokenModel tokenModel);
+    
+    // ===== BILLING CYCLES (For User Purchase Flow) =====
+    
+    /// <summary>
+    /// Gets all active billing cycles for user subscription purchase flow
+    /// </summary>
+    Task<IEnumerable<MasterBillingCycle>> GetAllBillingCyclesAsync();
 }
 

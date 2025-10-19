@@ -1,0 +1,174 @@
+<!-- My Subscriptions List -->
+<div class="subscriptions-page">
+  <!-- Page Header -->
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-card-list"></i> My Subscriptions
+          </h2>
+          <p class="text-muted mb-0">Manage your active and past subscriptions</p>
+        </div>
+        <a routerLink="/plans" class="btn btn-primary">
+          <i class="bi bi-plus-circle me-2"></i>Add New Plan
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+      <p class="mt-3 text-muted">Loading your subscriptions...</p>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error" class="alert alert-danger">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      {{error}}
+    </div>
+
+    <!-- Subscriptions Content -->
+    <div *ngIf="!loading && !error">
+      <!-- Active Subscriptions -->
+      <div class="mb-5" *ngIf="activeSubscriptions.length > 0">
+        <h4 class="mb-3">
+          <span class="badge bg-success me-2">{{activeSubscriptions.length}}</span>
+          Active Subscriptions
+        </h4>
+        <div class="row g-4">
+          <div class="col-md-6 col-lg-4" *ngFor="let sub of activeSubscriptions">
+            <div class="card subscription-card h-100">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>{{sub.planName}}</strong>
+                <span class="badge" [ngClass]="getStatusBadgeClass(sub.status)">
+                  {{sub.status}}
+                </span>
+              </div>
+              <div class="card-body">
+                <p class="text-muted small">{{sub.planDescription}}</p>
+                
+                <div class="subscription-info">
+                  <div class="info-item">
+                    <small class="text-muted">Monthly Price</small>
+                    <strong class="d-block">${{sub.currentPrice | number:'1.2-2'}}</strong>
+                  </div>
+                  <div class="info-item">
+                    <small class="text-muted">Next Billing</small>
+                    <strong class="d-block">{{sub.nextBillingDate | date:'MMM d, yyyy'}}</strong>
+                    <small class="text-muted">
+                      ({{getDaysUntilBilling(sub.nextBillingDate)}} days)
+                    </small>
+                  </div>
+                  <div class="info-item">
+                    <small class="text-muted">Auto Renew</small>
+                    <span class="badge" [ngClass]="sub.autoRenew ? 'bg-success' : 'bg-secondary'">
+                      {{sub.autoRenew ? 'On' : 'Off'}}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-footer bg-white">
+                <a [routerLink]="['/web/subscriptions', sub.id]" class="btn btn-outline-primary btn-sm w-100">
+                  <i class="bi bi-eye me-1"></i>View Details
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paused Subscriptions -->
+      <div class="mb-5" *ngIf="pausedSubscriptions.length > 0">
+        <h4 class="mb-3">
+          <span class="badge bg-secondary me-2">{{pausedSubscriptions.length}}</span>
+          Paused Subscriptions
+        </h4>
+        <div class="row g-4">
+          <div class="col-md-6 col-lg-4" *ngFor="let sub of pausedSubscriptions">
+            <div class="card subscription-card h-100">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>{{sub.planName}}</strong>
+                <span class="badge bg-secondary">Paused</span>
+              </div>
+              <div class="card-body">
+                <p class="text-muted small">{{sub.planDescription}}</p>
+                
+                <div class="subscription-info">
+                  <div class="info-item">
+                    <small class="text-muted">Paused On</small>
+                    <strong class="d-block">{{sub.pausedDate | date:'MMM d, yyyy'}}</strong>
+                  </div>
+                  <div class="info-item">
+                    <small class="text-muted">Monthly Price</small>
+                    <strong class="d-block">${{sub.currentPrice | number:'1.2-2'}}</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="card-footer bg-white">
+                <a [routerLink]="['/web/subscriptions', sub.id]" class="btn btn-outline-primary btn-sm w-100">
+                  <i class="bi bi-play-circle me-1"></i>Resume
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cancelled/Expired Subscriptions -->
+      <div class="mb-5" *ngIf="cancelledSubscriptions.length > 0">
+        <h4 class="mb-3">
+          <span class="badge bg-dark me-2">{{cancelledSubscriptions.length}}</span>
+          Past Subscriptions
+        </h4>
+        <div class="row g-4">
+          <div class="col-md-6 col-lg-4" *ngFor="let sub of cancelledSubscriptions">
+            <div class="card subscription-card h-100 opacity-75">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>{{sub.planName}}</strong>
+                <span class="badge" [ngClass]="getStatusBadgeClass(sub.status)">
+                  {{sub.status}}
+                </span>
+              </div>
+              <div class="card-body">
+                <p class="text-muted small">{{sub.planDescription}}</p>
+                
+                <div class="subscription-info">
+                  <div class="info-item">
+                    <small class="text-muted">Start Date</small>
+                    <strong class="d-block">{{sub.startDate | date:'MMM d, yyyy'}}</strong>
+                  </div>
+                  <div class="info-item">
+                    <small class="text-muted">End Date</small>
+                    <strong class="d-block">
+                      {{(sub.cancelledDate || sub.expirationDate) | date:'MMM d, yyyy'}}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+              <div class="card-footer bg-white">
+                <a [routerLink]="['/web/subscriptions', sub.id]" class="btn btn-outline-secondary btn-sm w-100">
+                  <i class="bi bi-eye me-1"></i>View Details
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Subscriptions -->
+      <div *ngIf="subscriptions.length === 0" class="text-center py-5">
+        <i class="bi bi-inbox" style="font-size: 5rem; color: #ccc;"></i>
+        <h4 class="mt-3 text-muted">No Subscriptions Yet</h4>
+        <p class="text-muted">Start your healthcare journey by subscribing to a plan</p>
+        <a routerLink="/plans" class="btn btn-primary btn-lg mt-3">
+          <i class="bi bi-plus-circle me-2"></i>Browse Available Plans
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+

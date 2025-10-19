@@ -1,6 +1,7 @@
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Enums;
@@ -122,6 +123,71 @@ public class PaymentService : IPaymentService
         {
             _logger.LogError(ex, "Error processing payment for billing record {BillingRecordId}", billingRecordId);
             return new JsonModel { data = new object(), Message = "Error processing payment", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Records an externally processed payment (e.g., from Stripe webhook).
+    /// Creates SubscriptionPayment, updates subscription billing dates, and resets privileges.
+    /// Use this when payment was already processed by external system (Stripe auto-charge).
+    /// 
+    /// CRITICAL: This method MUST be called from webhooks to ensure:
+    /// 1. SubscriptionPayment record is created
+    /// 2. LastBillingDate is updated
+    /// 3. NextBillingDate is recalculated
+    /// 4. Privileges are reset for new billing period
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record that was externally paid</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing payment recording results and status</returns>
+    public async Task<JsonModel> RecordExternalPaymentAsync(Guid billingRecordId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Recording external payment for billing record {BillingRecordId}", billingRecordId);
+            
+            // Validate billing record exists
+            var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
+            if (billingRecord == null)
+            {
+                return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+            }
+
+            // Validate billing record is already marked as Paid (external payment already processed)
+            if (billingRecord.Status != BillingRecord.BillingStatus.Paid)
+            {
+                _logger.LogWarning("Billing record {BillingRecordId} is not marked as Paid, status is {Status}", 
+                    billingRecordId, billingRecord.Status);
+                return new JsonModel { data = new object(), Message = "Billing record is not in Paid status", StatusCode = 400 };
+            }
+
+            SubscriptionPayment subscriptionPayment = null;
+            
+            // Create or get existing SubscriptionPayment for subscription-related billing
+            if ((billingRecord.Type == BillingRecord.BillingType.Subscription || 
+                 billingRecord.Type == BillingRecord.BillingType.Overage ||
+                 billingRecord.Type == BillingRecord.BillingType.Recurring) && 
+                billingRecord.SubscriptionId.HasValue)
+            {
+                subscriptionPayment = await GetOrCreateSubscriptionPaymentAsync(billingRecord, tokenModel);
+            }
+            
+            // Update payment records WITHOUT processing through Stripe (already paid externally)
+            await UpdatePaymentRecordsForExternalPaymentAsync(billingRecord, subscriptionPayment, tokenModel);
+            
+            _logger.LogInformation("External payment recorded successfully for billing record {BillingRecordId}", billingRecordId);
+            
+            return new JsonModel 
+            { 
+                data = new { billingRecordId, subscriptionPaymentId = subscriptionPayment?.Id }, 
+                Message = "External payment recorded successfully", 
+                StatusCode = 200 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording external payment for billing record {BillingRecordId}", billingRecordId);
+            return new JsonModel { data = new object(), Message = "Error recording external payment", StatusCode = 500 };
         }
     }
 
@@ -1095,23 +1161,73 @@ public class PaymentService : IPaymentService
     /// <summary>
     /// Calculates billing period for subscription payment using LastBillingDate logic
     /// </summary>
+    /// <summary>
+    /// Calculates the billing period (start and end dates) for a subscription payment
+    /// FIXED: Now correctly handles all billing cycles (monthly, quarterly, annual)
+    /// </summary>
     private (DateTime start, DateTime end) CalculateBillingPeriod(Subscription subscription, BillingRecord billingRecord)
     {
-        var now = DateTime.UtcNow;
-        
-        // For first payment (no LastBillingDate), use subscription start date
-        if (!subscription.LastBillingDate.HasValue)
+        try
         {
-            var start = subscription.StartDate;
-            var end = start.AddMonths(1).AddDays(-1); // End of first month
+            var billingCycle = subscription.BillingCycle;
+            
+            if (billingCycle == null)
+            {
+                _logger.LogWarning("Billing cycle not found for subscription {SubscriptionId}, defaulting to monthly", subscription.Id);
+                var start = subscription.LastBillingDate ?? subscription.StartDate;
+                var end = start.AddMonths(1).AddDays(-1);
+                return (start, end);
+            }
+            
+            // For first payment (no LastBillingDate), period starts at subscription start date
+            if (!subscription.LastBillingDate.HasValue)
+            {
+                var start = subscription.StartDate;
+                var end = CalculateEndDateForCycle(start, billingCycle);
+                
+                _logger.LogDebug("First billing period for subscription {SubscriptionId}: {Start} to {End}", 
+                    subscription.Id, start, end);
+                return (start, end);
+            }
+
+            // For renewal payments:
+            // LastBillingDate is the START of the PREVIOUS billing period
+            // So the NEW period starts at NextBillingDate (or calculate from LastBillingDate + cycle duration)
+            var periodStart = subscription.NextBillingDate != default(DateTime) 
+                ? subscription.NextBillingDate 
+                : CalculateNextBillingDate(subscription);
+            var periodEnd = CalculateEndDateForCycle(periodStart, billingCycle);
+
+            _logger.LogDebug("Renewal billing period for subscription {SubscriptionId}: {Start} to {End}", 
+                subscription.Id, periodStart, periodEnd);
+            return (periodStart, periodEnd);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating billing period for subscription {SubscriptionId}", subscription.Id);
+            // Safe fallback
+            var start = subscription.LastBillingDate ?? subscription.StartDate;
+            var end = start.AddMonths(1).AddDays(-1);
             return (start, end);
         }
-
-        // For renewal payments, use LastBillingDate + 1 day as start
-        var periodStart = subscription.LastBillingDate.Value.AddDays(1);
-        var periodEnd = periodStart.AddMonths(1).AddDays(-1); // End of billing period
-
-        return (periodStart, periodEnd);
+    }
+    
+    /// <summary>
+    /// Calculates the end date of a billing period based on start date and billing cycle.
+    /// REFACTORED: Now uses centralized BillingCycleCalculator for consistency.
+    /// </summary>
+    private DateTime CalculateEndDateForCycle(DateTime startDate, MasterBillingCycle billingCycle)
+    {
+        try
+        {
+            // Use centralized calculator
+            return BillingCycleCalculator.CalculateEndDateForCycle(startDate, billingCycle);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating end date for billing cycle {CycleName}", billingCycle?.Name);
+            return startDate.AddMonths(1).AddDays(-1); // Safe fallback
+        }
     }
 
     /// <summary>
@@ -1166,11 +1282,19 @@ public class PaymentService : IPaymentService
             // Update subscription LastBillingDate if payment succeeded
             if (isSuccess && subscriptionPayment != null)
             {
-                var subscription = await _subscriptionRepository.GetByIdAsync(subscriptionPayment.SubscriptionId);
+                var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionPayment.SubscriptionId);
                 if (subscription != null)
                 {
-                    subscription.LastBillingDate = subscriptionPayment.BillingPeriodEnd;
+                    // FIXED: LastBillingDate should be the START of the billing period, not the END
+                    subscription.LastBillingDate = subscriptionPayment.BillingPeriodStart;
+                    
+                    // FIXED: Calculate next billing date using proper billing cycle logic
                     subscription.NextBillingDate = CalculateNextBillingDate(subscription);
+                    
+                    // Update last payment date for tracking
+                    subscription.LastPaymentDate = DateTime.UtcNow;
+                    subscription.FailedPaymentAttempts = 0; // Reset failed attempts on successful payment
+                    
                     subscription.UpdatedBy = tokenModel.UserID;
                     subscription.UpdatedDate = DateTime.UtcNow;
                     await _subscriptionRepository.UpdateAsync(subscription);
@@ -1192,15 +1316,84 @@ public class PaymentService : IPaymentService
     }
 
     /// <summary>
-    /// Resets privilege usage for new billing period (scales to billing cycle)
+    /// Updates payment records for externally processed payments (e.g., Stripe webhooks).
+    /// Similar to UpdatePaymentRecordsAsync but skips Stripe processing.
+    /// </summary>
+    private async Task UpdatePaymentRecordsForExternalPaymentAsync(BillingRecord billingRecord, 
+        SubscriptionPayment subscriptionPayment, TokenModel tokenModel)
+    {
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            if (subscriptionPayment != null)
+            {
+                // Update SubscriptionPayment - mark as succeeded since external payment was already processed
+                subscriptionPayment.Status = SubscriptionPayment.PaymentStatus.Succeeded;
+                subscriptionPayment.PaidAt = billingRecord.PaidAt ?? DateTime.UtcNow;
+                subscriptionPayment.StripePaymentIntentId = billingRecord.StripePaymentIntentId;
+                subscriptionPayment.StripeInvoiceId = billingRecord.StripeInvoiceId;
+                subscriptionPayment.UpdatedBy = tokenModel.UserID;
+                subscriptionPayment.UpdatedDate = DateTime.UtcNow;
+
+                await _subscriptionPaymentRepository.UpdateAsync(subscriptionPayment);
+            }
+
+            // BillingRecord is already marked as Paid by webhook, just ensure consistency
+            billingRecord.UpdatedBy = tokenModel.UserID;
+            billingRecord.UpdatedDate = DateTime.UtcNow;
+            await _billingRepository.UpdateAsync(billingRecord);
+
+            // Update subscription LastBillingDate and reset privileges
+            if (subscriptionPayment != null)
+            {
+                var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionPayment.SubscriptionId);
+                if (subscription != null)
+                {
+                    // Update LastBillingDate to the START of the billing period
+                    subscription.LastBillingDate = subscriptionPayment.BillingPeriodStart;
+                    
+                    // Calculate next billing date using proper billing cycle logic
+                    subscription.NextBillingDate = CalculateNextBillingDate(subscription);
+                    
+                    // Update last payment date for tracking
+                    subscription.LastPaymentDate = DateTime.UtcNow;
+                    subscription.FailedPaymentAttempts = 0; // Reset failed attempts on successful payment
+                    
+                    subscription.UpdatedBy = tokenModel.UserID;
+                    subscription.UpdatedDate = DateTime.UtcNow;
+                    await _subscriptionRepository.UpdateAsync(subscription);
+                    
+                    // CRITICAL: Reset privilege usage for new billing period
+                    await ResetPrivilegesForNewBillingPeriodAsync(subscription, tokenModel);
+                }
+            }
+
+            await _unitOfWork.CommitTransactionAsync();
+            _logger.LogInformation("Successfully updated payment records for external payment - billing record {BillingRecordId}", 
+                billingRecord.Id);
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error updating payment records for external payment - billing record {BillingRecordId}", 
+                billingRecord.Id);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Resets privilege usage for new billing period.
+    /// CORRECTED: Now uses admin-set Value directly (no calculation).
+    /// The Value field contains the total privilege count set by admin for the billing cycle.
     /// </summary>
     private async Task ResetPrivilegesForNewBillingPeriodAsync(Subscription subscription, TokenModel tokenModel)
     {
         try
         {
             var usageRecords = await _subscriptionRepository.GetSubscriptionPrivilegeUsagesAsync(subscription.Id);
-            var billingCycleDays = subscription.BillingCycle.DurationInDays;
-            var monthsInCycle = billingCycleDays / 30.0m;
+            
+            _logger.LogInformation("Resetting privileges for subscription {SubscriptionId}: BillingCycle={Cycle}",
+                subscription.Id, subscription.BillingCycle.Name);
             
             foreach (var usage in usageRecords)
             {
@@ -1209,24 +1402,31 @@ public class PaymentService : IPaymentService
                 
                 if (planPrivilege != null)
                 {
-                    var monthlyLimit = planPrivilege.MonthlyLimit ?? planPrivilege.Value;
-                    var allowedForCycle = monthlyLimit == -1 ? -1 : (int)Math.Ceiling(monthlyLimit * monthsInCycle);
+                    // CORRECTED: Use centralized calculator (now returns Value directly without calculation)
+                    var (allowedValue, periodStart, periodEnd) = PrivilegeAllocationCalculator.CalculatePrivilegeAllocation(
+                        subscription, 
+                        planPrivilege);
                     
+                    // Reset usage values to plan defaults
+                    // AllowedValue = admin-set Value (e.g., 152), NOT calculated from monthly limit
                     usage.UsedValue = 0;
-                    usage.AllowedValue = allowedForCycle;
-                    usage.UsagePeriodStart = subscription.LastBillingDate.Value.AddDays(1);
-                    usage.UsagePeriodEnd = subscription.NextBillingDate;
+                    usage.AllowedValue = allowedValue;
+                    usage.UsagePeriodStart = periodStart;
+                    usage.UsagePeriodEnd = periodEnd;
+                    usage.ResetAt = DateTime.UtcNow;
                     usage.UpdatedBy = tokenModel.UserID;
                     usage.UpdatedDate = DateTime.UtcNow;
                     
                     await _subscriptionRepository.UpdatePrivilegeUsageAsync(usage);
                     
-                    _logger.LogInformation("Reset privilege {PrivilegeId} for subscription {SubscriptionId}: AllowedValue={AllowedValue}, Period={Start} to {End}",
-                        planPrivilege.PrivilegeId, subscription.Id, allowedForCycle, usage.UsagePeriodStart, usage.UsagePeriodEnd);
+                    _logger.LogInformation("Reset privilege '{PrivilegeName}' (ID: {PrivilegeId}) for subscription {SubscriptionId}: " +
+                        "AllowedValue={AllowedValue} (admin-set total), Period={Start:yyyy-MM-dd} to {End:yyyy-MM-dd}",
+                        planPrivilege.Privilege?.Name ?? "Unknown", planPrivilege.PrivilegeId, subscription.Id, 
+                        allowedValue, usage.UsagePeriodStart, usage.UsagePeriodEnd);
                 }
             }
             
-            _logger.LogInformation("Reset {Count} privilege usages for subscription {SubscriptionId}", 
+            _logger.LogInformation("Successfully reset {Count} privilege usages for subscription {SubscriptionId}", 
                 usageRecords.Count(), subscription.Id);
         }
         catch (Exception ex)
@@ -1251,16 +1451,23 @@ public class PaymentService : IPaymentService
     }
 
     /// <summary>
-    /// Calculates next billing date for subscription
+    /// Calculates next billing date for subscription based on billing cycle.
+    /// REFACTORED: Now uses centralized BillingCycleCalculator for consistency.
     /// </summary>
     private DateTime CalculateNextBillingDate(Subscription subscription)
     {
-        if (!subscription.LastBillingDate.HasValue)
+        try
         {
-            return subscription.StartDate.AddMonths(1);
+            var baseDate = subscription.LastBillingDate ?? subscription.StartDate;
+            
+            // Use centralized calculator for consistency across all services
+            return BillingCycleCalculator.CalculateNextBillingDate(baseDate, subscription.BillingCycle);
         }
-
-        return subscription.LastBillingDate.Value.AddMonths(1);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating next billing date for subscription {SubscriptionId}", subscription.Id);
+            return (subscription.LastBillingDate ?? subscription.StartDate).AddMonths(1); // Safe fallback
+        }
     }
 
     /// <summary>

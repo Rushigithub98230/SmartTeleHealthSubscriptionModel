@@ -2248,9 +2248,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.ExpirationDate);
             
             // Time-based Usage Limits
-            entity.Property(e => e.DailyLimit);
-            entity.Property(e => e.WeeklyLimit);
-            entity.Property(e => e.MonthlyLimit);
+            // Time-based limits removed
             
             // Foreign Key Relationships
             entity.HasOne(e => e.SubscriptionPlan)
@@ -2263,15 +2261,16 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
                 .HasForeignKey(e => e.PrivilegeId)
                 .OnDelete(DeleteBehavior.Cascade);
                 
-            entity.HasOne(e => e.UsagePeriod)
-                .WithMany()
-                .HasForeignKey(e => e.UsagePeriodId)
-                .OnDelete(DeleteBehavior.Restrict);
+            // REMOVED: UsagePeriod relationship - not used in business logic
+            // entity.HasOne(e => e.UsagePeriod)
+            //     .WithMany()
+            //     .HasForeignKey(e => e.UsagePeriodId)
+            //     .OnDelete(DeleteBehavior.Restrict);
                 
             // Performance Indexes
             entity.HasIndex(e => e.SubscriptionPlanId);
             entity.HasIndex(e => e.PrivilegeId);
-            entity.HasIndex(e => e.UsagePeriodId);
+            // entity.HasIndex(e => e.UsagePeriodId); // REMOVED - column removed
             entity.HasIndex(e => e.EffectiveDate);
             entity.HasIndex(e => e.ExpirationDate);
         });

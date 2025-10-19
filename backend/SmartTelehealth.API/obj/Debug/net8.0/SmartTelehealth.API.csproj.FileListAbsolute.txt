@@ -750,4 +750,3 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\ba
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.pdb
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.genruntimeconfig.cache
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\ref\SmartTelehealth.API.dll
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

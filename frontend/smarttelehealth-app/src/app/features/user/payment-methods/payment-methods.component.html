@@ -1,0 +1,141 @@
+<!-- Payment Methods Management Page -->
+<div class="payment-methods-page">
+  <!-- Page Header -->
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-credit-card"></i> Payment Methods
+          </h2>
+          <p class="text-muted mb-0">Manage your saved cards and payment options</p>
+        </div>
+        <div>
+          <a routerLink="/web/dashboard" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+          </a>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCardModal">
+            <i class="bi bi-plus-circle me-1"></i>Add Card
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+      <p class="mt-3 text-muted">Loading payment methods...</p>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error" class="alert alert-danger">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      {{error}}
+    </div>
+
+    <!-- Payment Methods Grid -->
+    <div *ngIf="!loading && !error">
+      <div class="row g-4" *ngIf="paymentMethods.length > 0">
+        <div class="col-md-6 col-lg-4" *ngFor="let pm of paymentMethods">
+          <div class="card payment-card h-100" [class.default-card]="pm.isDefault">
+            <div class="card-body">
+              <!-- Default Badge -->
+              <div class="text-end mb-2" *ngIf="pm.isDefault">
+                <span class="badge bg-success">
+                  <i class="bi bi-star-fill me-1"></i>Default
+                </span>
+              </div>
+
+              <!-- Card Info -->
+              <div class="text-center mb-4">
+                <i [ngClass]="getCardBrandIcon(pm.card?.brand)" class="card-icon"></i>
+                <h5 class="mt-3 mb-0 text-capitalize">{{pm.card?.brand}}</h5>
+                <h4 class="card-number">•••• •••• •••• {{pm.card?.last4}}</h4>
+                <p class="text-muted mb-0">
+                  Expires: {{pm.card?.expMonth}}/{{pm.card?.expYear}}
+                  <span class="badge bg-danger ms-2" *ngIf="isCardExpired(pm.card?.expMonth || 0, pm.card?.expYear || 0)">
+                    Expired
+                  </span>
+                </p>
+              </div>
+
+              <!-- Actions -->
+              <div class="d-grid gap-2">
+                <button 
+                  *ngIf="!pm.isDefault"
+                  class="btn btn-outline-primary btn-sm"
+                  (click)="setDefaultMethod(pm.id)"
+                  [disabled]="actionLoading">
+                  <i class="bi bi-star me-1"></i>Set as Default
+                </button>
+                <button 
+                  class="btn btn-outline-danger btn-sm"
+                  (click)="deleteMethod(pm.id)"
+                  [disabled]="actionLoading || pm.isDefault">
+                  <i class="bi bi-trash me-1"></i>Remove
+                </button>
+              </div>
+
+              <!-- Cannot Remove Default Info -->
+              <small class="text-muted d-block mt-2" *ngIf="pm.isDefault">
+                <i class="bi bi-info-circle me-1"></i>
+                Set another card as default before removing this one
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Payment Methods -->
+      <div *ngIf="paymentMethods.length === 0" class="text-center py-5">
+        <i class="bi bi-credit-card" style="font-size: 5rem; color: #ccc;"></i>
+        <h4 class="mt-3 text-muted">No Payment Methods</h4>
+        <p class="text-muted">Add a payment method to subscribe to plans and make purchases</p>
+        <button class="btn btn-primary btn-lg mt-3" data-bs-toggle="modal" data-bs-target="#addCardModal">
+          <i class="bi bi-plus-circle me-2"></i>Add Your First Card
+        </button>
+      </div>
+
+      <!-- Security Notice -->
+      <div class="alert alert-info mt-4">
+        <i class="bi bi-shield-check me-2"></i>
+        <strong>Secure Payment:</strong> Your payment information is encrypted and securely stored. 
+        We use Stripe for payment processing and never store your full card details.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Card Modal (Placeholder for Stripe Elements) -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-credit-card me-2"></i>Add Payment Method
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          <strong>Coming Soon:</strong> Stripe Elements integration for adding new cards will be implemented here.
+        </div>
+        <p class="text-muted">This modal will contain:</p>
+        <ul class="text-muted">
+          <li>Stripe card element for secure input</li>
+          <li>Card holder name field</li>
+          <li>Set as default checkbox</li>
+          <li>Add card button</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+

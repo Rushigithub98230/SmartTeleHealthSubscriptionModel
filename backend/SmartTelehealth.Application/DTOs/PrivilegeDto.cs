@@ -52,17 +52,9 @@ public class UpdateTimeBasedLimitsDto
     [Required]
     public Guid PrivilegeId { get; set; }
     
-    [Range(0, int.MaxValue, ErrorMessage = "Daily limit must be 0 or positive")]
-    public int DailyLimit { get; set; }
     
-    [Range(0, int.MaxValue, ErrorMessage = "Weekly limit must be 0 or positive")]
-    public int WeeklyLimit { get; set; }
-    
-    [Range(0, int.MaxValue, ErrorMessage = "Monthly limit must be 0 or positive")]
-    public int MonthlyLimit { get; set; }
-    
-    [Required]
-    public Guid UsagePeriodId { get; set; }
+    // REMOVED: Not used in business logic - privileges reset based on subscription billing cycle
+    // public Guid UsagePeriodId { get; set; }
     
     [Range(1, int.MaxValue, ErrorMessage = "Duration must be at least 1 month")]
     public int DurationMonths { get; set; }

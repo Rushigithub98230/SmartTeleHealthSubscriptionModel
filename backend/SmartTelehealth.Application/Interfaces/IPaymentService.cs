@@ -13,6 +13,14 @@ public interface IPaymentService
 {
     // Core Payment Processing
     Task<JsonModel> ProcessPaymentAsync(Guid billingRecordId, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Records an externally processed payment (e.g., from Stripe webhook).
+    /// Creates SubscriptionPayment, updates subscription billing dates, and resets privileges.
+    /// Use this when payment was already processed by external system (Stripe auto-charge).
+    /// </summary>
+    Task<JsonModel> RecordExternalPaymentAsync(Guid billingRecordId, TokenModel tokenModel);
+    
     Task<JsonModel> RetryPaymentAsync(Guid billingRecordId, TokenModel tokenModel);
     Task<JsonModel> RetryFailedPaymentAsync(Guid billingRecordId, TokenModel tokenModel);
     Task<JsonModel> ProcessPartialPaymentAsync(Guid billingRecordId, decimal amount, TokenModel tokenModel);

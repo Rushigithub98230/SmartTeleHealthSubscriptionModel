@@ -196,7 +196,7 @@ public class ScheduledMigrationBackgroundService : BackgroundService
                     {
                         "monthly" => targetPlan.StripeMonthlyPriceId,
                         "quarterly" => targetPlan.StripeQuarterlyPriceId,
-                        "annually" or "annual" => targetPlan.StripeAnnualPriceId,
+                        "annual" => targetPlan.StripeAnnualPriceId,               // ONLY "annual" (database standard)
                         _ => targetPlan.StripeMonthlyPriceId
                     };
                     

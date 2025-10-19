@@ -81,6 +81,7 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     
     // Billing cycle methods
     Task<MasterBillingCycle?> GetBillingCycleByIdAsync(Guid billingCycleId);
+    Task<IEnumerable<MasterBillingCycle>> GetAllBillingCyclesAsync();
     
     // Currency methods
     Task<MasterCurrency?> GetCurrencyByIdAsync(Guid currencyId);

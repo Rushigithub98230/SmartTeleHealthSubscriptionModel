@@ -233,7 +233,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 {
                     Name = createDto.Name,
                     Description = createDto.Description,
+                    ShortDescription = createDto.ShortDescription,
                     Price = createDto.Price,
+                    DiscountedPrice = createDto.DiscountedPrice,
+                    DiscountValidUntil = createDto.DiscountValidUntil,
                     BillingCycleId = createDto.BillingCycleId,
                     CurrencyId = createDto.CurrencyId,
                     CategoryId = createDto.CategoryId,
@@ -242,6 +245,28 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     // Trial configuration
                     IsTrialAllowed = createDto.IsTrialAllowed,
                     TrialDurationInDays = createDto.TrialDurationInDays,
+                    // Marketing properties
+                    IsFeatured = createDto.IsFeatured,
+                    IsMostPopular = createDto.IsMostPopular,
+                    IsTrending = createDto.IsTrending,
+                    // Plan features
+                    MessagingCount = createDto.MessagingCount,
+                    IncludesMedicationDelivery = createDto.IncludesMedicationDelivery,
+                    IncludesFollowUpCare = createDto.IncludesFollowUpCare,
+                    DeliveryFrequencyDays = createDto.DeliveryFrequencyDays,
+                    MaxPauseDurationDays = createDto.MaxPauseDurationDays,
+                    // Note: MaxConcurrentUsers and GracePeriodDays are in DTO but not in entity
+                    // These are subscription-level properties, not plan-level
+                    // Metadata
+                    Features = createDto.Features,
+                    Terms = createDto.Terms,
+                    EffectiveDate = createDto.EffectiveDate,
+                    ExpirationDate = createDto.ExpirationDate,
+                    // Stripe IDs (if provided)
+                    StripeProductId = createDto.StripeProductId,
+                    StripeMonthlyPriceId = createDto.StripeMonthlyPriceId,
+                    StripeQuarterlyPriceId = createDto.StripeQuarterlyPriceId,
+                    StripeAnnualPriceId = createDto.StripeAnnualPriceId,
                     
                     // ═══════════════════════════════════════════════════════════
                     // HEALTHCARE PRICING MODEL (Choices 1c, 2c, 4d)
@@ -255,6 +280,11 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     AdminCommissionFixed = createDto.AdminCommissionFixed,
                     PriceChangeNoticeDays = createDto.PriceChangeNoticeDays,
                     PrivilegesTotalCost = 0,  // Will be calculated if auto-pricing
+                    
+                    // Billing cycle discounts
+                    MonthlyBillingDiscount = createDto.MonthlyBillingDiscount,
+                    QuarterlyBillingDiscount = createDto.QuarterlyBillingDiscount,
+                    AnnualBillingDiscount = createDto.AnnualBillingDiscount,
                     
                     // Set audit properties for creation
                     CreatedBy = tokenModel.UserID,
@@ -310,12 +340,9 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                             SubscriptionPlanId = createdPlan.Id,
                             PrivilegeId = privilege.PrivilegeId,
                             Value = privilege.Value,
-                            UsagePeriodId = privilege.UsagePeriodId,
+                            // UsagePeriodId = privilege.UsagePeriodId, // REMOVED - not used
                             DurationMonths = privilege.DurationMonths,
                             ExpirationDate = privilege.ExpirationDate,
-                            DailyLimit = privilege.DailyLimit,
-                            WeeklyLimit = privilege.WeeklyLimit,
-                            MonthlyLimit = privilege.MonthlyLimit,
                             
                             // Healthcare Pricing Model
                             PrivilegeBaseCost = privilege.PrivilegeBaseCost,  // For plan price calculation
@@ -584,12 +611,9 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     SubscriptionPlanId = planId,
                     PrivilegeId = privilege.PrivilegeId,
                     Value = privilege.Value,
-                    UsagePeriodId = privilege.UsagePeriodId,
+                    // UsagePeriodId = privilege.UsagePeriodId, // REMOVED - not used
                     DurationMonths = privilege.DurationMonths,
                     ExpirationDate = privilege.ExpirationDate,
-                    DailyLimit = privilege.DailyLimit,
-                    WeeklyLimit = privilege.WeeklyLimit,
-                    MonthlyLimit = privilege.MonthlyLimit,
                     PrivilegeBaseCost = privilege.PrivilegeBaseCost,
                     UnitCost = privilege.UnitCost,
                     IsActive = true,
@@ -766,12 +790,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
 
             // Update the privilege
             planPrivilege.Value = updatedPrivilegeDto.Value;
-            planPrivilege.UsagePeriodId = updatedPrivilegeDto.UsagePeriodId;
+            // planPrivilege.UsagePeriodId = updatedPrivilegeDto.UsagePeriodId; // REMOVED - not used
             planPrivilege.DurationMonths = updatedPrivilegeDto.DurationMonths;
             planPrivilege.ExpirationDate = updatedPrivilegeDto.ExpirationDate;
-            planPrivilege.DailyLimit = updatedPrivilegeDto.DailyLimit;
-            planPrivilege.WeeklyLimit = updatedPrivilegeDto.WeeklyLimit;
-            planPrivilege.MonthlyLimit = updatedPrivilegeDto.MonthlyLimit;
+            // Time-based limits removed
             planPrivilege.PrivilegeBaseCost = updatedPrivilegeDto.PrivilegeBaseCost;
             planPrivilege.UnitCost = updatedPrivilegeDto.UnitCost;  // Update unit cost for overage billing
             planPrivilege.UpdatedBy = tokenModel.UserID;
@@ -828,7 +850,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             {
                 PrivilegeId = pp.PrivilegeId,
                 Value = pp.Value,
-                UsagePeriodId = pp.UsagePeriodId,
+                // UsagePeriodId = pp.UsagePeriodId, // REMOVED - not used
                 DurationMonths = pp.DurationMonths,
                 ExpirationDate = pp.ExpirationDate
             }).ToList();

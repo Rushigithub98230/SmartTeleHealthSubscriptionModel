@@ -1,0 +1,141 @@
+<!-- Admin Billing Management -->
+<div class="admin-billing">
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0"><i class="bi bi-receipt"></i> Billing Management</h2>
+          <p class="text-muted mb-0">Monitor all billing records and payments</p>
+        </div>
+        <div>
+          <a routerLink="/webadmin/dashboard" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+          </a>
+          <button class="btn btn-primary" (click)="exportBilling()">
+            <i class="bi bi-download me-1"></i>Export
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <h4 class="text-primary mb-0">${{getTotalAmount() | number:'1.2-2'}}</h4>
+            <small class="text-muted">Total Amount</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <h4 class="text-success mb-0">${{getPaidAmount() | number:'1.2-2'}}</h4>
+            <small class="text-muted">Paid</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <h4 class="mb-0">{{billingRecords.length}}</h4>
+            <small class="text-muted">Records</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+              <h4 class="text-danger mb-0">{{failedBillingCount}}</h4>
+            <small class="text-muted">Failed</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-2">
+            <label class="form-label">Status</label>
+            <select class="form-select" [(ngModel)]="selectedStatus" (change)="applyFilters()">
+              <option *ngFor="let status of statusOptions" [value]="status === 'All' ? '' : status">{{status}}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Type</label>
+            <select class="form-select" [(ngModel)]="selectedType" (change)="applyFilters()">
+              <option *ngFor="let type of typeOptions" [value]="type === 'All' ? '' : type">{{type}}</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-control" [(ngModel)]="startDate">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-control" [(ngModel)]="endDate">
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" (click)="applyFilters()">
+              <i class="bi bi-funnel me-1"></i>Filter
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary"></div>
+    </div>
+
+    <!-- Table -->
+    <div *ngIf="!loading" class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Date</th>
+                <th>User</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Invoice #</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let record of billingRecords">
+                <td><small>{{record.billingDate | date:'MMM d, yyyy'}}</small></td>
+                <td>
+                  <strong>{{record.userName}}</strong>
+                  <br><small class="text-muted">{{record.userEmail}}</small>
+                </td>
+                <td><span class="badge bg-primary">{{record.type}}</span></td>
+                <td><strong class="text-primary">${{record.totalAmount | number:'1.2-2'}}</strong></td>
+                <td><span class="badge" [ngClass]="getStatusBadgeClass(record.status)">{{record.status}}</span></td>
+                <td><small class="text-muted">{{record.invoiceNumber || 'N/A'}}</small></td>
+                <td>
+                  <a [routerLink]="['/web/billing', record.id]" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div *ngIf="billingRecords.length === 0" class="text-center py-5">
+          <p class="text-muted">No billing records found</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

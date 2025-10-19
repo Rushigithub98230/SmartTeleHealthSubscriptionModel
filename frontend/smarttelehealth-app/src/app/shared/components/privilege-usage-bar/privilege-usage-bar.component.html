@@ -1,0 +1,30 @@
+<div class="privilege-usage-bar">
+  <div class="d-flex justify-content-between mb-2">
+    <strong>{{privilege.privilegeName}}</strong>
+    <span class="badge bg-primary" *ngIf="!privilege.isUnlimited">
+      {{privilege.usedValue}} / {{privilege.allowedValue}}
+    </span>
+    <span class="badge bg-success" *ngIf="privilege.isUnlimited">
+      Unlimited
+    </span>
+  </div>
+  
+  <div *ngIf="!privilege.isUnlimited" class="progress" style="height: 12px;">
+    <div 
+      class="progress-bar" 
+      [ngClass]="getProgressBarClass()"
+      [style.width.%]="getUsagePercentage()">
+    </div>
+  </div>
+
+  <div *ngIf="showDetails && !privilege.isUnlimited" class="mt-1">
+    <small class="text-muted">
+      {{getUsagePercentage()}}% used • {{privilege.remainingValue}} remaining
+      <span *ngIf="privilege.isExhausted" class="text-danger ms-2">
+        <i class="bi bi-exclamation-circle"></i> Exhausted
+      </span>
+    </small>
+  </div>
+</div>
+
+

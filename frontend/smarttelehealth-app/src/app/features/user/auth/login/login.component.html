@@ -1,0 +1,123 @@
+<!-- User Login Page -->
+<div class="login-page min-vh-100 d-flex align-items-center bg-light">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-5">
+        <div class="card shadow-lg">
+          <div class="card-body p-5">
+            <!-- Logo/Brand -->
+            <div class="text-center mb-4">
+              <h2 class="text-primary">
+                <i class="bi bi-hospital"></i> SmartTelehealth
+              </h2>
+              <p class="text-muted">Sign in to your account</p>
+            </div>
+
+            <!-- Error Alert -->
+            <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              {{error}}
+              <button type="button" class="btn-close" (click)="error = null"></button>
+            </div>
+
+            <!-- Login Form -->
+            <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+              <!-- Email Field -->
+              <div class="mb-3">
+                <label for="email" class="form-label">Email Address</label>
+                <div class="input-group">
+                  <span class="input-group-text">
+                    <i class="bi bi-envelope"></i>
+                  </span>
+                  <input 
+                    type="email" 
+                    id="email"
+                    class="form-control" 
+                    formControlName="email"
+                    placeholder="Enter your email"
+                    [class.is-invalid]="hasError('email', 'required') || hasError('email', 'email')">
+                </div>
+                <div class="invalid-feedback d-block" *ngIf="hasError('email', 'required')">
+                  Email is required
+                </div>
+                <div class="invalid-feedback d-block" *ngIf="hasError('email', 'email')">
+                  Please enter a valid email address
+                </div>
+              </div>
+
+              <!-- Password Field -->
+              <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <div class="input-group">
+                  <span class="input-group-text">
+                    <i class="bi bi-lock"></i>
+                  </span>
+                  <input 
+                    type="password" 
+                    id="password"
+                    class="form-control" 
+                    formControlName="password"
+                    placeholder="Enter your password"
+                    [class.is-invalid]="hasError('password', 'required') || hasError('password', 'minlength')">
+                </div>
+                <div class="invalid-feedback d-block" *ngIf="hasError('password', 'required')">
+                  Password is required
+                </div>
+                <div class="invalid-feedback d-block" *ngIf="hasError('password', 'minlength')">
+                  Password must be at least 6 characters
+                </div>
+              </div>
+
+              <!-- Remember Me & Forgot Password -->
+              <div class="mb-3 d-flex justify-content-between">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="rememberMe">
+                  <label class="form-check-label" for="rememberMe">
+                    Remember me
+                  </label>
+                </div>
+                <a routerLink="/web/forgot-password" class="text-decoration-none">
+                  Forgot password?
+                </a>
+              </div>
+
+              <!-- Submit Button -->
+              <button 
+                type="submit" 
+                class="btn btn-primary w-100 mb-3"
+                [disabled]="loading">
+                <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                <span *ngIf="!loading"><i class="bi bi-box-arrow-in-right me-2"></i></span>
+                {{loading ? 'Signing in...' : 'Sign In'}}
+              </button>
+
+              <!-- Register Link -->
+              <div class="text-center">
+                <p class="mb-0">
+                  Don't have an account?
+                  <a routerLink="/web/register" class="text-decoration-none fw-bold">
+                    Create Account
+                  </a>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Admin Login Link -->
+        <div class="text-center mt-3">
+          <p class="text-muted">
+            <small>
+              Are you an administrator?
+              <a routerLink="/webadmin/login" class="text-decoration-none">
+                Admin Login
+              </a>
+            </small>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

@@ -42,9 +42,6 @@ public class PrivilegeTimeLimitDto
     [Required]
     public int TotalValue { get; set; } // -1 for unlimited, >0 for limited
     
-    public int? DailyLimit { get; set; }        // Max per day (null = no limit)
-    public int? WeeklyLimit { get; set; }       // Max per week (null = no limit)
-    public int? MonthlyLimit { get; set; }      // Max per month (null = no limit)
     
     [MaxLength(500)]
     public string? Description { get; set; }

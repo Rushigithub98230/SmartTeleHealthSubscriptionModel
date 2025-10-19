@@ -5626,6 +5626,25 @@
         }
       }
     },
+    "/api/Billing/billing-cycles": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartTelehealth.Application.DTOs.JsonModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Categories": {
       "get": {
         "tags": [
@@ -25428,6 +25447,24 @@
             "minimum": 7,
             "type": "integer",
             "format": "int32"
+          },
+          "monthlyBillingDiscount": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number",
+            "format": "double"
+          },
+          "quarterlyBillingDiscount": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number",
+            "format": "double"
+          },
+          "annualBillingDiscount": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
@@ -26099,7 +26136,6 @@
       "SmartTelehealth.Application.DTOs.PlanPrivilegeDto": {
         "required": [
           "privilegeId",
-          "usagePeriodId",
           "value"
         ],
         "type": "object",
@@ -26113,10 +26149,6 @@
             "minimum": -1,
             "type": "integer",
             "format": "int32"
-          },
-          "usagePeriodId": {
-            "type": "string",
-            "format": "uuid"
           },
           "durationMonths": {
             "type": "integer",
@@ -27838,8 +27870,7 @@
       "SmartTelehealth.Application.DTOs.UpdateTimeBasedLimitsDto": {
         "required": [
           "effectiveDate",
-          "privilegeId",
-          "usagePeriodId"
+          "privilegeId"
         ],
         "type": "object",
         "properties": {
@@ -27864,10 +27895,6 @@
             "minimum": 0,
             "type": "integer",
             "format": "int32"
-          },
-          "usagePeriodId": {
-            "type": "string",
-            "format": "uuid"
           },
           "durationMonths": {
             "maximum": 2147483647,

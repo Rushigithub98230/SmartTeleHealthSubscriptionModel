@@ -1,0 +1,95 @@
+<!-- Admin Login Page -->
+<div class="admin-login-page min-vh-100 d-flex align-items-center bg-dark">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-5">
+        <div class="card shadow-lg">
+          <div class="card-header bg-primary text-white text-center py-4">
+            <h3 class="mb-0">
+              <i class="bi bi-shield-lock"></i> Administrator Access
+            </h3>
+            <p class="mb-0 mt-2"><small>SmartTelehealth Admin Portal</small></p>
+          </div>
+
+          <div class="card-body p-5">
+            <!-- Error Alert -->
+            <div *ngIf="error" class="alert alert-danger" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              {{error}}
+            </div>
+
+            <!-- Admin Login Form -->
+            <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+              <!-- Email -->
+              <div class="mb-4">
+                <label for="email" class="form-label fw-bold">
+                  <i class="bi bi-person-circle me-2"></i>Admin Email
+                </label>
+                <input 
+                  type="email" 
+                  id="email"
+                  class="form-control form-control-lg" 
+                  formControlName="email"
+                  placeholder="admin@smarttelehealth.com"
+                  [class.is-invalid]="hasError('email', 'required') || hasError('email', 'email')">
+                <div class="invalid-feedback" *ngIf="hasError('email', 'required')">
+                  Email is required
+                </div>
+                <div class="invalid-feedback" *ngIf="hasError('email', 'email')">
+                  Invalid email format
+                </div>
+              </div>
+
+              <!-- Password -->
+              <div class="mb-4">
+                <label for="password" class="form-label fw-bold">
+                  <i class="bi bi-key me-2"></i>Password
+                </label>
+                <input 
+                  type="password" 
+                  id="password"
+                  class="form-control form-control-lg" 
+                  formControlName="password"
+                  placeholder="Enter password"
+                  [class.is-invalid]="hasError('password', 'required')">
+                <div class="invalid-feedback" *ngIf="hasError('password', 'required')">
+                  Password is required
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <button 
+                type="submit" 
+                class="btn btn-primary btn-lg w-100"
+                [disabled]="loading">
+                <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                <i *ngIf="!loading" class="bi bi-shield-check me-2"></i>
+                {{loading ? 'Authenticating...' : 'Access Admin Portal'}}
+              </button>
+            </form>
+
+            <!-- Security Notice -->
+            <div class="alert alert-warning mt-4" role="alert">
+              <i class="bi bi-info-circle me-2"></i>
+              <small>
+                <strong>Security Notice:</strong> This portal is restricted to authorized administrators only. 
+                Unauthorized access attempts are logged.
+              </small>
+            </div>
+          </div>
+
+          <div class="card-footer text-center bg-light">
+            <small class="text-muted">
+              Not an admin?
+              <a routerLink="/web/login" class="text-decoration-none">
+                User Login
+              </a>
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

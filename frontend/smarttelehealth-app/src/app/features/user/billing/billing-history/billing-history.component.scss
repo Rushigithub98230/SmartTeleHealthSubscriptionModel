@@ -1,0 +1,52 @@
+// Billing History Styles
+
+.page-header {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.table {
+  tr {
+    transition: background-color 0.2s ease;
+  }
+
+  tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+}
+
+.badge-sm {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.billing-card-mobile {
+  &:last-child {
+    .border-bottom {
+      border-bottom: none !important;
+    }
+  }
+}
+
+.pagination {
+  .page-link {
+    cursor: pointer;
+  }
+}
+
+// Responsive
+@media (max-width: 767px) {
+  .page-header {
+    .btn {
+      display: block;
+      width: 100%;
+      margin-top: 1rem;
+    }
+  }
+}
+
+

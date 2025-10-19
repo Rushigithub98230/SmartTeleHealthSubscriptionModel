@@ -683,6 +683,58 @@ public class BillingController : BaseController
             });
         }
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // BILLING CYCLES ENDPOINT (For User Purchase Flow)
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Retrieves all active billing cycles available for subscription selection.
+    /// This endpoint provides billing cycle options (Monthly, Quarterly, Annual)
+    /// for users to choose from during the subscription purchase process.
+    /// </summary>
+    /// <returns>JsonModel containing list of active billing cycles</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all active billing cycles from the database
+    /// - Used in user purchase flow for billing cycle selection
+    /// - Public endpoint (no authentication required)
+    /// - Returns GUID IDs required for subscription creation
+    /// - Includes duration, name, and description for each cycle
+    /// 
+    /// Example response:
+    /// [
+    ///   { "id": "guid-here", "name": "Monthly", "durationInDays": 30, "description": "Billed monthly" },
+    ///   { "id": "guid-here", "name": "Quarterly", "durationInDays": 90, "description": "Billed every 3 months" },
+    ///   { "id": "guid-here", "name": "Annual", "durationInDays": 365, "description": "Billed annually" }
+    /// ]
+    /// </remarks>
+    [HttpGet("billing-cycles")]
+    [AllowAnonymous]  // Public endpoint for user purchase flow
+    public async Task<JsonModel> GetBillingCycles()
+    {
+        try
+        {
+            // Get all billing cycles from repository
+            var cycles = await _billingService.GetAllBillingCyclesAsync();
+            
+            return new JsonModel
+            {
+                data = cycles,
+                Message = "Billing cycles retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = $"Error retrieving billing cycles: {ex.Message}",
+                StatusCode = 500
+            };
+        }
+    }
 }
 
 // DTOs for the controller

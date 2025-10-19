@@ -6009,7 +6009,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("VersionCreatedDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 18, 15, 47, 4, 66, DateTimeKind.Utc).AddTicks(9706));
+                        .HasDefaultValue(new DateTime(2025, 10, 19, 20, 48, 53, 188, DateTimeKind.Utc).AddTicks(3906));
 
                     b.Property<int>("VersionNumber")
                         .ValueGeneratedOnAdd()
@@ -6067,9 +6067,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
-                    b.Property<int?>("DailyLimit")
-                        .HasColumnType("int");
-
                     b.Property<int?>("DeletedBy")
                         .HasColumnType("int");
 
@@ -6101,9 +6098,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<int?>("MonthlyLimit")
-                        .HasColumnType("int");
-
                     b.Property<decimal>("PrivilegeBaseCost")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
@@ -6128,13 +6122,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UsagePeriodId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<int>("Value")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("WeeklyLimit")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -6152,8 +6140,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.HasIndex("SubscriptionPlanId");
 
                     b.HasIndex("UpdatedBy");
-
-                    b.HasIndex("UsagePeriodId");
 
                     b.ToTable("SubscriptionPlanPrivileges", (string)null);
                 });
@@ -6283,7 +6269,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("LastUpdated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 18, 15, 47, 4, 120, DateTimeKind.Utc).AddTicks(1694));
+                        .HasDefaultValue(new DateTime(2025, 10, 19, 20, 48, 53, 327, DateTimeKind.Utc).AddTicks(533));
 
                     b.Property<int>("MaxFailedPaymentAttempts")
                         .ValueGeneratedOnAdd()
@@ -6310,12 +6296,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            CreatedDate = new DateTime(2025, 10, 18, 15, 47, 4, 120, DateTimeKind.Utc).AddTicks(2315),
+                            CreatedDate = new DateTime(2025, 10, 19, 20, 48, 53, 327, DateTimeKind.Utc).AddTicks(1083),
                             DefaultAdminCommissionPercent = 20m,
                             DefaultPriceChangeNoticeDays = 10,
                             IsActive = true,
                             IsDeleted = false,
-                            LastUpdated = new DateTime(2025, 10, 18, 15, 47, 4, 120, DateTimeKind.Utc).AddTicks(2311),
+                            LastUpdated = new DateTime(2025, 10, 19, 20, 48, 53, 327, DateTimeKind.Utc).AddTicks(1077),
                             MaxFailedPaymentAttempts = 3
                         });
                 });
@@ -9569,12 +9555,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasForeignKey("UpdatedBy")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("SmartTelehealth.Core.Entities.MasterBillingCycle", "UsagePeriod")
-                        .WithMany()
-                        .HasForeignKey("UsagePeriodId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("DeletedByUser");
@@ -9584,8 +9564,6 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Navigation("SubscriptionPlan");
 
                     b.Navigation("UpdatedByUser");
-
-                    b.Navigation("UsagePeriod");
                 });
 
             modelBuilder.Entity("SmartTelehealth.Core.Entities.SubscriptionStatusHistory", b =>

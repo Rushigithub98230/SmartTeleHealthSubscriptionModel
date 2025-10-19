@@ -3200,6 +3200,24 @@
   },
   {
     "ContainingType": "SmartTelehealth.API.Controllers.BillingController",
+    "Method": "GetBillingCycles",
+    "RelativePath": "api/Billing/billing-cycles",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "SmartTelehealth.Application.DTOs.JsonModel",
+        "MediaTypes": [
+          "application/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "SmartTelehealth.API.Controllers.BillingController",
     "Method": "ProcessBundlePayment",
     "RelativePath": "api/Billing/bundle",
     "HttpMethod": "POST",

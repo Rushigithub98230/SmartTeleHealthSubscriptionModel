@@ -108,11 +108,6 @@ public class PrivilegeUsageDetailDto
     public int UsedCount { get; set; }
 
     /// <summary>
-    /// Daily limit for this privilege
-    /// </summary>
-    public int DailyLimit { get; set; }
-
-    /// <summary>
     /// Unit cost for this privilege
     /// </summary>
     public decimal UnitCost { get; set; }
@@ -193,11 +188,6 @@ public class PrivilegeCostBreakdownDto
     /// Privilege name
     /// </summary>
     public string PrivilegeName { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Daily limit for this privilege
-    /// </summary>
-    public int DailyLimit { get; set; }
 
     /// <summary>
     /// Unit cost for this privilege

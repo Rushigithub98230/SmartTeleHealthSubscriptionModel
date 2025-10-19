@@ -1,0 +1,130 @@
+<!-- Billing Detail / Invoice View -->
+<div class="billing-detail-page">
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <a routerLink="/web/billing" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Billing
+      </a>
+      <div class="no-print">
+        <button class="btn btn-outline-primary me-2" (click)="printInvoice()">
+          <i class="bi bi-printer me-1"></i>Print
+        </button>
+        <button class="btn btn-primary" (click)="downloadInvoice()">
+          <i class="bi bi-download me-1"></i>Download PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary"></div>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error" class="alert alert-danger">{{error}}</div>
+
+    <!-- Invoice -->
+    <div *ngIf="!loading && billingRecord" class="card invoice-card">
+      <div class="card-body p-5">
+        <!-- Header -->
+        <div class="invoice-header mb-5">
+          <div class="row">
+            <div class="col-6">
+              <h2 class="text-primary">
+                <i class="bi bi-hospital me-2"></i>SmartTelehealth
+              </h2>
+              <p class="text-muted mb-0">
+                123 Healthcare Ave<br>
+                Medical City, HC 12345<br>
+                support@smarttelehealth.com
+              </p>
+            </div>
+            <div class="col-6 text-end">
+              <h3>INVOICE</h3>
+              <p class="mb-1"><strong>Invoice #:</strong> {{billingRecord.invoiceNumber}}</p>
+              <p class="mb-1"><strong>Date:</strong> {{billingRecord.billingDate | date:'MMM d, yyyy'}}</p>
+              <span class="badge" [ngClass]="getStatusBadgeClass(billingRecord.status)">
+                {{billingRecord.status}}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Billing Details -->
+        <div class="invoice-section mb-4">
+          <h5 class="mb-3">Billing Details</h5>
+          <div class="row">
+            <div class="col-6">
+              <strong>Bill To:</strong><br>
+              {{billingRecord.userName}}<br>
+              {{billingRecord.userEmail}}
+            </div>
+            <div class="col-6 text-end">
+              <strong>Due Date:</strong><br>
+              {{billingRecord.dueDate | date:'MMM d, yyyy'}}
+            </div>
+          </div>
+        </div>
+
+        <!-- Items Table -->
+        <div class="invoice-section mb-4">
+          <table class="table">
+            <thead class="table-light">
+              <tr>
+                <th>Description</th>
+                <th>Type</th>
+                <th class="text-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{{billingRecord.description || 'Billing Charge'}}</td>
+                <td><span class="badge bg-primary">{{billingRecord.type}}</span></td>
+                <td class="text-end">${{billingRecord.amount | number:'1.2-2'}}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2" class="text-end"><strong>Subtotal:</strong></td>
+                <td class="text-end">${{billingRecord.amount | number:'1.2-2'}}</td>
+              </tr>
+              <tr>
+                <td colspan="2" class="text-end"><strong>Tax:</strong></td>
+                <td class="text-end">${{billingRecord.taxAmount | number:'1.2-2'}}</td>
+              </tr>
+              <tr *ngIf="billingRecord.shippingAmount > 0">
+                <td colspan="2" class="text-end"><strong>Shipping:</strong></td>
+                <td class="text-end">${{billingRecord.shippingAmount | number:'1.2-2'}}</td>
+              </tr>
+              <tr class="table-primary">
+                <td colspan="2" class="text-end"><h5 class="mb-0">Total:</h5></td>
+                <td class="text-end"><h5 class="mb-0 text-primary">${{billingRecord.totalAmount | number:'1.2-2'}}</h5></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Payment Info -->
+        <div class="invoice-section" *ngIf="billingRecord.paidAt">
+          <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <strong>Paid on {{billingRecord.paidAt | date:'MMM d, yyyy'}}</strong>
+            <br>
+            <small *ngIf="billingRecord.paymentMethod">Payment Method: {{billingRecord.paymentMethod}}</small>
+            <br>
+            <small *ngIf="billingRecord.transactionId">Transaction ID: {{billingRecord.transactionId}}</small>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="invoice-footer mt-5 pt-4 border-top">
+          <p class="text-muted text-center mb-0">
+            <small>Thank you for your business! For questions, contact support@smarttelehealth.com</small>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+

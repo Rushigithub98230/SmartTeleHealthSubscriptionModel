@@ -1,0 +1,49 @@
+// Payment Methods Styles
+
+.payment-card {
+  border: 2px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  &.default-card {
+    border-color: #4CAF50;
+    background: linear-gradient(to bottom, #E8F5E9 0%, white 20%);
+  }
+
+  .card-icon {
+    font-size: 4rem;
+    color: #2196F3;
+  }
+
+  .card-number {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+    color: #333;
+  }
+}
+
+.page-header {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+// Responsive
+@media (max-width: 767px) {
+  .page-header {
+    .btn {
+      display: block;
+      width: 100%;
+      margin: 0.5rem 0 !important;
+    }
+  }
+
+  .payment-card {
+    margin-bottom: 1rem;
+  }
+}
+
+

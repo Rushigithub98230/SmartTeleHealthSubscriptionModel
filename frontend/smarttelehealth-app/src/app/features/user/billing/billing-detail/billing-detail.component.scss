@@ -1,0 +1,28 @@
+// Billing Detail / Invoice Styles
+
+.invoice-card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.invoice-header {
+  border-bottom: 2px solid #2196F3;
+  padding-bottom: 1rem;
+}
+
+.invoice-section {
+  margin-bottom: 2rem;
+}
+
+// Print styles
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .invoice-card {
+    box-shadow: none;
+  }
+}
+
+

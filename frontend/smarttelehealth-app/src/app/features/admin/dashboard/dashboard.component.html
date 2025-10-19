@@ -1,0 +1,272 @@
+<!-- Admin Dashboard -->
+<div class="admin-dashboard">
+  <!-- Dashboard Header -->
+  <div class="dashboard-header bg-gradient text-white py-4 mb-4">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h2 class="mb-0">
+            <i class="bi bi-speedometer2"></i>
+            Admin Dashboard
+          </h2>
+          <p class="mb-0 mt-2 opacity-75">Subscription Management Overview</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+          <button class="btn btn-light me-2" (click)="loadAnalytics()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+          </button>
+          <a routerLink="/webadmin/plans/create" class="btn btn-success">
+            <i class="bi bi-plus-circle me-1"></i>New Plan
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <!-- KPI Cards Row -->
+    <div class="row g-4 mb-4">
+      <!-- Total Active Subscriptions -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card kpi-card stat-card-primary h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="card-label text-muted mb-1">Active Subscriptions</p>
+                <h2 class="card-value mb-0">
+                  <span *ngIf="!loading.overview">{{analytics?.totalActiveSubscriptions || 0}}</span>
+                  <span *ngIf="loading.overview" class="spinner-border spinner-border-sm"></span>
+                </h2>
+                <small class="text-success" *ngIf="analytics && analytics.growthRate > 0">
+                  <i class="bi bi-arrow-up"></i> {{analytics.growthRate | number:'1.1-1'}}% growth
+                </small>
+              </div>
+              <div class="card-icon bg-primary bg-opacity-10 text-primary">
+                <i class="bi bi-people-fill fs-1"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Recurring Revenue (MRR) -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card kpi-card stat-card-success h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="card-label text-muted mb-1">Monthly Recurring Revenue</p>
+                <h2 class="card-value mb-0">
+                  <span *ngIf="!loading.mrr">${{mrr | number:'1.0-0'}}</span>
+                  <span *ngIf="loading.mrr" class="spinner-border spinner-border-sm"></span>
+                </h2>
+                <small class="text-muted">MRR</small>
+              </div>
+              <div class="card-icon bg-success bg-opacity-10 text-success">
+                <i class="bi bi-currency-dollar fs-1"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Annual Recurring Revenue (ARR) -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card kpi-card stat-card-info h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="card-label text-muted mb-1">Annual Recurring Revenue</p>
+                <h2 class="card-value mb-0">
+                  <span *ngIf="!loading.overview">${{analytics?.annualRecurringRevenue | number:'1.0-0'}}</span>
+                  <span *ngIf="loading.overview" class="spinner-border spinner-border-sm"></span>
+                </h2>
+                <small class="text-muted">ARR (MRR × 12)</small>
+              </div>
+              <div class="card-icon bg-info bg-opacity-10 text-info">
+                <i class="bi bi-graph-up-arrow fs-1"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Churn Rate -->
+      <div class="col-xl-3 col-md-6">
+        <div class="card kpi-card stat-card-warning h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="card-label text-muted mb-1">Churn Rate</p>
+                <h2 class="card-value mb-0">
+                  <span *ngIf="!loading.churn">{{churnRate | number:'1.1-1'}}%</span>
+                  <span *ngIf="loading.churn" class="spinner-border spinner-border-sm"></span>
+                </h2>
+                <small class="text-muted" [class.text-success]="churnRate < 5" [class.text-danger]="churnRate >= 5">
+                  {{churnRate < 5 ? 'Healthy' : 'Needs Attention'}}
+                </small>
+              </div>
+              <div class="card-icon bg-warning bg-opacity-10 text-warning">
+                <i class="bi bi-arrow-down-circle fs-1"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Secondary Metrics Row -->
+    <div class="row g-4 mb-4">
+      <!-- Total Revenue -->
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <i class="bi bi-cash-stack text-success fs-1 mb-3"></i>
+            <h4 class="mb-1">${{analytics?.totalRevenue | number:'1.2-2'}}</h4>
+            <p class="text-muted mb-0">Total Revenue</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Average Revenue Per User (ARPU) -->
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <i class="bi bi-person-badge text-primary fs-1 mb-3"></i>
+            <h4 class="mb-1">${{analytics?.averageRevenuePerUser | number:'1.2-2'}}</h4>
+            <p class="text-muted mb-0">Average Revenue Per User</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Growth Rate -->
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <i class="bi bi-graph-up text-info fs-1 mb-3"></i>
+            <h4 class="mb-1">{{analytics?.growthRate | number:'1.1-1'}}%</h4>
+            <p class="text-muted mb-0">Growth Rate</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts and Breakdown Row -->
+    <div class="row g-4">
+      <!-- Subscriptions by Status -->
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-pie-chart me-2"></i>Subscriptions by Status
+            </h5>
+          </div>
+          <div class="card-body">
+            <div *ngIf="loading.overview" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+            </div>
+
+            <div *ngIf="!loading.overview && analytics">
+              <div class="list-group list-group-flush">
+                <div class="list-group-item" *ngFor="let item of getStatusEntries()">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <span class="badge me-2" [ngClass]="getStatusBadgeClass(item.status)">
+                        {{item.status}}
+                      </span>
+                    </div>
+                    <div>
+                      <strong class="fs-5">{{item.count}}</strong>
+                    </div>
+                  </div>
+                  <div class="progress mt-2" style="height: 8px;">
+                    <div 
+                      class="progress-bar" 
+                      [ngClass]="getStatusBadgeClass(item.status)"
+                      [style.width.%]="(item.count / analytics!.totalActiveSubscriptions) * 100">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscriptions by Plan -->
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-bar-chart me-2"></i>Subscriptions by Plan
+            </h5>
+          </div>
+          <div class="card-body">
+            <div *ngIf="loading.overview" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+            </div>
+
+            <div *ngIf="!loading.overview && analytics">
+              <div class="list-group list-group-flush">
+                <div class="list-group-item" *ngFor="let item of getPlanEntries()">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                      <strong>{{item.plan}}</strong>
+                    </div>
+                    <div>
+                      <span class="badge bg-primary">{{item.count}} subs</span>
+                    </div>
+                  </div>
+                  <div class="progress" style="height: 8px;">
+                    <div 
+                      class="progress-bar bg-primary" 
+                      [style.width.%]="(item.count / analytics!.totalActiveSubscriptions) * 100">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Row -->
+    <div class="row g-4 mt-4">
+      <div class="col-md-3">
+        <a routerLink="/webadmin/plans" class="card quick-action-card text-decoration-none">
+          <div class="card-body text-center">
+            <i class="bi bi-grid-3x3 text-primary fs-1 mb-3"></i>
+            <h6>Manage Plans</h6>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-3">
+        <a routerLink="/webadmin/subscriptions" class="card quick-action-card text-decoration-none">
+          <div class="card-body text-center">
+            <i class="bi bi-card-list text-success fs-1 mb-3"></i>
+            <h6>Manage Subscriptions</h6>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-3">
+        <a routerLink="/webadmin/users" class="card quick-action-card text-decoration-none">
+          <div class="card-body text-center">
+            <i class="bi bi-people text-info fs-1 mb-3"></i>
+            <h6>Manage Users</h6>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-3">
+        <a routerLink="/webadmin/analytics" class="card quick-action-card text-decoration-none">
+          <div class="card-body text-center">
+            <i class="bi bi-graph-up text-warning fs-1 mb-3"></i>
+            <h6>View Analytics</h6>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+

@@ -1,0 +1,39 @@
+// Plan Detail Styles
+
+.plan-header {
+  padding: 2rem 0;
+}
+
+.price-card {
+  border: 2px solid #2196F3;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.2);
+
+  .price-amount {
+    font-size: 3rem;
+    font-weight: bold;
+  }
+
+  .btn-group-vertical {
+    .btn {
+      margin-bottom: 0.5rem;
+    }
+  }
+}
+
+.privilege-item {
+  padding: 0.5rem 0;
+}
+
+.card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 991px) {
+  .sticky-top {
+    position: relative !important;
+    top: 0 !important;
+  }
+}
+
+

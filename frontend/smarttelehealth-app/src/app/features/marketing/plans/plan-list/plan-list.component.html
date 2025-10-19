@@ -1,0 +1,154 @@
+<!-- Plan List Page -->
+<div class="plan-list-page">
+  <!-- Page Header -->
+  <section class="page-header bg-primary text-white py-4">
+    <div class="container">
+      <h1 class="mb-0">Subscription Plans</h1>
+      <p class="lead mb-0">Choose the perfect plan for your healthcare needs</p>
+    </div>
+  </section>
+
+  <div class="container my-5">
+    <!-- Filters Section -->
+    <div class="row mb-4">
+      <!-- Search -->
+      <div class="col-md-6 mb-3">
+        <div class="input-group">
+          <span class="input-group-text">
+            <i class="bi bi-search"></i>
+          </span>
+          <input 
+            type="text" 
+            class="form-control" 
+            placeholder="Search plans..." 
+            [(ngModel)]="searchTerm"
+            (keyup.enter)="search()">
+          <button class="btn btn-primary" (click)="search()">
+            Search
+          </button>
+        </div>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="col-md-6 mb-3">
+        <select 
+          class="form-select" 
+          [(ngModel)]="selectedCategoryId" 
+          (change)="filterByCategory(selectedCategoryId)">
+          <option [ngValue]="null">All Categories</option>
+          <option *ngFor="let category of categories" [ngValue]="category.id">
+            {{category.name}}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading plans...</span>
+      </div>
+      <p class="mt-3 text-muted">Loading subscription plans...</p>
+    </div>
+
+    <!-- Plans Grid -->
+    <div *ngIf="!loading" class="row g-4">
+      <div class="col-lg-4 col-md-6" *ngFor="let plan of plans">
+        <div class="card h-100 plan-card">
+          <!-- Popular Badge -->
+          <div class="card-header text-center" [class.bg-warning]="plan.isMostPopular">
+            <span class="badge bg-primary mb-2" *ngIf="plan.isMostPopular">
+              <i class="bi bi-star-fill"></i> MOST POPULAR
+            </span>
+            <span class="badge bg-info mb-2" *ngIf="plan.isTrending">
+              <i class="bi bi-graph-up-arrow"></i> TRENDING
+            </span>
+            <h4 class="card-title mb-0">{{plan.name}}</h4>
+          </div>
+
+          <div class="card-body d-flex flex-column">
+            <!-- Pricing -->
+            <div class="text-center mb-4">
+              <div class="price-display">
+                <span class="price-amount display-5 fw-bold text-primary">
+                  ${{plan.price | number:'1.2-2'}}
+                </span>
+                <span class="price-period text-muted">/month</span>
+              </div>
+              <div class="savings-badge mt-2" *ngIf="plan.annualBillingDiscount > 0">
+                <span class="badge bg-success">
+                  Save {{plan.annualBillingDiscount}}% with Annual Billing
+                </span>
+              </div>
+            </div>
+
+            <!-- Description -->
+            <p class="card-text text-center mb-4">
+              {{plan.shortDescription || plan.description}}
+            </p>
+
+            <!-- Features -->
+            <div class="plan-features mb-4">
+              <h6 class="text-muted mb-3">Included Features:</h6>
+              <ul class="list-unstyled">
+                <li class="mb-2" *ngFor="let privilege of plan.planPrivileges?.slice(0, 5)">
+                  <i class="bi bi-check-circle-fill text-success"></i>
+                  <strong *ngIf="privilege.value !== -1">{{privilege.value}}</strong>
+                  <strong *ngIf="privilege.value === -1">Unlimited</strong>
+                  {{getPrivilegeName(privilege.privilegeId)}}
+                </li>
+                <li class="mb-2" *ngIf="plan.planPrivileges && plan.planPrivileges.length > 5">
+                  <i class="bi bi-plus-circle text-primary"></i>
+                  {{plan.planPrivileges.length - 5}} more features...
+                </li>
+              </ul>
+            </div>
+
+            <!-- Trial Badge -->
+            <div class="trial-badge mb-3" *ngIf="plan.isTrialAllowed">
+              <span class="badge bg-info w-100">
+                <i class="bi bi-gift"></i> {{plan.trialDurationInDays}} Days Free Trial
+              </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-auto">
+              <a [routerLink]="['/plans', plan.id]" class="btn btn-outline-primary w-100 mb-2">
+                <i class="bi bi-info-circle"></i> View Details
+              </a>
+              <a routerLink="/web/register" class="btn btn-primary w-100">
+                <i class="bi bi-cart-plus"></i> Subscribe Now
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Plans Found -->
+      <div class="col-12" *ngIf="plans.length === 0">
+        <div class="alert alert-info text-center">
+          <i class="bi bi-info-circle me-2"></i>
+          No subscription plans found. Try adjusting your filters.
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <nav class="mt-5" *ngIf="totalPages > 1">
+      <ul class="pagination justify-content-center">
+        <li class="page-item" [class.disabled]="currentPage === 1">
+          <a class="page-link" (click)="changePage(currentPage - 1)">Previous</a>
+        </li>
+        <li class="page-item" 
+            *ngFor="let page of [].constructor(totalPages); let i = index"
+            [class.active]="currentPage === i + 1">
+          <a class="page-link" (click)="changePage(i + 1)">{{i + 1}}</a>
+        </li>
+        <li class="page-item" [class.disabled]="currentPage === totalPages">
+          <a class="page-link" (click)="changePage(currentPage + 1)">Next</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</div>
+

@@ -1,0 +1,116 @@
+// Admin Create Plan Stepper Styles
+
+.stepper-header {
+  padding: 20px 0;
+}
+
+.step-item {
+  text-align: center;
+  flex: 1;
+  position: relative;
+
+  .step-circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+    font-weight: bold;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+  }
+
+  .step-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-weight: 500;
+  }
+
+  &.active {
+    .step-circle {
+      background-color: #2196F3;
+      box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.2);
+    }
+
+    .step-label {
+      color: #2196F3;
+      font-weight: 600;
+    }
+  }
+
+  &.completed {
+    .step-circle {
+      background-color: #4CAF50;
+    }
+
+    .step-label {
+      color: #4CAF50;
+    }
+  }
+}
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  background-color: #dee2e6;
+  margin: 25px 0;
+  transition: background-color 0.3s ease;
+}
+
+.step-content {
+  min-height: 400px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.table {
+  font-size: 0.9rem;
+
+  td, th {
+    vertical-align: middle;
+  }
+
+  input.form-control-sm {
+    font-size: 0.875rem;
+  }
+}
+
+.btn-lg {
+  padding: 12px 30px;
+  font-size: 1.1rem;
+}
+
+// Responsive
+@media (max-width: 767px) {
+  .stepper-header {
+    .step-label {
+      font-size: 0.75rem;
+    }
+
+    .step-circle {
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+    }
+  }
+
+  .table-responsive {
+    font-size: 0.8rem;
+  }
+}
+
+

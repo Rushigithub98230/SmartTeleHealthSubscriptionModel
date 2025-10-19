@@ -544,6 +544,14 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .FirstOrDefaultAsync(bc => bc.Id == billingCycleId);
     }
 
+    public async Task<IEnumerable<MasterBillingCycle>> GetAllBillingCyclesAsync()
+    {
+        return await _context.MasterBillingCycles
+            .Where(bc => bc.IsActive)
+            .OrderBy(bc => bc.DurationInDays)
+            .ToListAsync();
+    }
+
     // Currency methods
     public async Task<MasterCurrency?> GetCurrencyByIdAsync(Guid currencyId)
     {
