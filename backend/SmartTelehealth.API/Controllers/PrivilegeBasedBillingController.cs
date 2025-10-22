@@ -51,15 +51,45 @@ public class PrivilegeBasedBillingController : BaseController
     }
 
     /// <summary>
-    /// Processes subscription renewal and resets privilege usage
+    /// Resets subscription for new billing period (dates + privileges only).
+    /// 
+    /// ⚠️ DEPRECATION WARNING (PHASE 4):
+    /// This endpoint does NOT create billing records or process payments.
+    /// It ONLY updates billing dates and resets privileges.
+    /// 
+    /// For production use, this endpoint should:
+    /// 1. Create billing record for renewal amount
+    /// 2. Process payment through Stripe
+    /// 3. Update dates and reset privileges (on payment success)
+    /// 
+    /// Current Implementation: Partial (step 3 only)
+    /// 
+    /// Recommended: Use automated billing service or implement complete renewal flow
+    /// 
+    /// TODO: Implement complete renewal flow with billing + payment
+    /// See: AutomatedBillingService.ProcessSubscriptionRenewalAsync() for reference
     /// </summary>
-    /// <param name="subscriptionId">Subscription ID to renew</param>
-    /// <returns>Renewal processing results</returns>
+    /// <param name="subscriptionId">Subscription ID to reset for new billing period</param>
+    /// <returns>Reset results (dates + privileges updated)</returns>
     [HttpPost("renew-subscription/{subscriptionId}")]
     public async Task<JsonModel> ProcessSubscriptionRenewal(Guid subscriptionId)
     {
         var token = GetToken(HttpContext);
-        return await _subscriptionBillingService.ProcessSubscriptionRenewalAsync(subscriptionId, token);
+        
+        // PHASE 4: This now calls the renamed method with clear warning in response
+        var result = await _subscriptionBillingService.ResetSubscriptionForNewBillingPeriodAsync(subscriptionId, token);
+        
+        // Add warning to response about incomplete implementation
+        if (result.StatusCode == 200)
+        {
+            _logger.LogWarning(
+                "⚠️ Manual renewal endpoint called for subscription {SubscriptionId}. " +
+                "This does NOT create billing records or process payments. " +
+                "Consider using automated billing service for complete renewal.",
+                subscriptionId);
+        }
+        
+        return result;
     }
 
     /// <summary>

@@ -105,6 +105,21 @@ export const routes: Routes = [
         loadChildren: () => import('./features/admin/billing/billing.routes').then(m => m.ADMIN_BILLING_ROUTES)
       },
       {
+        path: 'payments',
+        canActivate: [adminGuard],
+        loadChildren: () => import('./features/admin/payments/payments.routes').then(m => m.PAYMENT_ROUTES)
+      },
+      {
+        path: 'invoices',
+        canActivate: [adminGuard],
+        loadChildren: () => import('./features/admin/invoices/invoices.routes').then(m => m.INVOICE_ROUTES)
+      },
+      {
+        path: 'stripe-sync',
+        canActivate: [adminGuard],
+        loadChildren: () => import('./features/admin/stripe-sync/stripe-sync.routes').then(m => m.STRIPE_SYNC_ROUTES)
+      },
+      {
         path: 'analytics',
         canActivate: [adminGuard],
         loadChildren: () => import('./features/admin/analytics/analytics.routes').then(m => m.ANALYTICS_ROUTES)

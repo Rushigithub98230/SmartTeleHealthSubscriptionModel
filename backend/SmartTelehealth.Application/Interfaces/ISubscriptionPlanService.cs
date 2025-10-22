@@ -31,6 +31,14 @@ public interface ISubscriptionPlanService
     /// <returns>JsonModel containing filtered, paginated, and sorted subscription plans with metadata</returns>
     Task<JsonModel> GetSubscriptionPlansWithFilteringAsync(SubscriptionPlanFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false);
     
+    /// <summary>
+    /// Gets plans for a category with comparison details.
+    /// NEW ARCHITECTURE: Returns Monthly, Quarterly, Annual plans with value comparison metrics.
+    /// </summary>
+    /// <param name="categoryId">The category ID</param>
+    /// <param name="tokenModel">Token for authentication</param>
+    /// <returns>JsonModel with plans and comparison data</returns>
+    Task<JsonModel> GetPlansForComparisonAsync(Guid categoryId, TokenModel tokenModel);
     
     /// <summary>
     /// Creates a new subscription plan

@@ -150,6 +150,61 @@ public class InvoiceController : BaseController
     {
         return await _invoiceService.SendInvoiceAsync(invoiceNumber, request.Email, GetToken(HttpContext));
     }
+
+    #region Phase 4: Invoice Management Enhancements
+
+    /// <summary>
+    /// Get all invoices with filtering and pagination (Admin only)
+    /// Phase 4: Admin Portal Enhancement
+    /// </summary>
+    /// <returns>JsonModel containing all invoices with filters applied</returns>
+    [HttpGet("all")]
+    public async Task<JsonModel> GetAllInvoices(
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
+    {
+        return await _invoiceService.GetAllInvoicesAsync(page, pageSize, status, startDate, endDate, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Regenerate an invoice if billing details changed
+    /// Phase 4: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="invoiceNumber">Invoice number to regenerate</param>
+    /// <returns>JsonModel containing regenerated invoice</returns>
+    [HttpPost("{invoiceNumber}/regenerate")]
+    public async Task<JsonModel> RegenerateInvoice(string invoiceNumber)
+    {
+        return await _invoiceService.RegenerateInvoiceAsync(invoiceNumber, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get invoice statistics for admin dashboard
+    /// Phase 4: Admin Portal Enhancement
+    /// </summary>
+    /// <returns>JsonModel containing invoice stats (total sent, paid, pending, overdue)</returns>
+    [HttpGet("stats")]
+    public async Task<JsonModel> GetInvoiceStats()
+    {
+        return await _invoiceService.GetInvoiceStatsAsync(GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Send multiple invoices at once (bulk operation)
+    /// Phase 4: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="request">Bulk send request with invoice numbers</param>
+    /// <returns>JsonModel containing bulk send results</returns>
+    [HttpPost("bulk-send")]
+    public async Task<JsonModel> BulkSendInvoices([FromBody] BulkSendInvoicesRequestDto request)
+    {
+        return await _invoiceService.BulkSendInvoicesAsync(request, GetToken(HttpContext));
+    }
+
+    #endregion
 }
 
 public class SendInvoiceRequest

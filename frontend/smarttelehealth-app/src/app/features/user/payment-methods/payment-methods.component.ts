@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { PaymentService, AuthService } from '../../../core/services';
 import { PaymentMethodDto, UserDto } from '../../../core/models';
+import { AddPaymentMethodModalComponent } from './components/add-payment-method-modal/add-payment-method-modal.component';
 
 /**
  * Payment Methods Component
@@ -20,7 +21,7 @@ import { PaymentMethodDto, UserDto } from '../../../core/models';
 @Component({
   selector: 'app-payment-methods',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, AddPaymentMethodModalComponent],
   templateUrl: './payment-methods.component.html',
   styleUrls: ['./payment-methods.component.scss']
 })
@@ -30,6 +31,9 @@ export class PaymentMethodsComponent implements OnInit {
   loading = false;
   actionLoading = false;
   error: string | null = null;
+  
+  // Add card modal
+  showAddCardModal = false;
 
   constructor(
     private authService: AuthService,
@@ -138,6 +142,42 @@ export class PaymentMethodsComponent implements OnInit {
     const today = new Date();
     const expDate = new Date(expYear, expMonth - 1);
     return expDate < today;
+  }
+
+  /**
+   * Check if card expires soon (within 30 days)
+   */
+  isCardExpiringSoon(expMonth: number, expYear: number): boolean {
+    const today = new Date();
+    const expiry = new Date(expYear, expMonth - 1);
+    const diffTime = expiry.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 && diffDays <= 30;
+  }
+
+  /**
+   * Get days until card expires
+   */
+  getDaysUntilExpiry(expMonth: number, expYear: number): number {
+    const today = new Date();
+    const expiry = new Date(expYear, expMonth - 1);
+    const diffTime = expiry.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * Open add card modal
+   */
+  openAddCardModal(): void {
+    this.showAddCardModal = true;
+  }
+
+  /**
+   * Handle card added successfully
+   */
+  onCardAdded(): void {
+    // Reload payment methods to show new card
+    this.loadPaymentMethods();
   }
 }
 

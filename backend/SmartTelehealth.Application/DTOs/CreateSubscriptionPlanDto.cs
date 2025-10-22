@@ -81,14 +81,9 @@ public class CreateSubscriptionPlanDto
     [MaxLength(100)]
     public string? StripeProductId { get; set; }
     
+    // NEW ARCHITECTURE: Each plan has ONE billing cycle, therefore ONE Stripe price
     [MaxLength(100)]
-    public string? StripeMonthlyPriceId { get; set; }
-    
-    [MaxLength(100)]
-    public string? StripeQuarterlyPriceId { get; set; }
-    
-    [MaxLength(100)]
-    public string? StripeAnnualPriceId { get; set; }
+    public string? StripePriceId { get; set; }
     
     // Privilege configuration - NEW
     public List<PlanPrivilegeDto> Privileges { get; set; } = new List<PlanPrivilegeDto>();
@@ -128,29 +123,12 @@ public class CreateSubscriptionPlanDto
     // BILLING CYCLE DISCOUNTS (Solution A Implementation)
     // ═══════════════════════════════════════════════════════════
     
-    /// <summary>
-    /// Discount percentage applied when user selects monthly billing cycle.
-    /// Value between 0 and 100 representing percentage discount.
-    /// Example: 0 = no discount, 5 = 5% off monthly billing.
-    /// </summary>
-    [Range(0, 100, ErrorMessage = "Monthly discount must be between 0 and 100%")]
-    public decimal MonthlyBillingDiscount { get; set; } = 0m;
-    
-    /// <summary>
-    /// Discount percentage applied when user selects quarterly billing cycle.
-    /// Value between 0 and 100 representing percentage discount.
-    /// Example: 2 = 2% off quarterly billing, 5 = 5% off.
-    /// </summary>
-    [Range(0, 100, ErrorMessage = "Quarterly discount must be between 0 and 100%")]
-    public decimal QuarterlyBillingDiscount { get; set; } = 0m;
-    
-    /// <summary>
-    /// Discount percentage applied when user selects annual billing cycle.
-    /// Value between 0 and 100 representing percentage discount.
-    /// Example: 8.33 = 8.33% off (equivalent to 1 month free), 10 = 10% off.
-    /// </summary>
-    [Range(0, 100, ErrorMessage = "Annual discount must be between 0 and 100%")]
-    public decimal AnnualBillingDiscount { get; set; } = 0m;
+    // NEW ARCHITECTURE: Billing cycle discount fields removed
+    // Each plan (Monthly, Quarterly, Annual) is now a separate entity with its own explicit price
+    // Discounts are applied by setting different privilege costs per plan, not via discount percentages
+    // For example:
+    //   - Monthly plan: 10 consultations × $15 = $150
+    //   - Annual plan: 150 consultations × $12 = $1,800 (lower unit cost = implicit discount)
 }
 
 /// <summary>

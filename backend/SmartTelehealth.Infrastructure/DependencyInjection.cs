@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Services;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Infrastructure.Configuration;
 using SmartTelehealth.Infrastructure.Data;
@@ -50,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IPrivilegeUsageHistoryRepository, PrivilegeUsageHistoryRepository>();
         services.AddScoped<IPrivilegeRepository, PrivilegeRepository>();
         services.AddScoped<IProcessedWebhookEventRepository, ProcessedWebhookEventRepository>();
+        services.AddScoped<IFailedRefundRepository, FailedRefundRepository>();
         
         // Healthcare-specific subscription management repositories
         services.AddScoped<ISystemSettingsRepository, SystemSettingsRepository>();
@@ -107,6 +109,12 @@ public static class DependencyInjection
         // Register Master Data Service
         services.AddScoped<IMasterDataService, MasterDataService>();
 
+        // Register Export Service for analytics and reports
+        services.AddScoped<ExportService>();
+
+        // Register Payment Security Service
+        services.AddScoped<IPaymentSecurityService, PaymentSecurityService>();
+
         // Register Automated Billing Background Service as a hosted service
         services.AddHostedService<AutomatedBillingBackgroundService>();
         services.AddScoped<IAutomatedBillingBackgroundService, AutomatedBillingBackgroundService>();
@@ -119,6 +127,9 @@ public static class DependencyInjection
         
         // Register Privilege Reset Background Service (Solution A Implementation)
         services.AddHostedService<PrivilegeResetBackgroundService>();
+        
+        // Register Failed Refund Retry Background Service for automatic compensating refund retry
+        services.AddHostedService<FailedRefundRetryBackgroundService>();
 
         // Cloud Storage Services (temporarily removed for focused testing)
         // services.AddScoped<AzureBlobStorageService>();

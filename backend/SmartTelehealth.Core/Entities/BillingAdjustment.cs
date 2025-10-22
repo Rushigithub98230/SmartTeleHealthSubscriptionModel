@@ -36,7 +36,9 @@ public class BillingAdjustment : BaseEntity
         /// <summary>Service fee adjustment for billing records.</summary>
         ServiceFee,
         /// <summary>Tax adjustment for billing records.</summary>
-        TaxAdjustment
+        TaxAdjustment,
+        /// <summary>Manual payment marking by admin (override).</summary>
+        ManualPayment
     }
     
     /// <summary>

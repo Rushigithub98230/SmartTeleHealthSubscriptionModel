@@ -11,6 +11,7 @@ import {
   PrivilegeUsageSummary,
   UserDto 
 } from '../../../../core/models';
+import { PrivilegePurchaseModalComponent } from '../components/privilege-purchase-modal/privilege-purchase-modal.component';
 
 /**
  * Privilege Usage Component
@@ -26,7 +27,7 @@ import {
 @Component({
   selector: 'app-privilege-usage',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, PrivilegePurchaseModalComponent],
   templateUrl: './privilege-usage.component.html',
   styleUrls: ['./privilege-usage.component.scss']
 })
@@ -36,6 +37,10 @@ export class PrivilegeUsageComponent implements OnInit {
   privilegeUsage: PrivilegeUsageSummary | null = null;
   loading = false;
   error: string | null = null;
+  
+  // Purchase modal
+  showPurchaseModal = false;
+  selectedPrivilege: any = null;
 
   constructor(
     private authService: AuthService,
@@ -141,6 +146,28 @@ export class PrivilegeUsageComponent implements OnInit {
     if (priv.isExhausted) return 'Exhausted';
     if (priv.remainingValue === 0) return 'Used Up';
     return 'Active';
+  }
+
+  /**
+   * Open purchase modal for a privilege
+   */
+  openPurchaseModal(privilege: any): void {
+    this.selectedPrivilege = privilege;
+    this.showPurchaseModal = true;
+  }
+
+  /**
+   * Handle successful purchase
+   */
+  onPurchaseSuccess(purchaseData: any): void {
+    console.log('Purchase successful:', purchaseData);
+    
+    // Refresh privilege usage to show new limits
+    if (this.activeSubscription) {
+      this.loadPrivilegeUsage(this.activeSubscription.id);
+    }
+    
+    this.selectedPrivilege = null;
   }
 }
 

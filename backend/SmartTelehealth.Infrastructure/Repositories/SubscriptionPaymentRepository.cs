@@ -229,8 +229,14 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
         return (payments, totalCount);
     }
 
-    private static IQueryable<SubscriptionPayment> ApplySorting(IQueryable<SubscriptionPayment> query, string sortBy, string sortOrder)
+    private static IQueryable<SubscriptionPayment> ApplySorting(IQueryable<SubscriptionPayment> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(sp => sp.PaidAt);
+        }
+
         return sortBy.ToLower() switch
         {
             "amount" => sortOrder.ToLower() == "desc"

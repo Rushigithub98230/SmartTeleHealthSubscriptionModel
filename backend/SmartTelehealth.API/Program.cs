@@ -112,6 +112,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // SignalR
 builder.Services.AddSignalR();
 
+
+
+builder.Services.AddMemoryCache();
+
+
 // CORS
 builder.Services.AddCors(options =>
 {
@@ -122,6 +127,8 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 });
+
+
 
 // Configure model validation error handling
 builder.Services.Configure<ApiBehaviorOptions>(options =>

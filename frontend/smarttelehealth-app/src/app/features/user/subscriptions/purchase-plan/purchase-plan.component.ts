@@ -42,7 +42,7 @@ import { BillingCycleDto, CurrencyDto } from '../../../../core/models/master-dat
 @Component({
   selector: 'app-purchase-plan',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './purchase-plan.component.html',
   styleUrls: ['./purchase-plan.component.scss']
 })
@@ -98,15 +98,18 @@ export class PurchasePlanComponent implements OnInit {
 
   initForm(): void {
     this.billingForm = this.fb.group({
-      billingCycleId: ['', Validators.required],
+      // billingCycleId removed - comes from selected plan (fixed)
       paymentMethodId: ['', Validators.required],
       autoRenew: [true]
     });
   }
 
   /**
-   * Load billing cycles dynamically from backend
+   * Load billing cycles dynamically from backend (for display purposes only)
    * API: GET /api/MasterData/billing-cycles
+   * 
+   * NOTE: Billing cycle is FIXED in the selected plan
+   * This method only loads cycles to display the name/duration to the user
    */
   loadBillingCycles(): void {
     this.loadingCycles = true;
@@ -114,26 +117,14 @@ export class PurchasePlanComponent implements OnInit {
       next: (response) => {
         if (response.statusCode === 200 && response.data) {
           this.billingCycles = response.data;
-          
-          // Set default to monthly (shortest duration)
-          if (this.billingCycles.length > 0) {
-            const monthly = this.billingCycles.find(bc => 
-              bc.name?.toLowerCase().includes('month') && bc.durationInDays <= 31
-            ) || this.billingCycles[0];
-            
-            if (monthly) {
-              this.billingForm.patchValue({ billingCycleId: monthly.id });
-            }
-          }
-          
-          console.log('✅ Loaded billing cycles from backend:', this.billingCycles);
+          console.log('✅ Loaded billing cycles for display:', this.billingCycles);
         }
         this.loadingCycles = false;
       },
       error: (error) => {
         console.error('❌ Error loading billing cycles:', error);
         this.loadingCycles = false;
-        this.error = 'Failed to load billing options. Please refresh the page.';
+        // Non-critical error - can still purchase
       }
     });
   }
@@ -224,41 +215,16 @@ export class PurchasePlanComponent implements OnInit {
   }
 
   /**
-   * ✅ FIX #2: Calculate final price using PLAN'S discount fields
-   * This matches backend calculation exactly
+   * Calculate final price
+   * NOTE: Plan already has its price set for its specific billing cycle
+   * This just returns the plan's price as-is
    */
   calculateFinalPrice(): number {
     if (!this.plan) return 0;
     
-    const cycleId = this.billingForm.value.billingCycleId;
-    const cycle = this.billingCycles.find(c => c.id === cycleId);
-    
-    if (!cycle) return this.plan.price;
-    
-    // Step 1: Calculate base price for billing cycle
-    const monthlyPrice = this.plan.price;
-    const monthsInCycle = cycle.durationInDays / 30;
-    const basePrice = monthlyPrice * monthsInCycle;
-    
-    // Step 2: Get discount from PLAN (matches backend logic)
-    let discountPercent = 0;
-    
-    const cycleName = cycle.name?.toLowerCase() || '';
-    if (cycleName.includes('annual') || cycleName.includes('year')) {
-      discountPercent = this.plan.annualBillingDiscount || 0;
-    } else if (cycleName.includes('quarter')) {
-      discountPercent = this.plan.quarterlyBillingDiscount || 0;
-    } else if (cycleName.includes('month')) {
-      discountPercent = this.plan.monthlyBillingDiscount || 0;
-    }
-    
-    // Step 3: Apply discount (same formula as backend)
-    const discount = basePrice * (discountPercent / 100);
-    const finalPrice = basePrice - discount;
-    
-    console.log(`💰 Price calculation: $${monthlyPrice}/mo × ${monthsInCycle} months = $${basePrice}, discount ${discountPercent}% = $${finalPrice}`);
-    
-    return finalPrice;
+    // Plan price is already set for its billing cycle
+    // No calculation needed - admin set the price when creating the plan
+    return this.plan.price;
   }
 
   /**
@@ -292,31 +258,18 @@ export class PurchasePlanComponent implements OnInit {
   }
 
   /**
-   * Get base price (before discount)
+   * Get base price
    */
   getBasePrice(): number {
     if (!this.plan) return 0;
-    
-    const cycleId = this.billingForm.value.billingCycleId;
-    const cycle = this.billingCycles.find(c => c.id === cycleId);
-    
-    if (!cycle) return this.plan.price;
-    
-    const monthlyPrice = this.plan.price;
-    const monthsInCycle = cycle.durationInDays / 30;
-    return monthlyPrice * monthsInCycle;
+    return this.plan.price;  // Plan price is the base price
   }
 
   /**
    * Navigate to next step
    */
   nextStep(): void {
-    if (this.currentStep === 2 && this.billingForm.get('billingCycleId')?.invalid) {
-      this.error = 'Please select a billing cycle';
-      return;
-    }
-    
-    if (this.currentStep === 3 && this.billingForm.get('paymentMethodId')?.invalid) {
+    if (this.currentStep === 2 && this.billingForm.get('paymentMethodId')?.invalid) {
       this.error = 'Please select a payment method';
       return;
     }
@@ -354,8 +307,8 @@ export class PurchasePlanComponent implements OnInit {
       userId: this.currentUser.id,
       planId: this.planId,
       price: this.plan.price,
-      billingCycleId: this.billingForm.value.billingCycleId,  // ✅ Dynamic GUID from API
-      currencyId: this.selectedCurrencyId,  // ✅ Dynamic GUID from API
+      billingCycleId: this.plan.billingCycleId,  // ✅ FIXED - from plan, not user input
+      currencyId: this.plan.currencyId,  // ✅ From plan
       paymentMethodId: this.billingForm.value.paymentMethodId,
       autoRenew: this.billingForm.value.autoRenew,
       startImmediately: true,
@@ -363,6 +316,7 @@ export class PurchasePlanComponent implements OnInit {
     };
 
     console.log('📤 Submitting subscription:', dto);
+    console.log('✅ Using plan\'s fixed billing cycle:', this.plan.billingCycleId);
 
     this.subscriptionService.createSubscription(dto).subscribe({
       next: (response) => {
@@ -387,11 +341,11 @@ export class PurchasePlanComponent implements OnInit {
   }
 
   /**
-   * Get selected billing cycle
+   * Get plan's billing cycle (fixed)
    */
   getSelectedCycle(): BillingCycleDto | undefined {
-    const cycleId = this.billingForm.value.billingCycleId;
-    return this.billingCycles.find(c => c.id === cycleId);
+    if (!this.plan) return undefined;
+    return this.billingCycles.find(c => c.id === this.plan!.billingCycleId);
   }
 
   /**

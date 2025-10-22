@@ -21,6 +21,81 @@
   </div>
 
   <div class="container">
+    <!-- Alerts Section -->
+    <div class="alerts-section mb-4">
+      <!-- Failed Payment Alert -->
+      <div *ngIf="hasFailedPayment" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <h5 class="alert-heading mb-2">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>Payment Failed
+            </h5>
+            <p class="mb-2">
+              Your subscription payment of <strong>${{failedPaymentAmount | number:'1.2-2'}}</strong> failed. 
+              Please pay now to keep your subscription active.
+            </p>
+            <small class="text-muted">
+              <i class="bi bi-info-circle me-1"></i>
+              {{failedPayments.length}} pending payment(s) require attention
+            </small>
+          </div>
+          <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a *ngIf="activeSubscription" 
+               [routerLink]="['/web/subscriptions', activeSubscription.id]" 
+               class="btn btn-danger me-2">
+              <i class="bi bi-credit-card me-1"></i>Pay Now
+            </a>
+            <a routerLink="/web/payment-methods" class="btn btn-outline-danger">
+              <i class="bi bi-gear me-1"></i>Manage Cards
+            </a>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <!-- Upcoming Renewal Alert -->
+      <div *ngIf="hasUpcomingRenewal && !hasFailedPayment" class="alert alert-info alert-dismissible fade show" role="alert">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <h5 class="alert-heading mb-2">
+              <i class="bi bi-calendar-event me-2"></i>Upcoming Renewal
+            </h5>
+            <p class="mb-0">
+              Your subscription will automatically renew in <strong>{{daysUntilRenewal}} day{{daysUntilRenewal !== 1 ? 's' : ''}}</strong> 
+              for <strong>${{renewalAmount | number:'1.2-2'}}</strong>.
+            </p>
+          </div>
+          <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a routerLink="/web/payment-methods" class="btn btn-outline-info">
+              <i class="bi bi-credit-card me-1"></i>Update Payment Method
+            </a>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+
+      <!-- Privilege Usage Warning -->
+      <div *ngIf="hasPrivilegeWarning && !hasFailedPayment" class="alert alert-warning alert-dismissible fade show" role="alert">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <h5 class="alert-heading mb-2">
+              <i class="bi bi-exclamation-circle me-2"></i>Usage Alert
+            </h5>
+            <p class="mb-0">
+              You've used <strong>{{highestUsagePercent}}%</strong> of your <strong>{{highestUsagePrivilege}}</strong> credits. 
+              Consider purchasing additional credits to avoid service interruption.
+            </p>
+          </div>
+          <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a routerLink="/web/privileges" class="btn btn-warning">
+              <i class="bi bi-activity me-1"></i>Manage Usage
+            </a>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    </div>
+
     <!-- Quick Stats Row -->
     <div class="row g-4 mb-4">
       <!-- Active Subscriptions -->

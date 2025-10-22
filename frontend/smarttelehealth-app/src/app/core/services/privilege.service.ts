@@ -99,6 +99,15 @@ export class PrivilegeService {
   }
 
   /**
+   * Get privilege usage summary for a user (Admin Only)
+   * API: GET /api/PrivilegeBasedBilling/usage-summary/{userId}
+   * Used in: Admin User Detail - Privileges Tab
+   */
+  getPrivilegeUsageSummary(userId: number): Observable<ApiResponse<any>> {
+    return this.commonService.get<any>(`PrivilegeBasedBilling/usage-summary/${userId}`);
+  }
+
+  /**
    * Create privilege (Admin Only)
    * API: POST /api/SubscriptionPlans/admin/privileges
    * Used in: Admin Privilege Management

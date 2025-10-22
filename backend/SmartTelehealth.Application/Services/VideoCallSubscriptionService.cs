@@ -14,7 +14,7 @@ public class VideoCallSubscriptionService : IVideoCallSubscriptionService
     private readonly IOpenTokService _openTokService;
     private readonly ISubscriptionBillingService _billingService; // UPDATED: Use consolidated service
     private readonly ILogger<VideoCallSubscriptionService> _logger;
-    private readonly PrivilegeService _privilegeService;
+    private readonly IPrivilegeService _privilegeService;
 
     public VideoCallSubscriptionService(
         ISubscriptionRepository subscriptionRepository,
@@ -22,7 +22,7 @@ public class VideoCallSubscriptionService : IVideoCallSubscriptionService
         IOpenTokService openTokService,
         ISubscriptionBillingService billingService, // UPDATED: Use consolidated service
         ILogger<VideoCallSubscriptionService> logger,
-        PrivilegeService privilegeService)
+        IPrivilegeService privilegeService)
     {
         _subscriptionRepository = subscriptionRepository;
         _consultationRepository = consultationRepository;

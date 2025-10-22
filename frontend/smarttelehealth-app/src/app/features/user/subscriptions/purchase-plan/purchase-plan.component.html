@@ -82,58 +82,96 @@
           </div>
         </div>
 
-        <!-- STEP 2: SELECT BILLING CYCLE -->
+        <!-- STEP 2: BILLING INFORMATION (Read-Only) -->
         <div *ngIf="currentStep === 2" class="card shadow-sm">
           <div class="card-header bg-primary text-white">
             <h4 class="mb-0">
               <i class="bi bi-calendar-range me-2"></i>
-              Step 2: Select Billing Cycle
+              Step 2: Billing Information
             </h4>
           </div>
           <div class="card-body">
-            <form [formGroup]="billingForm">
-              <div class="row">
-                <div class="col-12 mb-4">
-                  <label class="form-label fw-bold">Choose Billing Frequency</label>
-                  
-                  <div *ngIf="loadingCycles" class="text-center py-3">
-                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                    <span class="ms-2">Loading billing options...</span>
-                  </div>
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Billing information is determined by your selected plan.</strong>
+              <p class="mb-0 mt-2 small">
+                This plan has a fixed billing cycle. To choose a different billing cycle, 
+                please select a different plan variant from the plan list.
+              </p>
+            </div>
 
-                  <div *ngIf="!loadingCycles" class="row g-3">
-                    <div *ngFor="let cycle of billingCycles" class="col-md-4">
-                      <div class="card h-100 billing-cycle-card" 
-                           [class.selected]="billingForm.value.billingCycleId === cycle.id"
-                           (click)="billingForm.patchValue({billingCycleId: cycle.id})">
-                        <div class="card-body text-center">
-                          <div class="form-check">
-                            <input 
-                              type="radio" 
-                              class="form-check-input" 
-                              formControlName="billingCycleId"
-                              [value]="cycle.id"
-                              [id]="'cycle-' + cycle.id">
-                            <label class="form-check-label w-100" [for]="'cycle-' + cycle.id">
-                              <h5>{{cycle.name}}</h5>
-                              <p class="text-muted mb-0">{{cycle.durationInDays}} days</p>
-                              <p class="text-muted small">{{cycle.description}}</p>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+            <div class="row g-4">
+              <!-- Billing Cycle (Read-Only) -->
+              <div class="col-md-6">
+                <label class="form-label fw-bold">
+                  <i class="bi bi-calendar-check me-2"></i>Billing Cycle
+                </label>
+                <div class="form-control-plaintext bg-light p-3 rounded">
+                  <h5 class="mb-1">{{getSelectedCycle()?.name || 'Loading...'}}</h5>
+                  <small class="text-muted">
+                    <i class="bi bi-clock me-1"></i>
+                    Renews every {{getSelectedCycle()?.durationInDays || 0}} days
+                  </small>
+                </div>
+              </div>
+
+              <!-- Currency (Read-Only) -->
+              <div class="col-md-6">
+                <label class="form-label fw-bold">
+                  <i class="bi bi-currency-dollar me-2"></i>Currency
+                </label>
+                <div class="form-control-plaintext bg-light p-3 rounded">
+                  <h5 class="mb-1">USD ($)</h5>
+                  <small class="text-muted">United States Dollar</small>
+                </div>
+              </div>
+
+              <!-- Price (Read-Only) -->
+              <div class="col-12">
+                <label class="form-label fw-bold">
+                  <i class="bi bi-tag me-2"></i>Total Price
+                </label>
+                <div class="card border-primary">
+                  <div class="card-body text-center py-4">
+                    <h2 class="text-primary mb-2">
+                      ${{calculateFinalPrice() | number:'1.2-2'}}
+                    </h2>
+                    <p class="text-muted mb-0">
+                      per {{getSelectedCycle()?.name?.toLowerCase() || 'billing cycle'}}
+                    </p>
+                    <small class="text-muted" *ngIf="hasTrialPeriod()">
+                      <i class="bi bi-gift me-1"></i>
+                      First {{plan?.trialDurationInDays}} days free
+                    </small>
                   </div>
                 </div>
               </div>
-            </form>
+
+              <!-- Auto-Renew Option -->
+              <div class="col-12">
+                <form [formGroup]="billingForm">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" 
+                           type="checkbox" 
+                           id="autoRenew"
+                           formControlName="autoRenew">
+                    <label class="form-check-label" for="autoRenew">
+                      <strong>Enable Auto-Renewal</strong>
+                      <br>
+                      <small class="text-muted">
+                        Automatically renew your subscription at the end of each billing cycle
+                      </small>
+                    </label>
+                  </div>
+                </form>
+              </div>
+            </div>
 
             <div class="d-flex justify-content-between mt-4">
               <button class="btn btn-outline-secondary" (click)="previousStep()">
                 <i class="bi bi-arrow-left me-2"></i> Previous
               </button>
-              <button class="btn btn-primary btn-lg" (click)="nextStep()" 
-                      [disabled]="!billingForm.value.billingCycleId">
+              <button class="btn btn-primary btn-lg" (click)="nextStep()">
                 Next: Payment Method <i class="bi bi-arrow-right ms-2"></i>
               </button>
             </div>

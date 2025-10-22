@@ -139,9 +139,13 @@
               </div>
 
               <div class="row">
-                <!-- Monthly Base Price -->
-                <div class="col-md-4 mb-3">
-                  <label for="price" class="form-label">Monthly Base Price <span class="text-danger">*</span></label>
+                <!-- Monthly Base Price with Auto-Calculate -->
+                <div class="col-md-12 mb-3">
+                  <label for="price" class="form-label">
+                    Plan Price <span class="text-danger">*</span>
+                    <span class="badge bg-info ms-2" *ngIf="billingForm.value.isAutoCalculatedPrice">Auto-Calculated</span>
+                  </label>
+                  
                   <div class="input-group">
                     <span class="input-group-text">$</span>
                     <input 
@@ -149,10 +153,28 @@
                       id="price"
                       class="form-control" 
                       formControlName="price"
-                      placeholder="150.00"
-                      step="0.01">
+                      [readonly]="billingForm.value.isAutoCalculatedPrice"
+                      placeholder="Will be auto-calculated"
+                      step="0.01"
+                      min="0">
+                    <button 
+                      class="btn btn-outline-secondary" 
+                      type="button"
+                      (click)="togglePriceCalculation()"
+                      title="Toggle between auto-calculate and manual entry">
+                      <i class="bi" [ngClass]="billingForm.value.isAutoCalculatedPrice ? 'bi-calculator' : 'bi-pencil'"></i>
+                      {{billingForm.value.isAutoCalculatedPrice ? 'Auto' : 'Manual'}}
+                    </button>
                   </div>
-                  <div class="form-text">Price per month</div>
+                  
+                  <div class="form-text" *ngIf="billingForm.value.isAutoCalculatedPrice">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Auto-calculated from privileges. Click "Manual" to override.
+                  </div>
+                  <div class="form-text" *ngIf="!billingForm.value.isAutoCalculatedPrice">
+                    <i class="bi bi-pencil me-1"></i>
+                    Manual entry mode. Click "Auto" to use auto-calculation.
+                  </div>
                 </div>
 
                 <!-- Display Order -->
@@ -310,39 +332,15 @@
                           <input 
                             type="number" 
                             class="form-control" 
-                            [(ngModel)]="priv.privilegeBaseCost"
-                            placeholder="10.00"
-                            step="0.01">
-                        </div>
-                      </td>
-                      <td>
-                        <div class="input-group input-group-sm">
-                          <span class="input-group-text">$</span>
-                          <input 
-                            type="number" 
-                            class="form-control" 
                             [(ngModel)]="priv.unitCost"
                             placeholder="15.00"
-                            step="0.01">
+                            step="0.01"
+                            min="0"
+                            title="Overage price per unit">
                         </div>
+                        <small class="text-muted d-block">Overage charge</small>
                       </td>
-                      <td>
-                        <input 
-                          type="number" 
-                          class="form-control form-control-sm" 
-                          [(ngModel)]="priv.dailyLimit"
-                          placeholder="Optional"
-                          min="0">
-                      </td>
-                      <td>
-                        <input 
-                          type="number" 
-                          class="form-control form-control-sm" 
-                          [(ngModel)]="priv.weeklyLimit"
-                          placeholder="Optional"
-                          min="0">
-                      </td>
-                      <td>
+                      <td class="text-center">
                         <button 
                           class="btn btn-sm btn-danger" 
                           (click)="removePrivilege(i)"
@@ -353,6 +351,41 @@
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Auto-Calculated Price Preview -->
+              <div class="card bg-light mb-3" *ngIf="selectedPrivileges.length > 0">
+                <div class="card-body">
+                  <h6 class="mb-3">
+                    <i class="bi bi-calculator me-2"></i>Price Calculation Preview
+                  </h6>
+                  <div class="row">
+                    <div class="col-md-8">
+                      <div class="mb-2" *ngFor="let priv of selectedPrivileges">
+                        <small class="d-block">
+                          {{getPrivilegeName(priv.privilegeId)}}: 
+                          <span class="text-muted">{{priv.value || 0}} × ${{priv.privilegeBaseCost || 0}}</span> = 
+                          <strong>${{calculatePrivilegeCost(priv).toFixed(2)}}</strong>
+                        </small>
+                      </div>
+                      <hr class="my-2">
+                      <div class="mb-1">
+                        <small>Subtotal (Privileges): <strong>${{calculateTotalPrivilegeCost().toFixed(2)}}</strong></small>
+                      </div>
+                      <div class="mb-1">
+                        <small>Admin Commission ({{billingForm.value.adminCommissionPercent || 0}}%): 
+                          <strong>${{calculateCommission().toFixed(2)}}</strong>
+                        </small>
+                      </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                      <div class="mb-2">
+                        <h4 class="text-success mb-0">${{calculateFinalPrice().toFixed(2)}}</h4>
+                        <small class="text-muted">Auto-Calculated</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -376,8 +409,15 @@
             <!-- Help Text -->
             <div class="alert alert-info">
               <i class="bi bi-info-circle me-2"></i>
-              <strong>Note:</strong> Monthly limits are automatically scaled for quarterly and annual billing cycles. 
-              For example, 10/month = 30/quarter and 122/year.
+              <strong>📊 Privilege Configuration:</strong>
+              <ul class="mb-0 mt-2">
+                <li><strong>Total Count:</strong> Total uses allowed per billing period (-1=unlimited, 0=disabled)</li>
+                <li><strong>Unit Cost:</strong> Cost per privilege used to calculate plan price automatically</li>
+                <li><strong>Overage Price:</strong> Additional charge when user exceeds their total count</li>
+              </ul>
+              <p class="mb-0 mt-2">
+                <strong>Price Formula:</strong> Plan Price = Σ(Count × Unit Cost) + Admin Commission
+              </p>
             </div>
 
             <!-- Step 2 Actions -->
@@ -552,7 +592,7 @@
                       </span>
                       <span>
                         <span class="badge bg-primary me-2">
-                          {{priv.monthlyLimit === -1 ? 'Unlimited' : priv.monthlyLimit + '/month'}}
+                          {{priv.value === -1 ? 'Unlimited' : priv.value + ' total'}}
                         </span>
                         <span class="badge bg-success">
                           Overage: ${{priv.unitCost}}

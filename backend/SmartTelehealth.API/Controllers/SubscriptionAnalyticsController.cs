@@ -63,6 +63,35 @@ public class SubscriptionAnalyticsController : BaseController
     }
 
     /// <summary>
+    /// Alias endpoint for subscription analytics
+    /// </summary>
+    [HttpGet("subscription-analytics")]
+    public async Task<JsonModel> GetSubscriptionAnalyticsAlias([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
+    {
+        return await _analyticsService.GetSubscriptionAnalyticsAsync(startDate, endDate, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get Monthly Recurring Revenue (MRR) metrics
+    /// </summary>
+    [HttpGet("mrr")]
+    public async Task<JsonModel> GetMRR([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
+    {
+        var revenueResult = await _analyticsService.GetRevenueAnalyticsAsync(startDate, endDate, GetToken(HttpContext));
+        return revenueResult;
+    }
+
+    /// <summary>
+    /// Get churn rate metrics
+    /// </summary>
+    [HttpGet("churn-rate")]
+    public async Task<JsonModel> GetChurnRate([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
+    {
+        var churnResult = await _analyticsService.GetChurnAnalyticsAsync(startDate, endDate, GetToken(HttpContext));
+        return churnResult;
+    }
+
+    /// <summary>
     /// Retrieves detailed revenue analytics for a specified date range.
     /// This endpoint provides comprehensive revenue analysis including MRR, ARR, revenue trends,
     /// and financial performance metrics for subscription business intelligence.
@@ -180,13 +209,7 @@ public class SubscriptionAnalyticsController : BaseController
         [FromQuery] DateTime? endDate = null,
         [FromQuery] string period = "monthly")
     {
-        // Placeholder implementation - to be implemented in analytics service
-        return new JsonModel 
-        { 
-            data = new { message = "Growth analytics feature not yet implemented" }, 
-            Message = "Growth analytics not implemented", 
-            StatusCode = 501 
-        };
+        return await _analyticsService.GetGrowthAnalyticsAsync(startDate, endDate, period, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -285,13 +308,7 @@ public class SubscriptionAnalyticsController : BaseController
     [HttpGet("realtime")]
     public async Task<JsonModel> GetRealTimeMetrics()
     {
-        // Placeholder implementation - to be implemented in analytics service
-        return new JsonModel 
-        { 
-            data = new { message = "Real-time metrics feature not yet implemented" }, 
-            Message = "Real-time metrics not implemented", 
-            StatusCode = 501 
-        };
+        return await _analyticsService.GetRealTimeMetricsAsync(GetToken(HttpContext));
     }
 
     /// <summary>
@@ -353,13 +370,7 @@ public class SubscriptionAnalyticsController : BaseController
         [FromQuery] DateTime? startDate = null, 
         [FromQuery] DateTime? endDate = null)
     {
-        // Placeholder implementation - to be implemented in analytics service
-        return new JsonModel 
-        { 
-            data = new { message = "Dashboard data feature not yet implemented" }, 
-            Message = "Dashboard data not implemented", 
-            StatusCode = 501 
-        };
+        return await _analyticsService.GetDashboardDataAsync(dashboardType, startDate, endDate, GetToken(HttpContext));
     }
 
     #endregion

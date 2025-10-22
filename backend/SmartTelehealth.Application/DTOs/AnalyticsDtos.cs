@@ -118,7 +118,7 @@ namespace SmartTelehealth.Application.DTOs
         public int FailedBillingRecords { get; set; } // Added
         public decimal TotalRevenue { get; set; }
         public decimal AverageBillingAmount { get; set; } // Added
-        public List<MonthlyRevenueDto> MonthlyRevenue { get; set; } = new(); // Added
+        public List<MonthlyBillingRevenueDto> MonthlyRevenue { get; set; } = new(); // Added
         public List<BillingStatusDto> BillingStatuses { get; set; } = new(); // Added
         public List<PaymentMethodDto> PaymentMethods { get; set; } = new(); // Added
         public decimal OutstandingAmount { get; set; }
@@ -147,7 +147,7 @@ namespace SmartTelehealth.Application.DTOs
         public decimal Percentage { get; set; }
     }
 
-    public class UserAnalyticsDto
+    public class AggregateUserAnalyticsDto
     {
         public int TotalUsers { get; set; }
         public int ActiveUsers { get; set; }
@@ -273,7 +273,7 @@ namespace SmartTelehealth.Application.DTOs
     }
 
     // Added missing DTOs for BillingAnalyticsDto
-    public class MonthlyRevenueDto
+    public class MonthlyBillingRevenueDto
     {
         public string Month { get; set; } = string.Empty;
         public decimal Revenue { get; set; }

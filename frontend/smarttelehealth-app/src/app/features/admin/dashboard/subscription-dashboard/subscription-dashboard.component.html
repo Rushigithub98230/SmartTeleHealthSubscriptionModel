@@ -1,0 +1,328 @@
+<div class="subscription-dashboard">
+  <!-- Header -->
+  <div class="dashboard-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1">Subscription Dashboard</h2>
+      <p class="text-muted mb-0">
+        <i class="bi bi-clock me-1"></i>
+        Last updated: {{ (realTimeMetrics?.timestamp | date:'short') || 'Loading...' }}
+      </p>
+    </div>
+    <button class="btn btn-outline-primary" (click)="refresh()" [disabled]="loading">
+      <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="text-muted mt-3">Loading dashboard data...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error && !loading" class="alert alert-danger" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>{{ error }}
+    <button class="btn btn-sm btn-outline-danger ms-3" (click)="refresh()">
+      Retry
+    </button>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div *ngIf="dashboardMetrics && !loading">
+    <!-- KPI Cards Row 1 -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Active Subscriptions</p>
+                <h3 class="mb-0 fw-bold">{{ dashboardMetrics.kpis.totalActive | number }}</h3>
+              </div>
+              <div class="icon-box bg-success-subtle">
+                <i class="bi bi-check-circle text-success"></i>
+              </div>
+            </div>
+            <div class="mt-2">
+              <small class="text-success">
+                <i class="bi bi-arrow-up me-1"></i>{{ formatPercentage(dashboardMetrics.kpis.growthRate) }}
+              </small>
+              <small class="text-muted ms-2">vs last period</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Trial Subscriptions</p>
+                <h3 class="mb-0 fw-bold">{{ dashboardMetrics.kpis.totalTrial | number }}</h3>
+              </div>
+              <div class="icon-box bg-info-subtle">
+                <i class="bi bi-clock-history text-info"></i>
+              </div>
+            </div>
+            <div class="mt-2">
+              <small class="text-info">
+                <i class="bi bi-clock me-1"></i>Active trials
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Monthly Recurring Revenue</p>
+                <h3 class="mb-0 fw-bold">{{ formatCurrency(dashboardMetrics.kpis.mrr) }}</h3>
+              </div>
+              <div class="icon-box bg-primary-subtle">
+                <i class="bi bi-currency-dollar text-primary"></i>
+              </div>
+            </div>
+            <div class="mt-2">
+              <small class="text-primary">
+                ARR: {{ formatCurrency(dashboardMetrics.kpis.arr) }}
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Churn Rate</p>
+                <h3 class="mb-0 fw-bold">{{ formatPercentage(dashboardMetrics.kpis.churnRate) }}</h3>
+              </div>
+              <div class="icon-box bg-warning-subtle">
+                <i class="bi bi-graph-down text-warning"></i>
+              </div>
+            </div>
+            <div class="mt-2">
+              <small class="text-muted">Last 30 days</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI Cards Row 2 -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Paused Subscriptions</p>
+                <h3 class="mb-0 fw-bold">{{ dashboardMetrics.kpis.totalPaused | number }}</h3>
+              </div>
+              <div class="icon-box bg-secondary-subtle">
+                <i class="bi bi-pause-circle text-secondary"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Cancelled (30 days)</p>
+                <h3 class="mb-0 fw-bold">{{ dashboardMetrics.kpis.totalCancelled | number }}</h3>
+              </div>
+              <div class="icon-box bg-danger-subtle">
+                <i class="bi bi-x-circle text-danger"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Total Subscriptions</p>
+                <h3 class="mb-0 fw-bold">{{ dashboardMetrics.kpis.totalSubscriptions | number }}</h3>
+              </div>
+              <div class="icon-box bg-purple-subtle">
+                <i class="bi bi-layers text-purple"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card stat-card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <p class="text-muted mb-1 small">Growth Rate</p>
+                <h3 class="mb-0 fw-bold">{{ formatPercentage(dashboardMetrics.kpis.growthRate) }}</h3>
+              </div>
+              <div class="icon-box bg-success-subtle">
+                <i class="bi bi-graph-up-arrow text-success"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Items & Recent Activity -->
+    <div class="row g-3">
+      <!-- Action Items -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">
+              <i class="bi bi-exclamation-circle me-2 text-warning"></i>
+              Action Items
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="list-group list-group-flush">
+              <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                <div>
+                  <i class="bi bi-arrow-repeat me-2 text-primary"></i>
+                  <span>Renewals Due Today</span>
+                </div>
+                <span class="badge bg-primary rounded-pill">
+                  {{ dashboardMetrics.actionItems.renewalsDueToday }}
+                </span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                <div>
+                  <i class="bi bi-credit-card-2-back me-2 text-danger"></i>
+                  <span>Failed Payments</span>
+                </div>
+                <span class="badge bg-danger rounded-pill">
+                  {{ dashboardMetrics.actionItems.failedPayments }}
+                </span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                <div>
+                  <i class="bi bi-clock-history me-2 text-info"></i>
+                  <span>Trials Ending Soon</span>
+                </div>
+                <span class="badge bg-info rounded-pill">
+                  {{ dashboardMetrics.actionItems.trialsEnding }}
+                </span>
+              </div>
+              <div class="list-group-item px-0 d-flex justify-content-between align-items-center border-bottom-0">
+                <div>
+                  <i class="bi bi-pause-circle me-2 text-warning"></i>
+                  <span>Suspended Accounts</span>
+                </div>
+                <span class="badge bg-warning rounded-pill">
+                  {{ dashboardMetrics.actionItems.suspendedAccounts }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">
+              <i class="bi bi-activity me-2 text-success"></i>
+              Recent Activity
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="activity-feed" style="max-height: 280px; overflow-y: auto;">
+              <div
+                *ngFor="let activity of dashboardMetrics.recentActivity"
+                class="activity-item d-flex align-items-start mb-3">
+                <div class="activity-icon me-3">
+                  <i class="bi {{ getActivityIcon(activity.type) }} {{ getActivityColor(activity.type) }}"></i>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="d-flex justify-content-between">
+                    <p class="mb-1 small">
+                      <strong>{{ activity.userName }}</strong>
+                      <span class="text-muted ms-1">
+                        {{ activity.type === 'purchase' ? 'purchased' : activity.type === 'trial' ? 'started trial of' : 'cancelled' }}
+                      </span>
+                      <strong class="ms-1">{{ activity.planName }}</strong>
+                    </p>
+                    <small class="text-muted">{{ formatDate(activity.timestamp) }}</small>
+                  </div>
+                  <p class="mb-0 small text-muted">
+                    <i class="bi bi-currency-dollar me-1"></i>{{ formatCurrency(activity.amount) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Real-Time Metrics Banner -->
+    <div *ngIf="realTimeMetrics" class="card border-0 shadow-sm mt-4 bg-light">
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-md-2">
+            <div class="realtime-stat">
+              <p class="mb-1 small text-muted">Status</p>
+              <p class="mb-0 fw-bold text-success">
+                <i class="bi bi-circle-fill me-1" style="font-size: 8px;"></i>
+                {{ realTimeMetrics.systemStatus }}
+              </p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="realtime-stat">
+              <p class="mb-1 small text-muted">New Today</p>
+              <p class="mb-0 fw-bold">{{ realTimeMetrics.newSubscriptionsToday }}</p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="realtime-stat">
+              <p class="mb-1 small text-muted">Cancelled Today</p>
+              <p class="mb-0 fw-bold">{{ realTimeMetrics.cancellationsToday }}</p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="realtime-stat">
+              <p class="mb-1 small text-muted">Revenue Today</p>
+              <p class="mb-0 fw-bold text-success">{{ formatCurrency(realTimeMetrics.revenueToday) }}</p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="realtime-stat">
+              <p class="mb-1 small text-muted">Failed Today</p>
+              <p class="mb-0 fw-bold text-danger">{{ realTimeMetrics.failedPaymentsToday }}</p>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="realtime-stat">
+              <p class="mb-1 small text-muted">Active Now</p>
+              <p class="mb-0 fw-bold text-primary">{{ realTimeMetrics.activeSubscriptions }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

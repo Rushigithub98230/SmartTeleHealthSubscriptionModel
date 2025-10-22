@@ -173,8 +173,14 @@ public class UserSubscriptionPrivilegeUsageRepository : RepositoryBase<UserSubsc
     /// <summary>
     /// Applies dynamic sorting to the query
     /// </summary>
-    private static IQueryable<UserSubscriptionPrivilegeUsage> ApplySorting(IQueryable<UserSubscriptionPrivilegeUsage> query, string sortBy, string sortOrder)
+    private static IQueryable<UserSubscriptionPrivilegeUsage> ApplySorting(IQueryable<UserSubscriptionPrivilegeUsage> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(u => u.CreatedDate);
+        }
+
         return sortBy.ToLower() switch
         {
             "privilegename" => sortOrder.ToLower() == "desc"

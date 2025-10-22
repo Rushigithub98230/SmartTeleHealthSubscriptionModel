@@ -40,6 +40,13 @@ public interface IBillingRepository : IRepositoryBase<BillingRecord>
     Task<BillingRecord?> GetByStripeInvoiceIdAsync(string stripeInvoiceId);
     Task<BillingRecord?> GetByTransactionIdAsync(string transactionId);
     
+    // Admin dashboard methods (Phase 2)
+    /// <summary>
+    /// Gets all billing records for admin dashboard aggregation.
+    /// WARNING: Can return large datasets - use with caution or implement pagination
+    /// </summary>
+    Task<IEnumerable<BillingRecord>> GetAllBillingRecordsAsync();
+    
     // Comprehensive filtering method
     Task<(IEnumerable<BillingRecord> BillingRecords, int TotalCount)> GetBillingRecordsWithAdvancedFilteringAsync(BillingFilterDto filter);
     

@@ -181,21 +181,15 @@ export interface UpdateSubscriptionPlanDto {
  */
 export interface PlanPrivilegeDto {
   privilegeId: string;           // Required GUID
-  value: number;                 // -1=unlimited, 0=disabled, >0=limit
-  // usagePeriodId: string;      // REMOVED: Not used - resets based on billing cycle
+  value: number;                 // Total count: -1=unlimited, 0=disabled, >0=count
   durationMonths: number;
   description?: string;
   effectiveDate?: Date;
   expirationDate?: Date;
   
-  // Time-Based Limits
-  dailyLimit?: number;           // Optional daily cap
-  weeklyLimit?: number;          // Optional weekly cap
-  monthlyLimit?: number;         // Optional monthly cap
-  
   // Pricing (Healthcare Model)
-  privilegeBaseCost: number;     // For plan price calculation
-  unitCost: number;              // For overage billing
+  privilegeBaseCost: number;     // Cost per unit for plan price calculation
+  unitCost: number;              // Overage cost per unit when user exceeds total
 }
 
 /**

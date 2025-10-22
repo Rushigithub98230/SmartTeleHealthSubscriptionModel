@@ -154,8 +154,14 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
     /// <summary>
     /// Applies dynamic sorting to the query
     /// </summary>
-    private static IQueryable<SubscriptionPlanPrivilege> ApplySorting(IQueryable<SubscriptionPlanPrivilege> query, string sortBy, string sortOrder)
+    private static IQueryable<SubscriptionPlanPrivilege> ApplySorting(IQueryable<SubscriptionPlanPrivilege> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(p => p.CreatedDate);
+        }
+
         return sortBy.ToLower() switch
         {
             "privilegename" => sortOrder.ToLower() == "desc"

@@ -86,6 +86,20 @@ namespace SmartTelehealth.Infrastructure.Repositories
         }
 
         /// <summary>
+        /// Gets all billing records for admin dashboard aggregation (Phase 2)
+        /// WARNING: Returns all records - use with caution for large datasets
+        /// </summary>
+        public async Task<IEnumerable<BillingRecord>> GetAllBillingRecordsAsync()
+        {
+            return await _context.BillingRecords
+                .Include(b => b.User)
+                .Include(b => b.Subscription)
+                .Include(b => b.Currency)
+                .AsNoTracking()  // Performance optimization - no change tracking needed
+                .ToListAsync();
+        }
+
+        /// <summary>
         /// Creates a new billing record
         /// </summary>
         public async Task<BillingRecord> CreateBillingRecordAsync(BillingRecord billingRecord)
@@ -709,8 +723,14 @@ namespace SmartTelehealth.Infrastructure.Repositories
             return (billingRecords, totalCount);
         }
 
-        private static IQueryable<BillingRecord> ApplySorting(IQueryable<BillingRecord> query, string sortColumn, string sortOrder)
+        private static IQueryable<BillingRecord> ApplySorting(IQueryable<BillingRecord> query, string? sortColumn, string? sortOrder)
         {
+            // Default sorting if parameters are null or empty
+            if (string.IsNullOrEmpty(sortColumn) || string.IsNullOrEmpty(sortOrder))
+            {
+                return query.OrderByDescending(b => b.CreatedDate);
+            }
+
             return sortColumn.ToLower() switch
             {
                 "createddate" => sortOrder.ToLower() == "desc" 

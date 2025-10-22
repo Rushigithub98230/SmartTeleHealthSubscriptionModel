@@ -208,9 +208,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 }
             }
 
-            // Check if plan with same name already exists
-            var existingPlans = await _subscriptionPlanRepository.GetAllWithDetailsAsync();
-            if (existingPlans.Any(p => p.Name.Equals(createDto.Name, StringComparison.OrdinalIgnoreCase)))
+            // Check if plan with same name already exists (database-level check)
+            if (!await _subscriptionPlanRepository.IsNameUniqueAsync(createDto.Name))
             {
                 return new JsonModel { data = new object(), Message = "A plan with this name already exists", StatusCode = 400 };
             }
@@ -220,9 +219,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             
             SubscriptionPlan createdPlan = null;
             string stripeProductId = null;
-            string monthlyPriceId = null;
-            string quarterlyPriceId = null;
-            string annualPriceId = null;
+            string stripePriceId = null;  // NEW ARCHITECTURE: Only ONE price per plan
             var invalidPrivileges = new List<Guid>();
             var assignedPrivilegesCount = 0;
             
@@ -264,9 +261,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     ExpirationDate = createDto.ExpirationDate,
                     // Stripe IDs (if provided)
                     StripeProductId = createDto.StripeProductId,
-                    StripeMonthlyPriceId = createDto.StripeMonthlyPriceId,
-                    StripeQuarterlyPriceId = createDto.StripeQuarterlyPriceId,
-                    StripeAnnualPriceId = createDto.StripeAnnualPriceId,
+                    StripePriceId = createDto.StripePriceId,
                     
                     // ═══════════════════════════════════════════════════════════
                     // HEALTHCARE PRICING MODEL (Choices 1c, 2c, 4d)
@@ -281,10 +276,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     PriceChangeNoticeDays = createDto.PriceChangeNoticeDays,
                     PrivilegesTotalCost = 0,  // Will be calculated if auto-pricing
                     
-                    // Billing cycle discounts
-                    MonthlyBillingDiscount = createDto.MonthlyBillingDiscount,
-                    QuarterlyBillingDiscount = createDto.QuarterlyBillingDiscount,
-                    AnnualBillingDiscount = createDto.AnnualBillingDiscount,
+                    // NEW ARCHITECTURE: Discounts are now explicit in the plan price
+                    // No billing cycle discount fields needed
                     
                     // Set audit properties for creation
                     CreatedBy = tokenModel.UserID,
@@ -294,39 +287,58 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 createdPlan = await _subscriptionPlanRepository.CreatePlanAsync(plan);
 
                 // STEP 2: Create Stripe resources
-                _logger.LogInformation("Creating Stripe resources for plan {PlanName}", createdPlan.Name);
+                _logger.LogInformation("Creating Stripe resources for plan {PlanName} with billing cycle {BillingCycle}", 
+                    createdPlan.Name, createdPlan.BillingCycle?.Name ?? "Unknown");
                 
                 // Create Stripe product
                 stripeProductId = await _stripeService.CreateProductAsync(createdPlan.Name, createdPlan.Description ?? "", tokenModel);
                 createdPlan.StripeProductId = stripeProductId;
 
-                // Create Stripe prices for different billing cycles
-                monthlyPriceId = await _stripeService.CreatePriceAsync(
-                    stripeProductId, createdPlan.Price, "usd", "month", 1, tokenModel);
-                createdPlan.StripeMonthlyPriceId = monthlyPriceId;
-
-                quarterlyPriceId = await _stripeService.CreatePriceAsync(
-                    stripeProductId, createdPlan.Price * 3, "usd", "month", 3, tokenModel);
-                createdPlan.StripeQuarterlyPriceId = quarterlyPriceId;
-
-                annualPriceId = await _stripeService.CreatePriceAsync(
-                    stripeProductId, createdPlan.Price * 12, "usd", "month", 12, tokenModel);
-                createdPlan.StripeAnnualPriceId = annualPriceId;
+                // NEW ARCHITECTURE: Create only ONE Stripe price matching the plan's fixed billing cycle
+                // Each plan (Monthly, Quarterly, Annual) has its own explicit price
+                var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(createdPlan.BillingCycleId);
+                
+                if (billingCycle == null)
+                {
+                    throw new Exception($"Billing cycle {createdPlan.BillingCycleId} not found for plan {createdPlan.Name}");
+                }
+                
+                // Determine Stripe recurring interval based on billing cycle
+                var (interval, intervalCount) = billingCycle.Name?.ToLower() switch
+                {
+                    "monthly" => ("month", 1),
+                    "quarterly" => ("month", 3),
+                    "annual" => ("year", 1),
+                    "weekly" => ("week", 1),
+                    "daily" => ("day", 1),
+                    _ => ("month", 1) // Default to monthly
+                };
+                
+                // Create single Stripe price for this plan's billing cycle
+                stripePriceId = await _stripeService.CreatePriceAsync(
+                    stripeProductId, 
+                    createdPlan.Price,  // Use plan's explicit price (not multiplied)
+                    "usd", 
+                    interval, 
+                    intervalCount, 
+                    tokenModel);
+                
+                // NEW ARCHITECTURE: Simply set the single StripePriceId
+                createdPlan.StripePriceId = stripePriceId;
 
                 // STEP 3: Update plan with Stripe IDs (CRITICAL STEP)
                 await _subscriptionPlanRepository.UpdatePlanAsync(createdPlan);
 
-                _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Prices {MonthlyId}, {QuarterlyId}, {AnnualId}", 
-                    createdPlan.Name, stripeProductId, monthlyPriceId, quarterlyPriceId, annualPriceId);
+                _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Price {PriceId} ({Cycle})", 
+                    createdPlan.Name, stripeProductId, stripePriceId, billingCycle.Name);
 
                 // STEP 4: Process privileges if provided (SAME TRANSACTION - NO NESTED!)
                 if (createDto.Privileges != null && createDto.Privileges.Any())
                 {
                     foreach (var privilege in createDto.Privileges)
                     {
-                        // Validate privilege exists
-                        var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
-                        if (privilegeEntity == null)
+                        // Validate privilege exists (use ExistsAsync for efficiency)
+                        if (!await _privilegeRepository.ExistsAsync(privilege.PrivilegeId))
                         {
                             _logger.LogWarning("Privilege {PrivilegeId} not found, skipping privilege assignment", privilege.PrivilegeId);
                             invalidPrivileges.Add(privilege.PrivilegeId);
@@ -396,13 +408,9 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     {
                         _logger.LogWarning("Cleaning up Stripe resources due to database failure for plan {PlanName}", createDto.Name);
                         
-                        // Deactivate all prices
-                        if (!string.IsNullOrEmpty(monthlyPriceId))
-                            await _stripeService.DeactivatePriceAsync(monthlyPriceId, tokenModel);
-                        if (!string.IsNullOrEmpty(quarterlyPriceId))
-                            await _stripeService.DeactivatePriceAsync(quarterlyPriceId, tokenModel);
-                        if (!string.IsNullOrEmpty(annualPriceId))
-                            await _stripeService.DeactivatePriceAsync(annualPriceId, tokenModel);
+                        // NEW ARCHITECTURE: Deactivate the single price that was created
+                        if (!string.IsNullOrEmpty(stripePriceId))
+                            await _stripeService.DeactivatePriceAsync(stripePriceId, tokenModel);
                         
                         // Delete the product
                         await _stripeService.DeleteProductAsync(stripeProductId, tokenModel);
@@ -459,7 +467,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
 
             _logger.LogInformation("Activating subscription plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
 
-            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(Guid.Parse(planId));
+            var plan = await _subscriptionPlanRepository.GetByIdAsync(Guid.Parse(planId));
             if (plan == null)
                 return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
             
@@ -581,8 +589,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
+            // Check if plan exists (lightweight query - we need the plan object for auto-pricing later)
+            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
             if (plan == null)
             {
                 await _unitOfWork.RollbackTransactionAsync();
@@ -595,9 +603,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             
             foreach (var privilege in privileges)
             {
-                // Validate privilege exists
-                var privilegeEntity = await _privilegeRepository.GetByIdAsync(privilege.PrivilegeId);
-                if (privilegeEntity == null)
+                // Validate privilege exists (use ExistsAsync for efficiency)
+                if (!await _privilegeRepository.ExistsAsync(privilege.PrivilegeId))
                 {
                     _logger.LogWarning("Privilege {PrivilegeId} not found, skipping", privilege.PrivilegeId);
                     invalidPrivileges.Add(privilege.PrivilegeId);
@@ -694,8 +701,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
+            // Check if plan exists (lightweight query - we need the plan object for auto-pricing later)
+            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
             if (plan == null)
             {
                 await _unitOfWork.RollbackTransactionAsync();
@@ -770,8 +777,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Access denied - Admin only", StatusCode = 403 };
             }
 
-            // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
+            // Check if plan exists (lightweight query - we need the plan object for auto-pricing later)
+            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
             if (plan == null)
             {
                 await _unitOfWork.RollbackTransactionAsync();
@@ -839,9 +846,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         {
             _logger.LogInformation("Getting privileges for plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
 
-            // Check if plan exists
-            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
-            if (plan == null)
+            // Check if plan exists (existence check only - we don't use the plan object)
+            if (!await _subscriptionPlanRepository.ExistsAsync(planId))
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
 
             // Get plan privileges
@@ -935,59 +941,53 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 {
                     try
                     {
-                        _logger.LogInformation("Updating Stripe prices for plan {PlanName} from {OldPrice} to {NewPrice}", 
+                        _logger.LogInformation("Updating Stripe price for plan {PlanName} from {OldPrice} to {NewPrice}", 
                             existingPlan.Name, originalPrice, updateDto.Price);
                         
-                        // Update monthly price
-                        if (!string.IsNullOrEmpty(existingPlan.StripeMonthlyPriceId))
+                        // NEW ARCHITECTURE: Each plan has only ONE Stripe price (matching its billing cycle)
+                        // Update only the price that exists for this plan's billing cycle
+                        
+                        // Get billing cycle to determine interval
+                        var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(existingPlan.BillingCycleId);
+                        if (billingCycle == null)
                         {
-                            newMonthlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
-                                existingPlan.StripeMonthlyPriceId, 
-                                existingPlan.StripeProductId, 
-                                updateDto.Price, 
-                                "usd", 
-                                "month", 
-                                1, 
-                                tokenModel
-                            );
-                            existingPlan.StripeMonthlyPriceId = newMonthlyPriceId;
+                            throw new Exception($"Billing cycle {existingPlan.BillingCycleId} not found for plan {existingPlan.Name}");
                         }
                         
-                        // Update quarterly price (3x monthly)
-                        if (!string.IsNullOrEmpty(existingPlan.StripeQuarterlyPriceId))
+                        var (interval, intervalCount) = billingCycle.Name?.ToLower() switch
                         {
-                            newQuarterlyPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
-                                existingPlan.StripeQuarterlyPriceId, 
-                                existingPlan.StripeProductId, 
-                                updateDto.Price * 3, 
-                                "usd", 
-                                "month", 
-                                3, 
+                            "monthly" => ("month", 1),
+                            "quarterly" => ("month", 3),
+                            "annual" => ("year", 1),
+                            "weekly" => ("week", 1),
+                            "daily" => ("day", 1),
+                            _ => ("month", 1)
+                        };
+                        
+                        // NEW ARCHITECTURE: Simply update the single Stripe price
+                        if (!string.IsNullOrEmpty(existingPlan.StripePriceId))
+                        {
+                            var newPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
+                                existingPlan.StripePriceId,
+                                existingPlan.StripeProductId,
+                                updateDto.Price,  // Use explicit price
+                                "usd",
+                                interval,
+                                intervalCount,
                                 tokenModel
                             );
-                            existingPlan.StripeQuarterlyPriceId = newQuarterlyPriceId;
+                            existingPlan.StripePriceId = newPriceId;
+                            _logger.LogInformation("Updated Stripe price for plan {PlanName} ({Cycle}) to ${Price}", 
+                                existingPlan.Name, billingCycle.Name, updateDto.Price);
                         }
-                        
-                        // Update annual price (12x monthly)
-                        if (!string.IsNullOrEmpty(existingPlan.StripeAnnualPriceId))
+                        else
                         {
-                            newAnnualPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
-                                existingPlan.StripeAnnualPriceId, 
-                                existingPlan.StripeProductId, 
-                                updateDto.Price * 12, 
-                                "usd", 
-                                "month", 
-                                12, 
-                                tokenModel
-                            );
-                            existingPlan.StripeAnnualPriceId = newAnnualPriceId;
+                            _logger.LogWarning("No Stripe price ID found for plan {PlanName}", existingPlan.Name);
                         }
-                        
-                        _logger.LogInformation("Successfully updated Stripe prices for plan {PlanName}", existingPlan.Name);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error updating Stripe prices for plan {PlanName}. Failing operation to maintain DB-Stripe consistency.", existingPlan.Name);
+                        _logger.LogError(ex, "Error updating Stripe price for plan {PlanName}. Failing operation to maintain DB-Stripe consistency.", existingPlan.Name);
                         // CRITICAL FIX: Don't proceed with database-only update - throw to trigger rollback
                         throw new InvalidOperationException($"Failed to synchronize price changes with Stripe. Update aborted to maintain consistency. Error: {ex.Message}", ex);
                     }
@@ -1122,9 +1122,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Plan is already deactivated", StatusCode = 400 };
             }
 
-            // Check if plan has active subscriptions
-            var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
-            if (activeSubscriptions.Any(s => s.SubscriptionPlanId == existingPlan.Id))
+            // Check if plan has active subscriptions (database-level check)
+            if (await _subscriptionPlanRepository.HasActiveSubscriptionsAsync(existingPlan.Id))
             {
                 return new JsonModel { data = new object(), Message = "Cannot deactivate plan with active subscriptions. Please wait for all subscriptions to end or cancel them first.", StatusCode = 400 };
             }
@@ -1141,18 +1140,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     
                     try
                     {
-                        // Deactivate all prices
-                        if (!string.IsNullOrEmpty(existingPlan.StripeMonthlyPriceId))
+                        // NEW ARCHITECTURE: Deactivate the single price
+                        if (!string.IsNullOrEmpty(existingPlan.StripePriceId))
                         {
-                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeMonthlyPriceId, tokenModel);
-                        }
-                        if (!string.IsNullOrEmpty(existingPlan.StripeQuarterlyPriceId))
-                        {
-                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeQuarterlyPriceId, tokenModel);
-                        }
-                        if (!string.IsNullOrEmpty(existingPlan.StripeAnnualPriceId))
-                        {
-                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeAnnualPriceId, tokenModel);
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripePriceId, tokenModel);
                         }
                         
                         // Archive the product instead of deleting it
@@ -1313,9 +1304,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Plan is already deactivated", StatusCode = 400 };
             }
 
-            // Check if plan has active subscriptions
-            var activeSubscriptions = await _subscriptionRepository.GetActiveSubscriptionsAsync();
-            if (activeSubscriptions.Any(s => s.SubscriptionPlanId == existingPlan.Id))
+            // Check if plan has active subscriptions (database-level check)
+            if (await _subscriptionPlanRepository.HasActiveSubscriptionsAsync(existingPlan.Id))
             {
                 return new JsonModel { data = new object(), Message = "Cannot deactivate plan with active subscriptions. Please wait for all subscriptions to end or cancel them first.", StatusCode = 400 };
             }
@@ -1326,9 +1316,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             // Track Stripe cleanup for potential recovery
             bool stripeCleanedUp = false;
             string originalProductId = existingPlan.StripeProductId;
-            string originalMonthlyPriceId = existingPlan.StripeMonthlyPriceId;
-            string originalQuarterlyPriceId = existingPlan.StripeQuarterlyPriceId;
-            string originalAnnualPriceId = existingPlan.StripeAnnualPriceId;
+            string originalPriceId = existingPlan.StripePriceId;
             
             try
             {
@@ -1339,18 +1327,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     
                     try
                     {
-                        // First, deactivate all prices
-                        if (!string.IsNullOrEmpty(existingPlan.StripeMonthlyPriceId))
+                        // NEW ARCHITECTURE: Deactivate the single price
+                        if (!string.IsNullOrEmpty(existingPlan.StripePriceId))
                         {
-                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeMonthlyPriceId, tokenModel);
-                        }
-                        if (!string.IsNullOrEmpty(existingPlan.StripeQuarterlyPriceId))
-                        {
-                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeQuarterlyPriceId, tokenModel);
-                        }
-                        if (!string.IsNullOrEmpty(existingPlan.StripeAnnualPriceId))
-                        {
-                            await _stripeService.DeactivatePriceAsync(existingPlan.StripeAnnualPriceId, tokenModel);
+                            await _stripeService.DeactivatePriceAsync(existingPlan.StripePriceId, tokenModel);
                         }
                         
                         // Wait a moment for Stripe to process the deactivations
@@ -1408,21 +1388,27 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                             
                             // Recreate the Stripe product
                             var recoveredProductId = await _stripeService.CreateProductAsync(existingPlan.Name, existingPlan.Description ?? "", tokenModel);
-                            
-                            // Recreate the prices
-                            var recoveredMonthlyPriceId = await _stripeService.CreatePriceAsync(
-                                recoveredProductId, existingPlan.Price, "usd", "month", 1, tokenModel);
-                            var recoveredQuarterlyPriceId = await _stripeService.CreatePriceAsync(
-                                recoveredProductId, existingPlan.Price * 3, "usd", "month", 3, tokenModel);
-                            var recoveredAnnualPriceId = await _stripeService.CreatePriceAsync(
-                                recoveredProductId, existingPlan.Price * 12, "usd", "month", 12, tokenModel);
-                            
-                            // Update the plan with recovered Stripe IDs
                             existingPlan.StripeProductId = recoveredProductId;
-                            existingPlan.StripeMonthlyPriceId = recoveredMonthlyPriceId;
-                            existingPlan.StripeQuarterlyPriceId = recoveredQuarterlyPriceId;
-                            existingPlan.StripeAnnualPriceId = recoveredAnnualPriceId;
                             
+                            // NEW ARCHITECTURE: Recreate the single price for this plan
+                            var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(existingPlan.BillingCycleId);
+                            var (interval, intervalCount) = billingCycle.Name?.ToLower() switch
+                            {
+                                "monthly" => ("month", 1),
+                                "quarterly" => ("month", 3),
+                                "annual" => ("year", 1),
+                                _ => ("month", 1)
+                            };
+                            
+                            var recoveredPriceId = await _stripeService.CreatePriceAsync(
+                                recoveredProductId,
+                                existingPlan.Price,
+                                "usd",
+                                interval,
+                                intervalCount,
+                                tokenModel);
+                            
+                            existingPlan.StripePriceId = recoveredPriceId;
                             await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
                             
                             _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
@@ -1456,21 +1442,27 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                         
                         // Recreate the Stripe product
                         var recoveredProductId = await _stripeService.CreateProductAsync(existingPlan.Name, existingPlan.Description ?? "", tokenModel);
-                        
-                        // Recreate the prices
-                        var recoveredMonthlyPriceId = await _stripeService.CreatePriceAsync(
-                            recoveredProductId, existingPlan.Price, "usd", "month", 1, tokenModel);
-                        var recoveredQuarterlyPriceId = await _stripeService.CreatePriceAsync(
-                            recoveredProductId, existingPlan.Price * 3, "usd", "month", 3, tokenModel);
-                        var recoveredAnnualPriceId = await _stripeService.CreatePriceAsync(
-                            recoveredProductId, existingPlan.Price * 12, "usd", "month", 12, tokenModel);
-                        
-                        // Update the plan with recovered Stripe IDs
                         existingPlan.StripeProductId = recoveredProductId;
-                        existingPlan.StripeMonthlyPriceId = recoveredMonthlyPriceId;
-                        existingPlan.StripeQuarterlyPriceId = recoveredQuarterlyPriceId;
-                        existingPlan.StripeAnnualPriceId = recoveredAnnualPriceId;
                         
+                        // NEW ARCHITECTURE: Recreate the single price for this plan
+                        var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(existingPlan.BillingCycleId);
+                        var (interval, intervalCount) = billingCycle.Name?.ToLower() switch
+                        {
+                            "monthly" => ("month", 1),
+                            "quarterly" => ("month", 3),
+                            "annual" => ("year", 1),
+                            _ => ("month", 1)
+                        };
+                        
+                        var recoveredPriceId = await _stripeService.CreatePriceAsync(
+                            recoveredProductId,
+                            existingPlan.Price,
+                            "usd",
+                            interval,
+                            intervalCount,
+                            tokenModel);
+                        
+                        existingPlan.StripePriceId = recoveredPriceId;
                         await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
                         
                         _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
@@ -1587,6 +1579,108 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         };
         
         return excelData;
+    }
+
+    /// <summary>
+    /// Gets plans for a category with comparison details.
+    /// NEW ARCHITECTURE: Returns Monthly, Quarterly, Annual plans with value comparison metrics.
+    /// Helps users understand the value proposition of each billing cycle.
+    /// </summary>
+    /// <param name="categoryId">The category ID</param>
+    /// <param name="tokenModel">Token for authentication</param>
+    /// <returns>JsonModel with plans and comparison data</returns>
+    public async Task<JsonModel> GetPlansForComparisonAsync(Guid categoryId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting plans for comparison - category {CategoryId}", categoryId);
+            
+            // Get all plans for this category using new repository method
+            var plans = await _subscriptionPlanRepository.GetPlansByCategoryAsync(categoryId);
+            
+            if (!plans.Any())
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "No plans found for this category",
+                    StatusCode = 404
+                };
+            }
+            
+            // Calculate comparison metrics for each plan
+            var comparisonData = plans.Select(plan => new
+            {
+                PlanId = plan.Id,
+                PlanName = plan.Name,
+                BillingCycle = plan.BillingCycle.Name,
+                BillingCycleDays = plan.BillingCycle.DurationInDays,
+                Price = plan.Price,
+                // Calculate effective monthly price for comparison
+                PricePerMonth = plan.BillingCycle.DurationInDays > 0 
+                    ? Math.Round(plan.Price / (plan.BillingCycle.DurationInDays / 30.0m), 2)
+                    : plan.Price,
+                Privileges = plan.PlanPrivileges.Select(pp => new
+                {
+                    PrivilegeId = pp.PrivilegeId,
+                    PrivilegeName = pp.Privilege?.Name ?? "Unknown",
+                    Value = pp.Value,
+                    IsUnlimited = pp.IsUnlimited,
+                    UnitCost = pp.UnitCost,
+                    TotalCost = pp.Value * pp.PrivilegeBaseCost
+                }).ToList(),
+                TotalPrivilegesValue = plan.PlanPrivileges.Sum(pp => pp.Value * pp.PrivilegeBaseCost),
+                AdminCommission = plan.AdminCommissionPercent.HasValue 
+                    ? plan.PlanPrivileges.Sum(pp => pp.Value * pp.PrivilegeBaseCost) * (plan.AdminCommissionPercent.Value / 100)
+                    : plan.AdminCommissionFixed ?? 0,
+                IsFeatured = plan.IsFeatured,
+                IsMostPopular = plan.IsMostPopular,
+                Description = plan.Description,
+                ShortDescription = plan.ShortDescription
+            })
+            .OrderBy(p => p.BillingCycleDays)
+            .ToList();
+            
+            // Calculate savings compared to monthly
+            var monthlyPlan = comparisonData.FirstOrDefault(p => p.BillingCycle.ToLower() == "monthly");
+            if (monthlyPlan != null)
+            {
+                foreach (var plan in comparisonData)
+                {
+                    var monthlyEquivalent = monthlyPlan.PricePerMonth * (plan.BillingCycleDays / 30.0m);
+                    var savings = monthlyEquivalent - plan.Price;
+                    
+                    // Add savings data
+                    plan.GetType().GetProperty("AnnualSavings")?.SetValue(plan, 
+                        plan.BillingCycle.ToLower() == "annual" ? savings : savings * (365.0m / plan.BillingCycleDays));
+                }
+            }
+            
+            _logger.LogInformation("Retrieved {Count} plans for category {CategoryId} comparison", 
+                comparisonData.Count, categoryId);
+            
+            return new JsonModel
+            {
+                data = new
+                {
+                    CategoryId = categoryId,
+                    Plans = comparisonData,
+                    ComparisonGenerated = DateTime.UtcNow
+                },
+                Message = $"Retrieved {comparisonData.Count} plans for comparison",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting plans for comparison - category {CategoryId}", categoryId);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Error retrieving plans for comparison",
+                StatusCode = 500
+            };
+        }
     }
 
     #endregion

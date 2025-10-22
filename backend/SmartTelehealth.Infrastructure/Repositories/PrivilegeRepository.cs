@@ -97,8 +97,14 @@ public class PrivilegeRepository : RepositoryBase<Privilege>, IPrivilegeReposito
     /// <summary>
     /// Applies dynamic sorting to the query
     /// </summary>
-    private static IQueryable<Privilege> ApplySorting(IQueryable<Privilege> query, string sortBy, string sortOrder)
+    private static IQueryable<Privilege> ApplySorting(IQueryable<Privilege> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderBy(p => p.Name);
+        }
+
         return sortBy.ToLower() switch
         {
             "name" => sortOrder.ToLower() == "desc" 

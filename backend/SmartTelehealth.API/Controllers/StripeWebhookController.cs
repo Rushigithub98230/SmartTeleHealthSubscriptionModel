@@ -555,53 +555,108 @@ public class StripeWebhookController : BaseController
                             Priority = "Normal"
                         }, GetToken(HttpContext));
 
-                        // Create billing record for successful payment with comprehensive data
-                        var billingRecordDto = new CreateBillingRecordDto
-                        {
-                            UserId = subscriptionData.UserId,
-                            Amount = (decimal)(invoice.AmountPaid / 100),
-                            CurrencyId = null, // Will use default currency
-                            PaymentMethod = "stripe",
-                            StripeInvoiceId = invoice.Id,
-                            StripePaymentIntentId = GetPaymentIntentIdFromInvoice(invoice),
-                            Status = BillingRecord.BillingStatus.Paid.ToString(),
-                            Description = $"Payment for subscription - Invoice: {invoice.Number}",
-                            BillingDate = invoice.Created,
-                            PaidDate = DateTime.UtcNow,
-                            Type = BillingRecord.BillingType.Subscription.ToString(),
-                            InvoiceNumber = invoice.Number,
-                            SubscriptionId = subscriptionId
-                        };
-
-                        var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, GetToken(HttpContext));
+                        // CRITICAL FIX (Issue #1): Check if billing record already exists before creating new one
+                        // This prevents duplicate billing records when AutomatedBillingService creates one
+                        // and then webhook tries to create another for the same invoice
+                        var existingBillingRecord = await _billingRepository.GetByStripeInvoiceIdAsync(invoice.Id);
                         
-                        if (billingResult.StatusCode != 200)
+                        if (existingBillingRecord != null)
                         {
-                            _logger.LogError("Failed to create billing record for successful payment. Invoice: {InvoiceId}, Error: {Error}", 
-                                invoice.Id, billingResult.Message);
+                            // Update existing billing record instead of creating duplicate
+                            _logger.LogInformation("Found existing billing record {BillingRecordId} for invoice {InvoiceId}. Updating instead of creating new.", 
+                                existingBillingRecord.Id, invoice.Id);
+                            
+                            existingBillingRecord.Status = BillingRecord.BillingStatus.Paid;
+                            existingBillingRecord.PaidAt = DateTime.UtcNow;
+                            existingBillingRecord.StripePaymentIntentId = GetPaymentIntentIdFromInvoice(invoice);
+                            existingBillingRecord.ProcessedAt = DateTime.UtcNow;
+                            existingBillingRecord.UpdatedBy = 0; // System
+                            existingBillingRecord.UpdatedDate = DateTime.UtcNow;
+                            
+                            await _billingRepository.UpdateAsync(existingBillingRecord);
+                            
+                            // Record external payment to create SubscriptionPayment, update billing dates, and reset privileges
+                            var paymentRecordingResult = await _paymentService.RecordExternalPaymentAsync(existingBillingRecord.Id, GetToken(HttpContext));
+                            
+                            if (paymentRecordingResult.StatusCode != 200)
+                            {
+                                _logger.LogError("Failed to record external payment for existing billing record {BillingRecordId}. Error: {Error}", 
+                                    existingBillingRecord.Id, paymentRecordingResult.Message);
+                                
+                                // CRITICAL FIX: Throw exception to trigger webhook retry mechanism
+                                // This ensures privileges reset and billing dates update correctly on retry
+                                throw new InvalidOperationException(
+                                    $"Failed to record external payment for billing record {existingBillingRecord.Id}. " +
+                                    $"This is critical as it prevents privilege reset and billing date updates. Error: {paymentRecordingResult.Message}");
+                            }
+                            
+                            _logger.LogInformation("Successfully updated existing billing record {BillingRecordId} and recorded external payment", 
+                                existingBillingRecord.Id);
                         }
                         else
                         {
-                            // CRITICAL FIX: Record external payment to create SubscriptionPayment, update billing dates, and reset privileges
-                            // Extract billing record ID from result
-                            var billingRecordId = ExtractBillingRecordId(billingResult);
-                            if (billingRecordId.HasValue)
+                            // No existing record - create new billing record
+                            // This happens when webhook arrives before AutomatedBillingService processes the subscription
+                            _logger.LogInformation("No existing billing record found for invoice {InvoiceId}. Creating new billing record.", invoice.Id);
+                            
+                            var billingRecordDto = new CreateBillingRecordDto
                             {
-                                var paymentRecordingResult = await _paymentService.RecordExternalPaymentAsync(billingRecordId.Value, GetToken(HttpContext));
-                                
-                                if (paymentRecordingResult.StatusCode != 200)
-                                {
-                                    _logger.LogError("Failed to record external payment for billing record {BillingRecordId}. Error: {Error}", 
-                                        billingRecordId.Value, paymentRecordingResult.Message);
-                                }
-                                else
-                                {
-                                    _logger.LogInformation("Successfully recorded external payment for billing record {BillingRecordId}", billingRecordId.Value);
-                                }
+                                UserId = subscriptionData.UserId,
+                                Amount = (decimal)(invoice.AmountPaid / 100),
+                                CurrencyId = null, // Will use default currency
+                                PaymentMethod = "stripe",
+                                StripeInvoiceId = invoice.Id,
+                                StripePaymentIntentId = GetPaymentIntentIdFromInvoice(invoice),
+                                Status = BillingRecord.BillingStatus.Paid.ToString(),
+                                Description = $"Payment for subscription - Invoice: {invoice.Number}",
+                                BillingDate = invoice.Created,
+                                PaidDate = DateTime.UtcNow,
+                                Type = BillingRecord.BillingType.Subscription.ToString(),
+                                InvoiceNumber = invoice.Number,
+                                SubscriptionId = subscriptionId
+                            };
+
+                            var billingResult = await _billingService.CreateBillingRecordAsync(billingRecordDto, GetToken(HttpContext));
+                            
+                            if (billingResult.StatusCode != 200)
+                            {
+                                _logger.LogError("Failed to create billing record for successful payment. Invoice: {InvoiceId}, Error: {Error}", 
+                                    invoice.Id, billingResult.Message);
                             }
                             else
                             {
-                                _logger.LogError("Failed to extract billing record ID from billing result for invoice {InvoiceId}", invoice.Id);
+                                // CRITICAL FIX: Record external payment to create SubscriptionPayment, update billing dates, and reset privileges
+                                // Extract billing record ID from result
+                                var billingRecordId = ExtractBillingRecordId(billingResult);
+                                if (billingRecordId.HasValue)
+                                {
+                                    var paymentRecordingResult = await _paymentService.RecordExternalPaymentAsync(billingRecordId.Value, GetToken(HttpContext));
+                                    
+                                    if (paymentRecordingResult.StatusCode != 200)
+                                    {
+                                        _logger.LogError("Failed to record external payment for billing record {BillingRecordId}. Error: {Error}", 
+                                            billingRecordId.Value, paymentRecordingResult.Message);
+                                        
+                                        // CRITICAL FIX: Throw exception to trigger webhook retry mechanism
+                                        // This ensures privileges reset and billing dates update correctly on retry
+                                        throw new InvalidOperationException(
+                                            $"Failed to record external payment for billing record {billingRecordId.Value}. " +
+                                            $"This is critical as it prevents privilege reset and billing date updates. Error: {paymentRecordingResult.Message}");
+                                    }
+                                    
+                                    _logger.LogInformation("Successfully created new billing record {BillingRecordId} and recorded external payment", 
+                                        billingRecordId.Value);
+                                }
+                                else
+                                {
+                                    _logger.LogError("Failed to extract billing record ID from billing result for invoice {InvoiceId}", invoice.Id);
+                                    
+                                    // CRITICAL FIX: Throw exception if we can't extract billing record ID
+                                    // This ensures the webhook retries and we can properly record the payment
+                                    throw new InvalidOperationException(
+                                        $"Failed to extract billing record ID from billing result for invoice {invoice.Id}. " +
+                                        $"Cannot record external payment without billing record ID.");
+                                }
                             }
                         }
 

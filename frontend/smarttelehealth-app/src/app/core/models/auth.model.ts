@@ -106,6 +106,13 @@ export interface UserDto {
   emergencyContact?: string;
   emergencyPhone?: string;
   stripeCustomerId?: string;
+  
+  // Subscription metadata (for admin portal)
+  totalSubscriptions?: number;
+  activeSubscriptions?: number;
+  hasActiveSubscription?: boolean;
+  currentSubscriptionStatus?: string;
+  lastActivityDate?: Date;
 }
 
 /**

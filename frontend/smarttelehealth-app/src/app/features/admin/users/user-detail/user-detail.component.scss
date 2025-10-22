@@ -1,6 +1,139 @@
-.card {
-  border: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+// User Detail Component Styles
+
+.user-detail {
+  min-height: 80vh;
 }
 
+// Tab styles
+.nav-tabs {
+  border-bottom: 2px solid #dee2e6;
 
+  .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+
+    &:hover {
+      color: #007bff;
+      border-bottom-color: #007bff;
+      background-color: transparent;
+    }
+
+    &.active {
+      color: #007bff;
+      border-bottom-color: #007bff;
+      background-color: transparent;
+      font-weight: 600;
+    }
+
+    i {
+      font-size: 1.1rem;
+    }
+  }
+}
+
+// Card styles
+.card {
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  border: none;
+  border-radius: 0.5rem;
+
+  .card-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 1rem 1.5rem;
+  }
+
+  .card-body {
+    padding: 1.5rem;
+  }
+}
+
+// Profile avatar
+.profile-avatar {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+
+  i {
+    font-size: 4rem;
+  }
+}
+
+// Stats cards
+.bg-light {
+  &:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+  }
+}
+
+// Badge improvements
+.badge {
+  padding: 0.35em 0.65em;
+  font-weight: 500;
+}
+
+.badge-sm {
+  font-size: 0.7rem;
+  padding: 0.2em 0.4em;
+}
+
+// Table improvements
+.table-hover tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+// Loading states
+.spinner-border {
+  width: 3rem;
+  height: 3rem;
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .nav-tabs .nav-link {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+}
+
+// Empty state
+.text-center {
+  i {
+    &[style*="font-size: 3rem"] {
+      opacity: 0.5;
+    }
+  }
+}
+
+// Progress bars for privilege usage (for future)
+.privilege-progress {
+  height: 25px;
+  border-radius: 0.5rem;
+  background-color: #e9ecef;
+  overflow: hidden;
+
+  .progress-bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    transition: width 0.6s ease;
+  }
+}

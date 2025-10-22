@@ -1,0 +1,137 @@
+<!-- Add Payment Method Modal -->
+<div class="modal-backdrop fade show" *ngIf="isOpen" (click)="close()"></div>
+
+<div class="modal fade show d-block" *ngIf="isOpen" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-centered" role="document" (click)="stopPropagation($event)">
+    <div class="modal-content">
+      <!-- Modal Header -->
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="bi bi-credit-card-2-front me-2"></i>Add Payment Method
+        </h5>
+        <button type="button" class="btn-close btn-close-white" (click)="close()" [disabled]="processing"></button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body">
+        <!-- Error State -->
+        <div *ngIf="error" class="alert alert-danger">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>Error:</strong> {{error}}
+        </div>
+
+        <!-- Success State -->
+        <div *ngIf="successMessage" class="alert alert-success">
+          <i class="bi bi-check-circle-fill me-2"></i>
+          <strong>Success!</strong> {{successMessage}}
+          <div class="mt-2">
+            <small class="text-muted">Closing in 1.5 seconds...</small>
+          </div>
+        </div>
+
+        <!-- Add Card Form -->
+        <div *ngIf="!successMessage">
+          <!-- Cardholder Name -->
+          <div class="mb-4">
+            <label for="cardholderName" class="form-label fw-bold">
+              <i class="bi bi-person me-2"></i>Cardholder Name
+            </label>
+            <input type="text" 
+                   class="form-control form-control-lg" 
+                   id="cardholderName"
+                   [(ngModel)]="cardholderName"
+                   placeholder="John Doe"
+                   [disabled]="processing"
+                   required>
+            <small class="text-muted">Name as it appears on your card</small>
+          </div>
+
+          <!-- Stripe Card Element -->
+          <div class="mb-4">
+            <label class="form-label fw-bold">
+              <i class="bi bi-credit-card me-2"></i>Card Information
+            </label>
+            <div id="card-element" class="form-control p-3" style="height: auto; min-height: 45px;">
+              <!-- Stripe Elements will mount here -->
+            </div>
+            <div *ngIf="cardErrors" class="text-danger mt-2">
+              <small>
+                <i class="bi bi-exclamation-circle me-1"></i>
+                {{cardErrors}}
+              </small>
+            </div>
+            <small class="text-muted d-block mt-2">
+              <i class="bi bi-shield-check me-1"></i>
+              Your card information is encrypted and secure
+            </small>
+          </div>
+
+          <!-- Set as Default Checkbox -->
+          <div class="mb-4">
+            <div class="form-check">
+              <input class="form-check-input" 
+                     type="checkbox" 
+                     id="setAsDefault"
+                     [(ngModel)]="setAsDefault"
+                     [disabled]="processing">
+              <label class="form-check-label" for="setAsDefault">
+                <i class="bi bi-star me-1"></i>
+                Set as default payment method
+              </label>
+            </div>
+            <small class="text-muted ms-4">
+              Your default card will be used for automatic subscription renewals
+            </small>
+          </div>
+
+          <!-- Stripe Security Badge -->
+          <div class="alert alert-light border mb-0">
+            <div class="d-flex align-items-center">
+              <div class="me-3">
+                <i class="bi bi-shield-lock-fill text-primary" style="font-size: 2rem;"></i>
+              </div>
+              <div>
+                <strong class="d-block mb-1">Secure Payment Processing</strong>
+                <small class="text-muted">
+                  We use Stripe for payment processing. Your card details are encrypted and never stored on our servers.
+                  All transactions are PCI DSS compliant.
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stripe Branding (Required) -->
+          <div class="text-center mt-3">
+            <small class="text-muted">
+              Powered by <strong>Stripe</strong>
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer" *ngIf="!successMessage">
+        <button type="button" 
+                class="btn btn-secondary" 
+                (click)="close()" 
+                [disabled]="processing">
+          Cancel
+        </button>
+        <button type="button" 
+                class="btn btn-primary btn-lg" 
+                (click)="addCard()"
+                [disabled]="processing || !cardholderName">
+          <span *ngIf="!processing">
+            <i class="bi bi-plus-circle me-2"></i>Add Card
+          </span>
+          <span *ngIf="processing">
+            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+            Adding Card...
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+

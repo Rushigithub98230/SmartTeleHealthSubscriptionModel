@@ -89,6 +89,16 @@ export class SubscriptionService {
   upgradeSubscription(id: string, dto: UpgradeSubscriptionDto): Observable<ApiResponse<any>> {
     return this.commonService.post(`Subscriptions/${id}/upgrade`, dto);
   }
+
+  /**
+   * Purchase additional privilege credits
+   * API: POST /api/Subscriptions/{id}/purchase-credits
+   * Used in: Privilege Purchase Modal
+   * Phase 2: Privilege Management
+   */
+  purchaseAdditionalCredits(id: string, dto: any): Observable<ApiResponse<any>> {
+    return this.commonService.post(`Subscriptions/${id}/purchase-credits`, dto);
+  }
 }
 
 

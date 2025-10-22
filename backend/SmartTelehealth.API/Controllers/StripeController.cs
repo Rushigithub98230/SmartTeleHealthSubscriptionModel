@@ -89,26 +89,23 @@ namespace SmartTelehealth.API.Controllers
                 // Validate request
                 if (string.IsNullOrEmpty(request.PlanId))
                     return new JsonModel { data = new object(), Message = "Plan ID is required", StatusCode = 400 };
-                
-                if (string.IsNullOrEmpty(request.BillingCycleId))
-                    return new JsonModel { data = new object(), Message = "Billing cycle ID is required", StatusCode = 400 };
 
-                // Get the subscription plan to retrieve Stripe price IDs
+                // NEW ARCHITECTURE: No billing cycle needed - each plan has its own fixed cycle
+                // Get the subscription plan to retrieve Stripe price ID
                 var planResult = await _subscriptionPlanService.GetPlanByIdAsync(request.PlanId, GetToken(HttpContext));
                 if (planResult.StatusCode != 200)
                     return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
 
-                var plan = planResult.data as dynamic;
+                var plan = planResult.data as SubscriptionPlanDto;
                 if (plan == null)
                     return new JsonModel { data = new object(), Message = "Invalid plan data", StatusCode = 500 };
 
-                // Get the appropriate Stripe price ID based on billing cycle
-                string priceId = GetStripePriceIdForBillingCycle(plan, request.BillingCycleId);
-                if (string.IsNullOrEmpty(priceId))
-                    return new JsonModel { data = new object(), Message = "Price not available for selected billing cycle", StatusCode = 400 };
+                // NEW ARCHITECTURE: Get the plan's single Stripe price ID
+                if (string.IsNullOrEmpty(plan.StripePriceId))
+                    return new JsonModel { data = new object(), Message = "No Stripe price configured for this plan", StatusCode = 400 };
 
-                // Create checkout session with dynamic price ID
-                var sessionUrl = await _stripeService.CreateCheckoutSessionAsync(priceId, request.SuccessUrl, request.CancelUrl, GetToken(HttpContext));
+                // Create checkout session with plan's Stripe price ID
+                var sessionUrl = await _stripeService.CreateCheckoutSessionAsync(plan.StripePriceId, request.SuccessUrl, request.CancelUrl, GetToken(HttpContext));
                 
                 // Store questionnaire responses if provided
                 if (request.QuestionnaireResponses != null && request.QuestionnaireResponses.Count > 0)
@@ -138,19 +135,7 @@ namespace SmartTelehealth.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Gets the appropriate Stripe price ID based on billing cycle
-        /// </summary>
-        private string GetStripePriceIdForBillingCycle(dynamic plan, string billingCycleId)
-        {
-            return billingCycleId.ToLower() switch
-            {
-                "monthly" => plan.StripeMonthlyPriceId,
-                "quarterly" => plan.StripeQuarterlyPriceId,
-                "annual" => plan.StripeAnnualPriceId,
-                _ => plan.StripeMonthlyPriceId // Default to monthly
-            };
-        }
+        // Helper method removed - NEW ARCHITECTURE: Each plan has single StripePriceId
     }
 
     public class CheckoutSessionRequest

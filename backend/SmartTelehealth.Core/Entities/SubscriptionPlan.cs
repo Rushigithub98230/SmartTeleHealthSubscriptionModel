@@ -25,6 +25,8 @@ public class SubscriptionPlan : BaseEntity
     /// <summary>
     /// Name of the subscription plan for display and identification purposes.
     /// Required field for subscription plan management and user interface display.
+    /// NEW ARCHITECTURE: Should include billing cycle in name (e.g., "Basic - Monthly", "Premium - Annual").
+    /// This makes it clear which billing cycle this plan supports.
     /// Used in plan selection, billing, and subscription management.
     /// </summary>
     [Required]
@@ -119,34 +121,6 @@ public class SubscriptionPlan : BaseEntity
     /// After this date, the base price is used for billing.
     /// </summary>
     public DateTime? DiscountValidUntil { get; set; }
-    
-    // ═══════════════════════════════════════════════════════════
-    // BILLING CYCLE DISCOUNTS (Solution A Implementation)
-    // ═══════════════════════════════════════════════════════════
-    
-    /// <summary>
-    /// Discount percentage applied when user selects monthly billing cycle.
-    /// Value between 0 and 100 representing percentage discount.
-    /// Example: 0 = no discount, 5 = 5% off monthly billing.
-    /// </summary>
-    [Column(TypeName = "decimal(5,2)")]
-    public decimal MonthlyBillingDiscount { get; set; } = 0m;
-    
-    /// <summary>
-    /// Discount percentage applied when user selects quarterly billing cycle.
-    /// Value between 0 and 100 representing percentage discount.
-    /// Example: 2 = 2% off quarterly billing, 5 = 5% off.
-    /// </summary>
-    [Column(TypeName = "decimal(5,2)")]
-    public decimal QuarterlyBillingDiscount { get; set; } = 0m;
-    
-    /// <summary>
-    /// Discount percentage applied when user selects annual billing cycle.
-    /// Value between 0 and 100 representing percentage discount.
-    /// Example: 8.33 = 8.33% off (equivalent to 1 month free), 10 = 10% off.
-    /// </summary>
-    [Column(TypeName = "decimal(5,2)")]
-    public decimal AnnualBillingDiscount { get; set; } = 0m;
     
     // ═══════════════════════════════════════════════════════════
     // PLAN VERSIONING (Issue #1 Fix)
@@ -247,8 +221,10 @@ public class SubscriptionPlan : BaseEntity
     /// Foreign key reference to the Category that this subscription plan belongs to.
     /// Determines which category this plan is associated with (e.g., Mental Health, Physical Health).
     /// Required for category-based plan organization and filtering.
+    /// NEW ARCHITECTURE: Each plan must belong to exactly one category.
     /// </summary>
-    public Guid? CategoryId { get; set; }
+    [Required]
+    public Guid CategoryId { get; set; }
     
     // Navigation properties
     /// <summary>
@@ -272,7 +248,7 @@ public class SubscriptionPlan : BaseEntity
     /// </summary>
     public virtual Category Category { get; set; } = null!;
     
-    // Stripe Integration - Multiple price points for different billing cycles
+    // Stripe Integration - NEW ARCHITECTURE: Each plan has ONE billing cycle, therefore ONE Stripe price
     /// <summary>
     /// Stripe product ID for this subscription plan.
     /// Links this plan to the corresponding Stripe product.
@@ -282,28 +258,15 @@ public class SubscriptionPlan : BaseEntity
     public string? StripeProductId { get; set; }
     
     /// <summary>
-    /// Stripe price ID for monthly billing of this subscription plan.
-    /// Links this plan to the monthly price in Stripe.
-    /// Used for Stripe integration and monthly billing.
+    /// Stripe price ID for this subscription plan.
+    /// NEW ARCHITECTURE: Each plan has ONE billing cycle, therefore ONE Stripe price.
+    /// E.g., "Basic - Monthly" has one monthly price, "Basic - Annual" has one annual price.
+    /// This eliminates the old architecture where one plan supported multiple billing cycles.
+    /// Links this plan to its single price in Stripe.
+    /// Used for Stripe integration and billing.
     /// </summary>
     [MaxLength(100)]
-    public string? StripeMonthlyPriceId { get; set; }
-    
-    /// <summary>
-    /// Stripe price ID for quarterly billing of this subscription plan.
-    /// Links this plan to the quarterly price in Stripe.
-    /// Used for Stripe integration and quarterly billing.
-    /// </summary>
-    [MaxLength(100)]
-    public string? StripeQuarterlyPriceId { get; set; }
-    
-    /// <summary>
-    /// Stripe price ID for annual billing of this subscription plan.
-    /// Links this plan to the annual price in Stripe.
-    /// Used for Stripe integration and annual billing.
-    /// </summary>
-    [MaxLength(100)]
-    public string? StripeAnnualPriceId { get; set; }
+    public string? StripePriceId { get; set; }
     
     // Plan features and limits
     /// <summary>

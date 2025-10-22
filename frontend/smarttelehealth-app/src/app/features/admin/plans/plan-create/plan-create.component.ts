@@ -236,24 +236,19 @@ export class PlanCreateComponent implements OnInit {
 
   /**
    * Add privilege to plan
-   * Sets Value (total allocation) as main field
-   * Time-based limits (daily/weekly/monthly) are OPTIONAL rate limiters
+   * Sets Value (total count) as main field
+   * Time-based limits removed from backend - only total count matters
    */
   addPrivilege(privilege: PrivilegeDto): void {
     const planPrivilege: PlanPrivilegeDto = {
       privilegeId: privilege.id,
       
       // MAIN ALLOCATION (Required)
-      value: 50,                      // Total allocation for billing period
-      
-      // OPTIONAL RATE LIMITERS (Leave undefined by default)
-      monthlyLimit: undefined,        // Optional: Max per month (throttle)
-      dailyLimit: undefined,          // Optional: Max per day (throttle)
-      weeklyLimit: undefined,         // Optional: Max per week (throttle)
+      value: 50,                      // Total count for billing period
       
       // PRICING
-      privilegeBaseCost: 10,          // For plan price calculation
-      unitCost: 15,                   // For overage billing
+      privilegeBaseCost: 5,           // Unit cost for plan price calculation
+      unitCost: 10,                   // Overage price per unit
       
       // OTHER
       durationMonths: 1,
@@ -263,7 +258,8 @@ export class PlanCreateComponent implements OnInit {
     };
 
     this.selectedPrivileges.push(planPrivilege);
-    console.log('✅ Added privilege - Total allocation:', planPrivilege.value, 'Rate limiters: optional');
+    this.onPrivilegeValueChange(); // Recalculate price
+    console.log('✅ Added privilege - Total count:', planPrivilege.value);
   }
 
   /**
@@ -271,6 +267,7 @@ export class PlanCreateComponent implements OnInit {
    */
   removePrivilege(index: number): void {
     this.selectedPrivileges.splice(index, 1);
+    this.onPrivilegeValueChange(); // Recalculate price after removal
   }
 
   /**
@@ -386,12 +383,34 @@ export class PlanCreateComponent implements OnInit {
   }
 
   /**
-   * Calculate total privilege cost
+   * Calculate cost for a single privilege
+   */
+  calculatePrivilegeCost(priv: PlanPrivilegeDto): number {
+    const value = priv.value || 0;
+    const baseCost = priv.privilegeBaseCost || 0;
+    
+    // For unlimited (-1), don't include in price calculation
+    if (value === -1) return 0;
+    
+    return value * baseCost;
+  }
+
+  /**
+   * Calculate total privilege cost (sum of all privilege costs)
    */
   calculateTotalPrivilegeCost(): number {
     return this.selectedPrivileges.reduce((total, priv) => {
-      return total + (priv.value * priv.privilegeBaseCost);
+      return total + this.calculatePrivilegeCost(priv);
     }, 0);
+  }
+
+  /**
+   * Calculate admin commission
+   */
+  calculateCommission(): number {
+    const privilegeCost = this.calculateTotalPrivilegeCost();
+    const commissionPercent = this.billingForm.value.adminCommissionPercent || 0;
+    return privilegeCost * (commissionPercent / 100);
   }
 
   /**
@@ -399,9 +418,34 @@ export class PlanCreateComponent implements OnInit {
    */
   calculateFinalPrice(): number {
     const privilegeCost = this.calculateTotalPrivilegeCost();
-    const commissionPercent = this.billingForm.value.adminCommissionPercent || 0;
-    const commission = privilegeCost * (commissionPercent / 100);
+    const commission = this.calculateCommission();
     return privilegeCost + commission;
+  }
+
+  /**
+   * Called when privilege values change - updates auto-calculated price
+   */
+  onPrivilegeValueChange(): void {
+    if (this.billingForm.value.isAutoCalculatedPrice) {
+      const calculatedPrice = this.calculateFinalPrice();
+      this.basicInfoForm.patchValue({ price: calculatedPrice }, { emitEvent: false });
+      console.log('💰 Price auto-calculated:', calculatedPrice);
+    }
+  }
+
+  /**
+   * Toggle between auto-calculated and manual price entry
+   */
+  togglePriceCalculation(): void {
+    const currentMode = this.billingForm.value.isAutoCalculatedPrice;
+    this.billingForm.patchValue({ isAutoCalculatedPrice: !currentMode });
+    
+    if (!currentMode) {
+      // Switching TO auto-calculate mode
+      this.onPrivilegeValueChange();
+    }
+    
+    console.log('🔄 Price calculation mode:', !currentMode ? 'Auto' : 'Manual');
   }
 
   private markFormGroupTouched(formGroup: FormGroup): void {

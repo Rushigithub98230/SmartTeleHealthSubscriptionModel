@@ -198,8 +198,14 @@ namespace SmartTelehealth.Infrastructure.Repositories
             return (events, totalCount);
         }
 
-        private static IQueryable<ProcessedWebhookEvent> ApplySorting(IQueryable<ProcessedWebhookEvent> query, string sortBy, string sortOrder)
+        private static IQueryable<ProcessedWebhookEvent> ApplySorting(IQueryable<ProcessedWebhookEvent> query, string? sortBy, string? sortOrder)
         {
+            // Default sorting if parameters are null or empty
+            if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+            {
+                return query.OrderByDescending(e => e.ProcessedAt);
+            }
+
             return sortBy.ToLower() switch
             {
                 "eventtype" => sortOrder.ToLower() == "desc"

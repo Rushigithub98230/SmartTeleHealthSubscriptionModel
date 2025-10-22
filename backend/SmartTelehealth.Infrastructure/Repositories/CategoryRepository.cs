@@ -152,8 +152,14 @@ public class CategoryRepository : RepositoryBase<Category>, ICategoryRepository
         return (categories, totalCount);
     }
 
-    private static IQueryable<Category> ApplySorting(IQueryable<Category> query, string sortBy, string sortOrder)
+    private static IQueryable<Category> ApplySorting(IQueryable<Category> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderBy(c => c.Name);
+        }
+
         return sortBy.ToLower() switch
         {
             "name" => sortOrder.ToLower() == "desc"

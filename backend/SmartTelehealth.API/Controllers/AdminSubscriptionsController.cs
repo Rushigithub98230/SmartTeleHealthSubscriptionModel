@@ -165,6 +165,26 @@ public class AdminSubscriptionsController : BaseController
         return await _subscriptionService.GetSubscriptionPrivilegeUsageAsync(id, GetToken(HttpContext));
     }
 
+    /// <summary>
+    /// Retrieves subscriptions due for renewal in the next 7 days.
+    /// Phase 1: Dashboard helper endpoint for action items.
+    /// </summary>
+    [HttpGet("due-for-renewal")]
+    public async Task<JsonModel> GetSubscriptionsDueForRenewal([FromQuery] int daysAhead = 7)
+    {
+        return await _subscriptionService.GetSubscriptionsDueForRenewalAsync(daysAhead, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves trial subscriptions ending in the next 7 days.
+    /// Phase 1: Dashboard helper endpoint for action items.
+    /// </summary>
+    [HttpGet("trials-ending")]
+    public async Task<JsonModel> GetTrialsEnding([FromQuery] int daysAhead = 7)
+    {
+        return await _subscriptionService.GetTrialsEndingAsync(daysAhead, GetToken(HttpContext));
+    }
+
     #endregion
 
     #region Bulk Operations

@@ -36,6 +36,7 @@ public class PaymentService : IPaymentService
     private readonly ISubscriptionPaymentRepository _subscriptionPaymentRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IFailedRefundRepository _failedRefundRepository;
 
     /// <summary>
     /// Initializes a new instance of the PaymentService with all required dependencies
@@ -48,6 +49,7 @@ public class PaymentService : IPaymentService
     /// <param name="subscriptionPaymentRepository">Repository for subscription payment data access operations</param>
     /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
     /// <param name="unitOfWork">Unit of work for transaction management</param>
+    /// <param name="failedRefundRepository">Repository for tracking failed compensating refunds</param>
     public PaymentService(
         IStripeBillingService stripeBillingService,
         IBillingRepository billingRepository,
@@ -56,7 +58,8 @@ public class PaymentService : IPaymentService
         ILogger<PaymentService> logger,
         ISubscriptionPaymentRepository subscriptionPaymentRepository,
         ISubscriptionRepository subscriptionRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IFailedRefundRepository failedRefundRepository)
     {
         _stripeBillingService = stripeBillingService ?? throw new ArgumentNullException(nameof(stripeBillingService));
         _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
@@ -66,6 +69,7 @@ public class PaymentService : IPaymentService
         _subscriptionPaymentRepository = subscriptionPaymentRepository ?? throw new ArgumentNullException(nameof(subscriptionPaymentRepository));
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _failedRefundRepository = failedRefundRepository ?? throw new ArgumentNullException(nameof(failedRefundRepository));
     }
 
     #region Core Payment Processing
@@ -1159,48 +1163,28 @@ public class PaymentService : IPaymentService
     }
 
     /// <summary>
-    /// Calculates billing period for subscription payment using LastBillingDate logic
-    /// </summary>
-    /// <summary>
-    /// Calculates the billing period (start and end dates) for a subscription payment
-    /// FIXED: Now correctly handles all billing cycles (monthly, quarterly, annual)
+    /// Calculates billing period for a subscription payment.
+    /// REFACTORED (PHASE 1): Now delegates to centralized BillingCycleCalculator.
+    /// FIXED: Now correctly handles all billing cycles (monthly, quarterly, annual).
     /// </summary>
     private (DateTime start, DateTime end) CalculateBillingPeriod(Subscription subscription, BillingRecord billingRecord)
     {
         try
         {
-            var billingCycle = subscription.BillingCycle;
+            // Determine if this is first payment (no LastBillingDate)
+            bool isFirstPayment = !subscription.LastBillingDate.HasValue;
             
-            if (billingCycle == null)
-            {
-                _logger.LogWarning("Billing cycle not found for subscription {SubscriptionId}, defaulting to monthly", subscription.Id);
-                var start = subscription.LastBillingDate ?? subscription.StartDate;
-                var end = start.AddMonths(1).AddDays(-1);
-                return (start, end);
-            }
+            // Delegate to centralized calculator
+            var (start, end) = BillingCycleCalculator.CalculateBillingPeriod(subscription, isFirstPayment);
             
-            // For first payment (no LastBillingDate), period starts at subscription start date
-            if (!subscription.LastBillingDate.HasValue)
-            {
-                var start = subscription.StartDate;
-                var end = CalculateEndDateForCycle(start, billingCycle);
-                
-                _logger.LogDebug("First billing period for subscription {SubscriptionId}: {Start} to {End}", 
-                    subscription.Id, start, end);
-                return (start, end);
-            }
-
-            // For renewal payments:
-            // LastBillingDate is the START of the PREVIOUS billing period
-            // So the NEW period starts at NextBillingDate (or calculate from LastBillingDate + cycle duration)
-            var periodStart = subscription.NextBillingDate != default(DateTime) 
-                ? subscription.NextBillingDate 
-                : CalculateNextBillingDate(subscription);
-            var periodEnd = CalculateEndDateForCycle(periodStart, billingCycle);
-
-            _logger.LogDebug("Renewal billing period for subscription {SubscriptionId}: {Start} to {End}", 
-                subscription.Id, periodStart, periodEnd);
-            return (periodStart, periodEnd);
+            _logger.LogDebug(
+                "{PaymentType} billing period for subscription {SubscriptionId}: {Start:yyyy-MM-dd} to {End:yyyy-MM-dd}",
+                isFirstPayment ? "First" : "Renewal",
+                subscription.Id,
+                start,
+                end);
+            
+            return (start, end);
         }
         catch (Exception ex)
         {
@@ -1311,6 +1295,15 @@ public class PaymentService : IPaymentService
         {
             await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error updating payment records for billing record {BillingRecordId}", billingRecord.Id);
+            
+            // CRITICAL FIX (Issue #10): If Stripe payment succeeded but database update failed,
+            // issue compensating refund to maintain Stripe-Database consistency
+            // This prevents users from being charged without a database record
+            if (stripeResult.StatusCode == 200 && !string.IsNullOrEmpty(billingRecord.StripePaymentIntentId))
+            {
+                await IssueCompensatingRefundAsync(billingRecord, tokenModel);
+            }
+            
             throw;
         }
     }
@@ -1377,57 +1370,176 @@ public class PaymentService : IPaymentService
             await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error updating payment records for external payment - billing record {BillingRecordId}", 
                 billingRecord.Id);
+            
+            // CRITICAL FIX (Issue #10): If external payment was already processed in Stripe but database update failed,
+            // issue compensating refund to maintain consistency
+            if (billingRecord.Status == BillingRecord.BillingStatus.Paid && 
+                !string.IsNullOrEmpty(billingRecord.StripePaymentIntentId))
+            {
+                await IssueCompensatingRefundAsync(billingRecord, tokenModel);
+            }
+            
             throw;
         }
     }
 
     /// <summary>
-    /// Resets privilege usage for new billing period.
-    /// CORRECTED: Now uses admin-set Value directly (no calculation).
-    /// The Value field contains the total privilege count set by admin for the billing cycle.
+    /// Issues a compensating refund when Stripe payment succeeds but database update fails.
+    /// This maintains consistency between Stripe and the database by ensuring users are not charged
+    /// when the database transaction fails. Critical for preventing customer disputes and data integrity issues.
+    /// If the refund fails, it is automatically added to the FailedRefunds table for retry and manual review.
+    /// 
+    /// CRITICAL SAFEGUARD: Prevents double refunds by checking if a refund already exists for this billing record.
+    /// </summary>
+    /// <param name="billingRecord">The billing record with Stripe payment information</param>
+    /// <param name="tokenModel">Token for audit and authorization</param>
+    private async Task IssueCompensatingRefundAsync(BillingRecord billingRecord, TokenModel tokenModel)
+    {
+        // CRITICAL SAFEGUARD #1: Check if refund already exists to prevent double refunds
+        // This can happen if:
+        // 1. Webhook retries and calls this method multiple times
+        // 2. Background service is processing the same billing record
+        // 3. Manual admin intervention triggers refund while automatic process is running
+        var existingFailedRefund = await _failedRefundRepository.GetByBillingRecordIdAsync(billingRecord.Id);
+        if (existingFailedRefund != null)
+        {
+            _logger.LogWarning(
+                "⚠️ DUPLICATE REFUND PREVENTED: A refund already exists for billing record {BillingRecordId}. " +
+                "FailedRefundId: {FailedRefundId}, Status: {Status}, RetryCount: {RetryCount}/{MaxRetries}. " +
+                "Skipping duplicate refund attempt to prevent double refunding the customer.",
+                billingRecord.Id, existingFailedRefund.Id, existingFailedRefund.Status, 
+                existingFailedRefund.RetryCount, existingFailedRefund.MaxRetries);
+            return;
+        }
+        
+        string errorMessage = null;
+        bool refundSucceeded = false;
+        
+        try
+        {
+            _logger.LogWarning(
+                "CRITICAL: Stripe payment succeeded but database update failed for billing record {BillingRecordId}. " +
+                "Issuing compensating refund to prevent charging user without database record. " +
+                "PaymentIntentId: {PaymentIntentId}, Amount: ${Amount}",
+                billingRecord.Id, billingRecord.StripePaymentIntentId, billingRecord.TotalAmount);
+            
+            var refundResult = await _stripeService.ProcessRefundAsync(
+                billingRecord.StripePaymentIntentId,
+                billingRecord.TotalAmount,
+                tokenModel);
+            
+            if (refundResult)
+            {
+                refundSucceeded = true;
+                _logger.LogInformation(
+                    "✅ Successfully issued compensating refund for Stripe payment {PaymentIntentId}. " +
+                    "User will not be charged due to database failure. Amount refunded: ${Amount}",
+                    billingRecord.StripePaymentIntentId, billingRecord.TotalAmount);
+            }
+            else
+            {
+                errorMessage = "Stripe refund API returned false (refund failed)";
+                _logger.LogError(
+                    "❌ CRITICAL ALERT: Failed to issue compensating refund for Stripe payment {PaymentIntentId}. " +
+                    "User was charged ${Amount} but database update failed. " +
+                    "ADDING TO FAILED REFUNDS QUEUE FOR RETRY. BillingRecordId: {BillingRecordId}",
+                    billingRecord.StripePaymentIntentId, billingRecord.TotalAmount, billingRecord.Id);
+            }
+        }
+        catch (Exception refundEx)
+        {
+            errorMessage = $"Exception during refund: {refundEx.Message}";
+            _logger.LogError(refundEx, 
+                "❌ CRITICAL ALERT: Exception occurred while attempting compensating refund for Stripe payment {PaymentIntentId}. " +
+                "User was charged ${Amount} but database update failed. " +
+                "ADDING TO FAILED REFUNDS QUEUE FOR RETRY. BillingRecordId: {BillingRecordId}",
+                billingRecord.StripePaymentIntentId, billingRecord.TotalAmount, billingRecord.Id);
+        }
+        
+        // If refund failed, add to failed refunds table for automatic retry and manual review
+        if (!refundSucceeded && !string.IsNullOrEmpty(errorMessage))
+        {
+            await RecordFailedRefundAsync(billingRecord, errorMessage, tokenModel);
+        }
+    }
+    
+    /// <summary>
+    /// Records a failed compensating refund to the FailedRefunds table for automated retry and manual review.
+    /// This ensures financial discrepancies don't go unnoticed and are automatically retried.
+    /// </summary>
+    /// <param name="billingRecord">The billing record for which refund failed</param>
+    /// <param name="errorMessage">Error message from the failed refund attempt</param>
+    /// <param name="tokenModel">Token for audit</param>
+    private async Task RecordFailedRefundAsync(BillingRecord billingRecord, string errorMessage, TokenModel tokenModel)
+    {
+        try
+        {
+            var failedRefund = new FailedRefund
+            {
+                Id = Guid.NewGuid(),
+                BillingRecordId = billingRecord.Id,
+                StripePaymentIntentId = billingRecord.StripePaymentIntentId,
+                StripeInvoiceId = billingRecord.StripeInvoiceId,
+                Amount = billingRecord.TotalAmount,
+                UserId = billingRecord.UserId,
+                ChargedAt = DateTime.UtcNow,
+                DatabaseFailedAt = DateTime.UtcNow,
+                FirstAttemptAt = DateTime.UtcNow,
+                LastAttemptAt = DateTime.UtcNow,
+                RetryCount = 0,
+                MaxRetries = 5,
+                Status = FailedRefundStatus.Pending,
+                LastErrorMessage = errorMessage,
+                DatabaseFailureReason = "Database transaction failed after Stripe payment succeeded",
+                Priority = "Critical",
+                AdminNotified = false,
+                CreatedBy = tokenModel?.UserID ?? 0,
+                CreatedDate = DateTime.UtcNow
+            };
+            
+            await _failedRefundRepository.CreateAsync(failedRefund);
+            
+            _logger.LogWarning(
+                "✅ Failed refund recorded to database for automatic retry. " +
+                "FailedRefundId: {FailedRefundId}, BillingRecordId: {BillingRecordId}, Amount: ${Amount}. " +
+                "Background service will retry up to 5 times. Admin will be notified if all retries fail.",
+                failedRefund.Id, billingRecord.Id, billingRecord.TotalAmount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "❌ CATASTROPHIC: Failed to record failed refund to database. " +
+                "BillingRecordId: {BillingRecordId}, PaymentIntentId: {PaymentIntentId}, Amount: ${Amount}. " +
+                "THIS REQUIRES IMMEDIATE MANUAL INTERVENTION - User charged but no refund and no retry record!",
+                billingRecord.Id, billingRecord.StripePaymentIntentId, billingRecord.TotalAmount);
+            
+            // Don't throw - we've already logged the critical alert
+            // At this point, only manual database check and intervention can resolve this
+        }
+    }
+
+    /// <summary>
+    /// Resets all privileges for a subscription at the start of a new billing period.
+    /// REFACTORED: Now delegates to centralized PrivilegeResetHelper for consistency.
+    /// This ensures all privilege resets use the same logic across all services.
+    /// Uses admin-set Value directly (no calculation) - the SINGLE SOURCE OF TRUTH.
     /// </summary>
     private async Task ResetPrivilegesForNewBillingPeriodAsync(Subscription subscription, TokenModel tokenModel)
     {
         try
         {
+            // Get all privilege usage records for this subscription
             var usageRecords = await _subscriptionRepository.GetSubscriptionPrivilegeUsagesAsync(subscription.Id);
             
-            _logger.LogInformation("Resetting privileges for subscription {SubscriptionId}: BillingCycle={Cycle}",
-                subscription.Id, subscription.BillingCycle.Name);
-            
-            foreach (var usage in usageRecords)
-            {
-                var planPrivilege = subscription.SubscriptionPlan.PlanPrivileges
-                    .FirstOrDefault(p => p.Id == usage.SubscriptionPlanPrivilegeId);
-                
-                if (planPrivilege != null)
-                {
-                    // CORRECTED: Use centralized calculator (now returns Value directly without calculation)
-                    var (allowedValue, periodStart, periodEnd) = PrivilegeAllocationCalculator.CalculatePrivilegeAllocation(
-                        subscription, 
-                        planPrivilege);
-                    
-                    // Reset usage values to plan defaults
-                    // AllowedValue = admin-set Value (e.g., 152), NOT calculated from monthly limit
-                    usage.UsedValue = 0;
-                    usage.AllowedValue = allowedValue;
-                    usage.UsagePeriodStart = periodStart;
-                    usage.UsagePeriodEnd = periodEnd;
-                    usage.ResetAt = DateTime.UtcNow;
-                    usage.UpdatedBy = tokenModel.UserID;
-                    usage.UpdatedDate = DateTime.UtcNow;
-                    
-                    await _subscriptionRepository.UpdatePrivilegeUsageAsync(usage);
-                    
-                    _logger.LogInformation("Reset privilege '{PrivilegeName}' (ID: {PrivilegeId}) for subscription {SubscriptionId}: " +
-                        "AllowedValue={AllowedValue} (admin-set total), Period={Start:yyyy-MM-dd} to {End:yyyy-MM-dd}",
-                        planPrivilege.Privilege?.Name ?? "Unknown", planPrivilege.PrivilegeId, subscription.Id, 
-                        allowedValue, usage.UsagePeriodStart, usage.UsagePeriodEnd);
-                }
-            }
-            
-            _logger.LogInformation("Successfully reset {Count} privilege usages for subscription {SubscriptionId}", 
-                usageRecords.Count(), subscription.Id);
+            // Delegate to centralized helper for consistent reset logic
+            // This helper is the SINGLE SOURCE OF TRUTH for privilege resets
+            await PrivilegeResetHelper.ResetPrivilegesForBillingPeriodAsync(
+                subscription,
+                usageRecords,
+                async (usage) => await _subscriptionRepository.UpdatePrivilegeUsageAsync(usage),
+                tokenModel.UserID,
+                _logger
+            );
         }
         catch (Exception ex)
         {
@@ -1460,7 +1572,7 @@ public class PaymentService : IPaymentService
         {
             var baseDate = subscription.LastBillingDate ?? subscription.StartDate;
             
-            // Use centralized calculator for consistency across all services
+            // REFACTORED: Use centralized calculator for consistency across all services (eliminates duplicate logic)
             return BillingCycleCalculator.CalculateNextBillingDate(baseDate, subscription.BillingCycle);
         }
         catch (Exception ex)

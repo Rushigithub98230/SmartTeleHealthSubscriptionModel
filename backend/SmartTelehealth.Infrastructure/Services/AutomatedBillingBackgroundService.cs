@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities; // ADDED: For BillingCycleCalculator
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
@@ -166,12 +167,25 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
 
             if (paymentResult.StatusCode == 200)
             {
-                // Update subscription billing date
-                subscription.NextBillingDate = subscription.NextBillingDate.AddMonths(1);
-                subscription.LastBillingDate = DateTime.UtcNow;
+                // CRITICAL FIX: PaymentService.ProcessPaymentAsync already updated billing dates and reset privileges
+                // within a transaction via UpdatePaymentRecordsAsync. We only need to update payment tracking fields.
+                // Removing duplicate billing date update to prevent:
+                // 1. Unnecessary database update
+                // 2. Timestamp vs midnight discrepancy
+                // 3. Potential race conditions
+                
                 subscription.FailedPaymentAttempts = 0;
                 subscription.LastPaymentError = null;
+                subscription.LastPaymentDate = DateTime.UtcNow; // Track when payment was made
+                
                 await subscriptionRepository.UpdateAsync(subscription);
+                
+                _logger.LogInformation(
+                    "Successfully processed billing for subscription {SubscriptionId}. " +
+                    "Billing dates already updated to LastBilling={LastBilling:yyyy-MM-dd}, NextBilling={NextBilling:yyyy-MM-dd} by PaymentService. " +
+                    "Privileges already reset. Cycle={Cycle}",
+                    subscription.Id, subscription.LastBillingDate, subscription.NextBillingDate, 
+                    subscription.BillingCycle?.Name ?? "Unknown");
 
                 // Send success notification
                 var userResult = await userService.GetUserByIdAsync(subscription.UserId, systemToken);
@@ -398,14 +412,23 @@ public class AutomatedBillingBackgroundService : BackgroundService, IAutomatedBi
 
                     if (paymentResult.StatusCode == 200)
                     {
-                        // Reactivate subscription
+                        // CRITICAL FIX: PaymentService already updated billing dates and reset privileges
+                        // We only need to reactivate the subscription and clear error fields
+                        
                         subscription.Status = Subscription.SubscriptionStatuses.Active;
-                        subscription.NextBillingDate = nextBillingDate.AddMonths(1);
-                        subscription.LastBillingDate = DateTime.UtcNow;
                         subscription.FailedPaymentAttempts = 0;
                         subscription.LastPaymentError = null;
+                        subscription.LastPaymentDate = DateTime.UtcNow; // Track when payment was made
                         subscription.SuspendedDate = null;
+                        
                         await subscriptionRepository.UpdateAsync(subscription);
+                        
+                        _logger.LogInformation(
+                            "Reactivated subscription {SubscriptionId} after successful payment retry. " +
+                            "Billing dates already updated to LastBilling={LastBilling:yyyy-MM-dd}, NextBilling={NextBilling:yyyy-MM-dd} by PaymentService. " +
+                            "Privileges already reset. Cycle={Cycle}",
+                            subscription.Id, subscription.LastBillingDate, subscription.NextBillingDate, 
+                            subscription.BillingCycle?.Name ?? "Unknown");
 
                         // Send reactivation notification
                         var userResult = await userService.GetUserByIdAsync(userIdInt, systemToken);

@@ -1,0 +1,155 @@
+<!-- Subscription Renewal Payment Modal -->
+<div class="modal-backdrop fade show" *ngIf="isOpen" (click)="close()"></div>
+
+<div class="modal fade show d-block" *ngIf="isOpen" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-centered" role="document" (click)="stopPropagation($event)">
+    <div class="modal-content">
+      <!-- Modal Header -->
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="bi bi-credit-card me-2"></i>Pay Subscription Renewal
+        </h5>
+        <button type="button" class="btn-close btn-close-white" (click)="close()" [disabled]="processing"></button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body">
+        <!-- Loading State -->
+        <div *ngIf="loading" class="text-center py-5">
+          <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+          <p class="mt-3 text-muted">Loading payment details...</p>
+        </div>
+
+        <!-- Error State -->
+        <div *ngIf="error && !loading" class="alert alert-danger">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>Error:</strong> {{error}}
+        </div>
+
+        <!-- Success State -->
+        <div *ngIf="successMessage" class="alert alert-success">
+          <i class="bi bi-check-circle-fill me-2"></i>
+          <strong>Success!</strong> {{successMessage}}
+        </div>
+
+        <!-- Payment Form -->
+        <div *ngIf="!loading && !successMessage && pendingBilling && paymentMethods.length > 0">
+          <!-- Amount Due Card -->
+          <div class="card bg-light mb-4">
+            <div class="card-body">
+              <div class="row align-items-center">
+                <div class="col-8">
+                  <h6 class="text-muted mb-1">Amount Due</h6>
+                  <h2 class="mb-0 text-primary">${{pendingBilling.totalAmount | number:'1.2-2'}}</h2>
+                  <small class="text-muted">
+                    <i class="bi bi-calendar me-1"></i>
+                    Billing Date: {{pendingBilling.billingDate | date:'MMM d, yyyy'}}
+                  </small>
+                </div>
+                <div class="col-4 text-end">
+                  <i class="bi bi-cash-stack text-primary" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Method Selection -->
+          <div class="mb-4">
+            <label class="form-label fw-bold">
+              <i class="bi bi-credit-card me-2"></i>Select Payment Method
+            </label>
+            <div class="list-group">
+              <label *ngFor="let pm of paymentMethods" 
+                     class="list-group-item list-group-item-action"
+                     [class.active]="selectedPaymentMethodId === pm.id"
+                     style="cursor: pointer;">
+                <div class="d-flex align-items-center">
+                  <input type="radio" 
+                         name="paymentMethod" 
+                         [value]="pm.id"
+                         [(ngModel)]="selectedPaymentMethodId"
+                         class="form-check-input me-3">
+                  <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <i class="bi bi-credit-card-2-front me-2"></i>
+                        <span class="text-capitalize fw-bold">{{pm.card?.brand || 'Card'}}</span>
+                        <span class="text-muted ms-2">•••• •••• •••• {{pm.card?.last4}}</span>
+                      </div>
+                      <div>
+                        <span *ngIf="pm.isDefault" class="badge bg-success">
+                          <i class="bi bi-star-fill me-1"></i>Default
+                        </span>
+                      </div>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                      <i class="bi bi-calendar me-1"></i>
+                      Expires: {{pm.card?.expMonth}}/{{pm.card?.expYear}}
+                    </small>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Payment Info -->
+          <div class="alert alert-info border-0">
+            <i class="bi bi-shield-check me-2"></i>
+            <small>
+              <strong>Secure Payment:</strong> Your payment is processed securely through Stripe. 
+              We never store your full card details.
+            </small>
+          </div>
+
+          <!-- Selected Payment Summary -->
+          <div *ngIf="getSelectedPaymentMethod()" class="card bg-white border-primary mb-3">
+            <div class="card-body py-2">
+              <small class="text-muted">You will be charged:</small>
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>${{pendingBilling.totalAmount | number:'1.2-2'}}</strong>
+                  <small class="text-muted ms-2">on {{getSelectedPaymentMethod()?.card?.brand}} ****{{getSelectedPaymentMethod()?.card?.last4}}</small>
+                </div>
+                <i class="bi bi-arrow-right-circle text-primary"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- No Payment Methods -->
+        <div *ngIf="!loading && !successMessage && paymentMethods.length === 0" class="text-center py-4">
+          <i class="bi bi-credit-card text-muted" style="font-size: 4rem;"></i>
+          <h5 class="mt-3 text-muted">No Payment Methods</h5>
+          <p class="text-muted">You need to add a payment method before you can make a payment.</p>
+          <a routerLink="/web/payment-methods" class="btn btn-primary mt-2" (click)="close()">
+            <i class="bi bi-plus-circle me-2"></i>Add Payment Method
+          </a>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer" *ngIf="!loading && !successMessage && pendingBilling && paymentMethods.length > 0">
+        <button type="button" 
+                class="btn btn-secondary" 
+                (click)="close()" 
+                [disabled]="processing">
+          Cancel
+        </button>
+        <button type="button" 
+                class="btn btn-primary" 
+                (click)="processPayment()"
+                [disabled]="!selectedPaymentMethodId || processing">
+          <span *ngIf="!processing">
+            <i class="bi bi-credit-card me-2"></i>Pay ${{pendingBilling.totalAmount | number:'1.2-2'}}
+          </span>
+          <span *ngIf="processing">
+            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+            Processing Payment...
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+

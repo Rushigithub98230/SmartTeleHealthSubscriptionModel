@@ -152,8 +152,14 @@ public class BillingAdjustmentRepository : RepositoryBase<BillingAdjustment>, IB
         return (adjustments, totalCount);
     }
 
-    private static IQueryable<BillingAdjustment> ApplySorting(IQueryable<BillingAdjustment> query, string sortBy, string sortOrder)
+    private static IQueryable<BillingAdjustment> ApplySorting(IQueryable<BillingAdjustment> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(a => a.CreatedDate);
+        }
+
         return sortBy.ToLower() switch
         {
             "amount" => sortOrder.ToLower() == "desc"

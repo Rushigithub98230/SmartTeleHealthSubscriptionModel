@@ -342,4 +342,53 @@ public class AdminStripeSyncController : BaseController
             };
         }
     }
+
+    #region Phase 5: Stripe Sync Dashboard Enhancements
+
+    /// <summary>
+    /// Find all synchronization discrepancies between local and Stripe data
+    /// Phase 5: Admin Portal Enhancement
+    /// </summary>
+    /// <returns>JsonModel containing all discrepancies found</returns>
+    [HttpGet("discrepancies")]
+    public async Task<JsonModel> GetDiscrepancies()
+    {
+        return await _stripeSyncService.GetAllDiscrepanciesAsync(GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Bulk synchronize multiple entities at once
+    /// Phase 5: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="request">Bulk sync request with type and IDs</param>
+    /// <returns>JsonModel containing bulk sync results</returns>
+    [HttpPost("bulk-sync")]
+    public async Task<JsonModel> BulkSync([FromBody] BulkSyncRequestDto request)
+    {
+        return await _stripeSyncService.BulkSyncAsync(request, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get synchronization operation history
+    /// Phase 5: Admin Portal Enhancement
+    /// </summary>
+    /// <returns>JsonModel containing sync history</returns>
+    [HttpGet("history")]
+    public async Task<JsonModel> GetSyncHistory([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    {
+        return await _stripeSyncService.GetSyncHistoryAsync(page, pageSize, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get webhook health status and recent webhook events
+    /// Phase 5: Admin Portal Enhancement
+    /// </summary>
+    /// <returns>JsonModel containing webhook status and recent events</returns>
+    [HttpGet("webhook-status")]
+    public async Task<JsonModel> GetWebhookStatus()
+    {
+        return await _stripeSyncService.GetWebhookStatusAsync(GetToken(HttpContext));
+    }
+
+    #endregion
 }

@@ -438,4 +438,245 @@ public class InvoiceService : IInvoiceService
         var csvContent = invoiceContent.Replace(":", ",").Replace("\n", "\r\n");
         return Encoding.UTF8.GetBytes(csvContent);
     }
+
+    #region Phase 4: Invoice Management Enhancements
+
+    public async Task<JsonModel> GetAllInvoicesAsync(int page, int pageSize, string? status, DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting all invoices for admin by user {UserId}", tokenModel.UserID);
+
+            var allRecords = await _billingRepository.GetBillingRecordsByDateRangeAsync(
+                startDate ?? DateTime.UtcNow.AddMonths(-12),
+                endDate ?? DateTime.UtcNow);
+
+            // Filter by status if provided
+            if (!string.IsNullOrEmpty(status) && status.ToLower() != "all")
+            {
+                allRecords = allRecords.Where(b => b.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Filter only records with invoice numbers
+            var invoices = allRecords.Where(b => !string.IsNullOrEmpty(b.InvoiceNumber));
+
+            // Paginate
+            var totalCount = invoices.Count();
+            var paginatedInvoices = invoices
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(b => new
+                {
+                    invoiceNumber = b.InvoiceNumber,
+                    billingRecordId = b.Id,
+                    userId = b.UserId,
+                    userName = b.User?.FullName ?? "Unknown",
+                    amount = b.TotalAmount,
+                    status = b.Status.ToString(),
+                    billingDate = b.BillingDate,
+                    paidAt = b.PaidAt,
+                    dueDate = b.DueDate
+                })
+                .ToList();
+
+            var paginationMeta = new Meta
+            {
+                TotalRecords = totalCount,
+                PageSize = pageSize,
+                CurrentPage = page,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
+                DefaultPageSize = pageSize
+            };
+
+            return new JsonModel
+            {
+                data = paginatedInvoices,
+                meta = paginationMeta,
+                Message = "Invoices retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all invoices by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve invoices",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> RegenerateInvoiceAsync(string invoiceNumber, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Regenerating invoice {InvoiceNumber} by user {UserId}", invoiceNumber, tokenModel.UserID);
+
+            var billingRecord = await _billingRepository.GetByInvoiceNumberAsync(invoiceNumber);
+            if (billingRecord == null)
+            {
+                return new JsonModel
+                {
+                    data = new object(),
+                    Message = "Invoice not found",
+                    StatusCode = 404
+                };
+            }
+
+            // Regenerate invoice by generating it again
+            var result = await GenerateInvoiceAsync(billingRecord.Id.ToString(), tokenModel);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error regenerating invoice {InvoiceNumber}", invoiceNumber);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to regenerate invoice",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> GetInvoiceStatsAsync(TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting invoice statistics by user {UserId}", tokenModel.UserID);
+
+            var allRecords = await _billingRepository.GetAllBillingRecordsAsync();
+            var invoices = allRecords.Where(b => !string.IsNullOrEmpty(b.InvoiceNumber)).ToList();
+
+            var stats = new
+            {
+                totalSent = invoices.Count,
+                totalPaid = invoices.Count(i => i.Status == BillingRecord.BillingStatus.Paid),
+                totalPending = invoices.Count(i => i.Status == BillingRecord.BillingStatus.Pending),
+                totalOverdue = invoices.Count(i => i.Status == BillingRecord.BillingStatus.Overdue),
+                totalAmount = Math.Round(invoices.Sum(i => i.TotalAmount), 2),
+                paidAmount = Math.Round(invoices.Where(i => i.Status == BillingRecord.BillingStatus.Paid).Sum(i => i.TotalAmount), 2),
+                pendingAmount = Math.Round(invoices.Where(i => i.Status == BillingRecord.BillingStatus.Pending).Sum(i => i.TotalAmount), 2)
+            };
+
+            return new JsonModel
+            {
+                data = stats,
+                Message = "Invoice statistics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting invoice statistics by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve invoice statistics",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> BulkSendInvoicesAsync(BulkSendInvoicesRequestDto request, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Bulk sending {Count} invoices by user {UserId}", 
+                request.InvoiceNumbers.Count, tokenModel.UserID);
+
+            var results = new List<object>();
+            var successCount = 0;
+            var failureCount = 0;
+
+            foreach (var invoiceNumber in request.InvoiceNumbers)
+            {
+                try
+                {
+                    // Get billing record to extract email
+                    var billingRecord = await _billingRepository.GetByInvoiceNumberAsync(invoiceNumber);
+                    if (billingRecord == null)
+                    {
+                        failureCount++;
+                        results.Add(new { invoiceNumber, success = false, message = "Invoice not found" });
+                        
+                        if (!request.ContinueOnError)
+                            break;
+                        
+                        continue;
+                    }
+
+                    var email = billingRecord.User?.Email;
+                    if (string.IsNullOrEmpty(email))
+                    {
+                        failureCount++;
+                        results.Add(new { invoiceNumber, success = false, message = "User email not found" });
+                        
+                        if (!request.ContinueOnError)
+                            break;
+                        
+                        continue;
+                    }
+
+                    // Send invoice
+                    var result = await SendInvoiceAsync(invoiceNumber, email, tokenModel);
+                    
+                    if (result.StatusCode == 200)
+                    {
+                        successCount++;
+                        results.Add(new { invoiceNumber, success = true, message = "Invoice sent successfully", email });
+                    }
+                    else
+                    {
+                        failureCount++;
+                        results.Add(new { invoiceNumber, success = false, message = result.Message });
+                        
+                        if (!request.ContinueOnError)
+                            break;
+                    }
+
+                    // Delay between emails
+                    if (request.DelayBetweenEmailsMs > 0)
+                        await Task.Delay(request.DelayBetweenEmailsMs);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error sending invoice {InvoiceNumber}", invoiceNumber);
+                    failureCount++;
+                    results.Add(new { invoiceNumber, success = false, message = "Send failed: " + ex.Message });
+                    
+                    if (!request.ContinueOnError)
+                        break;
+                }
+            }
+
+            return new JsonModel
+            {
+                data = new
+                {
+                    totalProcessed = results.Count,
+                    successCount,
+                    failureCount,
+                    results
+                },
+                Message = $"Bulk send completed: {successCount} sent, {failureCount} failed",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in bulk send by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Bulk send operation failed",
+                StatusCode = 500
+            };
+        }
+    }
+
+    #endregion
 }

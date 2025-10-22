@@ -41,6 +41,7 @@ public class UserService : IUserService
     private readonly IDocumentTypeService _documentTypeService;
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly ISubscriptionRepository _subscriptionRepository; // Added for DeleteUserAsync
+    private readonly ExportService _exportService;
 
     /// <summary>
     /// Initializes a new instance of the UserService with all required dependencies
@@ -65,7 +66,8 @@ public class UserService : IUserService
         IDocumentService documentService,
         IDocumentTypeService documentTypeService,
         IUserRoleRepository userRoleRepository,
-        ISubscriptionRepository subscriptionRepository)
+        ISubscriptionRepository subscriptionRepository,
+        ExportService exportService)
     {
         _userRepository = userRepository;
         _notificationService = notificationService;
@@ -77,6 +79,7 @@ public class UserService : IUserService
         _documentTypeService = documentTypeService;
         _userRoleRepository = userRoleRepository;
         _subscriptionRepository = subscriptionRepository;
+        _exportService = exportService;
     }
 
     #region Authentication Methods
@@ -909,6 +912,215 @@ public class UserService : IUserService
         }
     }
 
+    /// <summary>
+    /// Get comprehensive user analytics for admin portal
+    /// Aggregates subscription, billing, payment, and privilege data
+    /// </summary>
+    public async Task<JsonModel> GetUserAnalyticsAsync(int userId, DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting user analytics for user {UserId}", userId);
+
+            // Get user
+            var user = await _userRepository.GetByIdWithDetailsAsync(userId);
+            if (user == null)
+                return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
+
+            // Set default date range if not provided
+            var start = startDate ?? DateTime.UtcNow.AddYears(-1);
+            var end = endDate ?? DateTime.UtcNow;
+
+            // Get all subscriptions for the user
+            var allSubscriptions = await _subscriptionRepository.GetUserSubscriptionsAsync(userId);
+            var activeSubscriptions = allSubscriptions.Where(s => s.IsSubscriptionActive).ToList();
+            var pastSubscriptions = allSubscriptions.Where(s => !s.IsSubscriptionActive).ToList();
+            var cancelledSubscriptions = allSubscriptions.Where(s => s.IsCancelled).ToList();
+
+            // Get current subscription details
+            var currentSubscription = activeSubscriptions.FirstOrDefault();
+            string? currentPlan = currentSubscription?.SubscriptionPlan?.Name;
+            DateTime? currentSubscriptionStartDate = currentSubscription?.StartDate;
+            DateTime? nextBillingDate = currentSubscription?.NextBillingDate;
+
+            // Calculate average subscription duration
+            decimal avgDurationDays = 0;
+            if (allSubscriptions.Any())
+            {
+                var durations = allSubscriptions
+                    .Where(s => s.EndDate.HasValue)
+                    .Select(s => (s.EndDate.Value - s.StartDate).TotalDays);
+                
+                if (durations.Any())
+                    avgDurationDays = (decimal)durations.Average();
+            }
+
+            // Get billing records
+            var billingRecords = await _subscriptionRepository.GetBillingRecordsByUserIdAsync(userId);
+            var billingInDateRange = billingRecords
+                .Where(b => b.BillingDate >= start && b.BillingDate <= end)
+                .ToList();
+
+            // Calculate financial metrics
+            decimal totalRevenue = billingRecords.Where(b => b.IsPaid).Sum(b => b.TotalAmount);
+            decimal totalRefunded = billingRecords.Where(b => b.IsRefunded).Sum(b => b.TotalAmount);
+            decimal totalPaid = totalRevenue - totalRefunded;
+
+            // Calculate average monthly spend
+            var monthsWithPayments = billingRecords
+                .Where(b => b.IsPaid)
+                .GroupBy(b => new { b.BillingDate.Year, b.BillingDate.Month })
+                .Count();
+            
+            decimal averageMonthlySpend = monthsWithPayments > 0 
+                ? totalPaid / monthsWithPayments 
+                : 0;
+
+            // Get payment records
+            var payments = await _subscriptionRepository.GetPaymentsByUserIdAsync(userId);
+            var successfulPayments = payments.Count(p => p.IsPaid);
+            var failedPayments = payments.Count(p => p.IsFailed);
+            decimal paymentSuccessRate = payments.Count() > 0 
+                ? (decimal)successfulPayments / payments.Count() * 100 
+                : 0;
+
+            // Get privilege usage
+            var activePrivileges = 0;
+            decimal privilegeUsageRate = 0;
+            bool hasOverageCharges = false;
+
+            if (currentSubscription != null)
+            {
+                var usages = await _subscriptionRepository.GetUserSubscriptionPrivilegeUsagesAsync(currentSubscription.Id);
+                activePrivileges = usages.Count(u => !u.IsExhausted);
+                
+                if (usages.Any())
+                {
+                    var usagePercentages = usages.Where(u => !u.IsUnlimited).Select(u => u.UsagePercentage);
+                    if (usagePercentages.Any())
+                        privilegeUsageRate = (decimal)usagePercentages.Average();
+                }
+
+                hasOverageCharges = usages.Any(u => u.IsExhausted && !u.IsUnlimited);
+            }
+
+            // Calculate account age
+            var accountAgeDays = user.CreatedDate.HasValue 
+                ? (int)(DateTime.UtcNow - user.CreatedDate.Value).TotalDays 
+                : 0;
+
+            // Build analytics DTO
+            var analytics = new UserAnalyticsDto
+            {
+                UserId = userId,
+                UserName = user.FullName,
+                UserEmail = user.Email,
+
+                // Subscription Analytics
+                TotalSubscriptions = allSubscriptions.Count(),
+                ActiveSubscriptions = activeSubscriptions.Count(),
+                PastSubscriptions = pastSubscriptions.Count(),
+                CancelledSubscriptions = cancelledSubscriptions.Count(),
+                AverageSubscriptionDurationDays = avgDurationDays,
+                CurrentPlan = currentPlan,
+                CurrentSubscriptionStartDate = currentSubscriptionStartDate,
+                NextBillingDate = nextBillingDate,
+
+                // Financial Analytics
+                TotalRevenue = totalRevenue,
+                AverageMonthlySpend = averageMonthlySpend,
+                TotalPaid = totalPaid,
+                TotalRefunded = totalRefunded,
+
+                // Payment Analytics
+                TotalPayments = payments.Count(),
+                SuccessfulPayments = successfulPayments,
+                FailedPayments = failedPayments,
+                PaymentSuccessRate = paymentSuccessRate,
+
+                // Privilege Analytics
+                ActivePrivileges = activePrivileges,
+                PrivilegeUsageRate = privilegeUsageRate,
+                HasOverageCharges = hasOverageCharges,
+
+                // Account Analytics
+                AccountCreatedDate = user.CreatedDate ?? DateTime.UtcNow,
+                LastLoginDate = user.LastLoginAt,
+                LastActivityDate = user.LastLoginAt, // Can be enhanced with more activity tracking
+                AccountAgeDays = accountAgeDays,
+                IsActiveAccount = user.IsActive
+            };
+
+            return new JsonModel 
+            { 
+                data = analytics, 
+                Message = "User analytics retrieved successfully", 
+                StatusCode = 200 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user analytics for user {UserId}", userId);
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"Failed to get user analytics: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
+    }
+
+    /// <summary>
+    /// Export user analytics in specified format
+    /// </summary>
+    public async Task<byte[]> ExportUserAnalyticsAsync(int userId, string format, DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Exporting user analytics for user {UserId} in format {Format}", userId, format);
+
+            // Get analytics data
+            var analyticsResult = await GetUserAnalyticsAsync(userId, startDate, endDate, tokenModel);
+            
+            if (analyticsResult.StatusCode != 200 || analyticsResult.data == null)
+            {
+                throw new Exception("Failed to get user analytics");
+            }
+
+            var analytics = analyticsResult.data as UserAnalyticsDto;
+            if (analytics == null)
+            {
+                throw new Exception("Invalid analytics data");
+            }
+
+            // Generate export based on format
+            byte[] exportData;
+            
+            switch (format.ToLower())
+            {
+                case "excel":
+                case "xlsx":
+                    exportData = _exportService.ExportUserAnalyticsToExcel(analytics);
+                    break;
+                
+                case "csv":
+                    exportData = _exportService.ExportUserAnalyticsToCsv(analytics);
+                    break;
+                
+                default:
+                    throw new ArgumentException($"Unsupported export format: {format}");
+            }
+
+            _logger.LogInformation("Successfully exported user analytics for user {UserId} in format {Format}", userId, format);
+            return exportData;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting user analytics for user {UserId}", userId);
+            throw;
+        }
+    }
+
     // Provider reviews
     public async Task<JsonModel> GetProviderReviewsAsync(int providerId, TokenModel tokenModel)
     {
@@ -1372,6 +1584,11 @@ public class UserService : IUserService
     // Helper methods
     private UserDto MapToUserDto(User user)
     {
+        // Calculate subscription metadata
+        var subscriptions = user.Subscriptions?.ToList() ?? new List<Subscription>();
+        var activeSubscriptions = subscriptions.Where(s => s.IsSubscriptionActive).ToList();
+        var currentSub = activeSubscriptions.FirstOrDefault();
+
         return new UserDto
         {
             Id = user.Id,
@@ -1401,6 +1618,13 @@ public class UserService : IUserService
             Country = user.Country,
             EmergencyContact = user.EmergencyContact,
             EmergencyPhone = user.EmergencyPhone,
+            
+            // Subscription metadata for admin portal
+            TotalSubscriptions = subscriptions.Count,
+            ActiveSubscriptions = activeSubscriptions.Count,
+            HasActiveSubscription = activeSubscriptions.Any(),
+            CurrentSubscriptionStatus = currentSub?.Status,
+            LastActivityDate = user.LastLoginAt,
             StripeCustomerId = user.StripeCustomerId
         };
     }

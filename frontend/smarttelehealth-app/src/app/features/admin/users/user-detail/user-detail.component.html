@@ -1,146 +1,470 @@
-<!-- Admin User Detail -->
+<!-- Admin User Detail - Comprehensive View -->
 <div class="container-fluid py-4">
-  <a routerLink="/webadmin/users" class="btn btn-outline-secondary mb-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <a routerLink="/webadmin/users" class="btn btn-outline-secondary mb-3">
     <i class="bi bi-arrow-left me-2"></i>Back to Users
   </a>
+      <h2 class="mb-0">
+        <i class="bi bi-person-circle me-2"></i>
+        {{user?.fullName || 'User Details'}}
+      </h2>
+    </div>
+  </div>
 
+  <!-- Tab Navigation -->
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <a class="nav-link" [class.active]="activeTab === 'overview'" 
+         (click)="switchTab('overview')" 
+         style="cursor: pointer;">
+        <i class="bi bi-speedometer2 me-1"></i>
+        Overview
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" [class.active]="activeTab === 'subscriptions'"
+         (click)="switchTab('subscriptions')" 
+         style="cursor: pointer;">
+        <i class="bi bi-card-list me-1"></i>
+        Subscriptions
+        <span class="badge bg-primary ms-1" *ngIf="overviewStats.totalSubscriptions > 0">
+          {{overviewStats.totalSubscriptions}}
+        </span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" [class.active]="activeTab === 'billing'"
+         (click)="switchTab('billing')" 
+         style="cursor: pointer;">
+        <i class="bi bi-cash-stack me-1"></i>
+        Billing & Payments
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" [class.active]="activeTab === 'privileges'"
+         (click)="switchTab('privileges')" 
+         style="cursor: pointer;">
+        <i class="bi bi-shield-check me-1"></i>
+        Privileges & Usage
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" [class.active]="activeTab === 'analytics'"
+         (click)="switchTab('analytics')" 
+         style="cursor: pointer;">
+        <i class="bi bi-graph-up me-1"></i>
+        Analytics
+      </a>
+    </li>
+  </ul>
+
+  <!-- Tab Content -->
+  <div class="tab-content">
+    
+    <!-- ========== TAB 1: OVERVIEW ========== -->
+    <div *ngIf="activeTab === 'overview'">
   <!-- Loading -->
-  <div *ngIf="loading" class="text-center py-5">
+      <div *ngIf="overviewLoading" class="text-center py-5">
     <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading overview...</p>
   </div>
 
   <!-- Error -->
-  <div *ngIf="error" class="alert alert-danger">{{error}}</div>
+      <div *ngIf="overviewError" class="alert alert-danger">{{overviewError}}</div>
 
-  <!-- User Details -->
-  <div *ngIf="!loading && user" class="row">
-    <div class="col-lg-8">
-      <!-- Personal Info -->
-      <div class="card mb-4">
-        <div class="card-header bg-white">
-          <h5 class="mb-0">Personal Information</h5>
+      <!-- Content -->
+      <div *ngIf="!overviewLoading && !overviewError && user" class="row">
+        <!-- User Profile Card -->
+        <div class="col-lg-4 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0"><i class="bi bi-person me-2"></i>User Profile</h5>
         </div>
         <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <strong>Full Name:</strong> {{user.fullName}}
+              <div class="text-center mb-3">
+                <div class="profile-avatar mb-3">
+                  <i class="bi bi-person-circle" style="font-size: 5rem; color: #007bff;"></i>
+                </div>
+                <h4>{{user.fullName}}</h4>
+                <span class="badge" [ngClass]="getRoleBadgeClass(user.role)">{{user.role}}</span>
             </div>
-            <div class="col-md-6">
-              <strong>Email:</strong> {{user.email}}
-              <span class="badge bg-success ms-2" *ngIf="user.isEmailVerified">
+              
+              <hr>
+              
+              <div class="mb-2">
+                <strong><i class="bi bi-envelope me-2"></i>Email:</strong><br>
+                <small>{{user.email}}</small>
+                <span class="badge bg-success badge-sm ms-1" *ngIf="user.isEmailVerified">
                 <i class="bi bi-check"></i> Verified
               </span>
             </div>
-            <div class="col-md-6">
-              <strong>Phone:</strong> {{user.phoneNumber || user.phone}}
-            </div>
-            <div class="col-md-6">
-              <strong>Date of Birth:</strong> {{user.dateOfBirth | date:'MMM d, yyyy'}}
-            </div>
-            <div class="col-md-6">
-              <strong>Gender:</strong> {{user.gender}}
-            </div>
-            <div class="col-md-6">
-              <strong>Role:</strong>
-              <span class="badge ms-2" [ngClass]="getRoleBadgeClass(user.role)">
-                {{user.role}}
-              </span>
-            </div>
-          </div>
-
-          <hr class="my-4">
-
-          <div class="row g-3">
-            <div class="col-12">
-              <strong>Address:</strong><br>
-              {{user.address}}<br>
-              {{user.city}}, {{user.state}} {{user.zipCode}}
+              
+              <div class="mb-2">
+                <strong><i class="bi bi-telephone me-2"></i>Phone:</strong><br>
+                <small>{{user.phoneNumber || user.phone || 'Not provided'}}</small>
+              </div>
+              
+              <div class="mb-2">
+                <strong><i class="bi bi-calendar me-2"></i>Date of Birth:</strong><br>
+                <small>{{user.dateOfBirth | date:'MMM d, yyyy'}}</small>
+              </div>
+              
+              <div class="mb-2">
+                <strong><i class="bi bi-gender-ambiguous me-2"></i>Gender:</strong><br>
+                <small>{{user.gender || 'Not specified'}}</small>
+              </div>
+              
+              <div class="mb-2">
+                <strong><i class="bi bi-toggles me-2"></i>Status:</strong><br>
+                <span class="badge" [ngClass]="user.isActive ? 'bg-success' : 'bg-danger'">
+                  {{user.isActive ? 'Active' : 'Inactive'}}
+                </span>
+              </div>
+              
+              <hr>
+              
+              <div class="mb-2">
+                <strong><i class="bi bi-clock-history me-2"></i>Registered:</strong><br>
+                <small>{{user.createdDate | date:'MMM d, yyyy'}}</small>
+              </div>
+              
+              <div class="mb-2" *ngIf="user.lastLoginAt">
+                <strong><i class="bi bi-box-arrow-in-right me-2"></i>Last Login:</strong><br>
+                <small>{{user.lastLoginAt | date:'MMM d, yyyy h:mm a'}}</small>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Subscriptions -->
-      <div class="card">
-        <div class="card-header bg-white">
-          <h5 class="mb-0">Subscription History ({{subscriptions.length}})</h5>
+        <!-- Active Subscription Card -->
+        <div class="col-lg-8 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0"><i class="bi bi-card-list me-2"></i>Active Subscription</h5>
+            </div>
+            <div class="card-body">
+              <div *ngIf="activeSubscription">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <strong>Plan:</strong><br>
+                    <h4 class="text-primary">{{activeSubscription.planName}}</h4>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <strong>Price:</strong><br>
+                    <h4 class="text-success">${{activeSubscription.currentPrice | number:'1.2-2'}}</h4>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <strong>Status:</strong><br>
+                    <span class="badge" [ngClass]="getStatusBadgeClass(activeSubscription.status)">
+                      {{activeSubscription.status}}
+                    </span>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <strong>Auto-Renew:</strong><br>
+                    <span class="badge" [ngClass]="activeSubscription.autoRenew ? 'bg-success' : 'bg-warning'">
+                      {{activeSubscription.autoRenew ? 'Enabled' : 'Disabled'}}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <strong>Start Date:</strong><br>
+                    {{activeSubscription.startDate | date:'MMM d, yyyy'}}
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <strong>Next Billing Date:</strong><br>
+                    <span class="text-danger fw-bold">
+                      {{activeSubscription.nextBillingDate | date:'MMM d, yyyy'}}
+                    </span>
+                  </div>
+                </div>
+
+            <hr>
+
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-primary" (click)="switchTab('subscriptions')">
+                <i class="bi bi-eye me-1"></i>View Full Details
+              </button>
+              
+              <button class="btn btn-sm btn-warning" 
+                      (click)="openPauseModal()"
+                      *ngIf="activeSubscription?.status === 'Active'"
+                      [disabled]="actionLoading">
+                <i class="bi bi-pause me-1"></i>Pause
+              </button>
+              
+              <button class="btn btn-sm btn-success" 
+                      (click)="resumeSubscriptionAction()"
+                      *ngIf="activeSubscription?.status === 'Paused'"
+                      [disabled]="actionLoading">
+                <i class="bi bi-play me-1"></i>Resume
+              </button>
+              
+              <button class="btn btn-sm btn-danger" 
+                      (click)="openCancelModal()"
+                      *ngIf="activeSubscription?.status === 'Active' || activeSubscription?.status === 'Paused'"
+                      [disabled]="actionLoading">
+                <i class="bi bi-x-circle me-1"></i>Cancel
+              </button>
+            </div>
+              </div>
+
+              <div *ngIf="!activeSubscription" class="text-center py-4">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No active subscription</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead>
-                <tr>
-                  <th>Plan</th>
-                  <th>Status</th>
-                  <th>Price</th>
-                  <th>Start Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let sub of subscriptions">
-                  <td>{{sub.planName}}</td>
-                  <td><span class="badge bg-success">{{sub.status}}</span></td>
-                  <td>${{sub.currentPrice}}/mo</td>
-                  <td>{{sub.startDate | date:'MMM d, yyyy'}}</td>
-                  <td>
-                    <a [routerLink]="['/webadmin/subscriptions', sub.id]" class="btn btn-sm btn-outline-primary">
-                      <i class="bi bi-eye"></i>
-                    </a>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+
+        <!-- Quick Stats -->
+        <div class="col-12">
+          <div class="row">
+            <div class="col-md-3 mb-3">
+              <div class="card bg-light">
+                <div class="card-body text-center">
+                  <i class="bi bi-card-list" style="font-size: 2rem; color: #007bff;"></i>
+                  <h4 class="mt-2 mb-0">{{overviewStats.totalSubscriptions}}</h4>
+                  <small class="text-muted">Total Subscriptions</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="card bg-light">
+                <div class="card-body text-center">
+                  <i class="bi bi-currency-dollar" style="font-size: 2rem; color: #28a745;"></i>
+                  <h4 class="mt-2 mb-0">${{overviewStats.totalSpent | number:'1.2-2'}}</h4>
+                  <small class="text-muted">Total Spent</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="card bg-light">
+                <div class="card-body text-center">
+                  <i class="bi bi-shield-check" style="font-size: 2rem; color: #17a2b8;"></i>
+                  <h4 class="mt-2 mb-0">{{overviewStats.activePrivileges}}</h4>
+                  <small class="text-muted">Active Privileges</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <div class="card bg-light">
+                <div class="card-body text-center">
+                  <i class="bi bi-calendar-event" style="font-size: 2rem; color: #ffc107;"></i>
+                  <h4 class="mt-2 mb-0" *ngIf="overviewStats.nextBillingDate">
+                    {{overviewStats.nextBillingDate | date:'MMM d'}}
+                  </h4>
+                  <h4 class="mt-2 mb-0" *ngIf="!overviewStats.nextBillingDate">N/A</h4>
+                  <small class="text-muted">Next Billing</small>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Sidebar -->
-    <div class="col-lg-4">
-      <div class="card mb-4">
-        <div class="card-header bg-white">
-          <h6 class="mb-0">Account Status</h6>
-        </div>
-        <div class="card-body">
-          <div class="mb-3">
-            <strong>Status:</strong>
-            <span class="badge ms-2" [ngClass]="user.isActive ? 'bg-success' : 'bg-danger'">
-              {{user.isActive ? 'Active' : 'Inactive'}}
-            </span>
+    <!-- ========== TAB 2: SUBSCRIPTIONS ========== -->
+    <div *ngIf="activeTab === 'subscriptions'">
+      <!-- Loading -->
+      <div *ngIf="subscriptionsData.loading" class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading subscriptions...</p>
+            </div>
+
+      <!-- Error -->
+      <div *ngIf="subscriptionsData.error" class="alert alert-danger">{{subscriptionsData.error}}</div>
+
+      <!-- Content -->
+      <div *ngIf="!subscriptionsData.loading && !subscriptionsData.error">
+        <!-- Current Subscription -->
+        <div class="card mb-4" *ngIf="subscriptionsData.current">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Current Subscription</h5>
+            </div>
+          <div class="card-body">
+            <div class="row">
+            <div class="col-md-6">
+                <h4>{{subscriptionsData.current.planName}}</h4>
+                <p class="text-muted">{{subscriptionsData.current.planDescription}}</p>
+            </div>
+              <div class="col-md-6 text-end">
+                <h3 class="text-success">${{subscriptionsData.current.currentPrice | number:'1.2-2'}}</h3>
+                <span class="badge" [ngClass]="getStatusBadgeClass(subscriptionsData.current.status)">
+                  {{subscriptionsData.current.status}}
+              </span>
+            </div>
           </div>
-          <div class="mb-3">
-            <strong>Verified:</strong>
-            <span class="badge ms-2" [ngClass]="user.isVerified ? 'bg-success' : 'bg-warning'">
-              {{user.isVerified ? 'Yes' : 'No'}}
-            </span>
-          </div>
-          <div class="mb-3">
-            <strong>Registered:</strong><br>
-            {{user.createdDate | date:'MMM d, yyyy'}}
-          </div>
-          <div class="mb-3">
-            <strong>Last Login:</strong><br>
-            {{user.lastLoginAt | date:'MMM d, yyyy h:mm a'}}
+
+            <hr>
+
+            <div class="row">
+              <div class="col-md-3">
+                <strong>Start Date:</strong><br>
+                {{subscriptionsData.current.startDate | date:'MMM d, yyyy'}}
+              </div>
+              <div class="col-md-3">
+                <strong>Next Billing:</strong><br>
+                <span class="text-danger">{{subscriptionsData.current.nextBillingDate | date:'MMM d, yyyy'}}</span>
+              </div>
+              <div class="col-md-3">
+                <strong>Auto-Renew:</strong><br>
+                <span class="badge" [ngClass]="subscriptionsData.current.autoRenew ? 'bg-success' : 'bg-warning'">
+                  {{subscriptionsData.current.autoRenew ? 'Yes' : 'No'}}
+                </span>
+              </div>
+              <div class="col-md-3">
+                <strong>Billing Cycle:</strong><br>
+                {{subscriptionsData.current.billingCycleId || 'Monthly'}}
+            </div>
           </div>
         </div>
       </div>
 
+        <!-- Past Subscriptions -->
       <div class="card">
-        <div class="card-header bg-white">
-          <h6 class="mb-0">Admin Actions</h6>
+          <div class="card-header">
+            <h5 class="mb-0">Past Subscriptions ({{subscriptionsData.past.length}})</h5>
+        </div>
+          <div class="card-body">
+          <div class="table-responsive">
+              <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                  <th>Status</th>
+                  <th>Price</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                  <tr *ngFor="let sub of subscriptionsData.past">
+                  <td>{{sub.planName}}</td>
+                  <td>{{sub.startDate | date:'MMM d, yyyy'}}</td>
+                    <td>{{sub.endDate | date:'MMM d, yyyy'}}</td>
+                    <td>
+                      <span class="badge" [ngClass]="getStatusBadgeClass(sub.status)">
+                        {{sub.status}}
+                      </span>
+                    </td>
+                    <td>${{sub.currentPrice | number:'1.2-2'}}</td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-eye"></i>
+                      </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+              <div *ngIf="subscriptionsData.past.length === 0" class="text-center py-4">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No past subscriptions</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== TAB 3: BILLING & PAYMENTS ========== -->
+    <div *ngIf="activeTab === 'billing'">
+      <!-- Loading -->
+      <div *ngIf="billingData.loading" class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading billing data...</p>
+      </div>
+
+      <!-- Error -->
+      <div *ngIf="billingData.error" class="alert alert-danger">{{billingData.error}}</div>
+
+      <!-- Content -->
+      <div *ngIf="!billingData.loading && !billingData.error">
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="card bg-primary text-white">
+              <div class="card-body">
+                <h6>Total Spent</h6>
+                <h3>${{billingData.totalSpent | number:'1.2-2'}}</h3>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-info text-white">
+              <div class="card-body">
+                <h6>Avg Monthly</h6>
+                <h3>${{billingData.averageMonthlySpend | number:'1.2-2'}}</h3>
+              </div>
+            </div>
+        </div>
+          <div class="col-md-3">
+            <div class="card bg-success text-white">
+        <div class="card-body">
+                <h6>Successful</h6>
+                <h3>{{billingData.successfulPayments}}</h3>
+              </div>
+          </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card bg-danger text-white">
+              <div class="card-body">
+                <h6>Failed</h6>
+                <h3>{{billingData.failedPayments}}</h3>
+          </div>
+          </div>
+        </div>
+      </div>
+
+        <!-- Billing Records Table -->
+      <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Billing History ({{billingData.records.length}})</h5>
         </div>
         <div class="card-body">
-          <div class="d-grid gap-2">
-            <button class="btn btn-primary btn-sm">
-              <i class="bi bi-envelope me-1"></i>Send Email
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let record of billingData.records">
+                    <td><small>{{record.invoiceNumber || 'N/A'}}</small></td>
+                    <td>{{record.billingDate | date:'MMM d, yyyy'}}</td>
+                    <td><small>{{record.description}}</small></td>
+                    <td>${{record.totalAmount | number:'1.2-2'}}</td>
+                    <td>
+                      <span class="badge" [ngClass]="getBillingStatusBadgeClass(record.status)">
+                        {{record.status}}
+                      </span>
+                    </td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary" [routerLink]="['/webadmin/billing', record.id]">
+                        <i class="bi bi-eye"></i>
             </button>
-            <button class="btn btn-warning btn-sm">
-              <i class="bi bi-ban me-1"></i>Suspend Account
-            </button>
-            <button class="btn btn-success btn-sm">
-              <i class="bi bi-check-circle me-1"></i>Activate Account
-            </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div *ngIf="billingData.records.length === 0" class="text-center py-4">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No billing records</p>
           </div>
         </div>
       </div>
@@ -148,4 +472,349 @@
   </div>
 </div>
 
+    <!-- ========== TAB 4: PRIVILEGES & USAGE ========== -->
+    <div *ngIf="activeTab === 'privileges'">
+      <!-- Loading -->
+      <div *ngIf="privilegeData.loading" class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading privilege data...</p>
+      </div>
 
+      <!-- Error -->
+      <div *ngIf="privilegeData.error" class="alert alert-danger">{{privilegeData.error}}</div>
+
+      <!-- Content -->
+      <div *ngIf="!privilegeData.loading && !privilegeData.error">
+        <div class="card" *ngIf="privilegeData.usageSummary && getPrivilegesList().length > 0">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-0">
+                <i class="bi bi-shield-check me-2"></i>Current Privilege Usage
+              </h5>
+              <small class="text-muted" *ngIf="getNextResetDate()">
+                Resets on next billing cycle: {{getNextResetDate() | date:'MMM d, yyyy'}}
+              </small>
+            </div>
+            <div>
+              <span class="badge bg-info">
+                {{getPrivilegesList().length}} Privileges
+              </span>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- Progress Bars for Each Privilege -->
+            <app-privilege-progress-bar
+              *ngFor="let priv of getPrivilegesList()"
+              [privilegeName]="priv.name"
+              [used]="priv.used"
+              [limit]="priv.limit"
+              [resetDate]="priv.resetDate">
+            </app-privilege-progress-bar>
+            
+            <!-- Overage Warning -->
+            <div *ngIf="hasOverage()" class="alert alert-warning mt-3">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              <strong>Warning:</strong> Some privileges have reached or exceeded their limits. Overage charges may apply. Review the user's billing for overage fees.
+            </div>
+
+            <!-- No Overage Message -->
+            <div *ngIf="!hasOverage() && getPrivilegesList().length > 0" class="alert alert-success mt-3">
+              <i class="bi bi-check-circle me-2"></i>
+              All privileges are within their usage limits.
+            </div>
+          </div>
+        </div>
+
+        <!-- No Privilege Data -->
+        <div class="text-center py-5" *ngIf="!privilegeData.usageSummary || getPrivilegesList().length === 0">
+          <i class="bi bi-shield-x" style="font-size: 3rem; color: #ccc;"></i>
+          <p class="text-muted mt-3">No active subscription or privilege usage data</p>
+          <p class="text-muted">User must have an active subscription to view privilege usage.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== TAB 5: ANALYTICS ========== -->
+    <div *ngIf="activeTab === 'analytics'">
+      <!-- Loading -->
+      <div *ngIf="analyticsData.loading" class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading analytics...</p>
+      </div>
+
+      <!-- Error -->
+      <div *ngIf="analyticsData.error" class="alert alert-danger">{{analyticsData.error}}</div>
+
+      <!-- Content -->
+      <div *ngIf="!analyticsData.loading && !analyticsData.error && analyticsData.userAnalytics">
+        <div class="d-flex justify-content-between mb-3">
+          <h4><i class="bi bi-graph-up me-2"></i>User Analytics</h4>
+          <div>
+            <button class="btn btn-success me-2" 
+                    (click)="exportAnalytics('excel')"
+                    [disabled]="analyticsData.loading">
+              <i class="bi bi-file-excel me-1"></i>Export Excel
+            </button>
+            <button class="btn btn-outline-success" 
+                    (click)="exportAnalytics('csv')"
+                    [disabled]="analyticsData.loading">
+              <i class="bi bi-file-earmark-text me-1"></i>Export CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Analytics Summary -->
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-body">
+                <h6 class="text-muted">Total Revenue</h6>
+                <h3 class="text-success">${{analyticsData.userAnalytics.totalRevenue | number:'1.2-2'}}</h3>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-body">
+                <h6 class="text-muted">Avg Monthly Spend</h6>
+                <h3>${{analyticsData.userAnalytics.averageMonthlySpend | number:'1.2-2'}}</h3>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-body">
+                <h6 class="text-muted">Payment Success Rate</h6>
+                <h3 class="text-info">{{analyticsData.userAnalytics.paymentSuccessRate | number:'1.0-0'}}%</h3>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-body">
+                <h6 class="text-muted">Account Age</h6>
+                <h3>{{analyticsData.userAnalytics.accountAgeDays}} days</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="row">
+          <!-- Chart 1: Payment Success Rate -->
+          <div class="col-md-6 mb-4">
+            <div class="card h-100">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="bi bi-check-circle me-2"></i>Payment Success Rate
+                </h6>
+              </div>
+              <div class="card-body">
+                <app-doughnut-chart 
+                  *ngIf="paymentSuccessChartData"
+                  [data]="paymentSuccessChartData" 
+                  [height]="300">
+                </app-doughnut-chart>
+                <div *ngIf="!paymentSuccessChartData" class="text-center py-5 text-muted">
+                  <i class="bi bi-graph-up" style="font-size: 3rem; opacity: 0.3;"></i>
+                  <p class="mt-3">No payment data</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart 2: Subscription Status -->
+          <div class="col-md-6 mb-4">
+            <div class="card h-100">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="bi bi-pie-chart me-2"></i>Subscription Distribution
+                </h6>
+              </div>
+              <div class="card-body">
+                <app-pie-chart 
+                  *ngIf="subscriptionStatusChartData"
+                  [data]="subscriptionStatusChartData" 
+                  [height]="300">
+                </app-pie-chart>
+                <div *ngIf="!subscriptionStatusChartData" class="text-center py-5 text-muted">
+                  <i class="bi bi-graph-up" style="font-size: 3rem; opacity: 0.3;"></i>
+                  <p class="mt-3">No subscription data</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart 3: Monthly Revenue Trend -->
+          <div class="col-md-12 mb-4">
+            <div class="card">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="bi bi-graph-up-arrow me-2"></i>Monthly Spending Trend (Last 6 Months)
+                </h6>
+              </div>
+              <div class="card-body">
+                <app-bar-chart 
+                  *ngIf="monthlyRevenueChartData"
+                  [data]="monthlyRevenueChartData" 
+                  [height]="300">
+                </app-bar-chart>
+                <div *ngIf="!monthlyRevenueChartData" class="text-center py-5 text-muted">
+                  <i class="bi bi-graph-up" style="font-size: 3rem; opacity: 0.3;"></i>
+                  <p class="mt-3">No revenue data</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart 4: Privilege Usage (if available) -->
+          <div class="col-md-12 mb-4" *ngIf="privilegeUsageChartData">
+            <div class="card">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="bi bi-shield-check me-2"></i>Top 5 Privilege Usage
+                </h6>
+              </div>
+              <div class="card-body">
+                <app-bar-chart 
+                  [data]="privilegeUsageChartData" 
+                  [height]="300"
+                  [horizontal]="true">
+                </app-bar-chart>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Pause Subscription Modal -->
+<div class="modal fade" 
+     [class.show]="showPauseModal" 
+     [style.display]="showPauseModal ? 'block' : 'none'"
+     *ngIf="showPauseModal">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title">
+          <i class="bi bi-pause-circle me-2"></i>Pause Subscription
+        </h5>
+        <button type="button" class="btn-close" (click)="showPauseModal = false" [disabled]="actionLoading"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Important:</strong> Pausing will stop billing until resumed. The user can still access their current service during the pause period.
+        </div>
+        
+        <div class="mb-3">
+          <strong>Subscription:</strong> {{activeSubscription?.planName}}<br>
+          <strong>User:</strong> {{user?.fullName}}<br>
+          <strong>Current Status:</strong> <span class="badge bg-success">{{activeSubscription?.status}}</span>
+        </div>
+        
+        <hr>
+        
+        <div class="mb-3">
+          <label for="pauseReason" class="form-label">
+            <strong>Pause Reason</strong> <span class="text-danger">*</span>
+          </label>
+          <textarea 
+            class="form-control" 
+            id="pauseReason"
+            [(ngModel)]="pauseReason" 
+            rows="3" 
+            [disabled]="actionLoading"
+            placeholder="Enter reason for pausing subscription (e.g., 'User request - temporary financial hardship', 'Service issue investigation')..." 
+            required></textarea>
+          <small class="text-muted">This reason will be saved in the subscription history.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="showPauseModal = false" [disabled]="actionLoading">
+          Cancel
+        </button>
+        <button type="button" 
+                class="btn btn-warning" 
+                (click)="confirmPause()" 
+                [disabled]="actionLoading || !pauseReason">
+          <span *ngIf="actionLoading" class="spinner-border spinner-border-sm me-1"></span>
+          <i class="bi bi-pause me-1" *ngIf="!actionLoading"></i>
+          Pause Subscription
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Subscription Modal -->
+<div class="modal fade" 
+     [class.show]="showCancelModal" 
+     [style.display]="showCancelModal ? 'block' : 'none'"
+     *ngIf="showCancelModal">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">
+          <i class="bi bi-x-circle me-2"></i>Cancel Subscription
+        </h5>
+        <button type="button" class="btn-close btn-close-white" (click)="showCancelModal = false" [disabled]="actionLoading"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Critical Warning:</strong> No automatic refund will be processed.
+        </div>
+        
+        <div class="alert alert-info">
+          <strong>Refund Policy:</strong> Admin must manually review and process any applicable refund through the billing records page. Navigate to Billing tab → Click invoice → Process Refund.
+        </div>
+        
+        <div class="mb-3">
+          <strong>Subscription:</strong> {{activeSubscription?.planName}}<br>
+          <strong>User:</strong> {{user?.fullName}}<br>
+          <strong>Current Status:</strong> <span class="badge" [ngClass]="getStatusBadgeClass(activeSubscription?.status || '')">{{activeSubscription?.status}}</span><br>
+          <strong>Next Billing:</strong> {{activeSubscription?.nextBillingDate | date:'MMM d, yyyy'}}
+        </div>
+        
+        <hr>
+        
+        <div class="mb-3">
+          <label for="cancelReason" class="form-label">
+            <strong>Cancellation Reason</strong> <span class="text-danger">*</span>
+          </label>
+          <textarea 
+            class="form-control" 
+            id="cancelReason"
+            [(ngModel)]="cancelReason" 
+            rows="3" 
+            [disabled]="actionLoading"
+            placeholder="Enter detailed reason for cancellation (e.g., 'User request - found alternative service', 'Service quality issues', 'Financial reasons')..." 
+            required></textarea>
+          <small class="text-muted">This reason will be saved in the subscription history for audit purposes.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="showCancelModal = false" [disabled]="actionLoading">
+          Cancel
+        </button>
+        <button type="button" 
+                class="btn btn-danger" 
+                (click)="confirmCancel()" 
+                [disabled]="actionLoading || !cancelReason">
+          <span *ngIf="actionLoading" class="spinner-border spinner-border-sm me-1"></span>
+          <i class="bi bi-x-circle me-1" *ngIf="!actionLoading"></i>
+          Cancel Subscription
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Backdrop -->
+<div class="modal-backdrop fade" 
+     [class.show]="showPauseModal || showCancelModal"
+     *ngIf="showPauseModal || showCancelModal"></div>

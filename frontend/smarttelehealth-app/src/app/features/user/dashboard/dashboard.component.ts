@@ -40,6 +40,17 @@ export class DashboardComponent implements OnInit {
   privilegeUsage: PrivilegeUsageSummary | null = null;
   recentBilling: BillingRecordDto[] = [];
   
+  // Alert flags
+  hasFailedPayment = false;
+  failedPaymentAmount = 0;
+  failedPayments: BillingRecordDto[] = [];
+  hasUpcomingRenewal = false;
+  daysUntilRenewal = 0;
+  renewalAmount = 0;
+  hasPrivilegeWarning = false;
+  highestUsagePercent = 0;
+  highestUsagePrivilege = '';
+  
   loading = {
     subscriptions: false,
     privileges: false,
@@ -93,6 +104,7 @@ export class DashboardComponent implements OnInit {
           // Load privilege usage for active subscription
           if (this.activeSubscription) {
             this.loadPrivilegeUsage(this.activeSubscription.id);
+            this.checkUpcomingRenewal();
           }
         }
         this.loading.subscriptions = false;
@@ -115,6 +127,7 @@ export class DashboardComponent implements OnInit {
       next: (response) => {
         if (response.statusCode === 200) {
           this.privilegeUsage = response.data;
+          this.checkPrivilegeWarnings();
         }
         this.loading.privileges = false;
       },
@@ -134,16 +147,63 @@ export class DashboardComponent implements OnInit {
 
     this.loading.billing = true;
     
-    this.billingService.getBillingRecords(this.currentUser.id, 1, 5).subscribe({
+    // Load more records to check for failed payments
+    this.billingService.getBillingRecords(this.currentUser.id, 1, 10).subscribe({
       next: (response) => {
         if (response.statusCode === 200) {
-          this.recentBilling = response.data;
+          this.recentBilling = response.data.slice(0, 5); // Show top 5
+          
+          // Check for failed/pending payments
+          this.failedPayments = response.data.filter(
+            b => b.status === 'Failed' || b.status === 'Pending'
+          );
+          
+          if (this.failedPayments.length > 0) {
+            this.hasFailedPayment = true;
+            this.failedPaymentAmount = this.failedPayments[0].totalAmount;
+          }
         }
         this.loading.billing = false;
       },
       error: (error) => {
         console.error('Error loading billing records:', error);
         this.loading.billing = false;
+      }
+    });
+  }
+
+  /**
+   * Check for upcoming renewal (within 7 days)
+   */
+  checkUpcomingRenewal(): void {
+    if (!this.activeSubscription) return;
+
+    const nextBilling = new Date(this.activeSubscription.nextBillingDate);
+    const today = new Date();
+    const diffTime = nextBilling.getTime() - today.getTime();
+    this.daysUntilRenewal = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (this.daysUntilRenewal > 0 && this.daysUntilRenewal <= 7) {
+      this.hasUpcomingRenewal = true;
+      this.renewalAmount = this.activeSubscription.currentPrice || 0;
+    }
+  }
+
+  /**
+   * Check for privilege usage warnings (80%+)
+   */
+  checkPrivilegeWarnings(): void {
+    if (!this.privilegeUsage) return;
+
+    this.privilegeUsage.privileges.forEach(priv => {
+      if (!priv.isUnlimited) {
+        const percentage = this.getUsagePercentage(priv.usedValue, priv.allowedValue);
+        
+        if (percentage >= 80 && percentage > this.highestUsagePercent) {
+          this.highestUsagePercent = percentage;
+          this.highestUsagePrivilege = priv.privilegeName;
+          this.hasPrivilegeWarning = true;
+        }
       }
     });
   }

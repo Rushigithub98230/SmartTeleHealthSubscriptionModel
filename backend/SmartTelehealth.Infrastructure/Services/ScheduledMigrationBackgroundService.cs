@@ -111,7 +111,8 @@ public class ScheduledMigrationBackgroundService : BackgroundService
                         subscriptionRepository,
                         subscriptionPlanRepository,
                         stripeService,
-                        unitOfWork);
+                        unitOfWork,
+                        scope.ServiceProvider);
                     
                     migration.Status = "Completed";
                     migration.CompletedDate = DateTime.UtcNow;
@@ -152,7 +153,8 @@ public class ScheduledMigrationBackgroundService : BackgroundService
         ISubscriptionRepository subscriptionRepository,
         ISubscriptionPlanRepository subscriptionPlanRepository,
         SmartTelehealth.Application.Interfaces.IStripeService stripeService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IServiceProvider serviceProvider)
     {
         await unitOfWork.BeginTransactionAsync();
         
@@ -191,22 +193,9 @@ public class ScheduledMigrationBackgroundService : BackgroundService
                     // Create a system token for Stripe operations
                     var systemToken = new TokenModel { UserID = 0, RoleID = 1 };
                     
-                    // Get the appropriate Stripe price ID for the billing cycle
-                    var stripePriceId = subscription.BillingCycle.Name.ToLower() switch
-                    {
-                        "monthly" => targetPlan.StripeMonthlyPriceId,
-                        "quarterly" => targetPlan.StripeQuarterlyPriceId,
-                        "annual" => targetPlan.StripeAnnualPriceId,               // ONLY "annual" (database standard)
-                        _ => targetPlan.StripeMonthlyPriceId
-                    };
-                    
-                    if (string.IsNullOrEmpty(stripePriceId))
-                    {
-                        _logger.LogWarning(
-                            "No Stripe price ID found for plan {PlanId} and billing cycle {Cycle}. Skipping Stripe update.",
-                            targetPlan.Id, subscription.BillingCycle.Name);
-                    }
-                    else
+                    // NEW ARCHITECTURE: Simply use the plan's single Stripe price ID
+                    var stripePriceId = targetPlan.StripePriceId;
+                    if (!string.IsNullOrEmpty(stripePriceId))
                     {
                         // Update Stripe subscription to new plan/price
                         await stripeService.UpdateSubscriptionAsync(
@@ -220,6 +209,10 @@ public class ScheduledMigrationBackgroundService : BackgroundService
                             "Updated Stripe subscription {StripeSubId} to price {PriceId}",
                             subscription.StripeSubscriptionId, stripePriceId);
                     }
+                    else
+                    {
+                        _logger.LogWarning("No Stripe price ID configured for target plan {PlanId}. Skipping Stripe update.", targetPlan.Id);
+                    }
                 }
                 catch (Exception stripeEx)
                 {
@@ -231,10 +224,15 @@ public class ScheduledMigrationBackgroundService : BackgroundService
             }
             
             await subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            
+            // CRITICAL FIX (Issue #13): Synchronize privileges from new plan version
+            // This ensures users get NEW privileges added in the updated plan version
+            await SyncPrivilegesToNewPlanAsync(subscription, targetPlan, serviceProvider);
+            
             await unitOfWork.CommitTransactionAsync();
             
             _logger.LogInformation(
-                "Successfully migrated subscription {SubId} to plan {PlanId}",
+                "Successfully migrated subscription {SubId} to plan {PlanId} with privilege synchronization",
                 subscription.Id, targetPlan.Id);
         }
         catch (Exception ex)
@@ -243,6 +241,91 @@ public class ScheduledMigrationBackgroundService : BackgroundService
             _logger.LogError(ex, "Error processing migration {MigrationId}", migration.Id);
             throw;
         }
+    }
+    
+    /// <summary>
+    /// Synchronizes user privileges to new plan version during migration.
+    /// Creates new privilege usage records for privileges added in the new plan version,
+    /// and updates existing privilege allocations to match new plan values.
+    /// </summary>
+    private async Task SyncPrivilegesToNewPlanAsync(
+        Subscription subscription,
+        SubscriptionPlan newPlan,
+        IServiceProvider serviceProvider)
+    {
+        var privilegeUsageRepository = serviceProvider
+            .GetRequiredService<IUserSubscriptionPrivilegeUsageRepository>();
+        
+        _logger.LogInformation("Synchronizing privileges for subscription {SubId} to plan {PlanName} v{Version}",
+            subscription.Id, newPlan.Name, newPlan.VersionNumber);
+        
+        // Get user's current privilege usages
+        var currentUsages = await privilegeUsageRepository.GetBySubscriptionIdAsync(subscription.Id);
+        
+        // Get new plan's active privileges
+        var newPlanPrivileges = newPlan.PlanPrivileges.Where(pp => pp.IsActive && !pp.IsDeleted);
+        
+        var newPrivilegesAdded = 0;
+        var existingPrivilegesUpdated = 0;
+        
+        foreach (var newPlanPrivilege in newPlanPrivileges)
+        {
+            // Check if user already has usage record for this plan privilege
+            var existingUsage = currentUsages
+                .FirstOrDefault(u => u.SubscriptionPlanPrivilegeId == newPlanPrivilege.Id);
+            
+            if (existingUsage == null)
+            {
+                // NEW PRIVILEGE - Create usage record
+                // Calculate allocation using current subscription dates
+                var periodStart = subscription.LastBillingDate ?? subscription.StartDate;
+                var periodEnd = subscription.NextBillingDate;
+                var allowedValue = newPlanPrivilege.Value;
+                
+                var newUsage = new UserSubscriptionPrivilegeUsage
+                {
+                    Id = Guid.NewGuid(),
+                    SubscriptionId = subscription.Id,
+                    SubscriptionPlanPrivilegeId = newPlanPrivilege.Id,
+                    UsedValue = 0,  // Start fresh
+                    AllowedValue = allowedValue,
+                    UsagePeriodStart = periodStart,
+                    UsagePeriodEnd = periodEnd,
+                    ResetAt = DateTime.UtcNow,
+                    IsActive = true,
+                    CreatedBy = 0,  // System automated
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedBy = 0,
+                    UpdatedDate = DateTime.UtcNow
+                };
+                
+                await privilegeUsageRepository.AddAsync(newUsage);
+                newPrivilegesAdded++;
+                
+                _logger.LogInformation("Created new privilege usage for {PrivilegeName} (Value: {Value}) during migration",
+                    newPlanPrivilege.Privilege?.Name ?? "Unknown", allowedValue);
+            }
+            else
+            {
+                // EXISTING PRIVILEGE - Update allocation from new plan version
+                var allowedValue = newPlanPrivilege.Value;
+                
+                existingUsage.AllowedValue = allowedValue;
+                existingUsage.SubscriptionPlanPrivilegeId = newPlanPrivilege.Id;  // Update FK to new version
+                existingUsage.UpdatedBy = 0;  // System automated
+                existingUsage.UpdatedDate = DateTime.UtcNow;
+                
+                await privilegeUsageRepository.UpdateUsageAsync(existingUsage);
+                existingPrivilegesUpdated++;
+                
+                _logger.LogInformation("Updated privilege usage for {PrivilegeName} to new value {Value} during migration",
+                    newPlanPrivilege.Privilege?.Name ?? "Unknown", allowedValue);
+            }
+        }
+        
+        _logger.LogInformation("Privilege synchronization complete for subscription {SubId}: " +
+            "{NewCount} new privileges added, {UpdatedCount} existing privileges updated",
+            subscription.Id, newPrivilegesAdded, existingPrivilegesUpdated);
     }
 }
 

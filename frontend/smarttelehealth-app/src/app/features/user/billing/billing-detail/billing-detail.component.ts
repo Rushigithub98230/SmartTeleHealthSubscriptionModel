@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { BillingService } from '../../../../core/services';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { BillingService, InvoiceService } from '../../../../core/services';
 import { BillingRecordDto } from '../../../../core/models';
 
 /**
@@ -26,10 +26,13 @@ export class BillingDetailComponent implements OnInit {
   billingRecord: BillingRecordDto | null = null;
   loading = false;
   error: string | null = null;
+  downloadingInvoice = false;
 
   constructor(
     private route: ActivatedRoute,
-    private billingService: BillingService
+    private router: Router,
+    private billingService: BillingService,
+    private invoiceService: InvoiceService
   ) {}
 
   ngOnInit(): void {
@@ -68,11 +71,62 @@ export class BillingDetailComponent implements OnInit {
   }
 
   /**
-   * Download invoice
+   * Download invoice PDF
+   * API: GET /api/Invoice/{invoiceNumber}/download
    */
   downloadInvoice(): void {
-    console.log('Download invoice PDF');
-    // Implementation: Generate PDF or download from API
+    if (!this.billingRecord?.invoiceNumber) {
+      alert('Invoice not available for this billing record');
+      return;
+    }
+
+    this.downloadingInvoice = true;
+    
+    this.invoiceService.downloadInvoice(this.billingRecord.invoiceNumber, 'pdf').subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          // Convert base64 to blob and trigger download
+          const blob = this.base64ToBlob(
+            response.data.fileContent,
+            'application/pdf'
+          );
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = response.data.fileName;
+          link.click();
+          window.URL.revokeObjectURL(url);
+        }
+        this.downloadingInvoice = false;
+      },
+      error: (error) => {
+        console.error('Error downloading invoice:', error);
+        alert('Failed to download invoice. Please try again.');
+        this.downloadingInvoice = false;
+      }
+    });
+  }
+
+  /**
+   * Convert base64 string to Blob
+   */
+  private base64ToBlob(base64: string, contentType: string): Blob {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: contentType });
+  }
+
+  /**
+   * Navigate to pay now (for failed/pending bills)
+   */
+  payNow(): void {
+    if (this.billingRecord?.subscriptionId) {
+      this.router.navigate(['/web/subscriptions', this.billingRecord.subscriptionId]);
+    }
   }
 
   getStatusBadgeClass(status: string): string {

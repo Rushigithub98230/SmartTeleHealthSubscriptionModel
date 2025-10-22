@@ -186,8 +186,14 @@ public class SubscriptionStatusHistoryRepository : RepositoryBase<SubscriptionSt
         return (history, totalCount);
     }
 
-    private static IQueryable<SubscriptionStatusHistory> ApplySorting(IQueryable<SubscriptionStatusHistory> query, string sortBy, string sortOrder)
+    private static IQueryable<SubscriptionStatusHistory> ApplySorting(IQueryable<SubscriptionStatusHistory> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(h => h.ChangedAt);
+        }
+
         return sortBy.ToLower() switch
         {
             "fromstatus" => sortOrder.ToLower() == "desc"

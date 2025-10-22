@@ -100,6 +100,107 @@ export class BillingService {
     
     return this.commonService.get('Billing/statistics', params);
   }
+
+  // ===== PHASE 2: BILLING MANAGEMENT =====
+
+  /**
+   * Get aggregate billing summary for admin dashboard
+   * API: GET /api/Billing/admin/summary
+   * Phase 2: Admin Portal Enhancement
+   */
+  getAdminBillingSummary(): Observable<ApiResponse<BillingSummary>> {
+    return this.commonService.get<BillingSummary>('Billing/admin/summary');
+  }
+
+  /**
+   * Manually mark a billing record as paid (admin override)
+   * API: POST /api/Billing/{id}/mark-paid
+   * Phase 2: Admin Portal Enhancement
+   */
+  markBillingAsPaid(billingRecordId: string, request: MarkAsPaidRequest): Observable<ApiResponse<any>> {
+    return this.commonService.post<any>(`Billing/${billingRecordId}/mark-paid`, request);
+  }
+
+  /**
+   * Get overdue billing records
+   * API: GET /api/Billing/overdue
+   * Used in: Admin Billing Dashboard
+   */
+  getOverdueBilling(): Observable<ApiResponse<BillingRecordDto[]>> {
+    return this.commonService.get<BillingRecordDto[]>('Billing/overdue');
+  }
+
+  /**
+   * Get pending payments
+   * API: GET /api/Billing/pending
+   * Used in: Admin Billing Dashboard
+   */
+  getPendingPayments(): Observable<ApiResponse<BillingRecordDto[]>> {
+    return this.commonService.get<BillingRecordDto[]>('Billing/pending');
+  }
+
+  /**
+   * Process refund for billing record (Admin Only)
+   * API: POST /api/Billing/{id}/process-refund
+   * Used in: Admin Billing Detail - Manual Refund Processing
+   */
+  processRefund(billingRecordId: string, amount: number, reason: string): Observable<ApiResponse<any>> {
+    return this.commonService.post<any>(
+      `Billing/${billingRecordId}/process-refund`,
+      { amount, reason }
+    );
+  }
+
+  /**
+   * Get refund history for billing record (Admin Only)
+   * API: GET /api/Billing/{id}/refunds
+   * Used in: Admin Billing Detail - View Refund History
+   */
+  getRefundHistory(billingRecordId: string): Observable<ApiResponse<any[]>> {
+    return this.commonService.get<any[]>(`Billing/${billingRecordId}/refunds`);
+  }
+
+  /**
+   * Get user billing history (Admin Only)
+   * API: GET /api/Billing/user/{userId}
+   * Used in: Admin User Detail - Billing Tab
+   */
+  getUserBillingHistory(userId: number): Observable<ApiResponse<BillingRecordDto[]>> {
+    return this.commonService.get<BillingRecordDto[]>(`Billing/user/${userId}`);
+  }
+
+  /**
+   * Get user payment analytics (Admin Only)
+   * API: GET /api/Billing/payment-analytics/{userId}
+   * Used in: Admin User Detail - Billing Tab
+   */
+  getUserPaymentAnalytics(userId: number, startDate?: Date, endDate?: Date): Observable<ApiResponse<any>> {
+    const params: any = {};
+    if (startDate) params.startDate = startDate.toISOString();
+    if (endDate) params.endDate = endDate.toISOString();
+    
+    return this.commonService.get<any>(`Billing/payment-analytics/${userId}`, params);
+  }
+}
+
+// ===== PHASE 2: TYPE DEFINITIONS =====
+
+export interface BillingSummary {
+  totalPending: number;
+  totalPaid: number;
+  totalFailed: number;
+  revenueToday: number;
+  revenueMonth: number;
+  averageTransactionValue: number;
+  timestamp: Date;
+}
+
+export interface MarkAsPaidRequest {
+  transactionReference?: string;
+  reason: string;
+  paymentMethod?: string;
+  paymentDate?: Date;
+  notes?: string;
 }
 
 

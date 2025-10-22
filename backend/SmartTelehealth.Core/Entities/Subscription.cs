@@ -107,17 +107,10 @@ public class Subscription : BaseEntity
     /// Foreign key reference to the SubscriptionPlan that defines this subscription's features and pricing.
     /// Determines what services, privileges, and pricing apply to this subscription.
     /// Required for subscription plan management and feature access control.
+    /// NEW ARCHITECTURE: The plan now includes the billing cycle.
     /// </summary>
     [Required]
     public Guid SubscriptionPlanId { get; set; }
-    
-    /// <summary>
-    /// Foreign key reference to the BillingCycle that defines this subscription's billing frequency.
-    /// Determines how often the user is billed (monthly, yearly, etc.).
-    /// Required for billing cycle management and payment scheduling.
-    /// </summary>
-    [Required]
-    public Guid BillingCycleId { get; set; }
     
     /// <summary>
     /// Foreign key reference to the Provider assigned to this subscription.
@@ -143,18 +136,38 @@ public class Subscription : BaseEntity
     public virtual SubscriptionPlan SubscriptionPlan { get; set; } = null!;
     
     /// <summary>
-    /// Navigation property to the BillingCycle that defines this subscription's billing frequency.
-    /// Provides access to billing cycle details and payment scheduling.
-    /// Used for billing cycle management and payment operations.
-    /// </summary>
-    public virtual MasterBillingCycle BillingCycle { get; set; } = null!;
-    
-    /// <summary>
     /// Navigation property to the Provider assigned to this subscription.
     /// Provides access to provider information for personalized care.
     /// Used for provider-specific subscriptions and care management.
     /// </summary>
     public virtual Provider? Provider { get; set; }
+    #endregion
+
+    #region Computed Properties - NEW ARCHITECTURE
+    /// <summary>
+    /// Gets the billing cycle from the associated subscription plan.
+    /// NEW ARCHITECTURE: Billing cycle is now a plan property, not a direct subscription property.
+    /// Each plan has a fixed billing cycle that cannot be changed.
+    /// This computed property provides convenient access without database overhead.
+    /// </summary>
+    [NotMapped]
+    public MasterBillingCycle? BillingCycle 
+    { 
+        get => SubscriptionPlan?.BillingCycle;
+        set { } // Empty setter for EF Core compatibility - value is ignored
+    }
+
+    /// <summary>
+    /// Gets the billing cycle ID from the associated subscription plan.
+    /// NEW ARCHITECTURE: Billing cycle is now a plan property, not a direct subscription property.
+    /// This computed property provides convenient access for queries and comparisons.
+    /// </summary>
+    [NotMapped]
+    public Guid? BillingCycleId 
+    { 
+        get => SubscriptionPlan?.BillingCycleId;
+        set { } // Empty setter for EF Core compatibility - value is ignored
+    }
     #endregion
 
     #region Core Properties

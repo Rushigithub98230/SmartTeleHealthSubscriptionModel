@@ -34,6 +34,13 @@ namespace SmartTelehealth.Application.DTOs
         public string? EmergencyContact { get; set; }
         public string? EmergencyPhone { get; set; }
         public string? StripeCustomerId { get; set; }
+        
+        // Subscription metadata for admin portal
+        public int TotalSubscriptions { get; set; }
+        public int ActiveSubscriptions { get; set; }
+        public bool HasActiveSubscription { get; set; }
+        public string? CurrentSubscriptionStatus { get; set; }
+        public DateTime? LastActivityDate { get; set; }
     }
 
     public class PatientDto

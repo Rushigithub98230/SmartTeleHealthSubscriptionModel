@@ -1,5 +1,13 @@
 <!-- Admin Dashboard -->
 <div class="admin-dashboard">
+  <!-- New Subscription Dashboard (Phase 1 Implementation) -->
+  <div class="container-fluid">
+    <app-subscription-dashboard></app-subscription-dashboard>
+  </div>
+
+  <hr class="my-5">
+
+  <!-- Legacy Dashboard Section -->
   <!-- Dashboard Header -->
   <div class="dashboard-header bg-gradient text-white py-4 mb-4">
     <div class="container-fluid">
@@ -7,9 +15,9 @@
         <div class="col-md-8">
           <h2 class="mb-0">
             <i class="bi bi-speedometer2"></i>
-            Admin Dashboard
+            Legacy Analytics Overview
           </h2>
-          <p class="mb-0 mt-2 opacity-75">Subscription Management Overview</p>
+          <p class="mb-0 mt-2 opacity-75">Detailed Subscription Breakdown</p>
         </div>
         <div class="col-md-4 text-md-end mt-3 mt-md-0">
           <button class="btn btn-light me-2" (click)="loadAnalytics()">

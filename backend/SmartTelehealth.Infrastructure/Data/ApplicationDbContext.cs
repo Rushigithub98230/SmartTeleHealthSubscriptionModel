@@ -40,6 +40,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
     public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
     public DbSet<Subscription> Subscriptions { get; set; }
     public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents { get; set; }
+    public DbSet<FailedRefund> FailedRefunds { get; set; }
     public DbSet<HealthAssessment> HealthAssessments { get; set; }
     public DbSet<Consultation> Consultations { get; set; }
     public DbSet<Message> Messages { get; set; }
@@ -619,10 +620,9 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.ExpirationDate);
             
             // Stripe Integration Properties
+            // NEW ARCHITECTURE: Each plan has ONE billing cycle, therefore ONE Stripe price
             entity.Property(e => e.StripeProductId).HasMaxLength(100);
-            entity.Property(e => e.StripeMonthlyPriceId).HasMaxLength(100);
-            entity.Property(e => e.StripeQuarterlyPriceId).HasMaxLength(100);
-            entity.Property(e => e.StripeAnnualPriceId).HasMaxLength(100);
+            entity.Property(e => e.StripePriceId).HasMaxLength(100);
             
             // Text Properties
             entity.Property(e => e.Features).HasMaxLength(1000);

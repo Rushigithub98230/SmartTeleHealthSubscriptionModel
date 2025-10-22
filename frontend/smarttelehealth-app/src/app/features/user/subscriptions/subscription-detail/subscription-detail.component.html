@@ -12,6 +12,31 @@
   <!-- Error -->
   <div *ngIf="error" class="alert alert-danger">{{error}}</div>
 
+  <!-- Failed Payment Alert -->
+  <div *ngIf="hasPendingPayment && !loading" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="flex-grow-1">
+        <h5 class="alert-heading mb-2">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>Payment Failed
+        </h5>
+        <p class="mb-2">
+          Your subscription payment of <strong>${{pendingBillingAmount | number:'1.2-2'}}</strong> failed. 
+          Please pay now to keep your subscription active and maintain access to your benefits.
+        </p>
+        <small class="text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          Your privileges may be limited until payment is complete.
+        </small>
+      </div>
+      <div class="ms-3">
+        <button class="btn btn-danger btn-lg" (click)="openPaymentModal()">
+          <i class="bi bi-credit-card me-2"></i>Pay Now
+        </button>
+      </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
   <!-- Subscription Details -->
   <div *ngIf="!loading && subscription" class="row">
     <div class="col-lg-8">
@@ -52,23 +77,58 @@
         </div>
         <div class="card-body">
           <div class="d-grid gap-2">
-            <button *ngIf="subscription.canPause" class="btn btn-warning" 
-                    (click)="pauseSubscription()" [disabled]="actionLoading">
-              <i class="bi bi-pause-circle me-2"></i>Pause
+            <!-- Pay Now Button (for failed payments) -->
+            <button *ngIf="hasPendingPayment" 
+                    class="btn btn-danger" 
+                    (click)="openPaymentModal()">
+              <i class="bi bi-credit-card me-2"></i>Pay Now
             </button>
-            <button *ngIf="subscription.canResume" class="btn btn-success" 
-                    (click)="resumeSubscription()" [disabled]="actionLoading">
-              <i class="bi bi-play-circle me-2"></i>Resume
+            
+            <!-- Pause (only for Active subscriptions without pending payments) -->
+            <button *ngIf="subscription.status === 'Active' && !hasPendingPayment" 
+                    class="btn btn-warning" 
+                    (click)="pauseSubscription()" 
+                    [disabled]="actionLoading">
+              <i class="bi bi-pause-circle me-2"></i>Pause Subscription
             </button>
-            <button *ngIf="subscription.canCancel" class="btn btn-danger" 
-                    (click)="cancelSubscription()" [disabled]="actionLoading">
-              <i class="bi bi-x-circle me-2"></i>Cancel
+            
+            <!-- Resume (only for Paused subscriptions) -->
+            <button *ngIf="subscription.status === 'Paused'" 
+                    class="btn btn-success" 
+                    (click)="resumeSubscription()" 
+                    [disabled]="actionLoading">
+              <i class="bi bi-play-circle me-2"></i>Resume Subscription
             </button>
+            
+            <!-- Cancel (for Active/Paused subscriptions) -->
+            <button *ngIf="subscription.status === 'Active' || subscription.status === 'Paused'" 
+                    class="btn btn-outline-danger" 
+                    (click)="cancelSubscription()" 
+                    [disabled]="actionLoading">
+              <i class="bi bi-x-circle me-2"></i>Cancel Subscription
+            </button>
+
+            <!-- View Billing History -->
+            <a routerLink="/web/billing" class="btn btn-outline-secondary">
+              <i class="bi bi-receipt me-2"></i>View Billing History
+            </a>
+
+            <!-- Manage Payment Methods -->
+            <a routerLink="/web/payment-methods" class="btn btn-outline-secondary">
+              <i class="bi bi-credit-card me-2"></i>Payment Methods
+            </a>
           </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Renewal Payment Modal -->
+<app-subscription-renewal-payment-modal
+  [subscriptionId]="subscriptionId"
+  [(isOpen)]="showRenewalPaymentModal"
+  (paymentSuccess)="onPaymentSuccess()">
+</app-subscription-renewal-payment-modal>
 
 

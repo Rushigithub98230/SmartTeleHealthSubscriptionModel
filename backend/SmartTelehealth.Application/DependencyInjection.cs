@@ -49,7 +49,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PaymentService>>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPaymentRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
-                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IFailedRefundRepository>()
             )
         );
 
@@ -134,9 +135,15 @@ public static class DependencyInjection
         );
         services.AddScoped<ISubscriptionAutomationService, SubscriptionAutomationService>();
         
-        // Register Provider Payout Services
+        // Register Provider Management Services
         services.AddScoped<IProviderPayoutService, ProviderPayoutService>();
         services.AddScoped<IPayoutPeriodService, PayoutPeriodService>();
+        services.AddScoped<IProviderFeeService, ProviderFeeService>();
+        services.AddScoped<ICategoryFeeRangeService, CategoryFeeRangeService>();
+        services.AddScoped<IProviderOnboardingService, ProviderOnboardingService>();
+        
+        // Register Video Call Services
+        services.AddScoped<IVideoCallSubscriptionService, VideoCallSubscriptionService>();
         
         // Register New Services
         services.AddScoped<IInvoiceService, InvoiceService>();

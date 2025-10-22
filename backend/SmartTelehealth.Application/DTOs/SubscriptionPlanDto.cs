@@ -25,9 +25,7 @@ public class SubscriptionPlanDto
     
     public int DisplayOrder { get; set; }
     public string? StripeProductId { get; set; }
-    public string? StripeMonthlyPriceId { get; set; }
-    public string? StripeQuarterlyPriceId { get; set; }
-    public string? StripeAnnualPriceId { get; set; }
+    public string? StripePriceId { get; set; }  // NEW ARCHITECTURE: ONE price per plan
     public string? Features { get; set; }
     public string? Terms { get; set; }
     public DateTime? EffectiveDate { get; set; }

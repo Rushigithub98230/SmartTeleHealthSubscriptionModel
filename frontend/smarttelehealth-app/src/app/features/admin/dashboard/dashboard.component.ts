@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AnalyticsService } from '../../../core/services';
 import { SubscriptionAnalyticsDto } from '../../../core/models';
+import { SubscriptionDashboardComponent } from './subscription-dashboard/subscription-dashboard.component';
 
 /**
  * Admin Dashboard Component
@@ -19,7 +20,7 @@ import { SubscriptionAnalyticsDto } from '../../../core/models';
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, SubscriptionDashboardComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss']
 })

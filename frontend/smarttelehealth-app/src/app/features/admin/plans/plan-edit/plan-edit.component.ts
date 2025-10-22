@@ -168,11 +168,12 @@ export class PlanEditComponent implements OnInit {
       this.selectedPrivileges = this.plan.planPrivileges.map(pp => ({
         privilegeId: pp.privilegeId,
         value: pp.value,
-        monthlyLimit: pp.monthlyLimit || pp.value,
-        dailyLimit: pp.dailyLimit,
-        weeklyLimit: pp.weeklyLimit,
         privilegeBaseCost: pp.privilegeBaseCost,
-        unitCost: pp.unitCost
+        unitCost: pp.unitCost,
+        durationMonths: pp.durationMonths || 1,
+        description: pp.description,
+        effectiveDate: pp.effectiveDate,
+        expirationDate: pp.expirationDate
       }));
     }
   }
@@ -246,10 +247,10 @@ export class PlanEditComponent implements OnInit {
     this.selectedPrivileges.push({
       privilegeId: privilege.id,
       privilegeName: privilege.name,
-      value: 10,
-      monthlyLimit: 10,
-      privilegeBaseCost: 10,
-      unitCost: 15
+      value: 50,
+      privilegeBaseCost: 5,
+      unitCost: 10,
+      durationMonths: 1
     });
   }
 

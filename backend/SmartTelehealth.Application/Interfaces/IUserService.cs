@@ -57,6 +57,8 @@ namespace SmartTelehealth.Application.Interfaces
         
         // --- USER STATS ---
         Task<JsonModel> GetUserStatsAsync(int userId, TokenModel tokenModel);
+        Task<JsonModel> GetUserAnalyticsAsync(int userId, DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
+        Task<byte[]> ExportUserAnalyticsAsync(int userId, string format, DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
         
         // --- EMAIL VERIFICATION ---
         Task<JsonModel> SendEmailVerificationAsync(int userId, TokenModel tokenModel);

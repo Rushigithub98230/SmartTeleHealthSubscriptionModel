@@ -1,0 +1,130 @@
+<div class="plan-version-history">
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0"><i class="bi bi-clock-history"></i> Plan Version History</h2>
+          <p class="text-muted mb-0">View version timeline and grandfathered users</p>
+        </div>
+        <div>
+          <a [routerLink]="['/webadmin/plans']" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left me-1"></i>Back to Plans
+          </a>
+          <button 
+            class="btn btn-primary" 
+            (click)="migrateUsers()"
+            [disabled]="totalGrandfatheredUsers === 0">
+            <i class="bi bi-people me-1"></i>Migrate Users ({{totalGrandfatheredUsers}})
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <!-- Error Message -->
+    <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+      <i class="bi bi-exclamation-triangle me-2"></i>{{error}}
+      <button type="button" class="btn-close" (click)="error = null"></button>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <!-- Version Timeline -->
+    <div *ngIf="!loading" class="card mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Version Timeline</h5>
+      </div>
+      <div class="card-body">
+        <div class="timeline">
+          <div class="timeline-item" *ngFor="let version of versions; let last = last">
+            <div class="timeline-marker" [class.latest]="version.isLatestVersion"></div>
+            <div class="timeline-content">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h5>
+                    {{version.name}}
+                    <span class="badge ms-2" [ngClass]="getVersionBadgeClass(version)">
+                      v{{version.versionNumber}}
+                      <span *ngIf="version.isLatestVersion"> - LATEST</span>
+                    </span>
+                  </h5>
+                  <p class="text-muted mb-2">
+                    <i class="bi bi-calendar me-1"></i>
+                    Created: {{version.versionCreatedDate | date:'MMM d, yyyy'}}
+                  </p>
+                  <p class="mb-1">
+                    <strong>Price:</strong> ${{version.price | number:'1.2-2'}}
+                  </p>
+                  <p class="mb-1">
+                    <strong>Active Subscriptions:</strong> {{version.activeSubscriptionCount || 0}}
+                  </p>
+                </div>
+                <div>
+                  <a [routerLink]="['/webadmin/plans', version.id]" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye me-1"></i>View
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div class="timeline-line" *ngIf="!last"></div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="versions.length === 0" class="text-center py-5">
+          <i class="bi bi-diagram-3 text-muted" style="font-size: 3rem;"></i>
+          <p class="text-muted mt-3 mb-0">No version history available</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grandfathered Users -->
+    <div class="card">
+      <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="bi bi-people me-2"></i>Grandfathered Users ({{totalGrandfatheredUsers}})</h5>
+      </div>
+      <div class="card-body">
+        <div *ngIf="grandfatheredUsers.length > 0">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            These users are still on older plan versions. You can migrate them to the latest version.
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>Version</th>
+                  <th>Price</th>
+                  <th>User Count</th>
+                  <th>Total MRR</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let group of grandfatheredUsers">
+                  <td><span class="badge bg-secondary">v{{group.versionNumber}}</span></td>
+                  <td>${{group.price | number:'1.2-2'}}</td>
+                  <td>{{group.userCount}}</td>
+                  <td><strong>${{(group.userCount * group.price) | number:'1.2-2'}}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="grandfatheredUsers.length === 0" class="text-center py-4">
+          <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+          <p class="text-muted mt-2 mb-0">All users are on the latest version</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

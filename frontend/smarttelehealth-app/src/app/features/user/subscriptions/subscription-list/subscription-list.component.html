@@ -40,12 +40,17 @@
         </h4>
         <div class="row g-4">
           <div class="col-md-6 col-lg-4" *ngFor="let sub of activeSubscriptions">
-            <div class="card subscription-card h-100">
+            <div class="card subscription-card h-100" [class.border-danger]="hasFailedPayment(sub.id)">
               <div class="card-header d-flex justify-content-between align-items-center">
                 <strong>{{sub.planName}}</strong>
-                <span class="badge" [ngClass]="getStatusBadgeClass(sub.status)">
-                  {{sub.status}}
-                </span>
+                <div>
+                  <span class="badge bg-danger me-1" *ngIf="hasFailedPayment(sub.id)">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Payment Failed
+                  </span>
+                  <span class="badge" [ngClass]="getStatusBadgeClass(sub.status)">
+                    {{sub.status}}
+                  </span>
+                </div>
               </div>
               <div class="card-body">
                 <p class="text-muted small">{{sub.planDescription}}</p>
@@ -61,6 +66,9 @@
                     <small class="text-muted">
                       ({{getDaysUntilBilling(sub.nextBillingDate)}} days)
                     </small>
+                    <span *ngIf="isRenewalSoon(sub.nextBillingDate)" class="badge bg-warning text-dark ms-2">
+                      <i class="bi bi-clock me-1"></i>Soon
+                    </span>
                   </div>
                   <div class="info-item">
                     <small class="text-muted">Auto Renew</small>
@@ -71,7 +79,20 @@
                 </div>
               </div>
               <div class="card-footer bg-white">
-                <a [routerLink]="['/web/subscriptions', sub.id]" class="btn btn-outline-primary btn-sm w-100">
+                <!-- Pay Now button if failed payment -->
+                <div *ngIf="hasFailedPayment(sub.id)" class="d-grid gap-2">
+                  <a [routerLink]="['/web/subscriptions', sub.id]" class="btn btn-danger btn-sm">
+                    <i class="bi bi-credit-card me-1"></i>Pay Now
+                  </a>
+                  <a [routerLink]="['/web/subscriptions', sub.id]" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-eye me-1"></i>View Details
+                  </a>
+                </div>
+                
+                <!-- Normal view details button -->
+                <a *ngIf="!hasFailedPayment(sub.id)" 
+                   [routerLink]="['/web/subscriptions', sub.id]" 
+                   class="btn btn-outline-primary btn-sm w-100">
                   <i class="bi bi-eye me-1"></i>View Details
                 </a>
               </div>

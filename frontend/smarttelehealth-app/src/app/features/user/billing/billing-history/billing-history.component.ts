@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { BillingService, AuthService } from '../../../../core/services';
+import { BillingService, AuthService, InvoiceService } from '../../../../core/services';
 import { BillingRecordDto, UserDto, BillingStatus, BillingType } from '../../../../core/models';
 
 /**
@@ -28,6 +28,7 @@ export class BillingHistoryComponent implements OnInit {
   billingRecords: BillingRecordDto[] = [];
   loading = false;
   error: string | null = null;
+  downloadingInvoice: string | null = null;
 
   // Filters
   selectedStatus: string = '';
@@ -45,7 +46,8 @@ export class BillingHistoryComponent implements OnInit {
 
   constructor(
     private authService: AuthService,
-    private billingService: BillingService
+    private billingService: BillingService,
+    private invoiceService: InvoiceService
   ) {}
 
   ngOnInit(): void {
@@ -151,6 +153,51 @@ export class BillingHistoryComponent implements OnInit {
    */
   getTotalAmount(): number {
     return this.billingRecords.reduce((sum, record) => sum + record.totalAmount, 0);
+  }
+
+  /**
+   * Download invoice PDF
+   * API: GET /api/Invoice/{invoiceNumber}/download
+   */
+  downloadInvoice(invoiceNumber: string): void {
+    this.downloadingInvoice = invoiceNumber;
+    
+    this.invoiceService.downloadInvoice(invoiceNumber, 'pdf').subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          // Convert base64 to blob and trigger download
+          const blob = this.base64ToBlob(
+            response.data.fileContent,
+            'application/pdf'
+          );
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = response.data.fileName;
+          link.click();
+          window.URL.revokeObjectURL(url);
+        }
+        this.downloadingInvoice = null;
+      },
+      error: (error) => {
+        console.error('Error downloading invoice:', error);
+        alert('Failed to download invoice. Please try again.');
+        this.downloadingInvoice = null;
+      }
+    });
+  }
+
+  /**
+   * Convert base64 string to Blob
+   */
+  private base64ToBlob(base64: string, contentType: string): Blob {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: contentType });
   }
 }
 

@@ -54,5 +54,43 @@ public interface IPlanVersioningService
     Task<JsonModel> ProcessUserMigrationResponseAsync(
         MigrationResponseDto response,
         TokenModel tokenModel);
+    
+    // ===== PHASE 6: PLAN VERSION MANAGEMENT ENHANCEMENTS =====
+    
+    /// <summary>
+    /// Create new plan version (overload with change list)
+    /// Phase 6: Simplified version creation
+    /// </summary>
+    Task<JsonModel> CreateNewPlanVersionAsync(Guid planId, List<string> changes, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Get plan version history (overload without tokenModel)
+    /// Phase 6: Version history retrieval
+    /// </summary>
+    Task<JsonModel> GetPlanVersionHistoryAsync(Guid planId, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Get grandfathered users (overload with tokenModel)
+    /// Phase 6: Grandfathered user tracking
+    /// </summary>
+    Task<JsonModel> GetGrandfatheredUsersAsync(Guid planId, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Migrate users to new version
+    /// Phase 6: User migration with options
+    /// </summary>
+    Task<JsonModel> MigrateUsersToNewVersionAsync(Guid planId, MigrateUsersRequestDto request, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Execute a scheduled migration immediately
+    /// Phase 6: Manual migration execution
+    /// </summary>
+    Task<JsonModel> ExecuteScheduledMigrationAsync(Guid migrationId, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Cancel a scheduled migration
+    /// Phase 6: Migration cancellation
+    /// </summary>
+    Task<JsonModel> CancelScheduledMigrationAsync(Guid migrationId, TokenModel tokenModel);
 }
 

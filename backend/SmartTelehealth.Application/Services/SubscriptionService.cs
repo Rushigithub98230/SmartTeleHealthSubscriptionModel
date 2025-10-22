@@ -236,34 +236,16 @@ public class SubscriptionService : ISubscriptionService
     }
 
     /// <summary>
-    /// Gets the appropriate Stripe price ID based on billing cycle ID
+    /// Gets the Stripe price ID for the plan
+    /// NEW ARCHITECTURE: Each plan has ONE billing cycle, therefore ONE Stripe price
     /// </summary>
-    private async Task<string> GetStripePriceIdForBillingCycleAsync(SubscriptionPlan plan, Guid billingCycleId)
+    private string GetStripePriceIdForPlan(SubscriptionPlan plan)
     {
-        try
+        if (string.IsNullOrEmpty(plan.StripePriceId))
         {
-            // Get the billing cycle name from the database
-            var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(billingCycleId);
-            if (billingCycle == null)
-            {
-                _logger.LogWarning("Billing cycle {BillingCycleId} not found, using default monthly price", billingCycleId);
-                return plan.StripeMonthlyPriceId;
-            }
-
-            var billingCycleName = billingCycle.Name.ToLower();
-            return billingCycleName switch
-            {
-                "monthly" => plan.StripeMonthlyPriceId,
-                "quarterly" => plan.StripeQuarterlyPriceId,
-                "annual" => plan.StripeAnnualPriceId,
-                _ => plan.StripeMonthlyPriceId // Default fallback
-            };
+            throw new Exception($"No Stripe price ID configured for plan {plan.Name}");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting billing cycle {BillingCycleId}, using default monthly price", billingCycleId);
-            return plan.StripeMonthlyPriceId;
-        }
+        return plan.StripePriceId;
     }
 
     // SRP Refactoring: Removed duplicate CalculateNextBillingDateAsync - now uses BillingService.CalculateNextBillingDate()
@@ -1987,5 +1969,110 @@ public class SubscriptionService : ISubscriptionService
             };
         }
     }
+
+    #region Phase 1: Dashboard Helper Methods
+
+    public async Task<JsonModel> GetSubscriptionsDueForRenewalAsync(int daysAhead, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting subscriptions due for renewal in next {DaysAhead} days by user {UserId}", daysAhead, tokenModel.UserID);
+
+            var targetDate = DateTime.UtcNow.AddDays(daysAhead);
+            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            
+            var dueSubscriptions = allSubscriptions
+                .Where(s => s.Status == Subscription.SubscriptionStatuses.Active && 
+                           s.NextBillingDate <= targetDate &&
+                           s.NextBillingDate >= DateTime.UtcNow)
+                .OrderBy(s => s.NextBillingDate)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.UserId,
+                    userName = s.User?.FullName ?? "Unknown",
+                    s.SubscriptionPlanId,
+                    planName = s.SubscriptionPlan?.Name ?? "Unknown",
+                    s.CurrentPrice,
+                    s.NextBillingDate,
+                    daysUntilRenewal = (s.NextBillingDate - DateTime.UtcNow).Days,
+                    s.Status,
+                    s.AutoRenew
+                })
+                .ToList();
+
+            return new JsonModel
+            {
+                data = dueSubscriptions,
+                Message = $"Found {dueSubscriptions.Count} subscriptions due for renewal",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting subscriptions due for renewal by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve subscriptions due for renewal",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> GetTrialsEndingAsync(int daysAhead, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting trial subscriptions ending in next {DaysAhead} days by user {UserId}", daysAhead, tokenModel.UserID);
+
+            var targetDate = DateTime.UtcNow.AddDays(daysAhead);
+            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            
+            var endingTrials = allSubscriptions
+                .Where(s => s.Status == Subscription.SubscriptionStatuses.TrialActive &&
+                           s.TrialEndDate.HasValue &&
+                           s.TrialEndDate.Value <= targetDate &&
+                           s.TrialEndDate.Value >= DateTime.UtcNow)
+                .OrderBy(s => s.TrialEndDate)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.UserId,
+                    userName = s.User?.FullName ?? "Unknown",
+                    userEmail = s.User?.Email ?? "Unknown",
+                    s.SubscriptionPlanId,
+                    planName = s.SubscriptionPlan?.Name ?? "Unknown",
+                    s.CurrentPrice,
+                    s.TrialStartDate,
+                    s.TrialEndDate,
+                    s.TrialDurationInDays,
+                    daysUntilEnd = (s.TrialEndDate.Value - DateTime.UtcNow).Days,
+                    daysInTrial = (DateTime.UtcNow - s.TrialStartDate.Value).Days,
+                    s.Status,
+                    hasPaymentMethod = !string.IsNullOrEmpty(s.PaymentMethodId)
+                })
+                .ToList();
+
+            return new JsonModel
+            {
+                data = endingTrials,
+                Message = $"Found {endingTrials.Count} trial subscriptions ending soon",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting trials ending by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve trials ending",
+                StatusCode = 500
+            };
+        }
+    }
+
+    #endregion
 
 }

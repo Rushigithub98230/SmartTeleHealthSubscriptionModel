@@ -10,6 +10,10 @@ export const PLAN_ROUTES: Routes = [
     loadComponent: () => import('./plan-create/plan-create.component').then(m => m.PlanCreateComponent)
   },
   {
+    path: ':id/versions',
+    loadComponent: () => import('./plan-version-history/plan-version-history.component').then(m => m.PlanVersionHistoryComponent)
+  },
+  {
     path: 'edit/:id',
     loadComponent: () => import('./plan-edit/plan-edit.component').then(m => m.PlanEditComponent)
   }

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Entities;
 
@@ -154,23 +155,10 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
                 };
             }
 
-            // Calculate new billing date based on billing cycle
-            var newBillingDate = subscription.NextBillingDate;
-            switch (subscription.BillingCycle.Name.ToLower())
-            {
-                case "monthly":
-                    newBillingDate = newBillingDate.AddMonths(1);
-                    break;
-                case "quarterly":
-                    newBillingDate = newBillingDate.AddMonths(3);
-                    break;
-                case "annual":                    // ONLY "annual" (database standard)
-                    newBillingDate = newBillingDate.AddYears(1);
-                    break;
-                default:
-                    newBillingDate = newBillingDate.AddMonths(1);
-                    break;
-            }
+            // FIXED: Use centralized calculator for consistency (handles leap years, month variations)
+            var newBillingDate = BillingCycleCalculator.CalculateNextBillingDate(
+                subscription.NextBillingDate, 
+                subscription.BillingCycle);
 
             // Update subscription
             subscription.NextBillingDate = newBillingDate;
@@ -469,42 +457,56 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
         }
     }
 
+    /// <summary>
+    /// Calculates proration for plan changes (upgrade/downgrade).
+    /// REFACTORED: Now uses centralized BillingCycleCalculator (PHASE 3)
+    /// Returns NET charge: (new plan credit) - (old plan credit) for remaining period
+    /// </summary>
     private decimal CalculateProration(Subscription subscription, SubscriptionPlan newPlan, DateTime effectiveDate)
     {
         try
         {
-            var daysRemaining = (subscription.NextBillingDate - effectiveDate).Days;
-            var totalDaysInCycle = GetDaysInBillingCycle(subscription.BillingCycle);
+            // Calculate unused credit from old plan using centralized calculator
+            var creditForRemainingDays = BillingCycleCalculator.CalculateProratedAmount(
+                subscription,
+                effectiveDate,
+                subscription.CurrentPrice,
+                null // No logger needed for internal calculation
+            );
             
-            if (daysRemaining <= 0 || totalDaysInCycle <= 0)
-                return 0;
-
-            var dailyRateOld = subscription.CurrentPrice / totalDaysInCycle;
-            var dailyRateNew = newPlan.Price / totalDaysInCycle;
+            // Calculate charge for new plan for remaining period
+            // Create temporary subscription with new plan for proration calculation
+            // NEW ARCHITECTURE: BillingCycle comes from plan, not direct property
+            var tempSubscription = new Subscription
+            {
+                Id = subscription.Id,
+                CurrentPrice = newPlan.Price,
+                SubscriptionPlan = newPlan,  // Set plan to get BillingCycle from it
+                SubscriptionPlanId = newPlan.Id,
+                StartDate = subscription.StartDate,
+                LastBillingDate = subscription.LastBillingDate,
+                NextBillingDate = subscription.NextBillingDate
+            };
             
-            var creditForRemainingDays = dailyRateOld * daysRemaining;
-            var chargeForRemainingDays = dailyRateNew * daysRemaining;
+            var chargeForRemainingDays = BillingCycleCalculator.CalculateProratedAmount(
+                tempSubscription,
+                effectiveDate,
+                newPlan.Price,
+                null // No logger needed for internal calculation
+            );
             
+            // Return NET proration charge (positive = charge user, negative = credit user)
             return chargeForRemainingDays - creditForRemainingDays;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Error calculating proration for subscription {SubscriptionId}", subscription.Id);
             return 0;
         }
     }
 
-    private int GetDaysInBillingCycle(MasterBillingCycle billingCycle)
-    {
-        switch (billingCycle.Name.ToLower())
-        {
-            case "monthly":
-                return 30;
-            case "quarterly":
-                return 90;
-            case "annually":
-                return 365;
-            default:
-                return 30;
-        }
-    }
+    #region OLD PRORATION HELPER - REMOVED IN PHASE 3
+    // REMOVED: GetDaysInBillingCycle() method (was Lines 484-497)
+    // Now using: BillingCycleCalculator for all proration calculations
+    #endregion
 }

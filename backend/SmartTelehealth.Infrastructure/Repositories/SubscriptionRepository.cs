@@ -827,8 +827,14 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
         return (subscriptions, totalCount);
     }
 
-    private static IQueryable<Subscription> ApplySorting(IQueryable<Subscription> query, string sortColumn, string sortOrder)
+    private static IQueryable<Subscription> ApplySorting(IQueryable<Subscription> query, string? sortColumn, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortColumn) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(s => s.CreatedDate);
+        }
+
         return sortColumn.ToLower() switch
         {
             "createddate" => sortOrder.ToLower() == "desc" 
@@ -890,5 +896,60 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
     {
         _context.UserSubscriptionPrivilegeUsages.Update(usage);
         await _context.SaveChangesAsync();
+    }
+    
+    /// <summary>
+    /// Get all subscriptions for a user (for analytics)
+    /// </summary>
+    public async Task<IEnumerable<Subscription>> GetUserSubscriptionsAsync(int userId)
+    {
+        return await _context.Subscriptions
+            .Include(s => s.SubscriptionPlan)
+            .Include(s => s.BillingCycle)
+            .Include(s => s.Currency)
+            .Where(s => s.UserId == userId)
+            .OrderByDescending(s => s.StartDate)
+            .ToListAsync();
+    }
+    
+    /// <summary>
+    /// Get all billing records for a user (for analytics)
+    /// </summary>
+    public async Task<IEnumerable<BillingRecord>> GetBillingRecordsByUserIdAsync(int userId)
+    {
+        return await _context.BillingRecords
+            .Include(b => b.Subscription)
+            .Include(b => b.Currency)
+            .Where(b => b.UserId == userId)
+            .OrderByDescending(b => b.BillingDate)
+            .ToListAsync();
+    }
+    
+    /// <summary>
+    /// Get all payments for a user (for analytics)
+    /// </summary>
+    public async Task<IEnumerable<SubscriptionPayment>> GetPaymentsByUserIdAsync(int userId)
+    {
+        return await _context.SubscriptionPayments
+            .Include(p => p.Subscription)
+            .Include(p => p.BillingRecord)
+            .Include(p => p.Currency)
+            .Where(p => p.Subscription != null && p.Subscription.UserId == userId)
+            .OrderByDescending(p => p.CreatedDate)
+            .ToListAsync();
+    }
+    
+    /// <summary>
+    /// Get user subscription privilege usages for a subscription (for analytics)
+    /// </summary>
+    public async Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetUserSubscriptionPrivilegeUsagesAsync(Guid subscriptionId)
+    {
+        return await _context.UserSubscriptionPrivilegeUsages
+            .Include(u => u.Subscription)
+            .Include(u => u.Privilege)
+            .Include(u => u.SubscriptionPlanPrivilege)
+                .ThenInclude(p => p.Privilege)
+            .Where(u => u.SubscriptionId == subscriptionId)
+            .ToListAsync();
     }
 } 

@@ -556,4 +556,293 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
     }
 
     #endregion
+
+    #region Dashboard Analytics (Phase 1 Implementation)
+
+    public async Task<JsonModel> GetDashboardDataAsync(string dashboardType, DateTime? startDate, DateTime? endDate, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting dashboard data of type {DashboardType} by user {UserId}", dashboardType, tokenModel.UserID);
+
+            var start = startDate ?? DateTime.UtcNow.AddDays(-30);
+            var end = endDate ?? DateTime.UtcNow;
+
+            // Get all subscriptions for calculations
+            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            var activeSubscriptions = allSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Active).ToList();
+            var trialSubscriptions = allSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.TrialActive).ToList();
+            var pausedSubscriptions = allSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Paused).ToList();
+            var cancelledSubscriptions = allSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Cancelled).ToList();
+
+            // Calculate MRR from active subscriptions
+            var mrr = activeSubscriptions.Sum(s => s.CurrentPrice);
+
+            // Calculate churn rate (last 30 days)
+            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+            var cancelledLast30Days = cancelledSubscriptions.Count(s => s.CancelledDate >= thirtyDaysAgo);
+            var activeAtStartOfMonth = activeSubscriptions.Count + cancelledLast30Days;
+            var churnRate = activeAtStartOfMonth > 0 ? (decimal)cancelledLast30Days / activeAtStartOfMonth * 100 : 0;
+
+            // Calculate growth rate
+            var sixtyDaysAgo = DateTime.UtcNow.AddDays(-60);
+            var activeLast30Days = activeSubscriptions.Count(s => s.CreatedDate >= thirtyDaysAgo);
+            var activePrevious30Days = activeSubscriptions.Count(s => s.CreatedDate >= sixtyDaysAgo && s.CreatedDate < thirtyDaysAgo);
+            var growthRate = activePrevious30Days > 0 ? (decimal)(activeLast30Days - activePrevious30Days) / activePrevious30Days * 100 : 0;
+
+            // Get action items
+            var renewalsDueToday = await _subscriptionRepository.GetSubscriptionsDueForBillingAsync(DateTime.UtcNow);
+            var failedPayments = await _billingRepository.GetByStatusAsync(BillingRecord.BillingStatus.Failed);
+            var trialsEnding = trialSubscriptions.Where(s => s.TrialEndDate.HasValue && s.TrialEndDate.Value <= DateTime.UtcNow.AddDays(7)).ToList();
+            var suspendedSubscriptions = allSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Suspended).ToList();
+
+            // Get recent activity (last 20 events)
+            var recentSubscriptions = allSubscriptions
+                .OrderByDescending(s => s.CreatedDate)
+                .Take(20)
+                .Select(s => new
+                {
+                    type = s.Status == Subscription.SubscriptionStatuses.TrialActive ? "trial" : 
+                           s.Status == Subscription.SubscriptionStatuses.Cancelled ? "cancel" : "purchase",
+                    userId = s.UserId,
+                    userName = s.User?.FullName ?? "Unknown",
+                    planId = s.SubscriptionPlanId,
+                    planName = s.SubscriptionPlan?.Name ?? "Unknown",
+                    amount = s.CurrentPrice,
+                    timestamp = s.CreatedDate
+                }).ToList();
+
+            var dashboardData = new
+            {
+                kpis = new
+                {
+                    totalActive = activeSubscriptions.Count,
+                    totalTrial = trialSubscriptions.Count,
+                    totalPaused = pausedSubscriptions.Count,
+                    totalCancelled = cancelledSubscriptions.Count(s => s.CancelledDate >= thirtyDaysAgo),
+                    mrr = Math.Round(mrr, 2),
+                    arr = Math.Round(mrr * 12, 2),
+                    churnRate = Math.Round(churnRate, 2),
+                    growthRate = Math.Round(growthRate, 2),
+                    totalSubscriptions = allSubscriptions.Count()
+                },
+                actionItems = new
+                {
+                    renewalsDueToday = renewalsDueToday.Count(),
+                    failedPayments = failedPayments.Count(),
+                    trialsEnding = trialsEnding.Count,
+                    suspendedAccounts = suspendedSubscriptions.Count
+                },
+                recentActivity = recentSubscriptions
+            };
+
+            return new JsonModel
+            {
+                data = dashboardData,
+                Message = "Dashboard data retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting dashboard data by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve dashboard data",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> GetGrowthAnalyticsAsync(DateTime? startDate, DateTime? endDate, string period, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting growth analytics for period {Period} by user {UserId}", period, tokenModel.UserID);
+
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-6);
+            var end = endDate ?? DateTime.UtcNow;
+
+            var subscriptions = await _subscriptionRepository.GetSubscriptionsByDateRangeAsync(start, end);
+
+            // Group by period (daily, weekly, monthly)
+            var growthData = period.ToLower() switch
+            {
+                "daily" => await CalculateDailyGrowthAsync(subscriptions, start, end),
+                "weekly" => await CalculateWeeklyGrowthAsync(subscriptions, start, end),
+                "monthly" => await CalculateMonthlyGrowthAsync(subscriptions, start, end),
+                _ => await CalculateMonthlyGrowthAsync(subscriptions, start, end)
+            };
+
+            return new JsonModel
+            {
+                data = new
+                {
+                    period,
+                    startDate = start,
+                    endDate = end,
+                    growthData
+                },
+                Message = "Growth analytics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting growth analytics by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve growth analytics",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> GetRealTimeMetricsAsync(TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting real-time metrics by user {UserId}", tokenModel.UserID);
+
+            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            var activeCount = allSubscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Active);
+            var trialCount = allSubscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.TrialActive);
+            
+            // Get today's metrics
+            var today = DateTime.UtcNow.Date;
+            var newToday = allSubscriptions.Count(s => s.CreatedDate >= today);
+            var cancelledToday = allSubscriptions.Count(s => s.CancelledDate.HasValue && s.CancelledDate >= today);
+
+            // Get billing records from today
+            var billingRecords = await _billingRepository.GetBillingRecordsByDateRangeAsync(today, DateTime.UtcNow);
+            var revenueToday = billingRecords.Where(b => b.Status == BillingRecord.BillingStatus.Paid).Sum(b => b.TotalAmount);
+
+            // Failed payments today
+            var failedToday = billingRecords.Count(b => b.Status == BillingRecord.BillingStatus.Failed);
+
+            var realTimeData = new
+            {
+                timestamp = DateTime.UtcNow,
+                activeSubscriptions = activeCount,
+                trialSubscriptions = trialCount,
+                newSubscriptionsToday = newToday,
+                cancellationsToday = cancelledToday,
+                revenueToday = Math.Round(revenueToday, 2),
+                failedPaymentsToday = failedToday,
+                systemStatus = "Operational"
+            };
+
+            return new JsonModel
+            {
+                data = realTimeData,
+                Message = "Real-time metrics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting real-time metrics by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve real-time metrics",
+                StatusCode = 500
+            };
+        }
+    }
+
+    private Task<List<object>> CalculateDailyGrowthAsync(IEnumerable<Subscription> subscriptions, DateTime start, DateTime end)
+    {
+        var result = new List<object>();
+        var current = start.Date;
+        var endDate = end.Date;
+
+        while (current <= endDate)
+        {
+            var currentDate = current; // Capture for closure
+            var newSubs = subscriptions.Count(s => 
+                s.CreatedDate.HasValue && 
+                s.CreatedDate.Value.Date == currentDate);
+            var cancellations = subscriptions.Count(s => 
+                s.CancelledDate.HasValue && 
+                s.CancelledDate.Value.Date == currentDate);
+            
+            result.Add(new
+            {
+                date = current.ToString("yyyy-MM-dd"),
+                newSubscriptions = newSubs,
+                cancellations,
+                netGrowth = newSubs - cancellations
+            });
+
+            current = current.AddDays(1);
+        }
+
+        return Task.FromResult(result);
+    }
+
+    private Task<List<object>> CalculateWeeklyGrowthAsync(IEnumerable<Subscription> subscriptions, DateTime start, DateTime end)
+    {
+        var result = new List<object>();
+        var current = start.Date;
+        var endDate = end.Date;
+
+        while (current <= endDate)
+        {
+            var weekEnd = current.AddDays(7);
+            var weekStart = current; // Capture for closure
+            var newSubs = subscriptions.Count(s => s.CreatedDate >= weekStart && s.CreatedDate < weekEnd);
+            var cancellations = subscriptions.Count(s => 
+                s.CancelledDate != null && 
+                s.CancelledDate.Value >= weekStart && 
+                s.CancelledDate.Value < weekEnd);
+
+            result.Add(new
+            {
+                weekStart = current.ToString("yyyy-MM-dd"),
+                weekEnd = weekEnd.ToString("yyyy-MM-dd"),
+                newSubscriptions = newSubs,
+                cancellations,
+                netGrowth = newSubs - cancellations
+            });
+
+            current = current.AddDays(7);
+        }
+
+        return Task.FromResult(result);
+    }
+
+    private Task<List<object>> CalculateMonthlyGrowthAsync(IEnumerable<Subscription> subscriptions, DateTime start, DateTime end)
+    {
+        var result = new List<object>();
+        var current = new DateTime(start.Year, start.Month, 1);
+
+        while (current <= end)
+        {
+            var monthStart = current; // Capture for closure
+            var monthEnd = current.AddMonths(1);
+            var newSubs = subscriptions.Count(s => s.CreatedDate >= monthStart && s.CreatedDate < monthEnd);
+            var cancellations = subscriptions.Count(s => 
+                s.CancelledDate != null && 
+                s.CancelledDate.Value >= monthStart && 
+                s.CancelledDate.Value < monthEnd);
+
+            result.Add(new
+            {
+                month = current.ToString("yyyy-MM"),
+                monthName = current.ToString("MMMM yyyy"),
+                newSubscriptions = newSubs,
+                cancellations,
+                netGrowth = newSubs - cancellations
+            });
+
+            current = current.AddMonths(1);
+        }
+
+        return Task.FromResult(result);
+    }
+
+    #endregion
 }

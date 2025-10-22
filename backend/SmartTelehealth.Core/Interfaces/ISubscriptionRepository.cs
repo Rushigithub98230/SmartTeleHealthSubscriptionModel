@@ -89,4 +89,10 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     // Privilege usage methods (Solution A Implementation)
     Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetSubscriptionPrivilegeUsagesAsync(Guid subscriptionId);
     Task UpdatePrivilegeUsageAsync(UserSubscriptionPrivilegeUsage usage);
+    
+    // User analytics methods for admin portal
+    Task<IEnumerable<Subscription>> GetUserSubscriptionsAsync(int userId);
+    Task<IEnumerable<BillingRecord>> GetBillingRecordsByUserIdAsync(int userId);
+    Task<IEnumerable<SubscriptionPayment>> GetPaymentsByUserIdAsync(int userId);
+    Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetUserSubscriptionPrivilegeUsagesAsync(Guid subscriptionId);
 } 

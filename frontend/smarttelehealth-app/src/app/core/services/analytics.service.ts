@@ -1,120 +1,224 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { CommonService, ApiResponse } from './common.service';
-import {
-  SubscriptionAnalyticsDto,
-  RevenueAnalyticsDto,
-  UsageStatisticsDto,
-  BillingStatisticsDto
-} from '../models';
 
-/**
- * Analytics Service (Admin Only)
- * Uses CommonService for all HTTP calls - NO direct HttpClient usage
- * 
- * API Endpoints Used:
- * - GET /api/SubscriptionAnalytics (general analytics)
- * - GET /api/SubscriptionAnalytics/revenue
- * - GET /api/SubscriptionAnalytics/churn
- * - GET /api/Analytics/revenue
- * - GET /api/Analytics/usage
- */
+export interface DashboardMetrics {
+  kpis: {
+    totalActive: number;
+    totalTrial: number;
+    totalPaused: number;
+    totalCancelled: number;
+    mrr: number;
+    arr: number;
+    churnRate: number;
+    growthRate: number;
+    totalSubscriptions: number;
+  };
+  actionItems: {
+    renewalsDueToday: number;
+    failedPayments: number;
+    trialsEnding: number;
+    suspendedAccounts: number;
+  };
+  recentActivity: Array<{
+    type: string;
+    userId: number;
+    userName: string;
+    planId: string;
+    planName: string;
+    amount: number;
+    timestamp: Date;
+  }>;
+}
+
+export interface GrowthData {
+  period: string;
+  startDate: Date;
+  endDate: Date;
+  growthData: Array<{
+    date?: string;
+    weekStart?: string;
+    weekEnd?: string;
+    month?: string;
+    monthName?: string;
+    newSubscriptions: number;
+    cancellations: number;
+    netGrowth: number;
+  }>;
+}
+
+export interface RealTimeMetrics {
+  timestamp: Date;
+  activeSubscriptions: number;
+  trialSubscriptions: number;
+  newSubscriptionsToday: number;
+  cancellationsToday: number;
+  revenueToday: number;
+  failedPaymentsToday: number;
+  systemStatus: string;
+}
+
+export interface SubscriptionDueForRenewal {
+  id: string;
+  userId: number;
+  userName: string;
+  subscriptionPlanId: string;
+  planName: string;
+  currentPrice: number;
+  nextBillingDate: Date;
+  daysUntilRenewal: number;
+  status: string;
+  autoRenew: boolean;
+}
+
+export interface TrialEnding {
+  id: string;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  subscriptionPlanId: string;
+  planName: string;
+  currentPrice: number;
+  trialStartDate: Date;
+  trialEndDate: Date;
+  trialDurationInDays: number;
+  daysUntilEnd: number;
+  daysInTrial: number;
+  status: string;
+  hasPaymentMethod: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class AnalyticsService {
+  private readonly baseUrl = 'SubscriptionAnalytics';
+  private readonly adminUrl = 'admin/subscriptions';
+
   constructor(private commonService: CommonService) {}
 
   /**
-   * Get subscription analytics overview
-   * API: GET /api/SubscriptionAnalytics
-   * Used in: Admin Dashboard
+   * Get dashboard metrics with KPIs, action items, and recent activity
    */
-  getSubscriptionAnalytics(startDate?: Date, endDate?: Date): Observable<ApiResponse<SubscriptionAnalyticsDto>> {
-    const params: any = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
+  getDashboardMetrics(
+    dashboardType: string = 'overview',
+    startDate?: Date,
+    endDate?: Date
+  ): Observable<ApiResponse<DashboardMetrics>> {
+    let url = `${this.baseUrl}/dashboard?dashboardType=${dashboardType}`;
     
-    return this.commonService.get<SubscriptionAnalyticsDto>('SubscriptionAnalytics', params);
+    if (startDate) {
+      url += `&startDate=${startDate.toISOString()}`;
+    }
+    if (endDate) {
+      url += `&endDate=${endDate.toISOString()}`;
+    }
+
+    return this.commonService.get<DashboardMetrics>(url);
   }
 
   /**
-   * Get Monthly Recurring Revenue (MRR) from revenue analytics
-   * API: GET /api/SubscriptionAnalytics/revenue
-   * Used in: Admin Dashboard KPI Card
+   * Get growth analytics with time-series data
    */
-  getMRR(startDate?: Date, endDate?: Date): Observable<ApiResponse<any>> {
-    const params: any = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
+  getGrowthData(
+    period: 'daily' | 'weekly' | 'monthly' = 'monthly',
+    startDate?: Date,
+    endDate?: Date
+  ): Observable<ApiResponse<GrowthData>> {
+    let url = `${this.baseUrl}/growth?period=${period}`;
     
-    return this.commonService.get<any>('SubscriptionAnalytics/revenue', params);
+    if (startDate) {
+      url += `&startDate=${startDate.toISOString()}`;
+    }
+    if (endDate) {
+      url += `&endDate=${endDate.toISOString()}`;
+    }
+
+    return this.commonService.get<GrowthData>(url);
   }
 
   /**
-   * Get churn analytics
-   * API: GET /api/SubscriptionAnalytics/churn
-   * Used in: Admin Analytics Page
+   * Get revenue analytics for a date range
    */
-  getChurnRate(startDate?: Date, endDate?: Date): Observable<ApiResponse<any>> {
-    const params: any = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
+  getRevenueAnalytics(startDate?: Date, endDate?: Date): Observable<any> {
+    let url = `${this.baseUrl}/revenue`;
     
-    return this.commonService.get<any>('SubscriptionAnalytics/churn', params);
+    if (startDate) {
+      url += `?startDate=${startDate.toISOString()}`;
+    }
+    if (endDate) {
+      url += `${startDate ? '&' : '?'}endDate=${endDate.toISOString()}`;
+    }
+
+    return this.commonService.get<any>(url);
   }
 
   /**
-   * Get revenue analytics (Admin only)
-   * API: GET /api/admin/analytics/revenue
-   * Used in: Admin Revenue Analytics Page
+   * Get churn analytics for a date range
    */
-  getRevenueAnalytics(startDate?: Date, endDate?: Date): Observable<ApiResponse<RevenueAnalyticsDto>> {
-    const params: any = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
+  getChurnAnalytics(startDate?: Date, endDate?: Date): Observable<any> {
+    let url = `${this.baseUrl}/churn`;
     
-    return this.commonService.get<RevenueAnalyticsDto>('admin/analytics/revenue', params);
+    if (startDate) {
+      url += `?startDate=${startDate.toISOString()}`;
+    }
+    if (endDate) {
+      url += `${startDate ? '&' : '?'}endDate=${endDate.toISOString()}`;
+    }
+
+    return this.commonService.get<any>(url);
   }
 
   /**
-   * Get usage analytics for specific subscription
-   * API: GET /api/SubscriptionAnalytics/usage/{subscriptionId}
-   * Used in: Subscription Detail Analytics
+   * Get real-time metrics for live dashboard updates
    */
-  getUsageAnalytics(subscriptionId: string, startDate?: Date, endDate?: Date): Observable<ApiResponse<any>> {
-    const params: any = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    
-    return this.commonService.get<any>(`SubscriptionAnalytics/usage/${subscriptionId}`, params);
+  getRealTimeMetrics(): Observable<ApiResponse<RealTimeMetrics>> {
+    return this.commonService.get<RealTimeMetrics>(`${this.baseUrl}/realtime`);
   }
 
   /**
-   * Get general usage statistics (Admin only)
-   * API: GET /api/admin/analytics/privilege-usage-analytics
-   * Used in: Admin Usage Analytics Page
+   * Get subscriptions due for renewal
    */
-  getUsageStatistics(startDate?: Date, endDate?: Date): Observable<ApiResponse<any>> {
-    const params: any = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    
-    return this.commonService.get<any>('admin/analytics/privilege-usage-analytics', params);
+  getSubscriptionsDueForRenewal(daysAhead: number = 7): Observable<ApiResponse<SubscriptionDueForRenewal[]>> {
+    return this.commonService.get<SubscriptionDueForRenewal[]>(
+      `${this.adminUrl}/due-for-renewal?daysAhead=${daysAhead}`
+    );
   }
 
   /**
-   * Get billing statistics
-   * API: GET /api/Billing/statistics
-   * Used in: Admin Billing Analytics Page
+   * Get trial subscriptions ending soon
    */
-  getBillingStatistics(startDate?: Date, endDate?: Date): Observable<ApiResponse<BillingStatisticsDto>> {
-    const params: any = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    
-    return this.commonService.get<BillingStatisticsDto>('Billing/statistics', params);
+  getTrialsEnding(daysAhead: number = 7): Observable<ApiResponse<TrialEnding[]>> {
+    return this.commonService.get<TrialEnding[]>(
+      `${this.adminUrl}/trials-ending?daysAhead=${daysAhead}`
+    );
+  }
+
+  /**
+   * Get subscription analytics (alias for getDashboardMetrics)
+   */
+  getSubscriptionAnalytics(): Observable<ApiResponse<any>> {
+    return this.commonService.get<any>(`${this.baseUrl}/subscription-analytics`);
+  }
+
+  /**
+   * Get usage statistics
+   */
+  getUsageStatistics(): Observable<ApiResponse<any>> {
+    return this.commonService.get<any>(`${this.baseUrl}/usage-statistics`);
+  }
+
+  /**
+   * Get MRR (Monthly Recurring Revenue)
+   */
+  getMRR(): Observable<ApiResponse<any>> {
+    return this.commonService.get<any>(`${this.baseUrl}/mrr`);
+  }
+
+  /**
+   * Get churn rate
+   */
+  getChurnRate(): Observable<ApiResponse<any>> {
+    return this.commonService.get<any>(`${this.baseUrl}/churn-rate`);
   }
 }
-
-

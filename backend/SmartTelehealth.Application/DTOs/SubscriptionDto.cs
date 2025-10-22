@@ -71,7 +71,9 @@ namespace SmartTelehealth.Application.DTOs
         public string? Name { get; set; }
         public string? Description { get; set; }
         public decimal Price { get; set; }
-        public Guid BillingCycleId { get; set; }
+        // NEW ARCHITECTURE: BillingCycleId removed - billing cycle comes from the selected plan
+        // Each plan has a fixed billing cycle. Users select a complete plan (e.g., "Basic - Monthly")
+        // OLD: public Guid BillingCycleId { get; set; }
         public Guid CurrencyId { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime? StartDate { get; set; }

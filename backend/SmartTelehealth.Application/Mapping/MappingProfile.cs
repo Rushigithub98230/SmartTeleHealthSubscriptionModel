@@ -263,9 +263,7 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.IsTrending, opt => opt.MapFrom(src => src.IsTrending))
             .ForMember(dest => dest.DisplayOrder, opt => opt.MapFrom(src => src.DisplayOrder))
             .ForMember(dest => dest.StripeProductId, opt => opt.MapFrom(src => src.StripeProductId))
-            .ForMember(dest => dest.StripeMonthlyPriceId, opt => opt.MapFrom(src => src.StripeMonthlyPriceId))
-            .ForMember(dest => dest.StripeQuarterlyPriceId, opt => opt.MapFrom(src => src.StripeQuarterlyPriceId))
-            .ForMember(dest => dest.StripeAnnualPriceId, opt => opt.MapFrom(src => src.StripeAnnualPriceId))
+            .ForMember(dest => dest.StripePriceId, opt => opt.MapFrom(src => src.StripePriceId))  // NEW ARCHITECTURE: Single price ID
             .ForMember(dest => dest.Features, opt => opt.MapFrom(src => src.Features))
             .ForMember(dest => dest.Terms, opt => opt.MapFrom(src => src.Terms))
             .ForMember(dest => dest.EffectiveDate, opt => opt.MapFrom(src => src.EffectiveDate))

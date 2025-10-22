@@ -84,6 +84,11 @@ export interface BillingRecordDto {
   accrualStartDate?: Date;
   accrualEndDate?: Date;
   
+  // Refund Information
+  refundAmount?: number;
+  refundReason?: string;
+  refundDate?: Date;
+  
   // Computed Properties
   isPaid: boolean;
   isFailed: boolean;

@@ -27,6 +27,7 @@ export * from './category.model';
 
 // Analytics Models
 export * from './analytics.model';
+export * from './user-analytics.model';
 
 // Master Data Models
 export * from './master-data.model';

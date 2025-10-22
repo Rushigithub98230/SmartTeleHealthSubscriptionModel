@@ -27,47 +27,52 @@ export class PaymentService {
 
   /**
    * Get user's payment methods
-   * API: GET /api/Payment/methods
+   * API: GET /api/payments/payment-methods
    * Used in: Payment Methods Page, Checkout
+   * FIXED: Updated endpoint to match backend
    */
   getPaymentMethods(userId: number): Observable<ApiResponse<PaymentMethodDto[]>> {
-    return this.commonService.get<PaymentMethodDto[]>('Payment/methods', { userId });
+    return this.commonService.get<PaymentMethodDto[]>('payments/payment-methods');
   }
 
   /**
    * Add new payment method
-   * API: POST /api/Payment/methods
+   * API: POST /api/payments/payment-methods
    * Used in: Add Card Form
+   * FIXED: Simplified to only send paymentMethodId (backend requirement)
    */
-  addPaymentMethod(dto: AddPaymentMethodDto): Observable<ApiResponse<PaymentMethodDto>> {
-    return this.commonService.post<PaymentMethodDto>('Payment/methods', dto);
+  addPaymentMethod(paymentMethodId: string): Observable<ApiResponse<PaymentMethodDto>> {
+    return this.commonService.post<PaymentMethodDto>('payments/payment-methods', { paymentMethodId });
   }
 
   /**
    * Set default payment method
-   * API: PUT /api/Payment/methods/default
+   * API: PUT /api/payments/payment-methods/{paymentMethodId}/default
    * Used in: Payment Methods Page
+   * FIXED: Updated to use URL parameter instead of body (backend requirement)
    */
   setDefaultPaymentMethod(paymentMethodId: string): Observable<ApiResponse<any>> {
-    return this.commonService.put('Payment/methods/default', { paymentMethodId });
+    return this.commonService.put(`payments/payment-methods/${paymentMethodId}/default`, {});
   }
 
   /**
    * Delete payment method
-   * API: DELETE /api/Payment/methods/{id}
+   * API: DELETE /api/payments/payment-methods/{id}
    * Used in: Payment Methods Page
+   * FIXED: Updated endpoint to match backend
    */
   deletePaymentMethod(paymentMethodId: string): Observable<ApiResponse<any>> {
-    return this.commonService.delete(`Payment/methods/${paymentMethodId}`);
+    return this.commonService.delete(`payments/payment-methods/${paymentMethodId}`);
   }
 
   /**
-   * Process payment
-   * API: POST /api/Payment/process
-   * Used in: Manual payment processing
+   * Process payment (Manual Renewal)
+   * API: POST /api/payments/process-payment
+   * Used in: Manual payment processing for failed renewals
+   * FIXED: Updated endpoint to match backend
    */
   processPayment(dto: ProcessPaymentRequestDto): Observable<ApiResponse<any>> {
-    return this.commonService.post('Payment/process', dto);
+    return this.commonService.post('payments/process-payment', dto);
   }
 
   /**
@@ -81,6 +86,50 @@ export class PaymentService {
     pageSize: number = 10
   ): Observable<ApiResponse<PaymentHistoryDto[]>> {
     return this.commonService.get<PaymentHistoryDto[]>('Payment/history', { userId, page, pageSize });
+  }
+
+  // ===== PHASE 3: FAILED PAYMENT MANAGEMENT =====
+
+  /**
+   * Get all failed payments (Admin only)
+   * API: GET /api/Payment/failed
+   * Phase 3: Failed Payment Management
+   */
+  getFailedPayments(): Observable<ApiResponse<any>> {
+    return this.commonService.get<any>('Payment/failed');
+  }
+
+  /**
+   * Retry a failed payment (Admin only)
+   * API: POST /api/Payment/retry-payment/{billingRecordId}
+   * Phase 3: Manual retry for failed payments
+   */
+  retryPayment(billingRecordId: string): Observable<ApiResponse<any>> {
+    return this.commonService.post<any>(
+      `Payment/retry-payment/${billingRecordId}`,
+      {}
+    );
+  }
+
+  /**
+   * Send payment reminder email to customer (Admin only)
+   * API: POST /api/Payment/{id}/send-reminder
+   * Phase 3: Customer communication
+   */
+  sendPaymentReminder(billingRecordId: string, request: any): Observable<ApiResponse<any>> {
+    return this.commonService.post<any>(
+      `Payment/${billingRecordId}/send-reminder`,
+      request
+    );
+  }
+
+  /**
+   * Bulk retry multiple failed payments (Admin only)
+   * API: POST /api/Payment/bulk-retry
+   * Phase 3: Batch processing
+   */
+  bulkRetryPayments(request: any): Observable<ApiResponse<any>> {
+    return this.commonService.post<any>('Payment/bulk-retry', request);
   }
 }
 

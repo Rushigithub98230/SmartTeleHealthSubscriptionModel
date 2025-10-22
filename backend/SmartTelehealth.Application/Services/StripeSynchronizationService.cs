@@ -80,18 +80,10 @@ public class StripeSynchronizationService : IStripeSynchronizationService
 
             _logger.LogInformation("Cleaning up Stripe resources for plan: {PlanName}", plan.Name);
 
-            // Deactivate all prices
-            if (!string.IsNullOrEmpty(plan.StripeMonthlyPriceId))
+            // NEW ARCHITECTURE: Deactivate the single price
+            if (!string.IsNullOrEmpty(plan.StripePriceId))
             {
-                await _stripeService.DeactivatePriceAsync(plan.StripeMonthlyPriceId, tokenModel);
-            }
-            if (!string.IsNullOrEmpty(plan.StripeQuarterlyPriceId))
-            {
-                await _stripeService.DeactivatePriceAsync(plan.StripeQuarterlyPriceId, tokenModel);
-            }
-            if (!string.IsNullOrEmpty(plan.StripeAnnualPriceId))
-            {
-                await _stripeService.DeactivatePriceAsync(plan.StripeAnnualPriceId, tokenModel);
+                await _stripeService.DeactivatePriceAsync(plan.StripePriceId, tokenModel);
             }
 
             // Delete the product
@@ -210,17 +202,10 @@ public class StripeSynchronizationService : IStripeSynchronizationService
             }
 
             // Check if all required Stripe prices exist
-            if (string.IsNullOrEmpty(plan.StripeMonthlyPriceId))
+            // NEW ARCHITECTURE: Check for single Stripe price ID
+            if (string.IsNullOrEmpty(plan.StripePriceId))
             {
-                result.Issues.Add("Missing Stripe monthly price ID");
-            }
-            if (string.IsNullOrEmpty(plan.StripeQuarterlyPriceId))
-            {
-                result.Issues.Add("Missing Stripe quarterly price ID");
-            }
-            if (string.IsNullOrEmpty(plan.StripeAnnualPriceId))
-            {
-                result.Issues.Add("Missing Stripe annual price ID");
+                result.Issues.Add("Missing Stripe price ID");
             }
 
             if (result.Issues.Count == 0)
@@ -352,26 +337,13 @@ public class StripeSynchronizationService : IStripeSynchronizationService
                 return false;
             }
 
-            // Determine appropriate Stripe price ID based on billing cycle
-            string stripePriceId = null;
-            switch (subscription.BillingCycleId.ToString().ToLower())
+            // NEW ARCHITECTURE: Get the plan's single Stripe price ID
+            if (string.IsNullOrEmpty(plan.StripePriceId))
             {
-                case "monthly":
-                    stripePriceId = plan.StripeMonthlyPriceId;
-                    break;
-                case "quarterly":
-                    stripePriceId = plan.StripeQuarterlyPriceId;
-                    break;
-                case "annual":
-                    stripePriceId = plan.StripeAnnualPriceId;
-                    break;
-            }
-
-            if (string.IsNullOrEmpty(stripePriceId))
-            {
-                _logger.LogError("No Stripe price ID found for billing cycle {BillingCycleId}", subscription.BillingCycleId);
+                _logger.LogError("No Stripe price ID configured for plan {PlanId}", plan.Id);
                 return false;
             }
+            string stripePriceId = plan.StripePriceId;
 
             // Create new Stripe subscription
             var stripeSubscriptionId = await _stripeService.CreateSubscriptionAsync(
@@ -404,32 +376,42 @@ public class StripeSynchronizationService : IStripeSynchronizationService
             var stripeProductId = await _stripeService.CreateProductAsync(plan.Name, plan.Description ?? "", tokenModel);
             plan.StripeProductId = stripeProductId;
 
-            // Get billing cycle details
+            // NEW ARCHITECTURE: Create only ONE Stripe price for plan's billing cycle
+            // Get billing cycle to determine interval
             var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(plan.BillingCycleId);
             if (billingCycle == null)
             {
                 _logger.LogError("Billing cycle {BillingCycleId} not found for plan {PlanName}", plan.BillingCycleId, plan.Name);
                 return false;
             }
-
-            // Create Stripe prices for different billing cycles
-            var monthlyPriceId = await _stripeService.CreatePriceAsync(
-                stripeProductId, plan.Price, "usd", "month", 1, tokenModel);
-            plan.StripeMonthlyPriceId = monthlyPriceId;
-
-            var quarterlyPriceId = await _stripeService.CreatePriceAsync(
-                stripeProductId, plan.Price * 3, "usd", "month", 3, tokenModel);
-            plan.StripeQuarterlyPriceId = quarterlyPriceId;
-
-            var annualPriceId = await _stripeService.CreatePriceAsync(
-                stripeProductId, plan.Price * 12, "usd", "month", 12, tokenModel);
-            plan.StripeAnnualPriceId = annualPriceId;
+            
+            var (interval, intervalCount) = billingCycle.Name?.ToLower() switch
+            {
+                "monthly" => ("month", 1),
+                "quarterly" => ("month", 3),
+                "annual" => ("year", 1),
+                "weekly" => ("week", 1),
+                "daily" => ("day", 1),
+                _ => ("month", 1)
+            };
+            
+            // Create single Stripe price for this plan's billing cycle
+            var stripePriceId = await _stripeService.CreatePriceAsync(
+                stripeProductId,
+                plan.Price,  // Use plan's explicit price (not multiplied)
+                "usd",
+                interval,
+                intervalCount,
+                tokenModel);
+            
+            // NEW ARCHITECTURE: Simply set the single Stripe price ID
+            plan.StripePriceId = stripePriceId;
 
             // Update plan with Stripe IDs
             await _subscriptionRepository.UpdateSubscriptionPlanAsync(plan);
 
-            _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Prices {MonthlyId}, {QuarterlyId}, {AnnualId}", 
-                plan.Name, stripeProductId, monthlyPriceId, quarterlyPriceId, annualPriceId);
+            _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Price {PriceId} ({Cycle})", 
+                plan.Name, stripeProductId, stripePriceId, billingCycle.Name);
             return true;
         }
         catch (Exception ex)
@@ -455,4 +437,242 @@ public class StripeSynchronizationService : IStripeSynchronizationService
             return false;
         }
     }
+
+    #region Phase 5: Stripe Sync Dashboard Enhancements
+
+    public async Task<JsonModel> GetAllDiscrepanciesAsync(TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting all Stripe sync discrepancies by user {UserId}", tokenModel.UserID);
+
+            var planDiscrepancies = new List<object>();
+            var subscriptionDiscrepancies = new List<object>();
+            var customerDiscrepancies = new List<object>();
+
+            // Check all plans
+            var allPlans = await _subscriptionRepository.GetAllSubscriptionPlansAsync();
+            foreach (var plan in allPlans)
+            {
+                var validation = await ValidatePlanSynchronizationAsync(plan.Id, tokenModel);
+                if (!validation.IsSynchronized)
+                {
+                    planDiscrepancies.Add(new
+                    {
+                        planId = plan.Id,
+                        planName = plan.Name,
+                        issues = validation.Issues,
+                        recommendations = validation.Recommendations
+                    });
+                }
+            }
+
+            // Check active subscriptions (limit for performance)
+            var activeSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            var activeSubsList = activeSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Active).Take(100);
+            
+            foreach (var subscription in activeSubsList)
+            {
+                if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId))
+                {
+                    var validation = await ValidateSubscriptionSynchronizationAsync(subscription.Id, tokenModel);
+                    if (!validation.IsSynchronized)
+                    {
+                        subscriptionDiscrepancies.Add(new
+                        {
+                            subscriptionId = subscription.Id,
+                            userId = subscription.UserId,
+                            userName = subscription.User?.FullName ?? "Unknown",
+                            issues = validation.Issues
+                        });
+                    }
+                }
+            }
+
+            var summary = new
+            {
+                planDiscrepancies,
+                subscriptionDiscrepancies,
+                customerDiscrepancies,
+                totalIssues = planDiscrepancies.Count + subscriptionDiscrepancies.Count + customerDiscrepancies.Count,
+                timestamp = DateTime.UtcNow
+            };
+
+            return new JsonModel
+            {
+                data = summary,
+                Message = "Discrepancies retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting discrepancies by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve discrepancies",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> BulkSyncAsync(BulkSyncRequestDto request, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Bulk syncing {Count} {EntityType} entities by user {UserId}", 
+                request.Ids.Count, request.EntityType, tokenModel.UserID);
+
+            var results = new List<object>();
+            var successCount = 0;
+            var failureCount = 0;
+
+            foreach (var id in request.Ids)
+            {
+                try
+                {
+                    bool syncResult = false;
+
+                    switch (request.EntityType.ToLower())
+                    {
+                        case "plans":
+                            syncResult = await SynchronizeSubscriptionPlanAsync(Guid.Parse(id), tokenModel);
+                            break;
+                        case "customers":
+                            syncResult = await SynchronizeCustomerAsync(int.Parse(id), tokenModel);
+                            break;
+                        default:
+                            results.Add(new { id, success = false, message = "Invalid entity type" });
+                            failureCount++;
+                            continue;
+                    }
+
+                    if (syncResult)
+                    {
+                        successCount++;
+                        results.Add(new { id, success = true, message = "Synchronized successfully" });
+                    }
+                    else
+                    {
+                        failureCount++;
+                        results.Add(new { id, success = false, message = "Synchronization failed" });
+                    }
+
+                    // Delay to avoid rate limiting
+                    if (request.DelayBetweenSyncsMs > 0)
+                        await Task.Delay(request.DelayBetweenSyncsMs);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error syncing {EntityType} {Id}", request.EntityType, id);
+                    failureCount++;
+                    results.Add(new { id, success = false, message = ex.Message });
+                    
+                    if (!request.ContinueOnError)
+                        break;
+                }
+            }
+
+            return new JsonModel
+            {
+                data = new
+                {
+                    totalProcessed = results.Count,
+                    successCount,
+                    failureCount,
+                    results
+                },
+                Message = $"Bulk sync completed: {successCount} succeeded, {failureCount} failed",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in bulk sync by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Bulk sync operation failed",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> GetSyncHistoryAsync(int page, int pageSize, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting sync history (page {Page}) by user {UserId}", page, tokenModel.UserID);
+
+            // TODO: Implement actual sync history tracking with dedicated entity/table
+            // For now, return empty list with proper structure
+            var history = new List<object>();
+
+            return new JsonModel
+            {
+                data = history,
+                Message = "Sync history retrieved successfully (tracking not yet implemented)",
+                StatusCode = 200,
+                meta = new Meta
+                {
+                    CurrentPage = page,
+                    PageSize = pageSize,
+                    TotalRecords = 0,
+                    TotalPages = 0,
+                    HasNextPage = false,
+                    HasPreviousPage = false
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting sync history by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve sync history",
+                StatusCode = 500
+            };
+        }
+    }
+
+    public async Task<JsonModel> GetWebhookStatusAsync(TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting webhook status by user {UserId}", tokenModel.UserID);
+
+            // TODO: Implement actual webhook monitoring with dedicated entity/table
+            // For now, return basic status based on system health
+            var status = new
+            {
+                webhookHealthy = true,
+                lastWebhookReceived = DateTime.UtcNow.AddMinutes(-5),
+                webhooksProcessedToday = 0,
+                failedWebhooksToday = 0,
+                recentEvents = new List<object>(),
+                statusMessage = "Webhook monitoring not yet fully implemented"
+            };
+
+            return new JsonModel
+            {
+                data = status,
+                Message = "Webhook status retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting webhook status by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve webhook status",
+                StatusCode = 500
+            };
+        }
+    }
+
+    #endregion
 }

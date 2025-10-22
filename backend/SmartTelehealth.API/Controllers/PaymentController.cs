@@ -22,28 +22,32 @@ public class PaymentController : BaseController
     private readonly ISubscriptionService _subscriptionService;
     private readonly IAuditService _auditService;
     private readonly IPaymentSecurityService _paymentSecurityService;
+    private readonly IUserService _userService;
 
     /// <summary>
     /// Initializes a new instance of the PaymentController with required services.
-    /// UPDATED: Now uses consolidated ISubscriptionBillingService
+    /// UPDATED: Now uses consolidated ISubscriptionBillingService and IUserService for automatic Stripe customer creation
     /// </summary>
     /// <param name="stripeService">Service for Stripe payment gateway integration</param>
     /// <param name="billingService">Service for billing-related operations (consolidated)</param>
     /// <param name="subscriptionService">Service for subscription management</param>
     /// <param name="auditService">Service for audit logging and tracking</param>
     /// <param name="paymentSecurityService">Service for payment security and validation</param>
+    /// <param name="userService">Service for user management and operations</param>
     public PaymentController(
         IStripeService stripeService,
         ISubscriptionBillingService billingService,
         ISubscriptionService subscriptionService,
         IAuditService auditService,
-        IPaymentSecurityService paymentSecurityService)
+        IPaymentSecurityService paymentSecurityService,
+        IUserService userService)
     {
         _stripeService = stripeService;
         _billingService = billingService;
         _subscriptionService = subscriptionService;
         _auditService = auditService;
         _paymentSecurityService = paymentSecurityService;
+        _userService = userService;
     }
 
     /// <summary>
@@ -71,11 +75,13 @@ public class PaymentController : BaseController
     /// Retrieves all payment methods associated with the current user.
     /// This endpoint returns a list of all payment methods (credit cards, bank accounts, etc.)
     /// that the user has added to their account for payment processing.
+    /// Automatically creates a Stripe customer if one doesn't exist.
     /// </summary>
     /// <returns>JsonModel containing the list of payment methods or error information</returns>
     /// <remarks>
     /// This endpoint:
     /// - Returns all payment methods associated with the current user
+    /// - Automatically creates Stripe customer if needed
     /// - Includes payment method details (masked card numbers, expiry dates)
     /// - Shows which payment method is set as default
     /// - Access restricted to the authenticated user
@@ -85,15 +91,68 @@ public class PaymentController : BaseController
     [HttpGet("payment-methods")]
     public async Task<JsonModel> GetPaymentMethods()
     {
-        var token = GetToken(HttpContext);
-        var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(token.UserID.ToString(), token);
-        return new JsonModel { data = paymentMethods, Message = "Payment methods retrieved successfully", StatusCode = 200 };
+        try
+        {
+            var token = GetToken(HttpContext);
+            
+            // Get user details from database
+            var userResult = await _userService.GetUserByIdAsync(token.UserID, token);
+            if (userResult.StatusCode != 200 || userResult.data == null)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = "User not found", 
+                    StatusCode = 404 
+                };
+            }
+            
+            var user = userResult.data as UserDto;
+            if (user == null)
+            {
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = "Invalid user data", 
+                    StatusCode = 500 
+                };
+            }
+            
+            // Ensure Stripe customer exists (creates automatically if needed)
+            var stripeCustomerId = await _stripeService.EnsureStripeCustomerAsync(
+                user.Id,
+                user.Email,
+                user.FullName,
+                user.StripeCustomerId,
+                token
+            );
+            
+            // Get payment methods using Stripe customer ID
+            var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(stripeCustomerId, token);
+            
+            return new JsonModel 
+            { 
+                data = paymentMethods, 
+                Message = "Payment methods retrieved successfully", 
+                StatusCode = 200 
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"An unexpected error occurred: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
     }
 
     /// <summary>
     /// Adds a new payment method to the current user's account.
     /// This endpoint allows users to add additional payment methods (credit cards, bank accounts)
     /// to their account for payment processing and subscription billing.
+    /// Automatically creates a Stripe customer if one doesn't exist.
     /// </summary>
     /// <param name="request">DTO containing the payment method ID to add</param>
     /// <returns>JsonModel containing the result of adding the payment method</returns>
@@ -101,6 +160,7 @@ public class PaymentController : BaseController
     /// This endpoint:
     /// - Validates the payment method with Stripe
     /// - Associates the payment method with the user's account
+    /// - Automatically creates Stripe customer if needed
     /// - Sets up the payment method for future billing
     /// - Access restricted to the authenticated user
     /// - Used when users want to add backup payment methods
@@ -110,30 +170,64 @@ public class PaymentController : BaseController
     [HttpPost("payment-methods")]
     public async Task<JsonModel> AddPaymentMethod([FromBody] AddPaymentMethodDto request)
     {
-        var token = GetToken(HttpContext);
-        
-        // Validate payment method
-        var validationResult = await _stripeService.ValidatePaymentMethodAsync(request.PaymentMethodId, token);
-        if (!validationResult)
+        try
         {
-            return new JsonModel { data = new object(), Message = "Invalid payment method", StatusCode = 400 };
-        }
+            var token = GetToken(HttpContext);
+            
+            // Get user details from database
+            var userResult = await _userService.GetUserByIdAsync(token.UserID, token);
+            if (userResult.StatusCode != 200 || userResult.data == null)
+            {
+                return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
+            }
+            
+            var user = userResult.data as UserDto;
+            if (user == null)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid user data", StatusCode = 500 };
+            }
+            
+            // Ensure Stripe customer exists (creates automatically if needed)
+            var stripeCustomerId = await _stripeService.EnsureStripeCustomerAsync(
+                user.Id,
+                user.Email,
+                user.FullName,
+                user.StripeCustomerId,
+                token
+            );
+            
+            // Validate payment method
+            var validationResult = await _stripeService.ValidatePaymentMethodAsync(request.PaymentMethodId, token);
+            if (!validationResult)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid payment method", StatusCode = 400 };
+            }
 
-        // Add payment method to customer
-        var paymentMethodId = await _stripeService.AddPaymentMethodAsync(token.UserID.ToString(), request.PaymentMethodId, token);
-        
-        // Get the payment method details
-        var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(token.UserID.ToString(), token);
-        var paymentMethod = paymentMethods.FirstOrDefault(pm => pm.Id == paymentMethodId);
-        
-        if (paymentMethod == null)
-        {
-            return new JsonModel { data = new object(), Message = "Failed to retrieve payment method details", StatusCode = 400 };
+            // Add payment method to customer using Stripe customer ID
+            var paymentMethodId = await _stripeService.AddPaymentMethodAsync(stripeCustomerId, request.PaymentMethodId, token);
+            
+            // Get the payment method details
+            var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(stripeCustomerId, token);
+            var paymentMethod = paymentMethods.FirstOrDefault(pm => pm.Id == paymentMethodId);
+            
+            if (paymentMethod == null)
+            {
+                return new JsonModel { data = new object(), Message = "Failed to retrieve payment method details", StatusCode = 400 };
+            }
+            
+            // Log the action
+            
+            return new JsonModel { data = paymentMethod, Message = "Payment method added successfully", StatusCode = 200 };
         }
-        
-        // Log the action
-        
-        return new JsonModel { data = paymentMethod, Message = "Payment method added successfully", StatusCode = 200 };
+        catch (Exception ex)
+        {
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"An unexpected error occurred: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
     }
 
     /// <summary>
@@ -155,15 +249,50 @@ public class PaymentController : BaseController
     [HttpPut("payment-methods/{paymentMethodId}/default")]
     public async Task<JsonModel> SetDefaultPaymentMethod(string paymentMethodId)
     {
-        var token = GetToken(HttpContext);
-        var result = await _stripeService.SetDefaultPaymentMethodAsync(token.UserID.ToString(), paymentMethodId, token);
-        
-        if (result)
+        try
         {
-            return new JsonModel { data = true, Message = "Default payment method updated", StatusCode = 200 };
+            var token = GetToken(HttpContext);
+            
+            // Get user details from database
+            var userResult = await _userService.GetUserByIdAsync(token.UserID, token);
+            if (userResult.StatusCode != 200 || userResult.data == null)
+            {
+                return new JsonModel { data = false, Message = "User not found", StatusCode = 404 };
+            }
+            
+            var user = userResult.data as UserDto;
+            if (user == null)
+            {
+                return new JsonModel { data = false, Message = "Invalid user data", StatusCode = 500 };
+            }
+            
+            // Ensure Stripe customer exists (creates automatically if needed)
+            var stripeCustomerId = await _stripeService.EnsureStripeCustomerAsync(
+                user.Id,
+                user.Email,
+                user.FullName,
+                user.StripeCustomerId,
+                token
+            );
+            
+            var result = await _stripeService.SetDefaultPaymentMethodAsync(stripeCustomerId, paymentMethodId, token);
+            
+            if (result)
+            {
+                return new JsonModel { data = true, Message = "Default payment method updated", StatusCode = 200 };
+            }
+            
+            return new JsonModel { data = false, Message = "Failed to set default payment method", StatusCode = 400 };
         }
-        
-        return new JsonModel { data = new object(), Message = "Failed to set default payment method", StatusCode = 400 };
+        catch (Exception ex)
+        {
+            return new JsonModel 
+            { 
+                data = false, 
+                Message = $"An unexpected error occurred: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
     }
 
     /// <summary>
@@ -185,15 +314,50 @@ public class PaymentController : BaseController
     [HttpDelete("payment-methods/{paymentMethodId}")]
     public async Task<JsonModel> RemovePaymentMethod(string paymentMethodId)
     {
-        var token = GetToken(HttpContext);
-        var result = await _stripeService.RemovePaymentMethodAsync(token.UserID.ToString(), paymentMethodId, token);
-        
-        if (result)
+        try
         {
-            return new JsonModel { data = true, Message = "Payment method removed", StatusCode = 200 };
+            var token = GetToken(HttpContext);
+            
+            // Get user details from database
+            var userResult = await _userService.GetUserByIdAsync(token.UserID, token);
+            if (userResult.StatusCode != 200 || userResult.data == null)
+            {
+                return new JsonModel { data = false, Message = "User not found", StatusCode = 404 };
+            }
+            
+            var user = userResult.data as UserDto;
+            if (user == null)
+            {
+                return new JsonModel { data = false, Message = "Invalid user data", StatusCode = 500 };
+            }
+            
+            // Ensure Stripe customer exists (creates automatically if needed)
+            var stripeCustomerId = await _stripeService.EnsureStripeCustomerAsync(
+                user.Id,
+                user.Email,
+                user.FullName,
+                user.StripeCustomerId,
+                token
+            );
+            
+            var result = await _stripeService.RemovePaymentMethodAsync(stripeCustomerId, paymentMethodId, token);
+            
+            if (result)
+            {
+                return new JsonModel { data = true, Message = "Payment method removed", StatusCode = 200 };
+            }
+            
+            return new JsonModel { data = false, Message = "Failed to remove payment method", StatusCode = 400 };
         }
-        
-        return new JsonModel { data = new object(), Message = "Failed to remove payment method", StatusCode = 400 };
+        catch (Exception ex)
+        {
+            return new JsonModel 
+            { 
+                data = false, 
+                Message = $"An unexpected error occurred: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
     }
 
     /// <summary>
@@ -365,6 +529,54 @@ public class PaymentController : BaseController
         var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString();
         return remoteIp ?? "unknown";
     }
+
+    #region Phase 3: Failed Payment Management
+
+    /// <summary>
+    /// Gets all failed payments with comprehensive details and retry status
+    /// Phase 3: Admin Portal Enhancement
+    /// </summary>
+    /// <returns>JsonModel containing failed payments list and summary</returns>
+    [HttpGet("failed")]
+    public async Task<JsonModel> GetFailedPayments()
+    {
+        return await _billingService.GetFailedPaymentsAsync(GetToken(HttpContext));
+    }
+
+    // BUILD FIX: REMOVED DUPLICATE METHOD RetryPayment(Guid id) at lines 382-392
+    // Same functionality already exists at line 266: RetryPayment(Guid billingRecordId)
+    // Route conflict: [HttpPost("{id}/retry")] vs [HttpPost("retry-payment/{billingRecordId}")]
+    
+    /// <summary>
+    /// Send payment reminder email to customer
+    /// Phase 3: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="id">Billing record ID</param>
+    /// <param name="request">Reminder customization options</param>
+    /// <returns>JsonModel containing send result</returns>
+    [HttpPost("{id}/send-reminder")]
+    public async Task<JsonModel> SendPaymentReminder(Guid id, [FromBody] SendReminderRequestDto request)
+    {
+        return await _billingService.SendPaymentReminderAsync(id, request, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Bulk retry multiple failed payments
+    /// Phase 3: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="request">Bulk retry request with billing record IDs</param>
+    /// <returns>JsonModel containing bulk retry results</returns>
+    [HttpPost("bulk-retry")]
+    public async Task<JsonModel> BulkRetryPayments([FromBody] BulkRetryRequestDto request)
+    {
+        return await _billingService.BulkRetryPaymentsAsync(request, GetToken(HttpContext));
+    }
+
+    // BUILD FIX: REMOVED DUPLICATE METHOD GetPaymentAnalytics at lines 411-420
+    // Same functionality already exists at line 349: GetPaymentAnalytics with same parameters
+    // Both had route [HttpGet("analytics")] causing conflict
+
+    #endregion
 }
 
  

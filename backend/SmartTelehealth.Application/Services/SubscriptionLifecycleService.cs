@@ -88,9 +88,51 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         try
         {
             // Step 1: Validate subscription plan exists and is active
-            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(createDto.PlanId));
-            if (plan == null)
+            var requestedPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(createDto.PlanId));
+            if (requestedPlan == null)
                 return new JsonModel { data = new object(), Message = "Subscription plan does not exist", StatusCode = 404 };
+            
+            // CRITICAL FIX (Issue #12): Ensure new subscriptions always use the LATEST plan version
+            // This ensures new users get current pricing and features, not outdated versions
+            SubscriptionPlan plan;
+            
+            if (!requestedPlan.IsLatestVersion)
+            {
+                _logger.LogInformation("Plan {PlanId} (v{Version}) is not latest version. Finding latest version for new subscription.",
+                    requestedPlan.Id, requestedPlan.VersionNumber);
+                
+                // Get parent plan ID (could be this plan itself if it's the original, or its parent if it's a version)
+                var parentPlanId = requestedPlan.ParentPlanId ?? requestedPlan.Id;
+                
+                // Get all versions of this plan and find the latest active version
+                var allVersions = await _subscriptionPlanRepository.GetAllVersionsOfPlanAsync(parentPlanId);
+                var latestVersion = allVersions.FirstOrDefault(v => v.IsLatestVersion && v.IsActive);
+                
+                if (latestVersion != null && latestVersion.Id != requestedPlan.Id)
+                {
+                    _logger.LogInformation(
+                        "Redirecting new subscription from plan {OldId} v{OldVer} (${OldPrice}) to latest version {NewId} v{NewVer} (${NewPrice})",
+                        requestedPlan.Id, requestedPlan.VersionNumber, requestedPlan.Price,
+                        latestVersion.Id, latestVersion.VersionNumber, latestVersion.Price);
+                    
+                    plan = latestVersion;  // Use latest version for new subscription
+                }
+                else
+                {
+                    _logger.LogWarning("Latest version not found for plan {PlanId}. Using requested plan. " +
+                        "This may indicate a versioning configuration issue.",
+                        requestedPlan.Id);
+                    plan = requestedPlan;
+                }
+            }
+            else
+            {
+                // Already the latest version or no versioning applied
+                plan = requestedPlan;
+                _logger.LogInformation("Plan {PlanId} is latest version (v{Version}), proceeding with subscription creation",
+                    plan.Id, plan.VersionNumber);
+            }
+            
             if (!plan.IsActive)
                 return new JsonModel { data = new object(), Message = "Subscription plan is not active", StatusCode = 400 };
 
@@ -153,31 +195,19 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 }
             }
 
-            // Step 6: Get and validate billing cycle
-            var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(createDto.BillingCycleId);
-            if (billingCycle == null)
-                return new JsonModel { data = new object(), Message = "Billing cycle not found", StatusCode = 404 };
+            // NEW ARCHITECTURE: Billing cycle comes from the plan, no separate validation needed
+            // Each plan has a fixed billing cycle
+            _logger.LogInformation("Using plan's fixed billing cycle: {BillingCycle}", plan.BillingCycle.Name);
             
-            // Validate billing cycle is appropriate for plan
-            if (!BillingCycleValidator.IsValidBillingCycleForPlan(plan, billingCycle))
-            {
-                return new JsonModel 
-                { 
-                    data = new object(),
-                    Message = $"Billing cycle '{billingCycle.Name}' is not available for this plan",
-                    StatusCode = 400
-                };
-            }
-            
-            // Step 7: Create Stripe Subscription with proper billing cycle logic
+            // Step 7: Create Stripe Subscription with plan's billing cycle
             string stripeSubscriptionId = null;
-            // Get the appropriate Stripe price ID based on the selected billing cycle
-            string stripePriceId = await GetStripePriceIdForBillingCycleAsync(plan, createDto.BillingCycleId);
+            // NEW ARCHITECTURE: Get the plan's single Stripe price ID
+            string stripePriceId = GetStripePriceIdForPlan(plan);
             
             try
             {
-                _logger.LogInformation("Creating Stripe subscription for user {UserId} with billing cycle ID {BillingCycleId} using price ID {StripePriceId}", 
-                    createDto.UserId, createDto.BillingCycleId, stripePriceId);
+                _logger.LogInformation("Creating Stripe subscription for user {UserId} with plan {PlanName} (billing cycle: {BillingCycle}) using price ID {StripePriceId}", 
+                    createDto.UserId, plan.Name, plan.BillingCycle.Name, stripePriceId);
                 
                 // Create the actual Stripe subscription
                 stripeSubscriptionId = await _stripeService.CreateSubscriptionAsync(
@@ -202,12 +232,12 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.StripePriceId = stripePriceId;
             entity.PaymentMethodId = createDto.PaymentMethodId;
             
-            // REFACTORED: Calculate price using centralized BillingCycleCalculator (single method)
-            entity.CurrentPrice = BillingCycleCalculator.CalculateSubscriptionPrice(plan, billingCycle);
+            // NEW ARCHITECTURE: Use plan's explicit price (no calculation needed)
+            entity.CurrentPrice = plan.Price;
             
-            _logger.LogInformation("Calculated subscription price for {BillingCycle} billing: " +
-                "MonthlyPrice=${MonthlyPrice}, FinalPrice=${FinalPrice}",
-                billingCycle.Name, plan.Price, entity.CurrentPrice);
+            _logger.LogInformation("Using explicit plan price for subscription: " +
+                "PlanName={PlanName}, BillingCycle={BillingCycle}, Price=${Price}",
+                plan.Name, plan.BillingCycle.Name, entity.CurrentPrice);
             
             // Trial logic
             if (plan.IsTrialAllowed && plan.TrialDurationInDays > 0)
@@ -224,10 +254,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
             
             entity.StartDate = DateTime.UtcNow;
-            entity.NextBillingDate = await CalculateNextBillingDateAsync(DateTime.UtcNow, createDto.BillingCycleId);
+            // NEW ARCHITECTURE: Use plan's billing cycle (not from DTO)
+            entity.NextBillingDate = BillingCycleCalculator.CalculateNextBillingDate(DateTime.UtcNow, plan.BillingCycle);
             
-            // Set EndDate based on billing cycle
-            entity.EndDate = await CalculateEndDateAsync(DateTime.UtcNow, createDto.BillingCycleId);
+            // Set EndDate based on plan's billing cycle
+            entity.EndDate = BillingCycleCalculator.CalculateEndDateForCycle(DateTime.UtcNow, plan.BillingCycle);
             
             // Set audit properties for creation
             entity.IsActive = true;
@@ -258,6 +289,9 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 
                 // Create initial billing record for the subscription
                 await CreateInitialBillingRecordAsync(created, plan, tokenModel);
+                
+                // NEW ARCHITECTURE: Allocate initial privileges based on plan's explicit values
+                await AllocateInitialPrivilegesAsync(created, plan, tokenModel);
             }
             catch (Exception ex)
             {
@@ -404,8 +438,12 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 
                 _logger.LogInformation("Successfully cancelled subscription {SubscriptionId} with status history in transaction", updated.Id);
                 
-                // Process any pending refunds for the cancelled subscription
-                await ProcessCancellationRefundsAsync(updated, tokenModel);
+                // REMOVED: Automatic refunds on cancellation
+                // Refunds for mid-cycle cancellations should be processed manually by admin through the admin portal
+                // Admin has full control to determine and initiate any applicable refund
+                // NOTE: To process refund manually, admin should use:
+                //       POST /api/Billing/{billingRecordId}/process-refund
+                // await ProcessCancellationRefundsAsync(updated, tokenModel);
             }
             catch (Exception ex)
             {
@@ -735,11 +773,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     var currentPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(entity.SubscriptionPlanId);
                     if (currentPlan != null)
                     {
-                        // Determine which Stripe price ID to use based on billing cycle
-                        string stripePriceId = currentPlan.StripeMonthlyPriceId; // Default to monthly
-                        
-                        // You can add logic here to determine the correct price ID based on billing cycle
-                        // For now, using monthly as default
+                        // NEW ARCHITECTURE: Get the plan's single Stripe price ID
+                        string stripePriceId = GetStripePriceIdForPlan(currentPlan);
                         
                         var stripeSubscriptionResult = await _stripeService.CreateSubscriptionAsync(
                             entity.StripeCustomerId,
@@ -776,26 +811,40 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 _logger.LogWarning("Subscription {SubscriptionId} has no Stripe customer ID. Cannot reactivate Stripe subscription.", subscriptionId);
             }
             
-            // Update local subscription
-            entity.Status = Subscription.SubscriptionStatuses.Active;
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
+            // BEGIN TRANSACTION - Ensure atomic update and status history
+            await _unitOfWork.BeginTransactionAsync();
             
-            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
-            
-            // SRP Refactoring: Use centralized status history helper method
-            await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription reactivated", tokenModel);
-            
-            // Send reactivation notification
-            var userResult = await _userService.GetUserByIdAsync(updated.UserId, tokenModel);
-            if (userResult.StatusCode == 200 && userResult.data != null)
+            try
             {
-                var dto = _mapper.Map<SubscriptionDto>(updated);
-                await _notificationService.SendSubscriptionWelcomeEmailAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, dto, tokenModel);
-                _logger.LogInformation("Subscription reactivation notification sent to {Email}", ((UserDto)userResult.data).Email);
+                // Update local subscription
+                entity.Status = Subscription.SubscriptionStatuses.Active;
+                entity.UpdatedBy = tokenModel.UserID;
+                entity.UpdatedDate = DateTime.UtcNow;
+                
+                var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                
+                // SRP Refactoring: Use centralized status history helper method
+                await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription reactivated", tokenModel);
+                
+                await _unitOfWork.CommitTransactionAsync();
+                
+                // Send reactivation notification AFTER successful commit
+                var userResult = await _userService.GetUserByIdAsync(updated.UserId, tokenModel);
+                if (userResult.StatusCode == 200 && userResult.data != null)
+                {
+                    var dto = _mapper.Map<SubscriptionDto>(updated);
+                    await _notificationService.SendSubscriptionWelcomeEmailAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, dto, tokenModel);
+                    _logger.LogInformation("Subscription reactivation notification sent to {Email}", ((UserDto)userResult.data).Email);
+                }
+                
+                return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
             }
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error reactivating subscription {SubscriptionId} in transaction", subscriptionId);
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -838,11 +887,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 try
                 {
-                    // Determine which Stripe price ID to use based on billing cycle
-                    string newStripePriceId = newPlan.StripeMonthlyPriceId; // Default to monthly
-                    
-                    // You can add logic here to determine the correct price ID based on billing cycle
-                    // For now, using monthly as default
+                    // NEW ARCHITECTURE: Get the plan's single Stripe price ID
+                    string newStripePriceId = GetStripePriceIdForPlan(newPlan);
                     
                     var stripeUpdateResult = await _stripeService.UpdateSubscriptionAsync(
                         entity.StripeSubscriptionId,
@@ -876,14 +922,28 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 _logger.LogWarning("Subscription {SubscriptionId} has no Stripe subscription ID. Cannot update Stripe.", subscriptionId);
             }
             
-            // Update local subscription
-            entity.SubscriptionPlanId = Guid.Parse(newPlanId);
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
+            // BEGIN TRANSACTION - Ensure atomic plan update
+            await _unitOfWork.BeginTransactionAsync();
             
-            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription upgraded successfully with Stripe synchronization", StatusCode = 200 };
+            try
+            {
+                // Update local subscription
+                entity.SubscriptionPlanId = Guid.Parse(newPlanId);
+                entity.UpdatedBy = tokenModel.UserID;
+                entity.UpdatedDate = DateTime.UtcNow;
+                
+                var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                
+                await _unitOfWork.CommitTransactionAsync();
+                
+                return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription upgraded successfully with Stripe synchronization", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error updating subscription plan for {SubscriptionId} in transaction", subscriptionId);
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -910,22 +970,36 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             if (subscription == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
-            // Update subscription properties from DTO
-            if (!string.IsNullOrEmpty(updateDto.Status))
-                subscription.Status = updateDto.Status;
+            // BEGIN TRANSACTION - Ensure atomic update
+            await _unitOfWork.BeginTransactionAsync();
             
-            if (updateDto.AutoRenew.HasValue)
-                subscription.AutoRenew = updateDto.AutoRenew.Value;
-            
-            if (updateDto.NextBillingDate.HasValue)
-                subscription.NextBillingDate = updateDto.NextBillingDate.Value;
+            try
+            {
+                // Update subscription properties from DTO
+                if (!string.IsNullOrEmpty(updateDto.Status))
+                    subscription.Status = updateDto.Status;
+                
+                if (updateDto.AutoRenew.HasValue)
+                    subscription.AutoRenew = updateDto.AutoRenew.Value;
+                
+                if (updateDto.NextBillingDate.HasValue)
+                    subscription.NextBillingDate = updateDto.NextBillingDate.Value;
 
-            subscription.UpdatedBy = tokenModel.UserID;
-            subscription.UpdatedDate = DateTime.UtcNow;
-            
-            var updatedSubscription = await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
-            
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updatedSubscription), Message = "Subscription updated successfully", StatusCode = 200 };
+                subscription.UpdatedBy = tokenModel.UserID;
+                subscription.UpdatedDate = DateTime.UtcNow;
+                
+                var updatedSubscription = await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                
+                await _unitOfWork.CommitTransactionAsync();
+                
+                return new JsonModel { data = _mapper.Map<SubscriptionDto>(updatedSubscription), Message = "Subscription updated successfully", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error updating subscription {SubscriptionId} in transaction", subscriptionId);
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -940,26 +1014,62 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     public async Task<JsonModel> BulkCancelSubscriptionsAsync(IEnumerable<string> subscriptionIds, string adminUserId, TokenModel tokenModel, string? reason = null)
     {
         int cancelled = 0;
-        foreach (var id in subscriptionIds)
+        var cancelledSubscriptions = new List<Subscription>();
+        
+        // BEGIN TRANSACTION - All-or-nothing bulk operation
+        await _unitOfWork.BeginTransactionAsync();
+        
+        try
         {
-            var sub = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(id));
-            if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active)
+            foreach (var id in subscriptionIds)
             {
-                sub.Status = Subscription.SubscriptionStatuses.Cancelled;
-                sub.CancellationReason = reason ?? "Bulk admin cancel";
-                sub.CancelledDate = DateTime.UtcNow;
-                await _subscriptionRepository.UpdateSubscriptionAsync(sub);
+                var sub = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(id));
+                if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active)
+                {
+                    sub.Status = Subscription.SubscriptionStatuses.Cancelled;
+                    sub.CancellationReason = reason ?? "Bulk admin cancel";
+                    sub.CancelledDate = DateTime.UtcNow;
+                    sub.UpdatedBy = int.Parse(adminUserId); // FIX: Add audit property
+                    sub.UpdatedDate = DateTime.UtcNow;      // FIX: Add audit property
+                    await _subscriptionRepository.UpdateSubscriptionAsync(sub);
+                    cancelledSubscriptions.Add(sub);
+                    cancelled++;
+                }
+            }
+            
+            await _unitOfWork.CommitTransactionAsync();
+            
+            // Send notifications AFTER successful commit
+            foreach (var sub in cancelledSubscriptions)
+            {
                 var userResult = await _userService.GetUserByIdAsync(sub.UserId, tokenModel);
                 if (userResult.StatusCode == 200 && userResult.data != null)
                 {
-                    // Send subscription cancellation email
-                    await _notificationService.SendSubscriptionCancelledNotificationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, _mapper.Map<SubscriptionDto>(sub), tokenModel);
-                    _logger.LogInformation("Subscription cancellation email sent to {Email}", ((UserDto)userResult.data).Email);
+                    try
+                    {
+                        await _notificationService.SendSubscriptionCancelledNotificationAsync(
+                            ((UserDto)userResult.data).Email, 
+                            ((UserDto)userResult.data).FullName, 
+                            _mapper.Map<SubscriptionDto>(sub), 
+                            tokenModel);
+                        _logger.LogInformation("Subscription cancellation email sent to {Email}", ((UserDto)userResult.data).Email);
+                    }
+                    catch (Exception notifEx)
+                    {
+                        _logger.LogWarning(notifEx, "Failed to send cancellation notification for subscription {SubscriptionId}", sub.Id);
+                        // Don't fail entire operation if notification fails
+                    }
                 }
-                cancelled++;
             }
+            
+            return new JsonModel { data = cancelled, Message = $"{cancelled} subscriptions cancelled.", StatusCode = 200 };
         }
-        return new JsonModel { data = cancelled, Message = $"{cancelled} subscriptions cancelled.", StatusCode = 200 };
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error in bulk cancel operation, rolling back all changes");
+            return new JsonModel { data = 0, Message = "Bulk cancel failed, no subscriptions were cancelled", StatusCode = 500 };
+        }
     }
 
     /// <summary>
@@ -968,26 +1078,60 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     public async Task<JsonModel> BulkUpgradeSubscriptionsAsync(IEnumerable<string> subscriptionIds, string newPlanId, string adminUserId, TokenModel tokenModel)
     {
         int upgraded = 0;
-        foreach (var id in subscriptionIds)
+        var upgradedSubscriptions = new List<Subscription>();
+        
+        // BEGIN TRANSACTION - All-or-nothing bulk operation
+        await _unitOfWork.BeginTransactionAsync();
+        
+        try
         {
-            var sub = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(id));
-            if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active && sub.SubscriptionPlanId != Guid.Parse(newPlanId))
+            foreach (var id in subscriptionIds)
             {
-                sub.SubscriptionPlanId = Guid.Parse(newPlanId);
-                sub.UpdatedBy = tokenModel.UserID;
-                sub.UpdatedDate = DateTime.UtcNow;
-                await _subscriptionRepository.UpdateSubscriptionAsync(sub);
+                var sub = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(id));
+                if (sub != null && sub.Status == Subscription.SubscriptionStatuses.Active && sub.SubscriptionPlanId != Guid.Parse(newPlanId))
+                {
+                    sub.SubscriptionPlanId = Guid.Parse(newPlanId);
+                    sub.UpdatedBy = tokenModel.UserID;
+                    sub.UpdatedDate = DateTime.UtcNow;
+                    await _subscriptionRepository.UpdateSubscriptionAsync(sub);
+                    upgradedSubscriptions.Add(sub);
+                    upgraded++;
+                }
+            }
+            
+            await _unitOfWork.CommitTransactionAsync();
+            
+            // Send notifications AFTER successful commit
+            foreach (var sub in upgradedSubscriptions)
+            {
                 var userResult = await _userService.GetUserByIdAsync(sub.UserId, tokenModel);
                 if (userResult.StatusCode == 200 && userResult.data != null)
                 {
-                    // Send subscription confirmation email
-                    await _notificationService.SendSubscriptionConfirmationAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, _mapper.Map<SubscriptionDto>(sub), tokenModel);
-                    _logger.LogInformation("Subscription confirmation email sent to {Email}", ((UserDto)userResult.data).Email);
+                    try
+                    {
+                        await _notificationService.SendSubscriptionConfirmationAsync(
+                            ((UserDto)userResult.data).Email, 
+                            ((UserDto)userResult.data).FullName, 
+                            _mapper.Map<SubscriptionDto>(sub), 
+                            tokenModel);
+                        _logger.LogInformation("Subscription confirmation email sent to {Email}", ((UserDto)userResult.data).Email);
+                    }
+                    catch (Exception notifEx)
+                    {
+                        _logger.LogWarning(notifEx, "Failed to send upgrade notification for subscription {SubscriptionId}", sub.Id);
+                        // Don't fail entire operation if notification fails
+                    }
                 }
-                upgraded++;
             }
+            
+            return new JsonModel { data = upgraded, Message = $"{upgraded} subscriptions upgraded.", StatusCode = 200 };
         }
-        return new JsonModel { data = upgraded, Message = $"{upgraded} subscriptions upgraded.", StatusCode = 200 };
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error in bulk upgrade operation, rolling back all changes");
+            return new JsonModel { data = 0, Message = "Bulk upgrade failed, no subscriptions were upgraded", StatusCode = 500 };
+        }
     }
 
     /// <summary>
@@ -1093,15 +1237,29 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             if (entity == null)
                 return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
 
-            // Extend the subscription
-            entity.EndDate = entity.EndDate?.AddDays(additionalDays) ?? DateTime.UtcNow.AddDays(additionalDays);
-            entity.NextBillingDate = entity.NextBillingDate.AddDays(additionalDays);
-            entity.UpdatedBy = tokenModel.UserID;
-            entity.UpdatedDate = DateTime.UtcNow;
+            // BEGIN TRANSACTION - Ensure atomic update of EndDate and NextBillingDate
+            await _unitOfWork.BeginTransactionAsync();
+            
+            try
+            {
+                // Extend the subscription
+                entity.EndDate = entity.EndDate?.AddDays(additionalDays) ?? DateTime.UtcNow.AddDays(additionalDays);
+                entity.NextBillingDate = entity.NextBillingDate.AddDays(additionalDays);
+                entity.UpdatedBy = tokenModel.UserID;
+                entity.UpdatedDate = DateTime.UtcNow;
 
-            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                
+                await _unitOfWork.CommitTransactionAsync();
 
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = $"Subscription extended by {additionalDays} days", StatusCode = 200 };
+                return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = $"Subscription extended by {additionalDays} days", StatusCode = 200 };
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error extending subscription {SubscriptionId} in transaction", subscriptionId);
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -1169,8 +1327,10 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 await _notificationService.SendPaymentSuccessEmailAsync(((UserDto)userResult.data).Email, ((UserDto)userResult.data).FullName, billingRecord, tokenModel);
             }
             
-            // Update subscription with new billing date
-            entity.NextBillingDate = entity.NextBillingDate.AddMonths(1);
+            // FIXED: Use centralized calculator for consistency (handles all billing cycles correctly)
+            entity.NextBillingDate = BillingCycleCalculator.CalculateNextBillingDate(
+                entity.NextBillingDate, 
+                entity.BillingCycle);
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
             
@@ -1204,16 +1364,28 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         if (entity.SubscriptionPlanId == Guid.Parse(newPlanId))
             return new JsonModel { data = new object(), Message = "Already on this plan", StatusCode = 400 };
         
-        // Simulate proration calculation
-        var daysLeft = (entity.NextBillingDate - DateTime.UtcNow).TotalDays;
+        // REFACTORED: Use centralized BillingCycleCalculator for accurate proration (PHASE 3)
+        // This properly handles all billing cycles (monthly, quarterly, annual) and edge cases
         var oldPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(entity.SubscriptionPlanId);
         var newPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(Guid.Parse(newPlanId));
         if (oldPlan == null || newPlan == null)
             return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
         
-        // In proration, use Price and BillingCycleId
-        var credit = (decimal)(daysLeft / 30.0) * oldPlan.Price; // Assuming Price is the monthly price
+        // Calculate unused credit from old plan using centralized proration
+        var credit = BillingCycleCalculator.CalculateProratedAmount(
+            entity,
+            DateTime.UtcNow,
+            entity.CurrentPrice,
+            _logger
+        );
+        
+        // Calculate charge for new plan (difference between new plan price and unused credit)
         var charge = newPlan.Price - credit;
+        
+        _logger.LogInformation(
+            "Proration calculated for subscription {SubscriptionId}: OldPlanPrice={OldPrice}, " +
+            "UnusedCredit={Credit}, NewPlanPrice={NewPrice}, ChargeAmount={Charge}",
+            subscriptionId, entity.CurrentPrice, credit, newPlan.Price, charge);
         
         // NEW: Process prorated payment through Stripe with subscription upgrade
         if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
@@ -1225,10 +1397,10 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 _logger.LogInformation("Processing prorated upgrade for Stripe subscription {StripeSubscriptionId} for subscription {SubscriptionId}", 
                     entity.StripeSubscriptionId, subscriptionId);
                 
-                // Use Stripe service to update the subscription with new price
+                // NEW ARCHITECTURE: Use Stripe service to update the subscription with new price
                 var stripeUpdateResult = await _stripeService.UpdateSubscriptionAsync(
                     entity.StripeSubscriptionId,
-                    newPlan.StripeMonthlyPriceId, // Assuming monthly for simplicity
+                    GetStripePriceIdForPlan(newPlan),
                     tokenModel
                 );
                 
@@ -1244,54 +1416,49 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             }
         }
         
-        // Update local subscription
-        entity.SubscriptionPlanId = Guid.Parse(newPlanId);
-        entity.CurrentPrice = newPlan.Price;
-        entity.UpdatedBy = tokenModel.UserID;
-        entity.UpdatedDate = DateTime.UtcNow;
+        // BEGIN TRANSACTION - Ensure atomic prorated upgrade
+        await _unitOfWork.BeginTransactionAsync();
         
-        var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
-        
-        return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription prorated upgrade completed successfully", StatusCode = 200 };
-    }
-
-    /// <summary>
-    /// Changes the billing cycle of a subscription
-    /// </summary>
-    public async Task<JsonModel> ChangeBillingCycleAsync(string subscriptionId, string newBillingCycleId, TokenModel tokenModel)
-    {
         try
         {
-            // Validate token permissions
-            if (tokenModel.RoleID != (int)RoleId.Admin && !await HasAccessToSubscription(tokenModel.UserID, subscriptionId))
-            {
-                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
-            }
-
-            var entity = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
-            if (entity == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-
-            // Get the new billing cycle
-            var newBillingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(Guid.Parse(newBillingCycleId));
-            if (newBillingCycle == null)
-                return new JsonModel { data = new object(), Message = "Billing cycle not found", StatusCode = 404 };
-
-            // Update billing cycle
-            entity.BillingCycleId = Guid.Parse(newBillingCycleId);
-            entity.NextBillingDate = await CalculateNextBillingDateAsync(DateTime.UtcNow, Guid.Parse(newBillingCycleId));
+            // Update local subscription
+            entity.SubscriptionPlanId = Guid.Parse(newPlanId);
+            entity.CurrentPrice = newPlan.Price;
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
-
+            
             var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
-
-            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Billing cycle changed successfully", StatusCode = 200 };
+            
+            await _unitOfWork.CommitTransactionAsync();
+            
+            return new JsonModel { data = _mapper.Map<SubscriptionDto>(updated), Message = "Subscription prorated upgrade completed successfully", StatusCode = 200 };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error changing billing cycle for subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to change billing cycle", StatusCode = 500 };
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error processing prorated upgrade for {SubscriptionId} in transaction", subscriptionId);
+            throw;
         }
+    }
+
+    /// <summary>
+    /// Changes the billing cycle of a subscription.
+    /// NEW ARCHITECTURE: This operation is no longer supported.
+    /// Billing cycles are now fixed per plan. To change billing frequency, users must switch to a different plan.
+    /// </summary>
+    [Obsolete("DEPRECATED: Billing cycles are now fixed per plan. Use plan upgrade/downgrade instead.")]
+    public async Task<JsonModel> ChangeBillingCycleAsync(string subscriptionId, string newBillingCycleId, TokenModel tokenModel)
+    {
+        await Task.CompletedTask; // Suppress async warning
+        
+        _logger.LogWarning("ChangeBillingCycleAsync called for subscription {SubscriptionId} - operation no longer supported in new architecture", subscriptionId);
+        
+        return new JsonModel
+        {
+            data = new object(),
+            Message = "Billing cycle cannot be changed directly. Each plan has a fixed billing cycle. Please upgrade/downgrade to a plan with your desired billing cycle instead.",
+            StatusCode = 400
+        };
     }
 
     #endregion
@@ -1932,42 +2099,54 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     StatusCode = 400
                 };
 
-            // Update subscription status
-            subscription.Status = newStatus;
-            subscription.UpdatedBy = tokenModel?.UserID;
-            subscription.UpdatedDate = DateTime.UtcNow;
-
-            // Update status-specific properties
-            await UpdateStatusSpecificPropertiesAsync(subscription, newStatus, reason);
-
-            // Add status history
-            await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory
+            // BEGIN TRANSACTION - Ensure atomic state transition with status history
+            await _unitOfWork.BeginTransactionAsync();
+            
+            try
             {
-                SubscriptionId = subscription.Id,
-                FromStatus = oldStatus,
-                ToStatus = newStatus,
-                Reason = reason,
-                ChangedByUserId = !string.IsNullOrEmpty(changedByUserId) ? int.Parse(changedByUserId) : null,
-                ChangedAt = DateTime.UtcNow,
-                // Set audit properties for creation
-                IsActive = true,
-                CreatedBy = !string.IsNullOrEmpty(changedByUserId) ? int.Parse(changedByUserId) : null,
-                CreatedDate = DateTime.UtcNow
-            });
+                // Update subscription status
+                subscription.Status = newStatus;
+                subscription.UpdatedBy = tokenModel?.UserID;
+                subscription.UpdatedDate = DateTime.UtcNow;
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                // Update status-specific properties
+                await UpdateStatusSpecificPropertiesAsync(subscription, newStatus, reason);
 
-           
+                // Add status history
+                await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory
+                {
+                    SubscriptionId = subscription.Id,
+                    FromStatus = oldStatus,
+                    ToStatus = newStatus,
+                    Reason = reason,
+                    ChangedByUserId = !string.IsNullOrEmpty(changedByUserId) ? int.Parse(changedByUserId) : null,
+                    ChangedAt = DateTime.UtcNow,
+                    // Set audit properties for creation
+                    IsActive = true,
+                    CreatedBy = !string.IsNullOrEmpty(changedByUserId) ? int.Parse(changedByUserId) : null,
+                    CreatedDate = DateTime.UtcNow
+                });
 
-            _logger.LogInformation("Subscription {SubscriptionId} state changed from {OldStatus} to {NewStatus}", 
-                subscriptionId, oldStatus, newStatus);
+                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                
+                await _unitOfWork.CommitTransactionAsync();
 
-            return new JsonModel
+                _logger.LogInformation("Subscription {SubscriptionId} state changed from {OldStatus} to {NewStatus}", 
+                    subscriptionId, oldStatus, newStatus);
+
+                return new JsonModel
+                {
+                    data = true,
+                    Message = "State transition processed successfully",
+                    StatusCode = 200
+                };
+            }
+            catch (Exception ex)
             {
-                data = true,
-                Message = "State transition processed successfully",
-                StatusCode = 200
-            };
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error processing state transition for {SubscriptionId} in transaction", subscriptionId);
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -2365,30 +2544,43 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 };
             }
 
-            // Calculate new trial end date
-            var newTrialEndDate = subscription.TrialEndDate?.AddDays(additionalDays) ?? DateTime.UtcNow.AddDays(additionalDays);
+            // BEGIN TRANSACTION - Ensure atomic update of trial end date and status history
+            await _unitOfWork.BeginTransactionAsync();
             
-            // Update trial end date
-            subscription.TrialEndDate = newTrialEndDate;
-            subscription.UpdatedBy = null; // System action
-            subscription.UpdatedDate = DateTime.UtcNow;
-
-            // SRP Refactoring: Use centralized status history helper method
-            await RecordStatusChangeAsync(subscription.Id, subscription.Status, subscription.Status, $"Trial extended by {additionalDays} days. {reason}", null);
-
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
-
-            // Log audit trail
-           
-
-            _logger.LogInformation("Trial extended for subscription {SubscriptionId} by {AdditionalDays} days", subscriptionId, additionalDays);
-
-            return new JsonModel
+            try
             {
-                data = new { NewTrialEndDate = newTrialEndDate },
-                Message = $"Trial extended by {additionalDays} days. New end date: {newTrialEndDate:MMM dd, yyyy}",
-                StatusCode = 200
-            };
+                // Calculate new trial end date
+                var newTrialEndDate = subscription.TrialEndDate?.AddDays(additionalDays) ?? DateTime.UtcNow.AddDays(additionalDays);
+                
+                // Update trial end date
+                subscription.TrialEndDate = newTrialEndDate;
+                subscription.UpdatedBy = 0; // 0 for system actions
+                subscription.UpdatedDate = DateTime.UtcNow;
+
+                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+
+                // SRP Refactoring: Use centralized status history helper method
+                await RecordStatusChangeAsync(subscription.Id, subscription.Status, subscription.Status, 
+                    $"Trial extended by {additionalDays} days. {reason}", null);
+                
+                await _unitOfWork.CommitTransactionAsync();
+
+                _logger.LogInformation("Trial extended for subscription {SubscriptionId} by {AdditionalDays} days", 
+                    subscriptionId, additionalDays);
+
+                return new JsonModel
+                {
+                    data = new { NewTrialEndDate = newTrialEndDate },
+                    Message = $"Trial extended by {additionalDays} days. New end date: {newTrialEndDate:MMM dd, yyyy}",
+                    StatusCode = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Error extending trial for subscription {SubscriptionId} in transaction", subscriptionId);
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -2752,34 +2944,16 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     }
 
     /// <summary>
-    /// Gets the appropriate Stripe price ID based on billing cycle ID
+    /// Gets the Stripe price ID for the plan
+    /// NEW ARCHITECTURE: Each plan has ONE billing cycle, therefore ONE Stripe price
     /// </summary>
-    private async Task<string> GetStripePriceIdForBillingCycleAsync(SubscriptionPlan plan, Guid billingCycleId)
+    private string GetStripePriceIdForPlan(SubscriptionPlan plan)
     {
-        try
+        if (string.IsNullOrEmpty(plan.StripePriceId))
         {
-            // Get the billing cycle name from the database
-            var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(billingCycleId);
-            if (billingCycle == null)
-            {
-                _logger.LogWarning("Billing cycle {BillingCycleId} not found, using default monthly price", billingCycleId);
-                return plan.StripeMonthlyPriceId;
-            }
-
-            var billingCycleName = billingCycle.Name.ToLower();
-            return billingCycleName switch
-            {
-                "monthly" => plan.StripeMonthlyPriceId,
-                "quarterly" => plan.StripeQuarterlyPriceId,
-                "annual" => plan.StripeAnnualPriceId,
-                _ => plan.StripeMonthlyPriceId // Default fallback
-            };
+            throw new Exception($"No Stripe price ID configured for plan {plan.Name}");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting billing cycle {BillingCycleId}, using default monthly price", billingCycleId);
-            return plan.StripeMonthlyPriceId;
-        }
+        return plan.StripePriceId;
     }
 
     /// <summary>
@@ -2857,6 +3031,84 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogError(ex, "Error creating initial billing record for subscription {SubscriptionId}", subscription.Id);
             // Don't throw - this is not critical for subscription creation
+        }
+    }
+
+    /// <summary>
+    /// Allocates initial privileges for a new subscription.
+    /// NEW ARCHITECTURE: Creates UserSubscriptionPrivilegeUsage records based on plan's explicit privilege values.
+    /// Each plan (Monthly, Quarterly, Annual) has its own explicit privilege limits.
+    /// </summary>
+    /// <param name="subscription">The newly created subscription</param>
+    /// <param name="plan">The subscription plan with privileges</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>Task representing the asynchronous operation</returns>
+    private async Task AllocateInitialPrivilegesAsync(Subscription subscription, SubscriptionPlan plan, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Allocating initial privileges for subscription {SubscriptionId} from plan {PlanName}", 
+                subscription.Id, plan.Name);
+            
+            if (plan.PlanPrivileges == null || !plan.PlanPrivileges.Any())
+            {
+                _logger.LogWarning("No privileges found for plan {PlanId}. Skipping privilege allocation.", plan.Id);
+                return;
+            }
+            
+            int allocatedCount = 0;
+            
+            // For each plan privilege, create initial usage record
+            foreach (var planPrivilege in plan.PlanPrivileges)
+            {
+                try
+                {
+                    // Use PrivilegeAllocationCalculator for consistent allocation logic
+                    var (allowedValue, periodStart, periodEnd) = 
+                        PrivilegeAllocationCalculator.CalculatePrivilegeAllocation(subscription, planPrivilege);
+                    
+                    var usage = new UserSubscriptionPrivilegeUsage
+                    {
+                        Id = Guid.NewGuid(),
+                        SubscriptionId = subscription.Id,
+                        SubscriptionPlanPrivilegeId = planPrivilege.Id,
+                        PrivilegeId = planPrivilege.PrivilegeId,
+                        UsedValue = 0,
+                        AllowedValue = allowedValue,  // Explicit from plan (e.g., 10/month, 150/year)
+                        UsagePeriodStart = periodStart,
+                        UsagePeriodEnd = periodEnd,
+                        LastUsedAt = null,
+                        ResetAt = null,
+                        CreatedBy = tokenModel.UserID,
+                        CreatedDate = DateTime.UtcNow,
+                        IsActive = true,
+                        IsDeleted = false
+                    };
+                    
+                    await _usageRepo.CreateUsageAsync(usage);
+                    allocatedCount++;
+                    
+                    _logger.LogDebug("Allocated privilege {PrivilegeName}: AllowedValue={AllowedValue}, Period={Start} to {End}", 
+                        planPrivilege.Privilege?.Name ?? "Unknown",
+                        allowedValue,
+                        periodStart,
+                        periodEnd);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error allocating privilege {PrivilegeId} for subscription {SubscriptionId}", 
+                        planPrivilege.PrivilegeId, subscription.Id);
+                    // Continue with other privileges
+                }
+            }
+            
+            _logger.LogInformation("Successfully allocated {Count} privileges for subscription {SubscriptionId}", 
+                allocatedCount, subscription.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error allocating initial privileges for subscription {SubscriptionId}", subscription.Id);
+            // Don't throw - this can be handled later via admin tool or webhook
         }
     }
 

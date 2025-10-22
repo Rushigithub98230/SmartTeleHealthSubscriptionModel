@@ -281,8 +281,14 @@ public class PrivilegeUsageHistoryRepository : RepositoryBase<PrivilegeUsageHist
     /// <summary>
     /// Applies dynamic sorting to the query
     /// </summary>
-    private static IQueryable<PrivilegeUsageHistory> ApplySorting(IQueryable<PrivilegeUsageHistory> query, string sortBy, string sortOrder)
+    private static IQueryable<PrivilegeUsageHistory> ApplySorting(IQueryable<PrivilegeUsageHistory> query, string? sortBy, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortBy) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(h => h.UsedAt);
+        }
+
         return sortBy.ToLower() switch
         {
             "usedat" => sortOrder.ToLower() == "desc" 

@@ -139,5 +139,14 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
     /// <returns>Number of active subscriptions</returns>
     Task<int> GetActiveSubscriptionsCountAsync(Guid planId);
     
+    /// <summary>
+    /// Gets all active subscription plans for a specific category, ordered by billing cycle.
+    /// NEW ARCHITECTURE: Returns Monthly, Quarterly, and Annual plans for comparison.
+    /// Used for displaying plan options to users with clear value comparisons.
+    /// </summary>
+    /// <param name="categoryId">The category ID to filter plans</param>
+    /// <returns>Collection of plans for the category, ordered by billing cycle duration</returns>
+    Task<IEnumerable<SubscriptionPlan>> GetPlansByCategoryAsync(Guid categoryId);
+    
     #endregion
 } 

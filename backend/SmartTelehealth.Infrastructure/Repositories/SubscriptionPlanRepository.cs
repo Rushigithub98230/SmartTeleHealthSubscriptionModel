@@ -383,8 +383,14 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
     /// <summary>
     /// Applies dynamic sorting to the query
     /// </summary>
-    private static IQueryable<SubscriptionPlan> ApplySorting(IQueryable<SubscriptionPlan> query, string sortColumn, string sortOrder)
+    private static IQueryable<SubscriptionPlan> ApplySorting(IQueryable<SubscriptionPlan> query, string? sortColumn, string? sortOrder)
     {
+        // Default sorting if parameters are null or empty
+        if (string.IsNullOrEmpty(sortColumn) || string.IsNullOrEmpty(sortOrder))
+        {
+            return query.OrderByDescending(sp => sp.CreatedDate);
+        }
+
         return sortColumn.ToLower() switch
         {
             "name" => sortOrder.ToLower() == "desc" 
@@ -613,6 +619,29 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
         return await _context.Subscriptions
             .CountAsync(s => s.SubscriptionPlanId == planId && 
                             s.Status == Subscription.SubscriptionStatuses.Active);
+    }
+    
+    /// <summary>
+    /// Gets all active subscription plans for a specific category, ordered by billing cycle.
+    /// NEW ARCHITECTURE: Returns Monthly, Quarterly, and Annual plans for comparison.
+    /// Used for displaying plan options to users with clear value comparisons.
+    /// </summary>
+    /// <param name="categoryId">The category ID to filter plans</param>
+    /// <returns>Collection of plans for the category, ordered by billing cycle duration</returns>
+    public async Task<IEnumerable<SubscriptionPlan>> GetPlansByCategoryAsync(Guid categoryId)
+    {
+        return await _context.SubscriptionPlans
+            .Include(p => p.BillingCycle)
+            .Include(p => p.Category)
+            .Include(p => p.Currency)
+            .Include(p => p.PlanPrivileges)
+                .ThenInclude(pp => pp.Privilege)
+            .Where(p => p.CategoryId == categoryId && 
+                       p.IsActive && 
+                       !p.IsDeleted && 
+                       p.IsLatestVersion)
+            .OrderBy(p => p.BillingCycle.DurationInDays)
+            .ToListAsync();
     }
     
     #endregion

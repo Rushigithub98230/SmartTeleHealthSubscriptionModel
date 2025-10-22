@@ -502,6 +502,25 @@ public class BillingController : BaseController
     }
 
     /// <summary>
+    /// Get aggregate billing summary for admin dashboard (Phase 2)
+    /// Returns overall billing statistics without user filtering
+    /// </summary>
+    [HttpGet("admin/summary")]
+    public async Task<JsonModel> GetAdminBillingSummary()
+    {
+        return await _billingService.GetAdminBillingSummaryAsync(GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Manually mark a billing record as paid (Admin override) (Phase 2)
+    /// </summary>
+    [HttpPost("{id}/mark-paid")]
+    public async Task<JsonModel> MarkBillingAsPaid(Guid id, [FromBody] MarkAsPaidRequestDto request)
+    {
+        return await _billingService.MarkBillingAsPaidAsync(id, request, GetToken(HttpContext));
+    }
+
+    /// <summary>
     /// Get revenue summary for admin reporting (accrual and cash)
     /// </summary>
     [HttpGet("revenue-summary")]

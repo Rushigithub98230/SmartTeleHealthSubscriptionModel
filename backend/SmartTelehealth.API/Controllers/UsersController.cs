@@ -161,6 +161,73 @@ namespace SmartTelehealth.API.Controllers
         }
 
         /// <summary>
+        /// Get comprehensive user analytics for admin portal
+        /// Returns aggregated data including subscriptions, billing, payments, and privilege usage
+        /// </summary>
+        [HttpGet("{userId}/analytics")]
+        //[Authorize]
+        public async Task<JsonModel> GetUserAnalytics(
+            int userId, 
+            [FromQuery] DateTime? startDate = null, 
+            [FromQuery] DateTime? endDate = null)
+        {
+            return await _userService.GetUserAnalyticsAsync(userId, startDate, endDate, GetToken(HttpContext));
+        }
+
+        /// <summary>
+        /// Export user analytics to Excel or CSV
+        /// </summary>
+        [HttpGet("{userId}/export-analytics")]
+        //[Authorize]
+        public async Task<IActionResult> ExportUserAnalytics(
+            int userId,
+            [FromQuery] string format = "excel",
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
+        {
+            try
+            {
+                var fileBytes = await _userService.ExportUserAnalyticsAsync(userId, format, startDate, endDate, GetToken(HttpContext));
+                
+                string contentType;
+                string fileName;
+                
+                switch (format.ToLower())
+                {
+                    case "excel":
+                    case "xlsx":
+                        contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                        fileName = $"user-{userId}-analytics-{DateTime.UtcNow:yyyyMMdd}.xlsx";
+                        break;
+                    
+                    case "csv":
+                        contentType = "text/csv";
+                        fileName = $"user-{userId}-analytics-{DateTime.UtcNow:yyyyMMdd}.csv";
+                        break;
+                    
+                    default:
+                        return BadRequest(new JsonModel 
+                        { 
+                            data = new object(), 
+                            Message = "Invalid format. Use 'excel' or 'csv'", 
+                            StatusCode = 400 
+                        });
+                }
+                
+                return File(fileBytes, contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Export failed: {ex.Message}", 
+                    StatusCode = 500 
+                });
+            }
+        }
+
+        /// <summary>
         /// Create new user
         /// </summary>
         [HttpPost]

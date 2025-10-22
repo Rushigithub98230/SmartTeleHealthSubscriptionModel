@@ -29,4 +29,19 @@ public interface ISubscriptionAnalyticsService
     /// Export analytics data in specified format (CSV/JSON)
     /// </summary>
     Task<JsonModel> ExportAnalyticsAsync(string format, DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
+
+    /// <summary>
+    /// Get dashboard data with KPIs, action items, and recent activity
+    /// </summary>
+    Task<JsonModel> GetDashboardDataAsync(string dashboardType, DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
+
+    /// <summary>
+    /// Get growth analytics with time-series data
+    /// </summary>
+    Task<JsonModel> GetGrowthAnalyticsAsync(DateTime? startDate, DateTime? endDate, string period, TokenModel tokenModel);
+
+    /// <summary>
+    /// Get real-time metrics for live dashboard updates
+    /// </summary>
+    Task<JsonModel> GetRealTimeMetricsAsync(TokenModel tokenModel);
 }

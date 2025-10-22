@@ -150,6 +150,29 @@ public class SubscriptionPlansController : BaseController
     }
 
     /// <summary>
+    /// Retrieves subscription plans for a category with value comparison details.
+    /// NEW ARCHITECTURE: Returns Monthly, Quarterly, and Annual plans for side-by-side comparison.
+    /// This endpoint helps users understand the value differences between billing cycles.
+    /// </summary>
+    /// <param name="categoryId">The unique identifier of the category</param>
+    /// <returns>JsonModel containing plans ordered by billing cycle with comparison metrics</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns all plans (Monthly, Quarterly, Annual) for a category
+    /// - Orders plans by billing cycle duration for easy comparison
+    /// - Includes privilege details to show value differences
+    /// - Calculates effective monthly price for comparison
+    /// - No authentication required - accessible to all users
+    /// - Used for plan selection with clear value propositions
+    /// </remarks>
+    [HttpGet("category/{categoryId}/compare")]
+    [AllowAnonymous]
+    public async Task<JsonModel> GetPlansForComparison(string categoryId)
+    {
+        return await _subscriptionPlanService.GetPlansForComparisonAsync(Guid.Parse(categoryId), GetToken(HttpContext));
+    }
+
+    /// <summary>
     /// Retrieves detailed information about a specific subscription plan.
     /// This endpoint returns comprehensive details about a particular subscription plan,
     /// including features, pricing, privileges, and availability information.
@@ -1165,6 +1188,120 @@ public class SubscriptionPlansController : BaseController
             Message = "Scheduled migrations retrieved successfully",
             StatusCode = 200
         };
+    }
+
+    #endregion
+
+    #region Phase 6: Plan Version History
+
+    /// <summary>
+    /// Get version history for a subscription plan
+    /// Phase 6: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="planId">Plan ID to get versions for</param>
+    /// <returns>JsonModel containing all versions with grandfathered subscriber counts</returns>
+    [HttpGet("{planId}/versions")]
+    public async Task<JsonModel> GetPlanVersions(Guid planId)
+    {
+        return await _planVersioningService.GetPlanVersionHistoryAsync(planId, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Create a new version of a subscription plan
+    /// Phase 6: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="planId">Plan ID to create version for</param>
+    /// <param name="request">Version creation request</param>
+    /// <returns>JsonModel containing new version details</returns>
+    [HttpPost("{planId}/create-version")]
+    public async Task<JsonModel> CreatePlanVersion(Guid planId, [FromBody] CreatePlanVersionRequestDto request)
+    {
+        return await _planVersioningService.CreateNewPlanVersionAsync(planId, request.Changes, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get users still on old versions (grandfathered users)
+    /// Phase 6: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="planId">Plan ID to check</param>
+    /// <returns>JsonModel containing grandfathered users by version</returns>
+    [HttpGet("{planId}/grandfathered-users")]
+    public async Task<JsonModel> GetGrandfatheredUsers(Guid planId)
+    {
+        return await _planVersioningService.GetGrandfatheredUsersAsync(planId, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Trigger migration for grandfathered users
+    /// Phase 6: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="planId">Plan ID to migrate users for</param>
+    /// <param name="request">Migration request with options</param>
+    /// <returns>JsonModel containing migration result</returns>
+    [HttpPost("{planId}/migrate-users")]
+    public async Task<JsonModel> MigrateUsers(Guid planId, [FromBody] MigrateUsersRequestDto request)
+    {
+        return await _planVersioningService.MigrateUsersToNewVersionAsync(planId, request, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Get all scheduled migrations
+    /// Phase 6: Admin Portal Enhancement
+    /// </summary>
+    /// <returns>JsonModel containing scheduled migrations</returns>
+    [HttpGet("migrations/scheduled")]
+    public async Task<JsonModel> GetScheduledMigrations()
+    {
+        var migrations = await _scheduledMigrationRepository.GetPendingMigrationsAsync();
+        
+        var result = migrations.Select(m => new
+        {
+            id = m.Id,
+            subscriptionId = m.SubscriptionId,
+            fromPlanId = m.FromPlanId,
+            fromPlanName = m.FromPlan?.Name ?? "Unknown",
+            toPlanId = m.ToPlanId,
+            toPlanName = m.ToPlan?.Name ?? "Unknown",
+            scheduledMigrationDate = m.ScheduledMigrationDate,
+            notificationDate = m.NotificationDate,
+            status = m.Status,
+            userDecision = m.UserDecision,
+            userDecisionDate = m.UserDecisionDate,
+            completedDate = m.CompletedDate,
+            createdBy = m.CreatedBy,
+            createdDate = m.CreatedDate
+        }).ToList();
+
+        return new JsonModel
+        {
+            data = result,
+            Message = "Scheduled migrations retrieved successfully",
+            StatusCode = 200
+        };
+    }
+
+    /// <summary>
+    /// Manually execute a scheduled migration
+    /// Phase 6: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="id">Migration ID to execute</param>
+    /// <returns>JsonModel containing execution result</returns>
+    [HttpPost("migrations/{id}/execute")]
+    public async Task<JsonModel> ExecuteMigration(Guid id)
+    {
+        return await _planVersioningService.ExecuteScheduledMigrationAsync(id, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Cancel a scheduled migration
+    /// Phase 6: Admin Portal Enhancement
+    /// </summary>
+    /// <param name="id">Migration ID to cancel</param>
+    /// <returns>JsonModel containing cancellation result</returns>
+    [HttpDelete("migrations/{id}")]
+    public async Task<JsonModel> CancelMigration(Guid id)
+    {
+        return await _planVersioningService.CancelScheduledMigrationAsync(id, GetToken(HttpContext));
     }
 
     #endregion

@@ -1,4 +1,5 @@
 using SmartTelehealth.Core.DTOs;
+using SmartTelehealth.Application.DTOs;
 
 namespace SmartTelehealth.Application.Interfaces;
 
@@ -46,6 +47,32 @@ public interface IStripeSynchronizationService
     /// Repair Stripe synchronization for a subscription
     /// </summary>
     Task<bool> RepairSubscriptionSynchronizationAsync(Guid subscriptionId, TokenModel tokenModel);
+    
+    // ===== PHASE 5: STRIPE SYNC DASHBOARD ENHANCEMENTS =====
+    
+    /// <summary>
+    /// Get all sync discrepancies across plans, subscriptions, and customers
+    /// Phase 5: Comprehensive discrepancy detection
+    /// </summary>
+    Task<JsonModel> GetAllDiscrepanciesAsync(TokenModel tokenModel);
+    
+    /// <summary>
+    /// Bulk synchronize multiple entities
+    /// Phase 5: Batch sync operations
+    /// </summary>
+    Task<JsonModel> BulkSyncAsync(BulkSyncRequestDto request, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Get synchronization history log
+    /// Phase 5: Audit trail for sync operations
+    /// </summary>
+    Task<JsonModel> GetSyncHistoryAsync(int page, int pageSize, TokenModel tokenModel);
+    
+    /// <summary>
+    /// Get webhook health status
+    /// Phase 5: Monitor webhook processing
+    /// </summary>
+    Task<JsonModel> GetWebhookStatusAsync(TokenModel tokenModel);
 }
 
 /// <summary>

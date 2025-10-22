@@ -117,9 +117,9 @@
                 <thead>
                   <tr>
                     <th>Privilege</th>
-                    <th>Monthly Limit</th>
-                    <th>Base Cost</th>
-                    <th>Overage Price</th>
+                    <th>Total Count</th>
+                    <th>Unit Cost ($)</th>
+                    <th>Overage Price ($)</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -127,13 +127,13 @@
                   <tr *ngFor="let priv of selectedPrivileges; let i = index">
                     <td>{{priv.privilegeName}}</td>
                     <td>
-                      <input type="number" class="form-control form-control-sm" [(ngModel)]="priv.monthlyLimit">
+                      <input type="number" class="form-control form-control-sm" [(ngModel)]="priv.value" placeholder="Total count">
                     </td>
                     <td>
-                      <input type="number" class="form-control form-control-sm" [(ngModel)]="priv.privilegeBaseCost" step="0.01">
+                      <input type="number" class="form-control form-control-sm" [(ngModel)]="priv.privilegeBaseCost" step="0.01" placeholder="Unit cost">
                     </td>
                     <td>
-                      <input type="number" class="form-control form-control-sm" [(ngModel)]="priv.unitCost" step="0.01">
+                      <input type="number" class="form-control form-control-sm" [(ngModel)]="priv.unitCost" step="0.01" placeholder="Overage price">
                     </td>
                     <td>
                       <button class="btn btn-sm btn-danger" (click)="removePrivilege(i)">

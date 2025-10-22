@@ -134,17 +134,55 @@
                   </div>
                 </div>
 
-                <!-- Exhausted Warning -->
-                <div *ngIf="priv.isExhausted" class="alert alert-danger mb-0">
+                <!-- 100% Exhausted Warning -->
+                <div *ngIf="priv.isExhausted" class="alert alert-danger mb-3">
                   <i class="bi bi-exclamation-circle me-2"></i>
                   <strong>Limit Reached!</strong> You've used all available credits for this privilege.
-                  <a href="#" class="alert-link ms-2">Purchase More</a>
+                  <div class="mt-2">
+                    <button class="btn btn-danger btn-sm" (click)="openPurchaseModal(priv)">
+                      <i class="bi bi-cart-plus me-1"></i>Buy More Credits
+                    </button>
+                  </div>
                 </div>
 
-                <!-- Low Balance Warning -->
-                <div *ngIf="!priv.isExhausted && priv.remainingValue > 0 && priv.remainingValue <= 5" class="alert alert-warning mb-0">
+                <!-- 90%+ Warning (Near Exhaustion) -->
+                <div *ngIf="!priv.isExhausted && getUsagePercentage(priv.usedValue, priv.allowedValue) >= 90" 
+                     class="alert alert-danger mb-3">
                   <i class="bi bi-exclamation-triangle me-2"></i>
-                  <strong>Low Balance:</strong> Only {{priv.remainingValue}} remaining. Consider purchasing more.
+                  <strong>Critical:</strong> You've used {{getUsagePercentage(priv.usedValue, priv.allowedValue)}}% of your credits. 
+                  Only {{priv.remainingValue}} remaining.
+                  <div class="mt-2">
+                    <button class="btn btn-danger btn-sm" (click)="openPurchaseModal(priv)">
+                      <i class="bi bi-cart-plus me-1"></i>Purchase More
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 80-89% Warning -->
+                <div *ngIf="!priv.isExhausted && getUsagePercentage(priv.usedValue, priv.allowedValue) >= 80 && getUsagePercentage(priv.usedValue, priv.allowedValue) < 90" 
+                     class="alert alert-warning mb-3">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  <strong>Warning:</strong> You've used {{getUsagePercentage(priv.usedValue, priv.allowedValue)}}% of your credits. 
+                  {{priv.remainingValue}} remaining.
+                  <div class="mt-2">
+                    <button class="btn btn-warning btn-sm" (click)="openPurchaseModal(priv)">
+                      <i class="bi bi-cart-plus me-1"></i>Buy More
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Low Balance Info (< 80%) -->
+                <div *ngIf="!priv.isExhausted && priv.remainingValue > 0 && priv.remainingValue <= 5 && getUsagePercentage(priv.usedValue, priv.allowedValue) < 80" 
+                     class="alert alert-info mb-3">
+                  <i class="bi bi-info-circle me-2"></i>
+                  <strong>Notice:</strong> {{priv.remainingValue}} credit{{priv.remainingValue > 1 ? 's' : ''}} remaining.
+                </div>
+
+                <!-- Buy More Button (Always show for limited privileges) -->
+                <div *ngIf="!priv.isUnlimited" class="mt-3">
+                  <button class="btn btn-outline-primary btn-sm w-100" (click)="openPurchaseModal(priv)">
+                    <i class="bi bi-cart-plus me-1"></i>Buy Additional Credits
+                  </button>
                 </div>
 
                 <!-- Last Used -->
@@ -183,5 +221,17 @@
     </div>
   </div>
 </div>
+
+<!-- Privilege Purchase Modal -->
+<app-privilege-purchase-modal
+  *ngIf="selectedPrivilege"
+  [subscriptionId]="activeSubscription!.id"
+  [privilegeName]="selectedPrivilege.privilegeName"
+  [unitCost]="selectedPrivilege.overageCost || 20.00"
+  [currentUsed]="selectedPrivilege.usedValue"
+  [currentAllowed]="selectedPrivilege.allowedValue"
+  [(isOpen)]="showPurchaseModal"
+  (purchaseSuccess)="onPurchaseSuccess($event)">
+</app-privilege-purchase-modal>
 
 

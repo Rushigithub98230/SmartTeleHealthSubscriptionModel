@@ -1,6 +1,83 @@
 // Billing Detail / Invoice Styles
 
 .invoice-card {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.invoice-header {
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.invoice-section {
+  margin-bottom: 2rem;
+}
+
+.invoice-footer {
+  margin-top: 3rem;
+}
+
+// Refund Timeline Styles
+.timeline-container {
+  position: relative;
+  padding-left: 30px;
+}
+
+.timeline-item {
+  position: relative;
+  
+  &:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 25px;
+    width: 2px;
+    height: calc(100% + 10px);
+    background: linear-gradient(180deg, #0d6efd 0%, #198754 100%);
+  }
+}
+
+.timeline-marker {
+  position: absolute;
+  left: -30px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  i {
+    font-size: 14px;
+    color: white;
+  }
+  
+  &.bg-primary {
+    background-color: #0d6efd !important;
+  }
+  
+  &.bg-success {
+    background-color: #198754 !important;
+  }
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+// Print styles
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .invoice-card {
+    box-shadow: none;
+    border: 1px solid #dee2e6;
+  }
+}
+
+.invoice-card {
   border: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }

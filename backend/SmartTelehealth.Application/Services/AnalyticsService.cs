@@ -776,7 +776,7 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
-            var analytics = new UserAnalyticsDto
+            var analytics = new AggregateUserAnalyticsDto
             {
                 TotalUsers = await GetTotalUsersAsync(tokenModel),
                 ActiveUsers = await GetActiveUsersAsync(tokenModel),
@@ -1115,7 +1115,7 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
-            var analytics = new UserAnalyticsDto
+            var analytics = new AggregateUserAnalyticsDto
             {
                 TotalUsers = await GetTotalUsersAsync(tokenModel),
                 ActiveUsers = await GetActiveUsersAsync(tokenModel),
