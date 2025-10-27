@@ -100,27 +100,38 @@ public class SubscriptionPlan : BaseEntity
     public PlanType PlanType { get; set; } = PlanType.Standard;
     
     /// <summary>
-    /// Base price of the subscription plan in the specified currency.
+    /// Base price of the subscription plan (PrivilegesTotalCost + AdminCommission).
+    /// This is the calculated base price before any discounts are applied.
     /// Used for billing calculations and payment processing.
-    /// This is the standard price before any discounts or promotions.
     /// </summary>
     [Column(TypeName = "decimal(18,2)")]
-    public decimal Price { get; set; }
+    public decimal BasePrice { get; set; }
     
     /// <summary>
-    /// Discounted price of the subscription plan if applicable.
+    /// Promotional or admin-defined discount percentage (0-100).
+    /// Applied after base price calculation.
     /// Used for promotional pricing and special offers.
-    /// When set, this price is used instead of the base price.
     /// </summary>
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal? DiscountedPrice { get; set; }
+    [Column(TypeName = "decimal(5,2)")]
+    [Range(0, 100, ErrorMessage = "Discount percentage must be between 0 and 100%")]
+    public decimal? DiscountPercentage { get; set; }
     
     /// <summary>
-    /// Date until which the discounted price is valid.
+    /// Date until which the discount is valid.
     /// Used for time-limited promotional pricing.
-    /// After this date, the base price is used for billing.
+    /// After this date, the discount is no longer applied.
     /// </summary>
     public DateTime? DiscountValidUntil { get; set; }
+    
+    /// <summary>
+    /// Billing cycle discount percentage (0-100).
+    /// Applied after promotional discount.
+    /// Used for applying discounts based on billing frequency.
+    /// Example: 10% discount on annual billing cycle.
+    /// </summary>
+    [Column(TypeName = "decimal(5,2)")]
+    [Range(0, 100, ErrorMessage = "Billing discount percentage must be between 0 and 100%")]
+    public decimal? BillingDiscountPercentage { get; set; }
     
     // ═══════════════════════════════════════════════════════════
     // PLAN VERSIONING (Issue #1 Fix)
@@ -179,11 +190,6 @@ public class SubscriptionPlan : BaseEntity
     [Column(TypeName = "decimal(5,2)")]
     public decimal? AdminCommissionPercent { get; set; }
 
-    /// <summary>
-    /// Fixed admin commission amount (alternative to percentage).
-    /// </summary>
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal? AdminCommissionFixed { get; set; }
 
     // ═══════════════════════════════════════════════════════════
     // MIGRATION & NOTIFICATION SETTINGS (Choice 4d)
@@ -356,20 +362,45 @@ public class SubscriptionPlan : BaseEntity
     // Computed Properties
     /// <summary>
     /// Computed property that returns the effective price of the subscription plan.
-    /// Returns the discounted price if available and valid, otherwise returns the base price.
-    /// Used for billing calculations and price display.
+    /// Applies sequential discount calculations: BasePrice → DiscountPercentage → BillingDiscountPercentage
+    /// NOTE: This property cannot access system settings, so it returns 0 commission when AdminCommissionPercent is null.
+    /// Use PlanPricingService.CalculatePlanPriceAsync() for proper system default fallback.
     /// </summary>
     [NotMapped]
-    public decimal EffectivePrice => DiscountedPrice ?? Price;
+    public decimal EffectivePrice
+    {
+        get
+        {
+            // Step 1: Start with base price
+            decimal price = BasePrice;
+            
+            // Step 2: Apply promotional discount if valid
+            if (DiscountPercentage.HasValue && DiscountPercentage.Value > 0 &&
+                (!DiscountValidUntil.HasValue || DiscountValidUntil.Value >= DateTime.UtcNow))
+            {
+                price = price * (1 - (DiscountPercentage.Value / 100));
+            }
+            
+            // Step 3: Apply billing discount
+            if (BillingDiscountPercentage.HasValue && BillingDiscountPercentage.Value > 0)
+            {
+                price = price * (1 - (BillingDiscountPercentage.Value / 100));
+            }
+            
+            return Math.Max(price, 0); // Ensure price doesn't go negative
+        }
+    }
     
     /// <summary>
     /// Computed property that indicates whether the subscription plan has an active discount.
-    /// Returns true if discounted price is set and discount is still valid.
+    /// Returns true if any discount percentage is set and valid.
     /// Used for discount management and promotional pricing.
     /// </summary>
     [NotMapped]
-    public bool HasActiveDiscount => DiscountedPrice.HasValue && 
-        (!DiscountValidUntil.HasValue || DiscountValidUntil.Value >= DateTime.UtcNow);
+    public bool HasActiveDiscount => 
+        (DiscountPercentage.HasValue && DiscountPercentage.Value > 0 && 
+         (!DiscountValidUntil.HasValue || DiscountValidUntil.Value >= DateTime.UtcNow)) ||
+        (BillingDiscountPercentage.HasValue && BillingDiscountPercentage.Value > 0);
     
     /// <summary>
     /// Computed property that indicates whether the subscription plan is currently available.
@@ -382,20 +413,22 @@ public class SubscriptionPlan : BaseEntity
         (!ExpirationDate.HasValue || ExpirationDate.Value >= DateTime.UtcNow);
     
     /// <summary>
-    /// Calculated final price: PrivilegesTotalCost + Commission.
+    /// Calculated base price: PrivilegesTotalCost + Commission.
     /// Used when IsAutoCalculatedPrice = true.
+    /// NOTE: This property cannot access system settings, so it returns 0 commission when AdminCommissionPercent is null.
+    /// Use PlanPricingService.CalculatePlanPriceAsync() for proper system default fallback.
     /// </summary>
     [NotMapped]
-    public decimal CalculatedPrice
+    public decimal CalculatedBasePrice
     {
         get
         {
             if (!IsAutoCalculatedPrice)
-                return Price; // Use manually set price
+                return BasePrice; // Use manually set base price
             
             var commission = AdminCommissionPercent.HasValue
                 ? PrivilegesTotalCost * (AdminCommissionPercent.Value / 100)
-                : AdminCommissionFixed ?? 0;
+                : 0; // Cannot access system default here - use service method instead
             
             return PrivilegesTotalCost + commission;
         }

@@ -17,9 +17,7 @@ public interface ISubscriptionPlanRepository : IRepositoryBase<SubscriptionPlan>
     // Custom methods with different names to avoid overriding base methods
     Task<SubscriptionPlan?> GetByIdWithDetailsAsync(Guid id);
     Task<IEnumerable<SubscriptionPlan>> GetAllWithDetailsAsync();
-    Task<SubscriptionPlan> CreatePlanAsync(SubscriptionPlan plan);
-    Task<SubscriptionPlan> UpdatePlanAsync(SubscriptionPlan plan);
-    Task<bool> DeletePlanAsync(Guid id);
+    // Note: CreateAsync, UpdateAsync, DeleteAsync are inherited from IRepositoryBase<SubscriptionPlan>
     Task<bool> ExistsPlanAsync(Guid id);
     
     #endregion

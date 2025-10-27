@@ -24,6 +24,7 @@ public class SubscriptionPlansController : BaseController
     private readonly IPlanVersioningService _planVersioningService;
     private readonly IPlanPricingService _planPricingService;
     private readonly IScheduledPlanMigrationRepository _scheduledMigrationRepository;
+    private readonly ILogger<SubscriptionPlansController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionPlansController with the required services.
@@ -33,18 +34,21 @@ public class SubscriptionPlansController : BaseController
     /// <param name="planVersioningService">Service for healthcare plan versioning</param>
     /// <param name="planPricingService">Service for healthcare pricing calculations</param>
     /// <param name="scheduledMigrationRepository">Repository for scheduled plan migrations</param>
+    /// <param name="logger">Logger for this controller</param>
     public SubscriptionPlansController(
         ISubscriptionPlanService subscriptionPlanService, 
         IPrivilegeService privilegeService,
         IPlanVersioningService planVersioningService,
         IPlanPricingService planPricingService,
-        IScheduledPlanMigrationRepository scheduledMigrationRepository)
+        IScheduledPlanMigrationRepository scheduledMigrationRepository,
+        ILogger<SubscriptionPlansController> logger)
     {
         _subscriptionPlanService = subscriptionPlanService;
         _privilegeService = privilegeService;
         _planVersioningService = planVersioningService;
         _planPricingService = planPricingService;
         _scheduledMigrationRepository = scheduledMigrationRepository;
+        _logger = logger;
     }
 
 
@@ -377,6 +381,28 @@ public class SubscriptionPlansController : BaseController
     public async Task<JsonModel> GetSubscriptionPlan(string planId)
     {
         return await _subscriptionPlanService.GetPlanByIdAsync(planId, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Gets the effective price for a subscription plan with all discounts applied.
+    /// This endpoint calculates the final price after applying promotional and billing discounts.
+    /// </summary>
+    /// <param name="planId">The unique identifier (GUID) of the subscription plan</param>
+    /// <returns>JsonModel containing effective pricing information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Calculates effective price using centralized BillingCalculationService
+    /// - Applies promotional discounts if valid
+    /// - Applies billing cycle discounts
+    /// - Returns comprehensive pricing breakdown
+    /// - No authentication required - accessible to all users
+    /// - Used for consistent pricing display across frontend
+    /// </remarks>
+    [HttpGet("{planId}/effective-price")]
+    [AllowAnonymous]
+    public async Task<JsonModel> GetEffectivePrice(string planId)
+    {
+        return await _subscriptionPlanService.GetEffectivePriceAsync(planId, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -1195,13 +1221,13 @@ public class SubscriptionPlansController : BaseController
     #region Phase 6: Plan Version History
 
     /// <summary>
-    /// Get version history for a subscription plan
+    /// Get version history for a subscription plan with authentication
     /// Phase 6: Admin Portal Enhancement
     /// </summary>
     /// <param name="planId">Plan ID to get versions for</param>
     /// <returns>JsonModel containing all versions with grandfathered subscriber counts</returns>
-    [HttpGet("{planId}/versions")]
-    public async Task<JsonModel> GetPlanVersions(Guid planId)
+    [HttpGet("{planId}/versions/authenticated")]
+    public async Task<JsonModel> GetPlanVersionsAuthenticated(Guid planId)
     {
         return await _planVersioningService.GetPlanVersionHistoryAsync(planId, GetToken(HttpContext));
     }

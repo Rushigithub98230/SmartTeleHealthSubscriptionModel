@@ -206,33 +206,8 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
             .ToListAsync();
     }
 
-    // Custom methods for subscription-specific operations
-    public async Task<Subscription> CreateSubscriptionAsync(Subscription subscription)
-    {
-        _context.Subscriptions.Add(subscription);
-        await _context.SaveChangesAsync();
-        return subscription;
-    }
-
-    public async Task<Subscription> UpdateSubscriptionAsync(Subscription subscription)
-    {
-        _context.Subscriptions.Update(subscription);
-        await _context.SaveChangesAsync();
-        return subscription;
-    }
-
-    public async Task<bool> DeleteSubscriptionAsync(Guid id)
-    {
-        var subscription = await _context.Subscriptions.FindAsync(id);
-        if (subscription == null)
-            return false;
-
-        // Only set the soft delete flag, audit properties should be set by service
-        subscription.IsActive = false;
-        subscription.IsDeleted = true;
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: CreateAsync, UpdateAsync, DeleteAsync are inherited from RepositoryBase<Subscription>
+    // These methods handle audit properties automatically when called from the service layer
 
     public async Task<bool> ExistsSubscriptionAsync(Guid id)
     {
@@ -951,5 +926,20 @@ public class SubscriptionRepository : RepositoryBase<Subscription>, ISubscriptio
                 .ThenInclude(p => p.Privilege)
             .Where(u => u.SubscriptionId == subscriptionId)
             .ToListAsync();
+    }
+
+    // Additional analytics methods
+    public async Task<int> GetNewSubscriptionsCountAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Subscriptions
+            .Where(s => s.CreatedDate >= startDate && s.CreatedDate <= endDate)
+            .CountAsync();
+    }
+
+    public async Task<int> GetTrialsEndingCountAsync(DateTime endDate)
+    {
+        return await _context.Subscriptions
+            .Where(s => s.IsInTrial && s.TrialEndDate.HasValue && s.TrialEndDate.Value <= endDate)
+            .CountAsync();
     }
 } 

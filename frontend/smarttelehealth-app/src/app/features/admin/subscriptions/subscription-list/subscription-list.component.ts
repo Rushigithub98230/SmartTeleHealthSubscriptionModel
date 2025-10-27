@@ -1,9 +1,13 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SubscriptionService, CommonService } from '../../../../core/services';
 import { SubscriptionDto } from '../../../../core/models';
+import { SubscriptionFilter, DEFAULT_SUBSCRIPTION_PRESETS } from '../../../../core/models/filter.model';
+import { AdvancedFilterComponent } from '../../../../shared/components/advanced-filter/advanced-filter.component';
+import { BulkActionsComponent, BulkActionRequest } from '../../../../shared/components/bulk-actions/bulk-actions.component';
+import { Subscription } from 'rxjs';
 
 /**
  * Admin Subscription List Component
@@ -19,20 +23,29 @@ import { SubscriptionDto } from '../../../../core/models';
 @Component({
   selector: 'app-admin-subscription-list',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule],
+  imports: [CommonModule, RouterLink, FormsModule, AdvancedFilterComponent, BulkActionsComponent],
   templateUrl: './subscription-list.component.html',
   styleUrls: ['./subscription-list.component.scss']
 })
-export class AdminSubscriptionListComponent implements OnInit {
+export class AdminSubscriptionListComponent implements OnInit, OnDestroy {
   Math = Math;  // Expose Math to template
   subscriptions: SubscriptionDto[] = [];
   loading = false;
   error: string | null = null;
 
-  // Filters
-  searchTerm = '';
-  selectedStatus: string = '';
-  selectedPlan: string = '';
+  // Advanced Filtering
+  currentFilter: SubscriptionFilter = {
+    page: 1,
+    pageSize: 20,
+    sortColumn: 'CreatedDate',
+    sortOrder: 'desc'
+  };
+  filterPresets = DEFAULT_SUBSCRIPTION_PRESETS;
+  isFilterExpanded = false;
+
+  // Bulk Actions
+  selectedSubscriptions: SubscriptionDto[] = [];
+  isBulkActionLoading = false;
 
   // Pagination
   currentPage = 1;
@@ -44,6 +57,8 @@ export class AdminSubscriptionListComponent implements OnInit {
   statusOptions = ['All', 'Active', 'TrialActive', 'Pending', 'Paused', 'Cancelled', 'Expired', 'PaymentFailed'];
   planNames: string[] = [];
 
+  private subscriptions$: Subscription[] = [];
+
   constructor(
     private subscriptionService: SubscriptionService,
     private commonService: CommonService
@@ -51,38 +66,24 @@ export class AdminSubscriptionListComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadSubscriptions();
+    this.loadPlanNames();
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions$.forEach(sub => sub.unsubscribe());
   }
 
   /**
-   * Load all subscriptions (admin view)
-   * API: GET /api/Subscriptions/admin/user-subscriptions
-   * FIXED: Now calling actual backend endpoint
+   * Load subscriptions with advanced filtering
    */
   loadSubscriptions(): void {
     this.loading = true;
     this.error = null;
 
-    const params: any = {
-      page: this.currentPage,
-      pageSize: this.pageSize
-    };
-    
-    if (this.searchTerm) {
-      params.searchTerm = this.searchTerm;
-    }
-    
-    if (this.selectedStatus && this.selectedStatus !== 'All') {
-      params.status = [this.selectedStatus];
-    }
-    
-    if (this.selectedPlan) {
-      params.planId = [this.selectedPlan];
-    }
-
-    // Call actual backend API
+    // Call backend API with comprehensive filter
     this.commonService.get<SubscriptionDto[]>(
       'Subscriptions/admin/user-subscriptions',
-      params
+      this.currentFilter
     ).subscribe({
       next: (response) => {
         if (response.statusCode === 200) {
@@ -91,6 +92,7 @@ export class AdminSubscriptionListComponent implements OnInit {
           if (response.meta) {
             this.totalRecords = response.meta.totalRecords;
             this.totalPages = response.meta.totalPages;
+            this.currentPage = response.meta.currentPage;
           }
         } else {
           this.error = response.message || 'Failed to load subscriptions';
@@ -98,18 +100,120 @@ export class AdminSubscriptionListComponent implements OnInit {
         this.loading = false;
       },
       error: (error) => {
-        this.error = error.message || 'An error occurred loading subscriptions';
+        console.error('Error loading subscriptions:', error);
+        this.error = 'Failed to load subscriptions. Please try again.';
         this.loading = false;
       }
     });
   }
 
   /**
-   * Apply filters
+   * Load plan names for filter dropdown
    */
-  applyFilters(): void {
+  loadPlanNames(): void {
+    this.commonService.get<string[]>('SubscriptionPlans/names').subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          this.planNames = response.data;
+        }
+      },
+      error: (error) => {
+        console.error('Error loading plan names:', error);
+      }
+    });
+  }
+
+  /**
+   * Handle filter changes from advanced filter component
+   */
+  onFilterChange(filter: SubscriptionFilter): void {
+    this.currentFilter = { ...filter };
     this.currentPage = 1;
+    this.currentFilter.page = 1;
     this.loadSubscriptions();
+  }
+
+  /**
+   * Handle filter preset changes
+   */
+  onPresetChange(presetId: string): void {
+    const preset = this.filterPresets.find(p => p.id === presetId);
+    if (preset) {
+      this.currentFilter = { ...preset.filter };
+      this.loadSubscriptions();
+    }
+  }
+
+  /**
+   * Handle filter expansion toggle
+   */
+  onFilterExpandToggle(expanded: boolean): void {
+    this.isFilterExpanded = expanded;
+  }
+
+  /**
+   * Handle bulk action requests
+   */
+  onBulkAction(request: BulkActionRequest): void {
+    this.isBulkActionLoading = true;
+    
+    // Call bulk action API
+    this.commonService.post('admin/subscriptions/bulk-action', request).subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          // Reload subscriptions to reflect changes
+          this.loadSubscriptions();
+          // Clear selection
+          this.selectedSubscriptions = [];
+        } else {
+          this.error = response.message || 'Bulk action failed';
+        }
+        this.isBulkActionLoading = false;
+      },
+      error: (error) => {
+        console.error('Bulk action error:', error);
+        this.error = 'Bulk action failed. Please try again.';
+        this.isBulkActionLoading = false;
+      }
+    });
+  }
+
+  /**
+   * Handle select all toggle
+   */
+  onSelectAll(selectAll: boolean): void {
+    if (selectAll) {
+      this.selectedSubscriptions = [...this.subscriptions];
+    } else {
+      this.selectedSubscriptions = [];
+    }
+  }
+
+  /**
+   * Handle individual subscription selection
+   */
+  onSubscriptionSelect(subscription: SubscriptionDto, selected: boolean): void {
+    if (selected) {
+      if (!this.selectedSubscriptions.find(s => s.id === subscription.id)) {
+        this.selectedSubscriptions.push(subscription);
+      }
+    } else {
+      this.selectedSubscriptions = this.selectedSubscriptions.filter(s => s.id !== subscription.id);
+    }
+  }
+
+  /**
+   * Clear selection
+   */
+  onClearSelection(): void {
+    this.selectedSubscriptions = [];
+  }
+
+  /**
+   * Check if subscription is selected
+   */
+  isSubscriptionSelected(subscription: SubscriptionDto): boolean {
+    return this.selectedSubscriptions.some(s => s.id === subscription.id);
   }
 
   /**
@@ -117,6 +221,7 @@ export class AdminSubscriptionListComponent implements OnInit {
    */
   changePage(page: number): void {
     this.currentPage = page;
+    this.currentFilter.page = page;
     this.loadSubscriptions();
   }
 

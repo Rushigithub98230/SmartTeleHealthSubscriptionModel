@@ -16,11 +16,11 @@ public class CreateSubscriptionPlanDto
     public string? ShortDescription { get; set; }
     
     [Required]
-    [Range(0.01, double.MaxValue, ErrorMessage = "Price must be greater than 0")]
-    public decimal Price { get; set; }
+    [Range(0, double.MaxValue, ErrorMessage = "Base price must be 0 or positive")]
+    public decimal BasePrice { get; set; }
     
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal? DiscountedPrice { get; set; }
+    [Range(0, 100, ErrorMessage = "Discount percentage must be between 0 and 100%")]
+    public decimal? DiscountPercentage { get; set; }
     
     public DateTime? DiscountValidUntil { get; set; }
     
@@ -105,12 +105,6 @@ public class CreateSubscriptionPlanDto
     [Range(0, 100, ErrorMessage = "Commission must be between 0 and 100%")]
     public decimal? AdminCommissionPercent { get; set; }
     
-    /// <summary>
-    /// Choice 2c: Per-plan commission override (fixed amount).
-    /// Alternative to percentage-based commission.
-    /// </summary>
-    [Range(0, double.MaxValue)]
-    public decimal? AdminCommissionFixed { get; set; }
     
     /// <summary>
     /// Choice 4d: Configurable notice period per plan.
@@ -129,6 +123,14 @@ public class CreateSubscriptionPlanDto
     // For example:
     //   - Monthly plan: 10 consultations × $15 = $150
     //   - Annual plan: 150 consultations × $12 = $1,800 (lower unit cost = implicit discount)
+    
+    /// <summary>
+    /// Billing cycle discount percentage (0-100).
+    /// Applied after promotional discount.
+    /// Used for applying discounts based on billing frequency.
+    /// </summary>
+    [Range(0, 100, ErrorMessage = "Billing discount percentage must be between 0 and 100%")]
+    public decimal? BillingDiscountPercentage { get; set; }
 }
 
 /// <summary>

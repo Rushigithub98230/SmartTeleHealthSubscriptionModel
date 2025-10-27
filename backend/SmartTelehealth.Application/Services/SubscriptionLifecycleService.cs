@@ -1,9 +1,11 @@
 using AutoMapper;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Application.Utilities;
+using SmartTelehealth.Application.Constants;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Enums;
@@ -43,6 +45,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     private readonly ISubscriptionNotificationService _subscriptionNotificationService;
     private readonly IPrivilegeRepository _privilegeRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IServiceProvider _serviceProvider;
 
     public SubscriptionLifecycleService(
         ISubscriptionRepository subscriptionRepository,
@@ -59,7 +62,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         ISubscriptionBillingService billingService, // UPDATED: Use consolidated service
         ISubscriptionNotificationService subscriptionNotificationService,
         IPrivilegeRepository privilegeRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IServiceProvider serviceProvider)
     {
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
         _statusHistoryRepository = statusHistoryRepository ?? throw new ArgumentNullException(nameof(statusHistoryRepository));
@@ -76,6 +80,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         _subscriptionNotificationService = subscriptionNotificationService ?? throw new ArgumentNullException(nameof(subscriptionNotificationService));
         _privilegeRepository = privilegeRepository ?? throw new ArgumentNullException(nameof(privilegeRepository));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
     #region Core Lifecycle Methods
@@ -112,8 +117,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 {
                     _logger.LogInformation(
                         "Redirecting new subscription from plan {OldId} v{OldVer} (${OldPrice}) to latest version {NewId} v{NewVer} (${NewPrice})",
-                        requestedPlan.Id, requestedPlan.VersionNumber, requestedPlan.Price,
-                        latestVersion.Id, latestVersion.VersionNumber, latestVersion.Price);
+                        requestedPlan.Id, requestedPlan.VersionNumber, requestedPlan.BasePrice,
+                        latestVersion.Id, latestVersion.VersionNumber, latestVersion.BasePrice);
                     
                     plan = latestVersion;  // Use latest version for new subscription
                 }
@@ -201,8 +206,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             
             // Step 7: Create Stripe Subscription with plan's billing cycle
             string stripeSubscriptionId = null;
-            // NEW ARCHITECTURE: Get the plan's single Stripe price ID
-            string stripePriceId = GetStripePriceIdForPlan(plan);
+            // NEW ARCHITECTURE: Get or create Stripe price ID for effective price
+            string stripePriceId = await GetOrCreateStripePriceForPlan(plan, tokenModel);
             
             try
             {
@@ -232,12 +237,12 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.StripePriceId = stripePriceId;
             entity.PaymentMethodId = createDto.PaymentMethodId;
             
-            // NEW ARCHITECTURE: Use plan's explicit price (no calculation needed)
-            entity.CurrentPrice = plan.Price;
+            // CRITICAL FIX: Use centralized effective price calculation
+            entity.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
             
-            _logger.LogInformation("Using explicit plan price for subscription: " +
-                "PlanName={PlanName}, BillingCycle={BillingCycle}, Price=${Price}",
-                plan.Name, plan.BillingCycle.Name, entity.CurrentPrice);
+            _logger.LogInformation("Using effective plan price for subscription: " +
+                "PlanName={PlanName}, BillingCycle={BillingCycle}, BasePrice=${BasePrice}, EffectivePrice=${EffectivePrice}",
+                plan.Name, plan.BillingCycle.Name, plan.BasePrice, entity.CurrentPrice);
             
             // Trial logic
             if (plan.IsTrialAllowed && plan.TrialDurationInDays > 0)
@@ -265,13 +270,13 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.CreatedBy = tokenModel.UserID;
             entity.CreatedDate = DateTime.UtcNow;
             
-            // BEGIN TRANSACTION - Ensure subscription and status history are created atomically
+            // BEGIN TRANSACTION - Ensure subscription, status history, billing record, and privileges are created atomically
             await _unitOfWork.BeginTransactionAsync();
             
             Subscription created;
             try
             {
-                created = await _subscriptionRepository.CreateSubscriptionAsync(entity);
+                created = await _subscriptionRepository.CreateAsync(entity);
                 
                 // SRP Refactoring: Use centralized status history helper method
                 await RecordStatusChangeAsync(
@@ -282,16 +287,16 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     tokenModel
                 );
                 
+                // CRITICAL FIX: Create initial billing record within the same transaction
+                await CreateInitialBillingRecordAsync(created, plan, tokenModel);
+                
+                // CRITICAL FIX: Allocate initial privileges within the same transaction
+                await AllocateInitialPrivilegesAsync(created, plan, tokenModel);
+                
                 // COMMIT TRANSACTION
                 await _unitOfWork.CommitTransactionAsync();
                 
-                _logger.LogInformation("Successfully created subscription {SubscriptionId} with status history in transaction", created.Id);
-                
-                // Create initial billing record for the subscription
-                await CreateInitialBillingRecordAsync(created, plan, tokenModel);
-                
-                // NEW ARCHITECTURE: Allocate initial privileges based on plan's explicit values
-                await AllocateInitialPrivilegesAsync(created, plan, tokenModel);
+                _logger.LogInformation("Successfully created subscription {SubscriptionId} with status history, billing record, and privileges in transaction", created.Id);
             }
             catch (Exception ex)
             {
@@ -428,7 +433,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             Subscription updated;
             try
             {
-                updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                updated = await _subscriptionRepository.UpdateAsync(entity);
                 
                 // SRP Refactoring: Use centralized status history helper method
                 await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, reason, tokenModel);
@@ -584,7 +589,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             Subscription updated;
             try
             {
-                updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                updated = await _subscriptionRepository.UpdateAsync(entity);
                 
                 // SRP Refactoring: Use centralized status history helper method
                 await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription paused", tokenModel);
@@ -701,7 +706,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             Subscription updated;
             try
             {
-                updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                updated = await _subscriptionRepository.UpdateAsync(entity);
                 
                 // SRP Refactoring: Use centralized status history helper method
                 await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription resumed", tokenModel);
@@ -821,7 +826,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 entity.UpdatedBy = tokenModel.UserID;
                 entity.UpdatedDate = DateTime.UtcNow;
                 
-                var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                var updated = await _subscriptionRepository.UpdateAsync(entity);
                 
                 // SRP Refactoring: Use centralized status history helper method
                 await RecordStatusChangeAsync(updated.Id, oldStatus, updated.Status, "Subscription reactivated", tokenModel);
@@ -932,7 +937,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 entity.UpdatedBy = tokenModel.UserID;
                 entity.UpdatedDate = DateTime.UtcNow;
                 
-                var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                var updated = await _subscriptionRepository.UpdateAsync(entity);
                 
                 await _unitOfWork.CommitTransactionAsync();
                 
@@ -955,7 +960,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     /// <summary>
     /// Updates a subscription with proper validation
     /// </summary>
-    public async Task<JsonModel> UpdateSubscriptionAsync(string subscriptionId, UpdateSubscriptionDto updateDto, TokenModel tokenModel)
+    public async Task<JsonModel> UpdateAsync(string subscriptionId, UpdateSubscriptionDto updateDto, TokenModel tokenModel)
     {
         try
         {
@@ -988,7 +993,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 subscription.UpdatedBy = tokenModel.UserID;
                 subscription.UpdatedDate = DateTime.UtcNow;
                 
-                var updatedSubscription = await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                var updatedSubscription = await _subscriptionRepository.UpdateAsync(subscription);
                 
                 await _unitOfWork.CommitTransactionAsync();
                 
@@ -1031,7 +1036,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     sub.CancelledDate = DateTime.UtcNow;
                     sub.UpdatedBy = int.Parse(adminUserId); // FIX: Add audit property
                     sub.UpdatedDate = DateTime.UtcNow;      // FIX: Add audit property
-                    await _subscriptionRepository.UpdateSubscriptionAsync(sub);
+                    await _subscriptionRepository.UpdateAsync(sub);
                     cancelledSubscriptions.Add(sub);
                     cancelled++;
                 }
@@ -1093,7 +1098,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     sub.SubscriptionPlanId = Guid.Parse(newPlanId);
                     sub.UpdatedBy = tokenModel.UserID;
                     sub.UpdatedDate = DateTime.UtcNow;
-                    await _subscriptionRepository.UpdateSubscriptionAsync(sub);
+                    await _subscriptionRepository.UpdateAsync(sub);
                     upgradedSubscriptions.Add(sub);
                     upgraded++;
                 }
@@ -1248,7 +1253,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 entity.UpdatedBy = tokenModel.UserID;
                 entity.UpdatedDate = DateTime.UtcNow;
 
-                var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+                var updated = await _subscriptionRepository.UpdateAsync(entity);
                 
                 await _unitOfWork.CommitTransactionAsync();
 
@@ -1343,7 +1348,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 ChangedAt = DateTime.UtcNow
             });
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+            await _subscriptionRepository.UpdateAsync(entity);
             
             return new JsonModel { data = _mapper.Map<SubscriptionDto>(entity), Message = "Subscription auto-renewed successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -1379,13 +1384,14 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             _logger
         );
         
-        // Calculate charge for new plan (difference between new plan price and unused credit)
-        var charge = newPlan.Price - credit;
+        // Calculate charge for new plan (difference between new plan effective price and unused credit)
+        var newPlanEffectivePrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger);
+        var charge = newPlanEffectivePrice - credit;
         
         _logger.LogInformation(
             "Proration calculated for subscription {SubscriptionId}: OldPlanPrice={OldPrice}, " +
-            "UnusedCredit={Credit}, NewPlanPrice={NewPrice}, ChargeAmount={Charge}",
-            subscriptionId, entity.CurrentPrice, credit, newPlan.Price, charge);
+            "UnusedCredit={Credit}, NewPlanEffectivePrice={NewPrice}, ChargeAmount={Charge}",
+            subscriptionId, entity.CurrentPrice, credit, newPlanEffectivePrice, charge);
         
         // NEW: Process prorated payment through Stripe with subscription upgrade
         if (!string.IsNullOrEmpty(entity.StripeSubscriptionId))
@@ -1423,11 +1429,11 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             // Update local subscription
             entity.SubscriptionPlanId = Guid.Parse(newPlanId);
-            entity.CurrentPrice = newPlan.Price;
+            entity.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger);
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
             
-            var updated = await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+            var updated = await _subscriptionRepository.UpdateAsync(entity);
             
             await _unitOfWork.CommitTransactionAsync();
             
@@ -1491,7 +1497,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Subscription activated", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             // Send activation notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1540,7 +1546,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Paused, reason ?? "Subscription paused", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             
             
@@ -1582,7 +1588,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Subscription resumed", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             
             
@@ -1625,7 +1631,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Cancelled, reason ?? "Subscription cancelled", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             
             _logger.LogInformation("Successfully cancelled subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel?.UserID ?? 0);
@@ -1666,7 +1672,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Suspended, reason ?? "Subscription suspended", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             // Send suspension notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1716,7 +1722,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Subscription renewed", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             
             
@@ -1759,7 +1765,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Expired, reason ?? "Subscription expired", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             // Send expiration notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1808,7 +1814,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.PaymentFailed, reason ?? "Payment failed", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             // Send payment failed notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1862,7 +1868,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, Subscription.SubscriptionStatuses.Active, reason ?? "Payment succeeded", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             // Send payment success notification
             var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
@@ -1917,7 +1923,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized status history helper method
             await RecordStatusChangeAsync(subscriptionId, oldStatus, newStatus, reason ?? $"Status updated to {newStatus}", tokenModel);
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             
             _logger.LogInformation("Successfully updated subscription {SubscriptionId} status to {NewStatus} by user {UserId}", 
@@ -2001,25 +2007,17 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            // Define valid status transitions
-            var validTransitions = new Dictionary<string, List<string>>
+            // CONSISTENT FIX: Use single source of truth for status transitions
+            var allowedTransitions = GetAllowedTransitions();
+            
+            if (allowedTransitions.TryGetValue(currentStatus, out var allowedStates))
             {
-                [Subscription.SubscriptionStatuses.Pending] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.Active] = new List<string> { Subscription.SubscriptionStatuses.Paused, Subscription.SubscriptionStatuses.Suspended, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired, Subscription.SubscriptionStatuses.PaymentFailed },
-                [Subscription.SubscriptionStatuses.Paused] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.Suspended] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.PaymentFailed] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.Expired] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled },
-                [Subscription.SubscriptionStatuses.Cancelled] = new List<string> { Subscription.SubscriptionStatuses.Active }, // Reactivation allowed
-                [Subscription.SubscriptionStatuses.TrialActive] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired, Subscription.SubscriptionStatuses.TrialExpired },
-                [Subscription.SubscriptionStatuses.TrialExpired] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled }
-            };
-
-            if (validTransitions.ContainsKey(currentStatus) && validTransitions[currentStatus].Contains(newStatus))
-            {
-                _logger.LogInformation("Status transition from {CurrentStatus} to {NewStatus} validated by user {UserId}", 
-                    currentStatus, newStatus, tokenModel?.UserID ?? 0);
-                return true;
+                if (allowedStates.Contains(newStatus))
+                {
+                    _logger.LogInformation("Status transition from {CurrentStatus} to {NewStatus} validated by user {UserId}", 
+                        currentStatus, newStatus, tokenModel?.UserID ?? 0);
+                    return true;
+                }
             }
 
             _logger.LogWarning("Invalid status transition from {CurrentStatus} to {NewStatus} by user {UserId}", 
@@ -2038,22 +2036,12 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            // Define valid next statuses for each current status
-            var nextStatuses = new Dictionary<string, List<string>>
+            // CONSISTENT FIX: Use single source of truth for status transitions
+            var allowedTransitions = GetAllowedTransitions();
+            
+            if (allowedTransitions.TryGetValue(currentStatus, out var allowedStates))
             {
-                [Subscription.SubscriptionStatuses.Pending] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.Active] = new List<string> { Subscription.SubscriptionStatuses.Paused, Subscription.SubscriptionStatuses.Suspended, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired, Subscription.SubscriptionStatuses.PaymentFailed },
-                [Subscription.SubscriptionStatuses.Paused] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.Suspended] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.PaymentFailed] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired },
-                [Subscription.SubscriptionStatuses.Expired] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled },
-                [Subscription.SubscriptionStatuses.Cancelled] = new List<string> { Subscription.SubscriptionStatuses.Active },
-                [Subscription.SubscriptionStatuses.TrialActive] = new List<string> { Subscription.SubscriptionStatuses.Active, Subscription.SubscriptionStatuses.Cancelled, Subscription.SubscriptionStatuses.Expired }
-            };
-
-            if (nextStatuses.ContainsKey(currentStatus))
-            {
-                var nextStatus = nextStatuses[currentStatus].FirstOrDefault() ?? "No valid next status";
+                var nextStatus = allowedStates.FirstOrDefault() ?? "No valid next status";
                 _logger.LogInformation("Next valid status for {CurrentStatus} determined by user {UserId}: {NextStatus}", 
                     currentStatus, tokenModel?.UserID ?? 0, nextStatus);
                 return nextStatus;
@@ -2127,7 +2115,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                     CreatedDate = DateTime.UtcNow
                 });
 
-                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                await _subscriptionRepository.UpdateAsync(subscription);
                 
                 await _unitOfWork.CommitTransactionAsync();
 
@@ -2253,10 +2241,16 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 subscription.PauseReason = null;
                 subscription.CancellationReason = null;
                 
-                // If converting from trial, set the real price from the plan
-                if (subscription.CurrentPrice == 0 && subscription.SubscriptionPlan != null)
+                // CONSISTENT FIX: Always ensure current price is set correctly during trial-to-active conversion
+                if (subscription.SubscriptionPlan != null)
                 {
-                    subscription.CurrentPrice = subscription.SubscriptionPlan.Price;
+                    var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(subscription.SubscriptionPlan, _logger);
+                    if (subscription.CurrentPrice != effectivePrice)
+                    {
+                        _logger.LogInformation("Updating subscription {SubscriptionId} price from ${OldPrice} to ${NewPrice} during trial conversion", 
+                            subscription.Id, subscription.CurrentPrice, effectivePrice);
+                        subscription.CurrentPrice = effectivePrice;
+                    }
                 }
                 break;
 
@@ -2557,7 +2551,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 subscription.UpdatedBy = 0; // 0 for system actions
                 subscription.UpdatedDate = DateTime.UtcNow;
 
-                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                await _subscriptionRepository.UpdateAsync(subscription);
 
                 // SRP Refactoring: Use centralized status history helper method
                 await RecordStatusChangeAsync(subscription.Id, subscription.Status, subscription.Status, 
@@ -2630,8 +2624,8 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 IsSuccessful = true,
                 TransactionId = $"txn_{Guid.NewGuid():N}",
-                Amount = subscription.CurrentPrice,
-                Currency = "usd"
+                Amount = BillingCalculationService.GetEffectivePlanPrice(subscription.SubscriptionPlan, _logger),
+                Currency = subscription.SubscriptionPlan?.Currency?.Code ?? "USD"
             };
         }
         catch (Exception ex)
@@ -2957,6 +2951,78 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     }
 
     /// <summary>
+    /// Gets or creates a Stripe price ID for the plan's effective price (considering discounts).
+    /// If the plan has a valid discount, creates a new Stripe price with the discounted amount.
+    /// Otherwise, uses the plan's existing Stripe price ID.
+    /// </summary>
+    /// <param name="plan">The subscription plan</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>The Stripe price ID to use for the subscription</returns>
+    private async Task<string> GetOrCreateStripePriceForPlan(SubscriptionPlan plan, TokenModel tokenModel)
+    {
+        try
+        {
+            var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            
+            // If using base price, use existing Stripe price ID
+            if (effectivePrice == plan.BasePrice)
+            {
+                return GetStripePriceIdForPlan(plan);
+            }
+            
+            // If using discounted price, create a new Stripe price
+            _logger.LogInformation("Creating new Stripe price for discounted plan {PlanName}: Base=${BasePrice}, Discounted=${DiscountedPrice}",
+                plan.Name, plan.BasePrice, effectivePrice);
+            
+            // Get billing cycle interval for Stripe
+            var (interval, intervalCount) = GetStripeIntervalForBillingCycle(plan.BillingCycle);
+            
+            // CRITICAL FIX: Use centralized currency handling
+            var currencyLogger = _serviceProvider.GetRequiredService<ILogger<CurrencyService>>();
+            var currencyService = new CurrencyService(_subscriptionRepository, currencyLogger);
+            var currencyCode = await currencyService.GetCurrencyCodeAsync(plan.CurrencyId);
+            
+            // Create new Stripe price with discounted amount
+            var discountedStripePriceId = await _stripeService.CreatePriceAsync(
+                plan.StripeProductId,
+                effectivePrice,
+                currencyCode,
+                interval,
+                intervalCount,
+                tokenModel);
+            
+            _logger.LogInformation("Created discounted Stripe price {PriceId} for plan {PlanName} with amount ${Amount}",
+                discountedStripePriceId, plan.Name, effectivePrice);
+            
+            return discountedStripePriceId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting or creating Stripe price for plan {PlanName}, falling back to base price", plan.Name);
+            return GetStripePriceIdForPlan(plan);
+        }
+    }
+
+    /// <summary>
+    /// Gets the Stripe interval and interval count for a billing cycle
+    /// </summary>
+    /// <param name="billingCycle">The billing cycle</param>
+    /// <returns>Tuple of (interval, intervalCount)</returns>
+    private (string interval, int intervalCount) GetStripeIntervalForBillingCycle(MasterBillingCycle billingCycle)
+    {
+        return billingCycle.Name.ToLower() switch
+        {
+            "monthly" => ("month", 1),
+            "quarterly" => ("month", 3),
+            "semi-annual" => ("month", 6),
+            "annual" => ("year", 1),
+            "weekly" => ("week", 1),
+            "daily" => ("day", 1),
+            _ => ("month", 1)
+        };
+    }
+
+    /// <summary>
     /// Calculates the next billing date based on billing cycle ID
     /// </summary>
     // SRP Refactoring: Removed duplicate CalculateNextBillingDateAsync - now uses BillingService.CalculateNextBillingDate()
@@ -2973,7 +3039,9 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating next billing date for billing cycle {BillingCycleId}", billingCycleId);
-            return startDate.AddMonths(1); // Safe fallback
+            // CONSISTENT FIX: Use centralized billing cycle calculator instead of manual AddMonths
+            return BillingCycleCalculator.CalculateNextBillingDate(startDate, 
+                new MasterBillingCycle { Name = "monthly", DurationInDays = 30 }); // 30 days = 1 month
         }
     }
 
@@ -2991,7 +3059,9 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating end date for billing cycle {BillingCycleId}", billingCycleId);
-            return startDate.AddMonths(1); // Safe fallback
+            // CONSISTENT FIX: Use centralized billing cycle calculator instead of manual AddMonths
+            return BillingCycleCalculator.CalculateNextBillingDate(startDate, 
+                new MasterBillingCycle { Name = "monthly", DurationInDays = 30 }); // 30 days = 1 month
         }
     }
 
@@ -3011,7 +3081,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized billing record factory method
             var billingResult = await _billingService.CreateSubscriptionBillingAsync(
                 subscription,
-                plan.Price,
+                BillingCalculationService.GetEffectivePlanPrice(plan, _logger),
                 $"Initial billing for {plan.Name} subscription",
                 subscription.NextBillingDate,
                 tokenModel
@@ -3165,7 +3235,52 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         }
     }
 
+
     #endregion
+
+    /// <summary>
+    /// Updates a subscription with the provided details
+    /// </summary>
+    /// <param name="subscriptionId">The subscription ID to update</param>
+    /// <param name="updateDto">The update details</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing the update result</returns>
+    public async Task<JsonModel> UpdateSubscriptionAsync(string subscriptionId, UpdateSubscriptionDto updateDto, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Updating subscription {SubscriptionId} by user {UserId}", subscriptionId, tokenModel.UserID);
+
+            if (!Guid.TryParse(subscriptionId, out var subscriptionGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription ID format", StatusCode = 400 };
+            }
+
+            var existingSubscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionGuid);
+            if (existingSubscription == null)
+            {
+                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
+            }
+
+            // Update subscription properties
+            if (updateDto.AutoRenew.HasValue)
+                existingSubscription.AutoRenew = updateDto.AutoRenew.Value;
+            existingSubscription.UpdatedBy = tokenModel.UserID;
+            existingSubscription.UpdatedDate = DateTime.UtcNow;
+
+            // Update in database
+            await _subscriptionRepository.UpdateAsync(existingSubscription);
+            await _unitOfWork.SaveChangesAsync();
+
+            var updatedSubscriptionDto = _mapper.Map<SubscriptionDto>(existingSubscription);
+            return new JsonModel { data = updatedSubscriptionDto, Message = "Subscription updated successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating subscription {SubscriptionId}", subscriptionId);
+            return new JsonModel { data = new object(), Message = "Error updating subscription", StatusCode = 500 };
+        }
+    }
 }
 
 public class StateTransitionValidation

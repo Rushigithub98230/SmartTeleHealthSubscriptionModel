@@ -114,21 +114,8 @@ public class MessageRepository : RepositoryBase<Message>, IMessageRepository
             .ToListAsync();
     }
 
-    // Override DeleteAsync to implement soft delete
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is Guid guidId)
-        {
-            var message = await _context.Messages.FindAsync(guidId);
-            if (message == null)
-                return false;
-
-        message.IsDeleted = true;
-        await _context.SaveChangesAsync();
-            return true;
-        }
-        return false;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<Message>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     // Override ExistsAsync to apply business logic
     public override async Task<bool> ExistsAsync(object id)

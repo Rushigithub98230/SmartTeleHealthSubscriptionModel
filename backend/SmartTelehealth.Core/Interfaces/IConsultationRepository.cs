@@ -21,4 +21,11 @@ public interface IConsultationRepository : IRepositoryBase<Consultation>
     Task<IEnumerable<Consultation>> GetUpcomingAsync();
     Task<IEnumerable<Consultation>> GetScheduledConsultationsAsync();
     Task<IEnumerable<Consultation>> GetCompletedConsultationsAsync(int userId);
+    
+    // Analytics methods
+    Task<int> GetTotalConsultationsCountAsync(DateTime startDate, DateTime endDate);
+    Task<int> GetCompletedConsultationsCountAsync(DateTime startDate, DateTime endDate);
+    Task<int> GetCancelledConsultationsCountAsync(DateTime startDate, DateTime endDate);
+    Task<int> GetPendingConsultationsCountAsync(DateTime startDate, DateTime endDate);
+    Task<double> GetAverageConsultationDurationAsync(DateTime startDate, DateTime endDate);
 } 

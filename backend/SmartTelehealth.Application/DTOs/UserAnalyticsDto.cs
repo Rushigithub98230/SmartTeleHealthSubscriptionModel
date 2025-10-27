@@ -45,6 +45,12 @@ namespace SmartTelehealth.Application.DTOs
         public DateTime? LastActivityDate { get; set; }
         public int AccountAgeDays { get; set; }
         public bool IsActiveAccount { get; set; }
+        
+        // Enhanced Analytics - Detailed Timeline and History
+        public List<SubscriptionHistoryDto> SubscriptionHistory { get; set; } = new();
+        public List<PrivilegeUsageHistoryDto> PrivilegeUsageHistory { get; set; } = new();
+        public List<UpcomingRenewalDto> UpcomingRenewals { get; set; } = new();
+        public List<InvoiceSummaryDto> Invoices { get; set; } = new();
     }
     
     /// <summary>
@@ -77,6 +83,62 @@ namespace SmartTelehealth.Application.DTOs
         public string PlanName { get; set; } = string.Empty;
         public int Count { get; set; }
         public decimal TotalRevenue { get; set; }
+    }
+    
+    /// <summary>
+    /// Detailed subscription history for user analytics
+    /// </summary>
+    public class SubscriptionHistoryDto
+    {
+        public Guid Id { get; set; }
+        public string PlanName { get; set; } = string.Empty;
+        public DateTime StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string BillingCycle { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public bool IsActive { get; set; }
+    }
+    
+    /// <summary>
+    /// Privilege usage history for user analytics
+    /// </summary>
+    public class PrivilegeUsageHistoryDto
+    {
+        public Guid PrivilegeId { get; set; }
+        public string PrivilegeName { get; set; } = string.Empty;
+        public int UsedValue { get; set; }
+        public int LimitValue { get; set; }
+        public decimal UsagePercentage { get; set; }
+        public DateTime UsedAt { get; set; }
+        public bool IsOverage { get; set; }
+        public decimal? OverageAmount { get; set; }
+    }
+    
+    /// <summary>
+    /// Upcoming renewal information for user analytics
+    /// </summary>
+    public class UpcomingRenewalDto
+    {
+        public Guid SubscriptionId { get; set; }
+        public string PlanName { get; set; } = string.Empty;
+        public DateTime RenewalDate { get; set; }
+        public decimal Amount { get; set; }
+        public bool AutoRenew { get; set; }
+        public int DaysUntilRenewal { get; set; }
+    }
+    
+    /// <summary>
+    /// Invoice summary for user analytics
+    /// </summary>
+    public class InvoiceSummaryDto
+    {
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public DateTime Date { get; set; }
+        public decimal Amount { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime? DueDate { get; set; }
+        public DateTime? PaidAt { get; set; }
     }
 }
 

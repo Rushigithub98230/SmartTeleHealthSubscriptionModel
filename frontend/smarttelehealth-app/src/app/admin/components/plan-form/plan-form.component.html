@@ -1,0 +1,325 @@
+<div class="plan-form-container">
+  <form [formGroup]="planForm" (ngSubmit)="onSubmit()" class="plan-form">
+    
+    <!-- Form Header -->
+    <div class="form-header">
+      <h2>{{ isEditMode ? 'Edit Plan' : 'Create New Plan' }}</h2>
+      <p class="form-description">Configure all plan details including pricing and discounts</p>
+    </div>
+
+    <!-- Basic Information Section -->
+    <div class="form-section">
+      <h3>Basic Information</h3>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="name">Plan Name *</label>
+          <input 
+            type="text" 
+            id="name" 
+            formControlName="name" 
+            class="form-control"
+            [class.error]="hasError('name', 'required') || hasError('name', 'maxlength')"
+            placeholder="Enter plan name">
+          <div *ngIf="hasError('name', 'required') || hasError('name', 'maxlength')" 
+               class="error-message">
+            {{ getErrorMessage('name') }}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="displayOrder">Display Order</label>
+          <input 
+            type="number" 
+            id="displayOrder" 
+            formControlName="displayOrder" 
+            class="form-control"
+            [class.error]="hasError('displayOrder', 'min')"
+            placeholder="0">
+          <div *ngIf="hasError('displayOrder', 'min')" class="error-message">
+            {{ getErrorMessage('displayOrder') }}
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea 
+          id="description" 
+          formControlName="description" 
+          class="form-control"
+          [class.error]="hasError('description', 'maxlength')"
+          rows="3"
+          placeholder="Enter plan description"></textarea>
+        <div *ngIf="hasError('description', 'maxlength')" class="error-message">
+          {{ getErrorMessage('description') }}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="shortDescription">Short Description</label>
+        <input 
+          type="text" 
+          id="shortDescription" 
+          formControlName="shortDescription" 
+          class="form-control"
+          [class.error]="hasError('shortDescription', 'maxlength')"
+          placeholder="Brief description for plan cards">
+        <div *ngIf="hasError('shortDescription', 'maxlength')" class="error-message">
+          {{ getErrorMessage('shortDescription') }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing Section -->
+    <div class="form-section">
+      <h3>Pricing</h3>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="price">Base Price *</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input 
+              type="number" 
+              id="price" 
+              formControlName="price" 
+              class="form-control"
+              [class.error]="hasError('price', 'required') || hasError('price', 'min')"
+              step="0.01"
+              min="0.01"
+              placeholder="0.00">
+          </div>
+          <div *ngIf="hasError('price', 'required') || hasError('price', 'min')" 
+               class="error-message">
+            {{ getErrorMessage('price') }}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="currencyId">Currency *</label>
+          <select 
+            id="currencyId" 
+            formControlName="currencyId" 
+            class="form-control"
+            [class.error]="hasError('currencyId', 'required')">
+            <option value="">Select Currency</option>
+            <option value="usd">USD - US Dollar</option>
+            <option value="eur">EUR - Euro</option>
+            <option value="gbp">GBP - British Pound</option>
+          </select>
+          <div *ngIf="hasError('currencyId', 'required')" class="error-message">
+            {{ getErrorMessage('currencyId') }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Discount Section -->
+      <div class="discount-section">
+        <div class="discount-header">
+          <h4>Discount Configuration</h4>
+          <button 
+            type="button" 
+            class="btn btn-outline-primary btn-sm"
+            (click)="toggleDiscountSection()">
+            {{ showDiscountSection ? 'Remove Discount' : 'Add Discount' }}
+          </button>
+        </div>
+
+        <div *ngIf="showDiscountSection" class="discount-fields">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="discountedPrice">Discounted Price</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input 
+                  type="number" 
+                  id="discountedPrice" 
+                  formControlName="discountedPrice" 
+                  class="form-control"
+                  [class.error]="hasError('discountedPrice', 'invalidDiscountPrice')"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.00">
+              </div>
+              <div *ngIf="hasError('discountedPrice', 'invalidDiscountPrice')" 
+                   class="error-message">
+                {{ getErrorMessage('discountedPrice') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="discountValidUntil">Discount Valid Until</label>
+              <input 
+                type="datetime-local" 
+                id="discountValidUntil" 
+                formControlName="discountValidUntil" 
+                class="form-control"
+                [class.error]="hasError('discountValidUntil', 'required') || hasError('discountValidUntil', 'invalidDate')">
+              <div *ngIf="hasError('discountValidUntil', 'required') || hasError('discountValidUntil', 'invalidDate')" 
+                   class="error-message">
+                {{ getErrorMessage('discountValidUntil') }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Discount Preview -->
+          <div *ngIf="planForm.get('discountedPrice')?.value && planForm.get('price')?.value" 
+               class="discount-preview">
+            <div class="preview-card">
+              <h5>Discount Preview</h5>
+              <div class="preview-row">
+                <span>Base Price:</span>
+                <span class="original-price">${{ planForm.get('price')?.value | number:'1.2-2' }}</span>
+              </div>
+              <div class="preview-row">
+                <span>Discounted Price:</span>
+                <span class="discounted-price">${{ planForm.get('discountedPrice')?.value | number:'1.2-2' }}</span>
+              </div>
+              <div class="preview-row">
+                <span>You Save:</span>
+                <span class="savings">${{ calculateDiscountAmount() | number:'1.2-2' }} ({{ calculateDiscountPercentage() }}%)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Billing Configuration -->
+    <div class="form-section">
+      <h3>Billing Configuration</h3>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="billingCycleId">Billing Cycle *</label>
+          <select 
+            id="billingCycleId" 
+            formControlName="billingCycleId" 
+            class="form-control"
+            [class.error]="hasError('billingCycleId', 'required')">
+            <option value="">Select Billing Cycle</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="annual">Annual</option>
+          </select>
+          <div *ngIf="hasError('billingCycleId', 'required')" class="error-message">
+            {{ getErrorMessage('billingCycleId') }}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="categoryId">Category *</label>
+          <select 
+            id="categoryId" 
+            formControlName="categoryId" 
+            class="form-control"
+            [class.error]="hasError('categoryId', 'required')">
+            <option value="">Select Category</option>
+            <option value="basic">Basic</option>
+            <option value="premium">Premium</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+          <div *ngIf="hasError('categoryId', 'required')" class="error-message">
+            {{ getErrorMessage('categoryId') }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trial Configuration -->
+    <div class="form-section">
+      <h3>Trial Configuration</h3>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input 
+              type="checkbox" 
+              id="isTrialAllowed" 
+              formControlName="isTrialAllowed"
+              class="form-checkbox">
+            <label for="isTrialAllowed">Allow Free Trial</label>
+          </div>
+        </div>
+
+        <div class="form-group" *ngIf="planForm.get('isTrialAllowed')?.value">
+          <label for="trialDurationInDays">Trial Duration (Days)</label>
+          <input 
+            type="number" 
+            id="trialDurationInDays" 
+            formControlName="trialDurationInDays" 
+            class="form-control"
+            [class.error]="hasError('trialDurationInDays', 'min') || hasError('trialDurationInDays', 'max')"
+            min="0"
+            max="365"
+            placeholder="0">
+          <div *ngIf="hasError('trialDurationInDays', 'min') || hasError('trialDurationInDays', 'max')" 
+               class="error-message">
+            {{ getErrorMessage('trialDurationInDays') }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Marketing Properties -->
+    <div class="form-section">
+      <h3>Marketing Properties</h3>
+      
+      <div class="checkbox-grid">
+        <div class="checkbox-group">
+          <input 
+            type="checkbox" 
+            id="isFeatured" 
+            formControlName="isFeatured"
+            class="form-checkbox">
+          <label for="isFeatured">Featured Plan</label>
+        </div>
+
+        <div class="checkbox-group">
+          <input 
+            type="checkbox" 
+            id="isMostPopular" 
+            formControlName="isMostPopular"
+            class="form-checkbox">
+          <label for="isMostPopular">Most Popular</label>
+        </div>
+
+        <div class="checkbox-group">
+          <input 
+            type="checkbox" 
+            id="isTrending" 
+            formControlName="isTrending"
+            class="form-checkbox">
+          <label for="isTrending">Trending</label>
+        </div>
+
+        <div class="checkbox-group">
+          <input 
+            type="checkbox" 
+            id="isActive" 
+            formControlName="isActive"
+            class="form-checkbox">
+          <label for="isActive">Active</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="form-actions">
+      <button 
+        type="button" 
+        class="btn btn-secondary"
+        (click)="onCancel()">
+        Cancel
+      </button>
+      <button 
+        type="submit" 
+        class="btn btn-primary"
+        [disabled]="planForm.invalid">
+        {{ isEditMode ? 'Update Plan' : 'Create Plan' }}
+      </button>
+    </div>
+  </form>
+</div>
+

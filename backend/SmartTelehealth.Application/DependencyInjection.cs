@@ -67,6 +67,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISystemSettingsRepository>(),
                 provider.GetRequiredService<IPaymentService>(),
                 provider.GetRequiredService<IStripeService>(),
                 provider.GetRequiredService<INotificationService>(),
@@ -84,6 +85,12 @@ public static class DependencyInjection
         
         // Register Webhook Idempotency Service
         services.AddScoped<IWebhookIdempotencyService, WebhookIdempotencyService>();
+        
+        // Register Webhook Service
+        services.AddScoped<IWebhookService, WebhookService>();
+        
+        // Register Billing Adjustment Service
+        services.AddScoped<IBillingAdjustmentService, BillingAdjustmentService>();
         
         // Register Chat Services
         services.AddScoped<IChatStorageService, ChatStorageService>();
@@ -130,7 +137,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<ISubscriptionBillingService>(), // UPDATED: Use consolidated service
                 provider.GetRequiredService<ISubscriptionNotificationService>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IPrivilegeRepository>(),
-                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>()
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
+                provider.GetRequiredService<IServiceProvider>()
             )
         );
         services.AddScoped<ISubscriptionAutomationService, SubscriptionAutomationService>();
@@ -151,7 +159,18 @@ public static class DependencyInjection
         services.AddScoped<ISubscriptionNotificationService, SubscriptionNotificationService>();
         
         // Healthcare-specific subscription management services (MUST be registered before SubscriptionPlanService)
-        services.AddScoped<IPlanPricingService, PlanPricingService>();
+        services.AddScoped<IPlanPricingService, PlanPricingService>(provider =>
+            new PlanPricingService(
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISystemSettingsRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanPrivilegeRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
+                provider.GetRequiredService<AutoMapper.IMapper>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PlanPricingService>>(),
+                provider.GetRequiredService<IStripeSynchronizationService>()
+            )
+        );
         services.AddScoped<IPlanVersioningService, PlanVersioningService>();
         
         // Register Subscription Plan Service
@@ -168,7 +187,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<IUserService>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
-                provider.GetRequiredService<IPlanPricingService>()
+                provider.GetRequiredService<IPlanPricingService>(),
+                provider.GetRequiredService<IStripeSynchronizationService>()
             )
         );
         

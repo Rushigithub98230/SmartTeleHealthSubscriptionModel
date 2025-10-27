@@ -58,43 +58,8 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Creates a new subscription plan
-    /// </summary>
-    public async Task<SubscriptionPlan> CreatePlanAsync(SubscriptionPlan plan)
-    {
-        return await base.CreateAsync(plan);
-    }
-
-    /// <summary>
-    /// Updates an existing subscription plan
-    /// </summary>
-    public async Task<SubscriptionPlan> UpdatePlanAsync(SubscriptionPlan plan)
-    {
-        return await base.UpdateAsync(plan);
-    }
-
-    /// <summary>
-    /// Deletes a subscription plan by its unique identifier
-    /// </summary>
-    public async Task<bool> DeletePlanAsync(Guid id)
-    {
-        try
-        {
-            var plan = await _context.SubscriptionPlans.FindAsync(id);
-            if (plan == null)
-                return false;
-
-            plan.IsActive = false;
-            plan.IsDeleted = true;
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    // Note: CreateAsync, UpdateAsync, DeleteAsync are inherited from RepositoryBase<SubscriptionPlan>
+    // These methods handle audit properties automatically when called from the service layer
 
     /// <summary>
     /// Checks if a subscription plan exists
@@ -227,17 +192,17 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
         // Apply pricing filters
         if (filter.MinPrice.HasValue)
         {
-            query = query.Where(sp => sp.Price >= filter.MinPrice.Value);
+            query = query.Where(sp => sp.BasePrice >= filter.MinPrice.Value);
         }
 
         if (filter.MaxPrice.HasValue)
         {
-            query = query.Where(sp => sp.Price <= filter.MaxPrice.Value);
+            query = query.Where(sp => sp.BasePrice <= filter.MaxPrice.Value);
         }
 
         if (filter.ExactPrice.HasValue)
         {
-            query = query.Where(sp => sp.Price == filter.ExactPrice.Value);
+            query = query.Where(sp => sp.BasePrice == filter.ExactPrice.Value);
         }
 
         if (filter.CurrencyId.HasValue)
@@ -397,8 +362,8 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
                 ? query.OrderByDescending(sp => sp.Name)
                 : query.OrderBy(sp => sp.Name),
             "price" => sortOrder.ToLower() == "desc" 
-                ? query.OrderByDescending(sp => sp.Price)
-                : query.OrderBy(sp => sp.Price),
+                ? query.OrderByDescending(sp => sp.BasePrice)
+                : query.OrderBy(sp => sp.BasePrice),
             "createddate" => sortOrder.ToLower() == "desc" 
                 ? query.OrderByDescending(sp => sp.CreatedDate)
                 : query.OrderBy(sp => sp.CreatedDate),
@@ -446,7 +411,7 @@ public class SubscriptionPlanRepository : RepositoryBase<SubscriptionPlan>, ISub
         
         var averagePrice = await _context.SubscriptionPlans
             .Where(sp => sp.IsActive)
-            .AverageAsync(sp => sp.Price);
+            .AverageAsync(sp => sp.BasePrice);
 
         var plansByCategory = await _context.SubscriptionPlans
             .Include(sp => sp.Category)

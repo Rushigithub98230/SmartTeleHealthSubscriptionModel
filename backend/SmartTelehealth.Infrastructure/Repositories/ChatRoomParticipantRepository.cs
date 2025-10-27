@@ -125,23 +125,8 @@ public class ChatRoomParticipantRepository : RepositoryBase<ChatRoomParticipant>
         return true;
     }
 
-    /// <summary>
-    /// Deletes a chat room participant by its unique identifier (soft delete)
-    /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is not Guid participantId)
-            return false;
-
-        var participant = await _context.ChatRoomParticipants.FindAsync(participantId);
-        if (participant == null)
-            return false;
-
-        participant.IsDeleted = true;
-        participant.UpdatedDate = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<ChatRoomParticipant>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     /// <summary>
     /// Checks if a chat room participant exists

@@ -48,37 +48,8 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Creates a new subscription plan privilege
-    /// </summary>
-    public async Task<SubscriptionPlanPrivilege> CreatePlanPrivilegeAsync(SubscriptionPlanPrivilege planPrivilege)
-    {
-        return await base.CreateAsync(planPrivilege);
-    }
-
-    /// <summary>
-    /// Updates an existing subscription plan privilege
-    /// </summary>
-    public async Task<SubscriptionPlanPrivilege> UpdatePlanPrivilegeAsync(SubscriptionPlanPrivilege planPrivilege)
-    {
-        return await base.UpdateAsync(planPrivilege);
-    }
-
-    /// <summary>
-    /// Deletes a subscription plan privilege by its unique identifier (soft delete)
-    /// </summary>
-    public async Task<bool> DeletePlanPrivilegeAsync(Guid id)
-    {
-        var entity = await _context.SubscriptionPlanPrivileges.FindAsync(id);
-        if (entity != null)
-        {
-            entity.IsActive = false;
-            entity.IsDeleted = true;
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        return false;
-    }
+    // Note: CreateAsync, UpdateAsync, DeleteAsync are inherited from RepositoryBase<SubscriptionPlanPrivilege>
+    // These methods handle audit properties automatically when called from the service layer
 
     /// <summary>
     /// Checks if a subscription plan privilege exists
@@ -89,7 +60,7 @@ public class SubscriptionPlanPrivilegeRepository : RepositoryBase<SubscriptionPl
     }
 
     /// <summary>
-    /// Legacy method for backward compatibility
+    /// Legacy method for backward compatibility - delegates to CreateAsync
     /// </summary>
     public async Task AddAsync(SubscriptionPlanPrivilege planPrivilege)
     {

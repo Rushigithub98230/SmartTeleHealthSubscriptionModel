@@ -1,0 +1,96 @@
+<div class="plan-card" [class.featured]="plan.isFeatured" [class.most-popular]="plan.isMostPopular">
+  
+  <!-- Plan Header -->
+  <div class="plan-header">
+    <div class="plan-badges">
+      <span *ngIf="plan.isMostPopular" class="badge most-popular">Most Popular</span>
+      <span *ngIf="plan.isTrending" class="badge trending">Trending</span>
+      <span *ngIf="plan.isFeatured" class="badge featured">Featured</span>
+    </div>
+    
+    <h3 class="plan-name">{{ plan.name }}</h3>
+    <p class="plan-description" *ngIf="plan.shortDescription">{{ plan.shortDescription }}</p>
+  </div>
+
+  <!-- Pricing Section -->
+  <div class="pricing-section">
+    <div class="price-container">
+      <!-- Discount Badge -->
+      <div *ngIf="showDiscount && hasActiveDiscount" class="discount-badge">
+        <span class="discount-percentage">{{ discountPercentage }}% OFF</span>
+        <span class="discount-status">{{ discountStatusText }}</span>
+      </div>
+
+      <!-- Price Display -->
+      <div class="price-display">
+        <!-- Original Price (crossed out if discounted) -->
+        <div *ngIf="hasActiveDiscount" class="original-price">
+          {{ getFormattedBasePrice() }}
+        </div>
+        
+        <!-- Effective Price -->
+        <div class="effective-price">
+          {{ getFormattedEffectivePrice() }}
+        </div>
+        
+        <!-- Billing Cycle -->
+        <div class="billing-cycle">
+          per {{ getBillingCycleText() }}
+        </div>
+      </div>
+
+      <!-- Discount Amount -->
+      <div *ngIf="showDiscount && hasActiveDiscount" class="discount-amount">
+        Save {{ getFormattedDiscountAmount() }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Trial Information -->
+  <div *ngIf="showTrial && plan.isTrialAllowed && plan.trialDurationInDays > 0" class="trial-info">
+    <div class="trial-badge">
+      <i class="fas fa-gift"></i>
+      {{ plan.trialDurationInDays }}-day free trial
+    </div>
+  </div>
+
+  <!-- Features Section -->
+  <div *ngIf="showFeatures" class="features-section">
+    <h4>What's included:</h4>
+    <ul class="features-list">
+      <li *ngIf="plan.messagingCount > 0">
+        <i class="fas fa-comments"></i>
+        {{ plan.messagingCount }} messages per month
+      </li>
+      <li *ngIf="plan.includesMedicationDelivery">
+        <i class="fas fa-pills"></i>
+        Medication delivery
+      </li>
+      <li *ngIf="plan.includesFollowUpCare">
+        <i class="fas fa-user-md"></i>
+        Follow-up care
+      </li>
+      <li *ngIf="plan.maxPauseDurationDays > 0">
+        <i class="fas fa-pause"></i>
+        Pause subscription (up to {{ plan.maxPauseDurationDays }} days)
+      </li>
+    </ul>
+  </div>
+
+  <!-- Action Button -->
+  <div class="plan-actions">
+    <button class="btn btn-primary btn-block" (click)="selectPlan()">
+      Choose Plan
+    </button>
+  </div>
+
+  <!-- Discount Expiry Warning -->
+  <div *ngIf="showDiscount && hasActiveDiscount && daysUntilExpiry !== null && daysUntilExpiry <= 3" 
+       class="discount-warning">
+    <i class="fas fa-clock"></i>
+    <span *ngIf="daysUntilExpiry === 0">Discount expires today!</span>
+    <span *ngIf="daysUntilExpiry === 1">Discount expires tomorrow!</span>
+    <span *ngIf="daysUntilExpiry > 1">Discount expires in {{ daysUntilExpiry }} days!</span>
+  </div>
+</div>
+

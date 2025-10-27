@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
+using SmartTelehealth.Application.Constants;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Enums;
@@ -265,7 +267,9 @@ public class SubscriptionService : ISubscriptionService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating next billing date for billing cycle {BillingCycleId}", billingCycleId);
-            return startDate.AddMonths(1); // Safe fallback
+            // CONSISTENT FIX: Use centralized billing cycle calculator instead of manual AddMonths
+            return BillingCycleCalculator.CalculateNextBillingDate(startDate, 
+                new MasterBillingCycle { Name = "monthly", DurationInDays = 30 }); // 30 days = 1 month
         }
     }
 
@@ -283,7 +287,9 @@ public class SubscriptionService : ISubscriptionService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating end date for billing cycle {BillingCycleId}", billingCycleId);
-            return startDate.AddMonths(1); // Safe fallback
+            // CONSISTENT FIX: Use centralized billing cycle calculator instead of manual AddMonths
+            return BillingCycleCalculator.CalculateNextBillingDate(startDate, 
+                new MasterBillingCycle { Name = "monthly", DurationInDays = 30 }); // 30 days = 1 month
         }
     }
 
@@ -310,71 +316,6 @@ public class SubscriptionService : ISubscriptionService
     /// - No additional access control - plan details are generally public
     /// </remarks>
 
-    /// <summary>
-    /// Retrieves billing history for a specific subscription with access control validation
-    /// </summary>
-    /// <param name="subscriptionId">The unique identifier of the subscription to get billing history for</param>
-    /// <param name="tokenModel">Token containing user authentication and authorization information</param>
-    /// <returns>JsonModel containing the billing history or error information</returns>
-    /// <remarks>
-    /// This method:
-    /// - Validates that the subscription exists
-    /// - Checks user access to the subscription (admin or subscription owner)
-    /// - Retrieves billing records from the billing service
-    /// - Transforms billing records to BillingHistoryDto format
-    /// - Includes payment status, amounts, and dates
-    /// - Used for subscription billing history display
-    /// - Logs errors for troubleshooting
-    /// 
-    /// Access Control:
-    /// - Admins can access any subscription's billing history
-    /// - Users can only access their own subscription's billing history
-    /// </remarks>
-    /// <summary>
-    /// SRP Refactoring: This method violates Single Responsibility Principle.
-    /// Billing history retrieval should be handled by BillingService directly, not through SubscriptionService.
-    /// This method is kept for backward compatibility but will be removed in a future release.
-    /// Please use BillingService.GetSubscriptionBillingHistoryAsync directly.
-    /// </summary>
-    [Obsolete("This method violates SRP. Use BillingService.GetSubscriptionBillingHistoryAsync directly. This will be removed in the next release.")]
-    public async Task<JsonModel> GetBillingHistoryAsync(string subscriptionId, TokenModel tokenModel)
-    {
-        try
-        {
-            _logger.LogWarning("DEPRECATED: GetBillingHistoryAsync called from SubscriptionService. Use BillingService instead.");
-            
-            // Retrieve subscription to validate it exists
-            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
-            if (subscription == null)
-                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
-
-            // Get billing records for this subscription from billing service
-            var billingRecords = await _billingService.GetSubscriptionBillingHistoryAsync(subscription.Id, tokenModel);
-            
-            if (billingRecords.StatusCode != 200)
-                return new JsonModel { data = new object(), Message = "Failed to retrieve billing history", StatusCode = 500 };
-
-            // Transform billing records to BillingHistoryDto format
-            var billingHistory = ((IEnumerable<BillingRecordDto>)billingRecords.data).Select(br => new BillingHistoryDto
-            {
-                Id = br.Id.ToString(),
-                Amount = br.Amount,
-                Status = br.Status,
-                BillingDate = br.BillingDate,
-                PaidDate = br.PaidAt,
-                Description = br.Description,
-                InvoiceNumber = br.InvoiceNumber,
-                PaymentMethod = br.PaymentMethod
-            });
-
-            return new JsonModel { data = billingHistory, Message = "Billing history retrieved successfully", StatusCode = 200 };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting billing history for subscription {SubscriptionId}", subscriptionId);
-            return new JsonModel { data = new object(), Message = "Failed to retrieve billing history", StatusCode = 500 };
-        }
-    }
 
     /// <summary>
     /// Retrieves payment methods for a specific user with access control validation
@@ -1194,7 +1135,7 @@ public class SubscriptionService : ISubscriptionService
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
 
-            await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+            await _subscriptionRepository.UpdateAsync(entity);
 
             // Add status history
             await _subscriptionRepository.AddStatusHistoryAsync(new SubscriptionStatusHistory {
@@ -1325,7 +1266,7 @@ public class SubscriptionService : ISubscriptionService
                 ChangedAt = DateTime.UtcNow
             });
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(entity);
+            await _subscriptionRepository.UpdateAsync(entity);
             
             return new JsonModel { data = paymentResult, Message = "Payment retried and subscription reactivated successfully with Stripe synchronization", StatusCode = 200 };
         }
@@ -1438,7 +1379,7 @@ public class SubscriptionService : ISubscriptionService
         
         foreach (var plan in plans)
         {
-            csv.AppendLine($"\"{plan.Name}\",\"{plan.Description}\",{plan.Price},{plan.BillingCycleId},{plan.IsActive},\"{plan.Features ?? ""}\",\"{plan.Terms ?? ""}\",{plan.CreatedDate:yyyy-MM-dd}");
+            csv.AppendLine($"\"{plan.Name}\",\"{plan.Description}\",{plan.BasePrice},{plan.BillingCycleId},{plan.IsActive},\"{plan.Features ?? ""}\",\"{plan.Terms ?? ""}\",{plan.CreatedDate:yyyy-MM-dd}");
         }
         
         return csv.ToString();
@@ -2073,6 +2014,62 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    #endregion
+    /// <summary>
+    /// CRITICAL FIX: Get count of active subscriptions for analytics
+    /// </summary>
+    public async Task<int> GetActiveSubscriptionsCountAsync()
+    {
+        try
+        {
+            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            return allSubscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Active);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting active subscriptions count");
+            return 0;
+        }
+    }
 
+    /// <summary>
+    /// CRITICAL FIX: Get count of new subscriptions created on a specific date
+    /// </summary>
+    public async Task<int> GetNewSubscriptionsCountAsync(DateTime date)
+    {
+        try
+        {
+            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            return allSubscriptions.Count(s => s.CreatedDate.HasValue && s.CreatedDate.Value.Date == date.Date);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting new subscriptions count for date {Date}", date);
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// CRITICAL FIX: Get count of trials ending within specified days
+    /// </summary>
+    public async Task<int> GetTrialsEndingCountAsync(int days)
+    {
+        try
+        {
+            var targetDate = DateTime.UtcNow.AddDays(days);
+            var allSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            
+            return allSubscriptions.Count(s => 
+                s.Status == Subscription.SubscriptionStatuses.TrialActive &&
+                s.TrialEndDate.HasValue &&
+                s.TrialEndDate.Value <= targetDate &&
+                s.TrialEndDate.Value >= DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting trials ending count for {Days} days", days);
+            return 0;
+        }
+    }
+
+    #endregion
 }

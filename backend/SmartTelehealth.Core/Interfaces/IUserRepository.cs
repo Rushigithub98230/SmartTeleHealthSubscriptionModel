@@ -19,6 +19,7 @@ public interface IUserRepository : IRepositoryBase<User>
     Task<User?> GetByEmailAsync(string email);
     Task<User?> GetByUserNameAsync(string userName);
     Task<User?> GetByRefreshTokenAsync(string refreshToken);
+    Task<User?> GetUserByStripeCustomerIdAsync(string stripeCustomerId);
     Task<IEnumerable<User>> GetActiveUsersAsync();
     Task<bool> ExistsByEmailAsync(string email);
     Task<int> GetActiveUserCountAsync();
@@ -28,4 +29,10 @@ public interface IUserRepository : IRepositoryBase<User>
     Task<IEnumerable<User>> GetByUserTypeAsync(string userType);
     Task<User?> GetByLicenseNumberAsync(string licenseNumber);
     Task<IEnumerable<User>> GetByRoleAsync(string role);
+    
+    // Analytics methods
+    Task<int> GetTotalUsersCountAsync();
+    Task<int> GetActiveUsersCountAsync(DateTime startDate, DateTime endDate);
+    Task<int> GetNewUsersCountAsync(DateTime startDate, DateTime endDate);
+    Task<int> GetTotalLoginsCountAsync(DateTime startDate, DateTime endDate);
 } 

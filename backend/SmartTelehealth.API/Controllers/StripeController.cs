@@ -86,13 +86,23 @@ namespace SmartTelehealth.API.Controllers
         {
             try
             {
+                var token = GetToken(HttpContext);
+                
                 // Validate request
                 if (string.IsNullOrEmpty(request.PlanId))
                     return new JsonModel { data = new object(), Message = "Plan ID is required", StatusCode = 400 };
 
-                // NEW ARCHITECTURE: No billing cycle needed - each plan has its own fixed cycle
+                if (string.IsNullOrEmpty(request.SuccessUrl))
+                    return new JsonModel { data = new object(), Message = "Success URL is required", StatusCode = 400 };
+
+                if (string.IsNullOrEmpty(request.CancelUrl))
+                    return new JsonModel { data = new object(), Message = "Cancel URL is required", StatusCode = 400 };
+
+                _logger.LogInformation("Creating checkout session for user {UserId} with plan {PlanId}", 
+                    token.UserID, request.PlanId);
+
                 // Get the subscription plan to retrieve Stripe price ID
-                var planResult = await _subscriptionPlanService.GetPlanByIdAsync(request.PlanId, GetToken(HttpContext));
+                var planResult = await _subscriptionPlanService.GetPlanByIdAsync(request.PlanId, token);
                 if (planResult.StatusCode != 200)
                     return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
 
@@ -100,32 +110,55 @@ namespace SmartTelehealth.API.Controllers
                 if (plan == null)
                     return new JsonModel { data = new object(), Message = "Invalid plan data", StatusCode = 500 };
 
-                // NEW ARCHITECTURE: Get the plan's single Stripe price ID
+                // Check if plan has Stripe price ID configured
                 if (string.IsNullOrEmpty(plan.StripePriceId))
-                    return new JsonModel { data = new object(), Message = "No Stripe price configured for this plan", StatusCode = 400 };
-
-                // Create checkout session with plan's Stripe price ID
-                var sessionUrl = await _stripeService.CreateCheckoutSessionAsync(plan.StripePriceId, request.SuccessUrl, request.CancelUrl, GetToken(HttpContext));
-                
-                // Store questionnaire responses if provided
-                if (request.QuestionnaireResponses != null && request.QuestionnaireResponses.Count > 0)
                 {
-                    // TODO: Store questionnaire responses in database or session storage
-                    // This could be stored in a temporary table or session storage
-                    // and associated with the checkout session ID
-                    _logger.LogInformation("Questionnaire responses received for plan {PlanId}: {ResponseCount} responses", 
-                        request.PlanId, request.QuestionnaireResponses.Count);
+                    _logger.LogWarning("Plan {PlanId} does not have Stripe price ID configured", request.PlanId);
+                    return new JsonModel { data = new object(), Message = "No Stripe price configured for this plan", StatusCode = 400 };
                 }
+
+                // Create or get Stripe customer for the user
+                string stripeCustomerId;
+                try
+                {
+                    stripeCustomerId = await _stripeService.EnsureCustomerExistsAsync(token.UserID, token);
+                    _logger.LogInformation("Using Stripe customer {CustomerId} for user {UserId}", 
+                        stripeCustomerId, token.UserID);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to create Stripe customer for user {UserId}", token.UserID);
+                    return new JsonModel { data = new object(), Message = "Failed to create payment customer", StatusCode = 500 };
+                }
+
+                // Create checkout session with customer and plan details
+                var sessionResult = await _stripeService.CreateCheckoutSessionWithCustomerAsync(
+                    stripeCustomerId, 
+                    plan.StripePriceId, 
+                    request.SuccessUrl, 
+                    request.CancelUrl, 
+                    token,
+                    request.PlanId); // Pass the plan ID to store in metadata
+
+                if (string.IsNullOrEmpty(sessionResult))
+                {
+                    return new JsonModel { data = new object(), Message = "Failed to create checkout session", StatusCode = 500 };
+                }
+
+                _logger.LogInformation("Successfully created checkout session for user {UserId} with plan {PlanId}", 
+                    token.UserID, request.PlanId);
                 
                 return new JsonModel 
                 { 
-                    data = new { url = sessionUrl, sessionId = Guid.NewGuid().ToString() }, 
+                    data = new { url = sessionResult, sessionId = Guid.NewGuid().ToString() }, 
                     Message = "Checkout session created successfully", 
                     StatusCode = 200 
                 };
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error creating checkout session for user {UserId} with plan {PlanId}", 
+                    GetToken(HttpContext).UserID, request.PlanId);
                 return new JsonModel 
                 { 
                     data = new object(), 

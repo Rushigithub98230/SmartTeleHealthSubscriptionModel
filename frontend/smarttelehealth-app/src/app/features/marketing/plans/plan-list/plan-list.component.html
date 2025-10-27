@@ -71,13 +71,13 @@
             <div class="text-center mb-4">
               <div class="price-display">
                 <span class="price-amount display-5 fw-bold text-primary">
-                  ${{plan.price | number:'1.2-2'}}
+                   ${{plan.basePrice || plan.price | number:'1.2-2'}}
                 </span>
-                <span class="price-period text-muted">/month</span>
+                <span class="price-period text-muted">/{{plan && plan.billingCycleName ? plan.billingCycleName.toLowerCase() : 'month'}}</span>
               </div>
-              <div class="savings-badge mt-2" *ngIf="plan.annualBillingDiscount > 0">
+              <div class="savings-badge mt-2" *ngIf="(plan.billingDiscountPercentage || plan.billingDiscount || 0) > 0">
                 <span class="badge bg-success">
-                  Save {{plan.annualBillingDiscount}}% with Annual Billing
+                  Save {{plan.billingDiscountPercentage || plan.billingDiscount || 0}}% with this plan
                 </span>
               </div>
             </div>
@@ -91,7 +91,7 @@
             <div class="plan-features mb-4">
               <h6 class="text-muted mb-3">Included Features:</h6>
               <ul class="list-unstyled">
-                <li class="mb-2" *ngFor="let privilege of plan.planPrivileges?.slice(0, 5)">
+                <li class="mb-2" *ngFor="let privilege of plan?.planPrivileges?.slice(0, 5)">
                   <i class="bi bi-check-circle-fill text-success"></i>
                   <strong *ngIf="privilege.value !== -1">{{privilege.value}}</strong>
                   <strong *ngIf="privilege.value === -1">Unlimited</strong>
@@ -116,9 +116,9 @@
               <a [routerLink]="['/plans', plan.id]" class="btn btn-outline-primary w-100 mb-2">
                 <i class="bi bi-info-circle"></i> View Details
               </a>
-              <a routerLink="/web/register" class="btn btn-primary w-100">
+              <button class="btn btn-primary w-100" (click)="purchasePlan(plan.id)">
                 <i class="bi bi-cart-plus"></i> Subscribe Now
-              </a>
+              </button>
             </div>
           </div>
         </div>

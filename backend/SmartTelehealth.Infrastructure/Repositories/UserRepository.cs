@@ -47,6 +47,13 @@ public class UserRepository : RepositoryBase<User>, IUserRepository
                                      !u.IsDeleted);
     }
 
+    public async Task<User?> GetUserByStripeCustomerIdAsync(string stripeCustomerId)
+    {
+        return await _context.Users
+            .Include(u => u.UserRole)
+            .FirstOrDefaultAsync(u => u.StripeCustomerId == stripeCustomerId && !u.IsDeleted);
+    }
+
     // Custom method to get all users with related data and business logic
     public async Task<IEnumerable<User>> GetAllWithDetailsAsync()
     {
@@ -179,5 +186,44 @@ public class UserRepository : RepositoryBase<User>, IUserRepository
             .Include(u => u.Subscriptions)
             .Where(u => u.UserRole.Name == role)
             .ToListAsync();
+    }
+
+    // Analytics methods
+    public async Task<int> GetTotalUsersCountAsync()
+    {
+        return await _context.Users
+            .Where(u => !u.IsDeleted)
+            .CountAsync();
+    }
+
+    public async Task<int> GetActiveUsersCountAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Users
+            .Where(u => !u.IsDeleted && 
+                       u.LastLoginAt.HasValue && 
+                       u.LastLoginAt.Value >= startDate && 
+                       u.LastLoginAt.Value <= endDate)
+            .CountAsync();
+    }
+
+    public async Task<int> GetNewUsersCountAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Users
+            .Where(u => !u.IsDeleted && 
+                       u.CreatedDate >= startDate && 
+                       u.CreatedDate <= endDate)
+            .CountAsync();
+    }
+
+    public async Task<int> GetTotalLoginsCountAsync(DateTime startDate, DateTime endDate)
+    {
+        // This is a placeholder implementation since we don't have a separate login tracking table
+        // In a real implementation, you would have a UserLoginLogs table
+        return await _context.Users
+            .Where(u => !u.IsDeleted && 
+                       u.LastLoginAt.HasValue && 
+                       u.LastLoginAt.Value >= startDate && 
+                       u.LastLoginAt.Value <= endDate)
+            .CountAsync();
     }
 } 

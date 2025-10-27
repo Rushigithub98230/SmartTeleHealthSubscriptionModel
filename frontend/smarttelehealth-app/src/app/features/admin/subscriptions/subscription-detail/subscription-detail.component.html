@@ -87,20 +87,46 @@
         </div>
         <div class="card-body">
           <div class="d-grid gap-2">
-            <button class="btn btn-primary btn-sm">
-              <i class="bi bi-gift me-1"></i>Grant Credits
+            <!-- Cancel Subscription -->
+            <button 
+              class="btn btn-danger btn-sm" 
+              *ngIf="canCancel()"
+              (click)="cancelSubscription()">
+              <i class="bi bi-x-circle me-1"></i>Cancel Subscription
             </button>
-            <button class="btn btn-warning btn-sm">
-              <i class="bi bi-pause-circle me-1"></i>Suspend
+            
+            <!-- Pause Subscription -->
+            <button 
+              class="btn btn-warning btn-sm" 
+              *ngIf="canPause()"
+              (click)="pauseSubscription()">
+              <i class="bi bi-pause-circle me-1"></i>Pause Subscription
             </button>
-            <button class="btn btn-success btn-sm">
-              <i class="bi bi-arrow-clockwise me-1"></i>Reactivate
+            
+            <!-- Resume Subscription -->
+            <button 
+              class="btn btn-success btn-sm" 
+              *ngIf="canResume()"
+              (click)="resumeSubscription()">
+              <i class="bi bi-play-circle me-1"></i>Resume Subscription
             </button>
-            <button class="btn btn-info btn-sm">
-              <i class="bi bi-receipt me-1"></i>View Billing
+            
+            <!-- Extend Subscription -->
+            <button 
+              class="btn btn-info btn-sm" 
+              *ngIf="canExtend()"
+              (click)="extendSubscription()">
+              <i class="bi bi-calendar-plus me-1"></i>Extend Subscription
             </button>
+            
+            <!-- View Billing -->
             <button class="btn btn-secondary btn-sm">
-              <i class="bi bi-clock-history me-1"></i>View History
+              <i class="bi bi-receipt me-1"></i>View Billing History
+            </button>
+            
+            <!-- View User Details -->
+            <button class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-person me-1"></i>View User Details
             </button>
           </div>
         </div>

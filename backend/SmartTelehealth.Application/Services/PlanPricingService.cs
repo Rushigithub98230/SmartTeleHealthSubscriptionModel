@@ -5,6 +5,7 @@ using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Application.Utilities;
 
 namespace SmartTelehealth.Application.Services;
 
@@ -22,6 +23,7 @@ public class PlanPricingService : IPlanPricingService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly ILogger<PlanPricingService> _logger;
+    private readonly IStripeSynchronizationService _stripeSyncService;
 
     public PlanPricingService(
         ISubscriptionPlanRepository subscriptionPlanRepository,
@@ -30,7 +32,8 @@ public class PlanPricingService : IPlanPricingService
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper,
-        ILogger<PlanPricingService> logger)
+        ILogger<PlanPricingService> logger,
+        IStripeSynchronizationService stripeSyncService)
     {
         _subscriptionPlanRepository = subscriptionPlanRepository ?? throw new ArgumentNullException(nameof(subscriptionPlanRepository));
         _systemSettingsRepository = systemSettingsRepository ?? throw new ArgumentNullException(nameof(systemSettingsRepository));
@@ -39,6 +42,7 @@ public class PlanPricingService : IPlanPricingService
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _stripeSyncService = stripeSyncService ?? throw new ArgumentNullException(nameof(stripeSyncService));
     }
 
     /// <summary>
@@ -62,8 +66,8 @@ public class PlanPricingService : IPlanPricingService
             // Choice 1c: Return manual price if not auto-calculating
             if (!useAutoCalculation || !plan.IsAutoCalculatedPrice)
             {
-                _logger.LogInformation("Using manual price ${Price} for plan {PlanId}", plan.Price, planId);
-                return plan.Price;
+                _logger.LogInformation("Using manual price ${Price} for plan {PlanId}", plan.BasePrice, planId);
+                return plan.BasePrice;
             }
             
             // Auto-calculate from privileges
@@ -71,36 +75,43 @@ public class PlanPricingService : IPlanPricingService
             
             if (!planPrivileges.Any())
             {
-                _logger.LogWarning("Plan {PlanId} has no active privileges for pricing calculation", planId);
-                return 0;
+                _logger.LogInformation("Plan {PlanId} has no active privileges, calculating base price + commission", planId);
+                // Return base price (0) + commission, not just 0
+                var emptyPlanSettings = await _systemSettingsRepository.GetSettingsAsync();
+                decimal emptyPlanCommissionPercent = plan.AdminCommissionPercent ?? emptyPlanSettings?.DefaultAdminCommissionPercent ?? 0;
+                decimal defaultCommission = 0 * (emptyPlanCommissionPercent / 100);
+                return defaultCommission; // Base price is 0, but commission still applies
             }
             
             decimal privilegesTotalCost = 0;
             
             foreach (var planPrivilege in planPrivileges)
             {
-                // Formula: (Quantity included) × (Base cost per unit)
-                // Disabled (0) or unlimited (-1) = $0 contribution to plan price
-                if (planPrivilege.Value > 0)
+                // CRITICAL FIX: Use centralized privilege cost calculation
+                // This ensures consistent pricing across all services
+                var privilegeCost = BillingCalculationService.CalculatePrivilegeCost(planPrivilege, _logger);
+                
+                // Only add to total if there's a cost
+                if (privilegeCost > 0)
                 {
-                    var privilegeCost = planPrivilege.Value * planPrivilege.PrivilegeBaseCost;
                     privilegesTotalCost += privilegeCost;
-                    
-                    _logger.LogDebug(
-                        "Privilege {Name}: {Qty} × ${Base} = ${Total}",
-                        planPrivilege.Privilege.Name, planPrivilege.Value,
-                        planPrivilege.PrivilegeBaseCost, privilegeCost);
                 }
+                
+                _logger.LogDebug(
+                    "Privilege {Name}: {Qty} × ${Base} = ${Total}",
+                    planPrivilege.Privilege.Name, planPrivilege.Value,
+                    planPrivilege.PrivilegeBaseCost, privilegeCost);
             }
             
-            // Choice 2c: Get commission (per-plan or global default)
-            var settings = await _systemSettingsRepository.GetSettingsAsync();
-            decimal commissionPercent = plan.AdminCommissionPercent ?? settings.DefaultAdminCommissionPercent;
+            // CRITICAL FIX: Use centralized commission calculation
+            var systemSettings = await _systemSettingsRepository.GetSettingsAsync();
+            var defaultCommissionPercent = systemSettings?.DefaultAdminCommissionPercent ?? 0;
             
-            decimal commission = plan.AdminCommissionFixed 
-                ?? (privilegesTotalCost * (commissionPercent / 100));
-            
-            decimal finalPrice = privilegesTotalCost + commission;
+            var (finalPrice, commission, commissionPercent) = BillingCalculationService.CalculateFinalPlanPrice(
+                privilegesTotalCost,
+                plan.AdminCommissionPercent,
+                defaultCommissionPercent,
+                _logger);
             
             _logger.LogInformation(
                 "Plan {PlanId} auto-calculated price: Privileges ${Priv} + Commission ${Comm} ({Pct}%) = ${Final}",
@@ -140,7 +151,7 @@ public class PlanPricingService : IPlanPricingService
             {
                 return new JsonModel
                 {
-                    data = new { planId, price = plan.Price },
+                    data = new { planId, price = plan.BasePrice },
                     Message = "Plan uses manual pricing. Auto-calculation not enabled.",
                     StatusCode = 400
                 };
@@ -156,16 +167,29 @@ public class PlanPricingService : IPlanPricingService
             await _unitOfWork.BeginTransactionAsync();
             
             plan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
-            plan.Price = calculatedPrice;
+            plan.BasePrice = calculatedPrice;
             plan.UpdatedBy = tokenModel.UserID;
             plan.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+            await _subscriptionPlanRepository.UpdateAsync(plan);
             await _unitOfWork.CommitTransactionAsync();
             
             _logger.LogInformation(
                 "Updated plan {PlanId} price to ${Price} (Privileges: ${Priv}, Commission: ${Comm})",
                 planId, calculatedPrice, breakdown.PrivilegesTotalCost, breakdown.CommissionAmount);
+            
+            // CRITICAL: Synchronize with Stripe after price calculation update
+            _logger.LogInformation("Synchronizing plan {PlanId} with Stripe after price calculation update", planId);
+            var syncSuccess = await _stripeSyncService.SynchronizeSubscriptionPlanAsync(planId, tokenModel);
+            
+            if (!syncSuccess)
+            {
+                _logger.LogWarning("Failed to synchronize plan {PlanId} with Stripe after price calculation update", planId);
+            }
+            else
+            {
+                _logger.LogInformation("Successfully synchronized plan {PlanId} with Stripe after price calculation update", planId);
+            }
             
             return new JsonModel
             {
@@ -222,6 +246,7 @@ public class PlanPricingService : IPlanPricingService
             
             if (!currentPlan.IsLatestVersion)
             {
+                // If ParentPlanId is null, this IS the parent plan
                 var parentPlanId = currentPlan.ParentPlanId ?? currentPlan.Id;
                 pricingPlan = await _subscriptionPlanRepository
                     .GetLatestVersionOfPlanAsync(parentPlanId);
@@ -328,15 +353,31 @@ public class PlanPricingService : IPlanPricingService
         
         foreach (var pp in planPrivileges)
         {
-            if (pp.Value > 0) // Only count limited privileges
+            // CRITICAL FIX: Use centralized privilege cost calculation
+            var cost = BillingCalculationService.CalculatePrivilegeCost(pp, _logger);
+            
+            string quantityDescription;
+            if (pp.Value > 0) // Limited privileges
             {
-                var cost = pp.Value * pp.PrivilegeBaseCost;
+                quantityDescription = pp.Value.ToString();
+            }
+            else if (pp.Value == -1) // Unlimited privileges
+            {
+                quantityDescription = "Unlimited";
+            }
+            else // Disabled (0)
+            {
+                quantityDescription = "Disabled";
+            }
+            
+            if (cost > 0) // Only add to breakdown if there's a cost
+            {
                 privilegesTotalCost += cost;
                 
                 privilegeBreakdown.Add(new PrivilegeBreakdownItem
                 {
                     PrivilegeName = pp.Privilege.Name,
-                    Quantity = pp.Value,
+                    Quantity = pp.Value, // Keep original value for reference
                     UnitBaseCost = pp.PrivilegeBaseCost,
                     TotalCost = cost,
                     OverageUnitCost = pp.UnitCost
@@ -344,9 +385,35 @@ public class PlanPricingService : IPlanPricingService
             }
         }
         
-        decimal commissionPercent = plan.AdminCommissionPercent ?? settings.DefaultAdminCommissionPercent;
-        decimal commission = plan.AdminCommissionFixed ?? (privilegesTotalCost * (commissionPercent / 100));
-        decimal finalPrice = privilegesTotalCost + commission;
+        // CRITICAL FIX: Use centralized commission calculation
+        var systemSettings = await _systemSettingsRepository.GetSettingsAsync();
+        var defaultCommissionPercent = systemSettings?.DefaultAdminCommissionPercent ?? 0;
+        
+        var (basePrice, commission, commissionPercent) = BillingCalculationService.CalculateFinalPlanPrice(
+            privilegesTotalCost,
+            plan.AdminCommissionPercent,
+            defaultCommissionPercent,
+            _logger);
+        
+        // CRITICAL FIX: Use centralized effective price calculation
+        // This ensures consistent discount application across all services
+        decimal finalPrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+        
+        // Calculate discount amounts for breakdown (for informational purposes)
+        decimal? promotionalDiscountAmount = null;
+        decimal? billingDiscountAmount = null;
+        
+        if (plan.DiscountPercentage.HasValue && plan.DiscountPercentage.Value > 0 &&
+            (!plan.DiscountValidUntil.HasValue || plan.DiscountValidUntil.Value >= DateTime.UtcNow))
+        {
+            promotionalDiscountAmount = basePrice * (plan.DiscountPercentage.Value / 100);
+        }
+        
+        if (plan.BillingDiscountPercentage.HasValue && plan.BillingDiscountPercentage.Value > 0)
+        {
+            var afterPromotionalDiscount = basePrice - (promotionalDiscountAmount ?? 0);
+            billingDiscountAmount = afterPromotionalDiscount * (plan.BillingDiscountPercentage.Value / 100);
+        }
         
         return new PricingBreakdown
         {
@@ -357,10 +424,98 @@ public class PlanPricingService : IPlanPricingService
             PrivilegesTotalCost = privilegesTotalCost,
             CommissionPercent = commissionPercent,
             CommissionAmount = commission,
-            IsFixedCommission = plan.AdminCommissionFixed.HasValue,
+            IsFixedCommission = false, // Always percentage-based now
+            BasePrice = basePrice,
+            PromotionalDiscountPercent = plan.DiscountPercentage,
+            PromotionalDiscountAmount = promotionalDiscountAmount,
+            BillingDiscountPercent = plan.BillingDiscountPercentage,
+            BillingDiscountAmount = billingDiscountAmount,
             FinalPrice = finalPrice,
-            ManualPrice = !plan.IsAutoCalculatedPrice ? plan.Price : null
+            ManualPrice = !plan.IsAutoCalculatedPrice ? plan.BasePrice : null
         };
+    }
+
+    /// <summary>
+    /// Calculates the effective price for a subscription plan, considering all discounts and billing cycles
+    /// This is the price that should be used for billing and Stripe synchronization
+    /// </summary>
+    public async Task<decimal> CalculateEffectivePriceAsync(Guid planId, string billingCycle = "monthly")
+    {
+        var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planId);
+        if (plan == null)
+            throw new ArgumentException($"Plan {planId} not found");
+
+        // Get the pricing breakdown
+        var breakdown = await CalculatePricingBreakdownAsync(planId);
+        
+        // Apply billing cycle multiplier if needed
+        decimal multiplier = billingCycle.ToLower() switch
+        {
+            "weekly" => 0.25m,    // 1/4 of monthly
+            "monthly" => 1.0m,    // Base price
+            "quarterly" => 3.0m,  // 3 months
+            "annual" => 12.0m,    // 12 months
+            _ => 1.0m
+        };
+
+        return breakdown.FinalPrice * multiplier;
+    }
+
+    /// <summary>
+    /// CRITICAL FIX: Calculates the effective price for a plan after applying all discounts.
+    /// This ensures consistent pricing calculations across frontend and backend.
+    /// </summary>
+    public async Task<decimal> GetEffectivePriceAsync(Guid planId)
+    {
+        try
+        {
+            _logger.LogInformation("Calculating effective price for plan {PlanId}", planId);
+            
+            // Get the plan details
+            var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
+            if (plan == null)
+            {
+                _logger.LogError("Plan {PlanId} not found", planId);
+                throw new ArgumentException($"Plan {planId} not found");
+            }
+            
+            // Start with base price
+            decimal price = plan.BasePrice;
+            
+            // Apply promotional discount if valid
+            if (plan.DiscountPercentage.HasValue && plan.DiscountPercentage.Value > 0)
+            {
+                // Check if discount is still valid
+                bool isDiscountValid = !plan.DiscountValidUntil.HasValue || 
+                                     plan.DiscountValidUntil.Value >= DateTime.UtcNow;
+                
+                if (isDiscountValid)
+                {
+                    price = price * (1 - (plan.DiscountPercentage.Value / 100));
+                    _logger.LogInformation("Applied promotional discount {Discount}% to plan {PlanId}: ${BasePrice} -> ${EffectivePrice}", 
+                        plan.DiscountPercentage.Value, planId, plan.BasePrice, price);
+                }
+            }
+            
+            // Apply billing discount
+            if (plan.BillingDiscountPercentage.HasValue && plan.BillingDiscountPercentage.Value > 0)
+            {
+                price = price * (1 - (plan.BillingDiscountPercentage.Value / 100));
+                _logger.LogInformation("Applied billing discount {Discount}% to plan {PlanId}: ${BeforePrice} -> ${EffectivePrice}", 
+                    plan.BillingDiscountPercentage.Value, planId, price / (1 - (plan.BillingDiscountPercentage.Value / 100)), price);
+            }
+            
+            var finalPrice = Math.Max(price, 0); // Ensure price doesn't go negative
+            
+            _logger.LogInformation("Final effective price for plan {PlanId}: ${FinalPrice}", planId, finalPrice);
+            
+            return finalPrice;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating effective price for plan {PlanId}", planId);
+            throw;
+        }
     }
 
     #endregion

@@ -1,0 +1,361 @@
+.bulk-actions-container {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.3s ease-out;
+
+  .selection-summary {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    .selection-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      .selection-text {
+        font-weight: 600;
+        color: #495057;
+        font-size: 0.875rem;
+      }
+
+      .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 4px;
+      }
+    }
+
+    .select-all-toggle {
+      .form-check {
+        margin: 0;
+        
+        .form-check-input {
+          margin: 0;
+        }
+
+        .form-check-label {
+          font-size: 0.875rem;
+          color: #6c757d;
+          cursor: pointer;
+        }
+      }
+    }
+  }
+
+  .action-buttons {
+    .btn-group {
+      .btn {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 4px;
+        transition: all 0.15s ease-in-out;
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        &.btn-outline-warning {
+          color: #fd7e14;
+          border-color: #fd7e14;
+
+          &:hover:not(:disabled) {
+            background: #fd7e14;
+            color: #fff;
+          }
+        }
+
+        &.btn-outline-success {
+          color: #198754;
+          border-color: #198754;
+
+          &:hover:not(:disabled) {
+            background: #198754;
+            color: #fff;
+          }
+        }
+
+        &.btn-outline-danger {
+          color: #dc3545;
+          border-color: #dc3545;
+
+          &:hover:not(:disabled) {
+            background: #dc3545;
+            color: #fff;
+          }
+        }
+
+        &.btn-outline-info {
+          color: #0dcaf0;
+          border-color: #0dcaf0;
+
+          &:hover:not(:disabled) {
+            background: #0dcaf0;
+            color: #fff;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Modal Styles
+.modal {
+  &.show {
+    display: block !important;
+  }
+
+  .modal-dialog {
+    margin: 1.75rem auto;
+  }
+
+  .modal-content {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  }
+
+  .modal-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0;
+    padding: 1rem 1.5rem;
+
+    .modal-title {
+      font-weight: 600;
+      color: #495057;
+      margin: 0;
+    }
+
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      opacity: 0.5;
+      cursor: pointer;
+
+      &:hover {
+        opacity: 0.75;
+      }
+    }
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+
+    .form-label {
+      font-weight: 600;
+      color: #495057;
+      margin-bottom: 0.5rem;
+    }
+
+    .form-control {
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+
+      &:focus {
+        border-color: #80bdff;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+      }
+    }
+
+    .alert {
+      border-radius: 6px;
+      border: none;
+
+      &.alert-info {
+        background: #d1ecf1;
+        color: #0c5460;
+
+        h6 {
+          color: #0c5460;
+          font-weight: 600;
+          margin-bottom: 0.5rem;
+        }
+
+        ul {
+          margin: 0;
+          padding-left: 1.2rem;
+
+          li {
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+          }
+        }
+      }
+    }
+  }
+
+  .modal-footer {
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    border-radius: 0 0 8px 8px;
+    padding: 1rem 1.5rem;
+
+    .btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      border-radius: 4px;
+      transition: all 0.15s ease-in-out;
+
+      &.btn-secondary {
+        background: #6c757d;
+        border-color: #6c757d;
+        color: #fff;
+
+        &:hover {
+          background: #5a6268;
+          border-color: #545b62;
+        }
+      }
+
+      &.btn-primary {
+        background: #007bff;
+        border-color: #007bff;
+        color: #fff;
+
+        &:hover:not(:disabled) {
+          background: #0056b3;
+          border-color: #004085;
+        }
+
+        &:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+}
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1040;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+  opacity: 0.5;
+
+  &.show {
+    opacity: 0.5;
+  }
+}
+
+// Animations
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .bulk-actions-container {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+
+    .selection-summary {
+      justify-content: space-between;
+    }
+
+    .action-buttons {
+      .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+
+        .btn {
+          flex: 1;
+          min-width: 120px;
+        }
+      }
+    }
+  }
+
+  .modal {
+    .modal-dialog {
+      margin: 0.5rem;
+    }
+
+    .modal-content {
+      border-radius: 6px;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+      padding: 1rem;
+    }
+  }
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  .bulk-actions-container {
+    background: #2d3748;
+    border-color: #4a5568;
+
+    .selection-summary {
+      .selection-text {
+        color: #e2e8f0;
+      }
+    }
+  }
+
+  .modal {
+    .modal-content {
+      background: #2d3748;
+      color: #e2e8f0;
+    }
+
+    .modal-header {
+      background: #4a5568;
+      border-color: #718096;
+
+      .modal-title {
+        color: #e2e8f0;
+      }
+    }
+
+    .modal-footer {
+      background: #4a5568;
+      border-color: #718096;
+    }
+
+    .modal-body {
+      .form-control {
+        background: #4a5568;
+        border-color: #718096;
+        color: #e2e8f0;
+
+        &:focus {
+          border-color: #63b3ed;
+          box-shadow: 0 0 0 0.2rem rgba(99, 179, 237, 0.25);
+        }
+      }
+    }
+  }
+}

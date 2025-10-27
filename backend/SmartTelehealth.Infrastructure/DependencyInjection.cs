@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IConsultationRepository, ConsultationRepository>();
         services.AddScoped<IHealthAssessmentRepository, HealthAssessmentRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+        services.AddScoped<IApplicationLogRepository, ApplicationLogRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IAppointmentParticipantRepository, AppointmentParticipantRepository>();
         services.AddScoped<IAppointmentInvitationRepository, AppointmentInvitationRepository>();
@@ -69,6 +70,7 @@ public static class DependencyInjection
         services.AddScoped<IChatRoomParticipantRepository, ChatRoomParticipantRepository>();
         services.AddScoped<IVideoCallRepository, VideoCallRepository>();
         services.AddScoped<IProviderFeeRepository, ProviderFeeRepository>();
+        services.AddScoped<ICategoryFeeRangeRepository, CategoryFeeRangeRepository>();
         services.AddScoped<IProviderOnboardingRepository, ProviderOnboardingRepository>();
 
         // Register Services
@@ -121,6 +123,16 @@ public static class DependencyInjection
 
         // Register Application AutomatedBillingService as a scoped service
         services.AddScoped<IAutomatedBillingService, SmartTelehealth.Application.Services.AutomatedBillingService>();
+        
+        // Register Logs Service
+        services.AddScoped<SmartTelehealth.Application.Interfaces.ILogsService, SmartTelehealth.Application.Services.LogsService>();
+        
+        // Register Provider Fee Services
+        services.AddScoped<IProviderFeeService, ProviderFeeService>();
+        services.AddScoped<ICategoryFeeRangeService, CategoryFeeRangeService>();
+        
+        // Register PDF Service
+        services.AddScoped<IPdfService, PdfService>();
         
         // Register Healthcare-Specific Scheduled Migration Background Service
         services.AddHostedService<ScheduledMigrationBackgroundService>();

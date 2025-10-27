@@ -4,6 +4,7 @@ using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
+using SmartTelehealth.Application.Constants;
 using System.Linq;
 using System.Text;
 
@@ -593,7 +594,7 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
             // Get action items
             var renewalsDueToday = await _subscriptionRepository.GetSubscriptionsDueForBillingAsync(DateTime.UtcNow);
             var failedPayments = await _billingRepository.GetByStatusAsync(BillingRecord.BillingStatus.Failed);
-            var trialsEnding = trialSubscriptions.Where(s => s.TrialEndDate.HasValue && s.TrialEndDate.Value <= DateTime.UtcNow.AddDays(7)).ToList();
+            var trialsEnding = trialSubscriptions.Where(s => s.TrialEndDate.HasValue && s.TrialEndDate.Value <= DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS)).ToList();
             var suspendedSubscriptions = allSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Suspended).ToList();
 
             // Get recent activity (last 20 events)
@@ -842,6 +843,121 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
         }
 
         return Task.FromResult(result);
+    }
+
+    public async Task<JsonModel> GetUsageStatisticsAsync(TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting usage statistics by user {UserId}", tokenModel.UserID);
+
+            // Get all active subscriptions
+            var activeSubscriptions = await _subscriptionRepository.GetAllSubscriptionsAsync();
+            var activeSubs = activeSubscriptions.Where(s => s.Status == Subscription.SubscriptionStatuses.Active).ToList();
+
+            // Get privilege usage data
+            var privilegeUsageStats = new List<object>();
+            var totalPrivilegeUsage = 0;
+            var totalOverageCharges = 0m;
+
+            foreach (var subscription in activeSubs)
+            {
+                var usages = await _subscriptionRepository.GetUserSubscriptionPrivilegeUsagesAsync(subscription.Id);
+                
+                foreach (var usage in usages)
+                {
+                    totalPrivilegeUsage += usage.UsedValue;
+                    
+                    if (usage.IsExhausted && !usage.IsUnlimited)
+                    {
+                        // Calculate overage amount based on overage usage and unit cost
+                        var overageUsage = usage.UsedValue - usage.AllowedValue;
+                        // Note: Unit cost would need to be retrieved from the privilege configuration
+                        // For now, we'll use a placeholder calculation
+                        var overageAmount = overageUsage * 1.0m; // Placeholder: $1 per overage unit
+                        totalOverageCharges += overageAmount;
+                    }
+
+                    var existingStat = privilegeUsageStats.FirstOrDefault(s => 
+                        (s as dynamic)?.privilegeId == usage.PrivilegeId);
+                    
+                    if (existingStat != null)
+                    {
+                        (existingStat as dynamic).totalUsage += usage.UsedValue;
+                        (existingStat as dynamic).userCount += 1;
+                    }
+                    else
+                    {
+                        privilegeUsageStats.Add(new
+                        {
+                            privilegeId = usage.PrivilegeId,
+                            privilegeName = usage.Privilege?.Name ?? "Unknown",
+                            totalUsage = usage.UsedValue,
+                            userCount = 1,
+                            averageUsage = usage.UsedValue,
+                            overageCount = usage.IsExhausted ? 1 : 0
+                        });
+                    }
+                }
+            }
+
+            // Calculate top used privileges
+            var topUsedPrivileges = privilegeUsageStats
+                .OrderByDescending(s => (s as dynamic).totalUsage)
+                .Take(10)
+                .ToList();
+
+            // Calculate usage trends (last 30 days)
+            // TODO: Implement GetPrivilegeUsageHistoryAsync method in ISubscriptionRepository
+            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+            // var recentUsage = await _subscriptionRepository.GetPrivilegeUsageHistoryAsync(thirtyDaysAgo, DateTime.UtcNow);
+
+            var usageTrends = new List<object>(); // Placeholder until method is implemented
+            // var usageTrends = recentUsage
+            //     .GroupBy(u => u.UsedAt.Date)
+            //     .Select(g => new
+            //     {
+            //         date = g.Key,
+            //         totalUsage = g.Sum(u => u.UsedValue),
+            //         uniqueUsers = g.Select(u => u.UserId).Distinct().Count(),
+            //         overageEvents = g.Count(u => u.IsOverage)
+            //     })
+            //     .OrderBy(t => t.date)
+            //     .ToList();
+
+            var statistics = new
+            {
+                summary = new
+                {
+                    totalActiveSubscriptions = activeSubs.Count,
+                    totalPrivilegeUsage,
+                    totalOverageCharges,
+                    averageUsagePerUser = activeSubs.Count > 0 ? totalPrivilegeUsage / activeSubs.Count : 0,
+                    overageRate = activeSubs.Count > 0 ? 
+                        (decimal)privilegeUsageStats.Sum(s => (s as dynamic).overageCount) / activeSubs.Count * 100 : 0
+                },
+                topUsedPrivileges,
+                usageTrends,
+                privilegeBreakdown = privilegeUsageStats
+            };
+
+            return new JsonModel
+            {
+                data = statistics,
+                Message = "Usage statistics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting usage statistics by user {UserId}", tokenModel.UserID);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve usage statistics",
+                StatusCode = 500
+            };
+        }
     }
 
     #endregion

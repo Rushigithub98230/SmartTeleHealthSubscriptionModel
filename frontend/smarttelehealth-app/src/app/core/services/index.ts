@@ -13,6 +13,7 @@ export * from './billing.service';
 export * from './payment.service';
 export * from './invoice.service';
 export * from './stripe-client.service';
+export * from './stripe-checkout.service';
 export * from './config.service';
 export * from './stripe-sync.service';
 export * from './plan-versioning.service';

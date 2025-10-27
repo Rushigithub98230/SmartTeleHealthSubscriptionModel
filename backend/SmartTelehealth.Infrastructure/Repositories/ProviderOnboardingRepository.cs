@@ -110,23 +110,8 @@ public class ProviderOnboardingRepository : RepositoryBase<ProviderOnboarding>, 
         return await base.UpdateAsync(onboarding);
     }
 
-    /// <summary>
-    /// Deletes a provider onboarding by its unique identifier (soft delete)
-    /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is not Guid onboardingId)
-            return false;
-
-        var onboarding = await _context.ProviderOnboardings.FindAsync(onboardingId);
-        if (onboarding == null)
-            return false;
-
-        onboarding.IsActive = false;
-        onboarding.UpdatedDate = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<ProviderOnboarding>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     /// <summary>
     /// Checks if a provider onboarding exists

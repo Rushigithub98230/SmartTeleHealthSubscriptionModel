@@ -12,6 +12,10 @@ export const SUBSCRIPTION_ROUTES: Routes = [
   {
     path: 'purchase/:planId',
     loadComponent: () => import('./purchase-plan/purchase-plan.component').then(m => m.PurchasePlanComponent)
+  },
+  {
+    path: 'success',
+    loadComponent: () => import('./subscription-success/subscription-success.component').then(m => m.SubscriptionSuccessComponent)
   }
 ];
 

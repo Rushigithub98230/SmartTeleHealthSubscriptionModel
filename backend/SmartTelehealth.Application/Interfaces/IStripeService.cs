@@ -47,7 +47,8 @@ public interface IStripeService
     Task<PaymentIntentStatusDto> GetPaymentIntentStatusAsync(string paymentIntentId, TokenModel tokenModel);
     
     // Checkout Sessions
-    Task<string> CreateCheckoutSessionAsync(string priceId, string successUrl, string cancelUrl, TokenModel tokenModel);
+    Task<string> EnsureCustomerExistsAsync(int userId, TokenModel tokenModel);
+        Task<string> CreateCheckoutSessionWithCustomerAsync(string customerId, string priceId, string successUrl, string cancelUrl, TokenModel tokenModel, string? planId = null);
     
     // Webhook Processing
     Task<bool> ProcessWebhookAsync(string json, string signature, TokenModel tokenModel);

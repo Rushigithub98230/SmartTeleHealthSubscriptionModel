@@ -1,3 +1,10 @@
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.csproj.AssemblyReference.cache
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.GeneratedMSBuildEditorConfig.editorconfig
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.AssemblyInfoInputs.cache
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.AssemblyInfo.cs
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.csproj.CoreCompileInputs.cache
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.MvcApplicationPartsAssemblyInfo.cache
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.sourcelink.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\appsettings.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\appsettings.test.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.API.staticwebassets.runtime.json
@@ -232,14 +239,6 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\ba
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.Core.pdb
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.Infrastructure.pdb
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\bin\Debug\net8.0\SmartTelehealth.Application.pdb
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.csproj.AssemblyReference.cache
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.GeneratedMSBuildEditorConfig.editorconfig
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.AssemblyInfoInputs.cache
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.AssemblyInfo.cs
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.csproj.CoreCompileInputs.cache
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.MvcApplicationPartsAssemblyInfo.cs
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.MvcApplicationPartsAssemblyInfo.cache
-D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.sourcelink.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\scopedcss\bundle\SmartTelehealth.API.styles.css
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\staticwebassets.build.json
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\staticwebassets.development.json
@@ -256,3 +255,4 @@ D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\ba
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.pdb
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\SmartTelehealth.API.genruntimeconfig.cache
 D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\ref\SmartTelehealth.API.dll
+D:\DayUsers\Rushikesh\Personal\.Net Projects\SmartTeleHealthSubscriptionModel\backend\SmartTelehealth.API\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

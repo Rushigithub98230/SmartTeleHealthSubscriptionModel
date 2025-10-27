@@ -1,0 +1,89 @@
+<!-- Subscription Timeline Component -->
+<div class="subscription-timeline">
+  <!-- Timeline Header -->
+  <div class="timeline-header">
+    <div class="timeline-title">
+      <i class="bi bi-clock-history me-2"></i>
+      <span>Subscription Timeline</span>
+    </div>
+    <div class="timeline-controls">
+      <button 
+        type="button" 
+        class="btn btn-sm btn-outline-secondary"
+        (click)="toggleSubscriptionView()">
+        <i class="bi bi-eye me-1"></i>
+        {{ showAllSubscriptions ? 'Current Only' : 'All Subscriptions' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Timeline Events -->
+  <div class="timeline-container" *ngIf="timelineEvents.length > 0">
+    <div class="timeline-line"></div>
+    
+    <div 
+      *ngFor="let event of timelineEvents; let i = index" 
+      class="timeline-event"
+      [class.timeline-event-last]="i === timelineEvents.length - 1">
+      
+      <!-- Event Icon -->
+      <div class="timeline-icon" [ngClass]="getStatusClass(event.status)">
+        <i [class]="event.icon"></i>
+      </div>
+      
+      <!-- Event Content -->
+      <div class="timeline-content">
+        <div class="timeline-event-header">
+          <h6 class="timeline-event-title">{{ event.title }}</h6>
+          <div class="timeline-event-time">
+            <span class="timeline-date">{{ formatDate(event.date) }}</span>
+            <span class="timeline-relative">{{ getRelativeTime(event.date) }}</span>
+          </div>
+        </div>
+        
+        <div class="timeline-event-description">
+          {{ event.description }}
+        </div>
+        
+        <!-- Event Metadata -->
+        <div class="timeline-event-metadata" *ngIf="event.metadata">
+          <div class="metadata-item" *ngIf="event.metadata.planName">
+            <i class="bi bi-tag me-1"></i>
+            <span>{{ event.metadata.planName }}</span>
+          </div>
+          <div class="metadata-item" *ngIf="event.metadata.amount">
+            <i class="bi bi-currency-dollar me-1"></i>
+            <span>${{ event.metadata.amount }}</span>
+          </div>
+          <div class="metadata-item" *ngIf="event.metadata.reason">
+            <i class="bi bi-chat-text me-1"></i>
+            <span>{{ event.metadata.reason }}</span>
+          </div>
+          <div class="metadata-item" *ngIf="event.metadata.error">
+            <i class="bi bi-exclamation-circle me-1"></i>
+            <span>{{ event.metadata.error }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="timeline-empty" *ngIf="timelineEvents.length === 0 && !isLoading">
+    <div class="empty-state">
+      <i class="bi bi-clock-history empty-icon"></i>
+      <h5>No Timeline Events</h5>
+      <p>No subscription events found for this user.</p>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="timeline-loading" *ngIf="isLoading">
+    <div class="loading-spinner">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2">Loading timeline events...</p>
+    </div>
+  </div>
+</div>

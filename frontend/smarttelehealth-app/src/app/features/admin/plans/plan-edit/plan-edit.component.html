@@ -166,17 +166,10 @@
             <h4 class="mb-4">Step 3: Billing Cycle Discounts</h4>
             <form [formGroup]="billingForm">
               <div class="row">
-                <div class="col-md-4 mb-3">
-                  <label class="form-label">Monthly Discount (%)</label>
-                  <input type="number" class="form-control" formControlName="monthlyBillingDiscount">
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label class="form-label">Quarterly Discount (%)</label>
-                  <input type="number" class="form-control" formControlName="quarterlyBillingDiscount">
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label class="form-label">Annual Discount (%)</label>
-                  <input type="number" class="form-control" formControlName="annualBillingDiscount">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Billing Discount (%)</label>
+                  <input type="number" class="form-control" formControlName="billingDiscount" min="0" max="100">
+                  <small class="form-text text-muted">Discount for this billing cycle (0-100%)</small>
                 </div>
               </div>
             </form>

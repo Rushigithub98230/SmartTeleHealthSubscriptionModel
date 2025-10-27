@@ -81,22 +81,8 @@ public class SubscriptionPaymentRepository : RepositoryBase<SubscriptionPayment>
         return await base.UpdateAsync(payment);
     }
 
-    /// <summary>
-    /// Deletes a subscription payment by its unique identifier
-    /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is not Guid paymentId)
-            return false;
-
-        var payment = await _context.SubscriptionPayments.FindAsync(paymentId);
-        if (payment == null)
-            return false;
-
-        _context.SubscriptionPayments.Remove(payment);
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<SubscriptionPayment>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     /// <summary>
     /// Checks if a subscription payment exists

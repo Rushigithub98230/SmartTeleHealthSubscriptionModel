@@ -334,10 +334,10 @@ public class Subscription : BaseEntity
     public decimal Amount { get => CurrentPrice; set => CurrentPrice = value; }
     
     /// <summary>
-    /// Default currency for the subscription (USD).
+    /// Currency for the subscription from the associated plan.
     /// Read-only property for backward compatibility with existing services.
     /// </summary>
-    public string Currency { get => "USD"; set { } }
+    public string Currency { get => SubscriptionPlan?.Currency?.Code ?? "USD"; set { } }
     #endregion
 
     #region Stripe Integration Properties

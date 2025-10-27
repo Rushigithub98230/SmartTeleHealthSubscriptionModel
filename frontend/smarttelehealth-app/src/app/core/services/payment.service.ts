@@ -66,6 +66,15 @@ export class PaymentService {
   }
 
   /**
+   * Remove payment method (alias for deletePaymentMethod)
+   * API: DELETE /api/payments/payment-methods/{id}
+   * Used in: Payment Methods Page
+   */
+  removePaymentMethod(paymentMethodId: string): Observable<ApiResponse<any>> {
+    return this.deletePaymentMethod(paymentMethodId);
+  }
+
+  /**
    * Process payment (Manual Renewal)
    * API: POST /api/payments/process-payment
    * Used in: Manual payment processing for failed renewals

@@ -122,21 +122,8 @@ public class ChatRoomRepository : RepositoryBase<ChatRoom>, IChatRoomRepository
         return await base.UpdateAsync(chatRoom);
     }
 
-    // Override DeleteAsync to implement soft delete
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is Guid guidId)
-        {
-            var chatRoom = await _context.ChatRooms.FindAsync(guidId);
-            if (chatRoom == null)
-                return false;
-
-            chatRoom.IsDeleted = true;
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        return false;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<ChatRoom>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     // Override ExistsAsync to apply business logic
     public override async Task<bool> ExistsAsync(object id)

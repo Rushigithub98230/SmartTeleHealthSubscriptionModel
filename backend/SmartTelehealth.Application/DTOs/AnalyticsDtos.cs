@@ -8,6 +8,7 @@ namespace SmartTelehealth.Application.DTOs
         public decimal TotalRevenue { get; set; }
         public decimal MonthlyRevenue { get; set; }
         public decimal AnnualRevenue { get; set; }
+        public decimal AnnualRecurringRevenue { get; set; } // Added missing property
         public int TotalSubscriptions { get; set; }
         public int ActiveSubscriptions { get; set; }
         public int NewSubscriptionsThisMonth { get; set; }
@@ -15,11 +16,14 @@ namespace SmartTelehealth.Application.DTOs
         public decimal AverageRevenuePerSubscription { get; set; }
         public List<SmartTelehealth.Core.DTOs.MonthlyRevenueData> MonthlyRevenueBreakdown { get; set; } = new List<SmartTelehealth.Core.DTOs.MonthlyRevenueData>();
         public List<SmartTelehealth.Core.DTOs.CategoryRevenueData> RevenueByCategory { get; set; } = new List<SmartTelehealth.Core.DTOs.CategoryRevenueData>();
+        public List<RevenueTrendDto> RevenueTrend { get; set; } = new List<RevenueTrendDto>(); // Added missing property
         public decimal TotalRefunds { get; set; }
         public decimal MonthlyRecurringRevenue { get; set; }
         public decimal AverageRevenuePerUser { get; set; }
         public decimal RevenueGrowth { get; set; }
         public List<PlanRevenueDto> RevenueByPlan { get; set; } = new List<PlanRevenueDto>();
+        public DateRangeDto Period { get; set; } = new DateRangeDto(); // Added missing property
+        public DateTime GeneratedAt { get; set; } // Added missing property
     }
 
     // MonthlyRevenueData and CategoryRevenueData moved to Core.DTOs to avoid duplication
@@ -86,7 +90,10 @@ namespace SmartTelehealth.Application.DTOs
         public int ActiveSubscriptions { get; set; }
         public int PausedSubscriptions { get; set; }
         public int CancelledSubscriptions { get; set; }
+        public int TrialSubscriptions { get; set; } // Added missing property
         public int NewSubscriptionsThisMonth { get; set; }
+        public int NewSubscriptionsThisPeriod { get; set; } // Added missing property
+        public int CancelledSubscriptionsThisPeriod { get; set; } // Added missing property
         public decimal ChurnRate { get; set; }
         public decimal AverageSubscriptionValue { get; set; }
         public decimal TotalRevenue { get; set; }
@@ -96,6 +103,8 @@ namespace SmartTelehealth.Application.DTOs
         public decimal MonthlyGrowth { get; set; }
         public Dictionary<string, int> SubscriptionsByPlan { get; set; } = new();
         public Dictionary<string, int> SubscriptionsByStatus { get; set; } = new();
+        public DateRangeDto Period { get; set; } = new DateRangeDto(); // Added missing property
+        public DateTime GeneratedAt { get; set; } // Added missing property
         
         // Additional properties for individual subscription analytics
         public string SubscriptionId { get; set; } = string.Empty;
@@ -116,8 +125,12 @@ namespace SmartTelehealth.Application.DTOs
         public int PendingBillingRecords { get; set; } // Added
         public int PaidBillingRecords { get; set; } // Added
         public int FailedBillingRecords { get; set; } // Added
+        public int TotalPayments { get; set; } // Added missing property
+        public int SuccessfulPayments { get; set; } // Added missing property
+        public int PendingPayments { get; set; } // Added missing property
         public decimal TotalRevenue { get; set; }
         public decimal AverageBillingAmount { get; set; } // Added
+        public decimal AveragePaymentAmount { get; set; } // Added missing property
         public List<MonthlyBillingRevenueDto> MonthlyRevenue { get; set; } = new(); // Added
         public List<BillingStatusDto> BillingStatuses { get; set; } = new(); // Added
         public List<PaymentMethodDto> PaymentMethods { get; set; } = new(); // Added
@@ -138,6 +151,8 @@ namespace SmartTelehealth.Application.DTOs
         public decimal PaymentSuccessRate { get; set; }
         public IEnumerable<CategoryRevenueDto> RevenueByCategory { get; set; } = new List<CategoryRevenueDto>();
         public IEnumerable<RevenueTrendDto> RevenueTrend { get; set; } = new List<RevenueTrendDto>();
+        public DateRangeDto Period { get; set; } = new DateRangeDto(); // Added missing property
+        public DateTime GeneratedAt { get; set; } // Added missing property
     }
 
     public class RevenueSourceDto
@@ -151,10 +166,16 @@ namespace SmartTelehealth.Application.DTOs
     {
         public int TotalUsers { get; set; }
         public int ActiveUsers { get; set; }
+        public int InactiveUsers { get; set; } // Added missing property
         public int NewUsersThisMonth { get; set; }
+        public int NewUsersThisPeriod { get; set; } // Added missing property
         public decimal UserRetentionRate { get; set; }
+        public decimal UserGrowthRate { get; set; } // Added missing property
+        public decimal AverageUsage { get; set; } // Added missing property
         public TimeSpan AverageUserLifetime { get; set; }
         public IEnumerable<CategoryAnalyticsDto> TopUserCategories { get; set; } = new List<CategoryAnalyticsDto>();
+        public DateRangeDto Period { get; set; } = new DateRangeDto(); // Added missing property
+        public DateTime GeneratedAt { get; set; } // Added missing property
     }
 
     public class SystemHealthDto
@@ -323,8 +344,6 @@ namespace SmartTelehealth.Application.DTOs
         public decimal Revenue { get; set; }
         public int SubscriptionCount { get; set; }
     }
-
-    // === ADVANCED ANALYTICS DTOs ===
 
     /// <summary>
     /// Comprehensive churn analytics data transfer object
@@ -571,5 +590,136 @@ namespace SmartTelehealth.Application.DTOs
     // === END DATABASE-LEVEL ANALYTICS DTOs ===
 
     // === END ADVANCED ANALYTICS DTOs ===
+
+    // === MISSING DTOs FOR ANALYTICS SERVICE ===
+
+    /// <summary>
+    /// System health DTO with subscription metrics
+    /// </summary>
+    public class SystemHealthAnalyticsDto
+    {
+        public int ActiveSubscriptions { get; set; }
+        public decimal RevenueToday { get; set; }
+        public int NewSubscriptionsToday { get; set; }
+        public int TrialsEndingThisWeek { get; set; }
+        public int PendingPayments { get; set; }
+        public string SystemStatus { get; set; } = string.Empty;
+        public DateTime LastUpdated { get; set; }
+    }
+
+    /// <summary>
+    /// Subscription dashboard DTO
+    /// </summary>
+    public class SubscriptionDashboardAnalyticsDto
+    {
+        public int TotalSubscriptions { get; set; }
+        public int ActiveSubscriptions { get; set; }
+        public int CancelledSubscriptions { get; set; }
+        public int PausedSubscriptions { get; set; }
+        public int TrialSubscriptions { get; set; }
+        public int NewSubscriptionsThisPeriod { get; set; }
+        public int CancelledSubscriptionsThisPeriod { get; set; }
+        public decimal AverageSubscriptionValue { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public decimal MonthlyRecurringRevenue { get; set; }
+        public DateRangeDto Period { get; set; } = new();
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Enhanced privilege usage analytics DTO
+    /// </summary>
+    public class EnhancedPrivilegeUsageAnalyticsDto
+    {
+        public decimal AveragePrivilegeUsage { get; set; }
+        public List<PrivilegeUsageDto> PrivilegeUsage { get; set; } = new();
+        public DateRangeDto Period { get; set; } = new();
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Enhanced privilege usage DTO
+    /// </summary>
+    public class EnhancedPrivilegeUsageDto
+    {
+        public Guid PrivilegeId { get; set; }
+        public string PrivilegeName { get; set; } = string.Empty;
+        public decimal TotalUsage { get; set; }
+        public decimal AverageUsage { get; set; }
+    }
+
+    /// <summary>
+    /// Enhanced subscription lifecycle analytics DTO
+    /// </summary>
+    public class EnhancedSubscriptionLifecycleAnalyticsDto
+    {
+        public int TotalLifecycleEvents { get; set; }
+        public List<LifecycleEventDto> LifecycleEvents { get; set; } = new();
+        public decimal RetentionRate { get; set; }
+        public DateRangeDto Period { get; set; } = new();
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    public class BillingTrendDto
+    {
+        public DateTime Date { get; set; }
+        public decimal Revenue { get; set; }
+        public int PaymentCount { get; set; }
+    }
+
+    // === MISSING DTOs FOR ANALYTICS SERVICE ===
+
+    /// <summary>
+    /// Plan analytics DTO
+    /// </summary>
+    public class PlanAnalyticsDto
+    {
+        public List<PlanPerformanceDto> PlanPerformance { get; set; } = new();
+        public DateRangeDto Period { get; set; } = new DateRangeDto();
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Plan performance DTO
+    /// </summary>
+    public class PlanPerformanceDto
+    {
+        public string PlanName { get; set; } = string.Empty;
+        public int SubscriptionCount { get; set; }
+        public decimal Revenue { get; set; }
+        public decimal AverageValue { get; set; }
+    }
+
+    /// <summary>
+    /// Usage analytics DTO
+    /// </summary>
+    public class UsageAnalyticsDto
+    {
+        public decimal TotalUsage { get; set; }
+        public decimal AverageUsage { get; set; }
+        public List<UsageByPrivilegeDto> UsageByPrivilege { get; set; } = new();
+        public DateRangeDto Period { get; set; } = new DateRangeDto();
+        public DateTime GeneratedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Usage by privilege DTO
+    /// </summary>
+    public class UsageByPrivilegeDto
+    {
+        public string PrivilegeName { get; set; } = string.Empty;
+        public decimal Usage { get; set; }
+        public decimal Percentage { get; set; }
+    }
+
+
+    /// <summary>
+    /// Date range DTO
+    /// </summary>
+    public class DateRangeDto
+    {
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+    }
 
 } 

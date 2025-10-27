@@ -63,22 +63,8 @@ public class VideoCallRepository : RepositoryBase<VideoCall>, IVideoCallReposito
         return await base.UpdateAsync(videoCall);
     }
 
-    /// <summary>
-    /// Deletes a video call by its unique identifier (soft delete)
-    /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is not Guid callId)
-            return false;
-
-        var videoCall = await _context.VideoCalls.FindAsync(callId);
-        if (videoCall == null)
-            return false;
-
-        videoCall.IsDeleted = true;
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<VideoCall>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     /// <summary>
     /// Checks if a video call exists

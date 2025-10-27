@@ -5,6 +5,7 @@ using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Entities;
+using SmartTelehealth.Application.Constants;
 
 namespace SmartTelehealth.Application.Services;
 
@@ -166,7 +167,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             await _subscriptionRepository.SaveChangesAsync();
 
 
@@ -234,11 +235,11 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             // Update subscription
             var oldPlanId = subscription.SubscriptionPlanId;
             subscription.SubscriptionPlanId = newPlan.Id;
-            subscription.CurrentPrice = newPlan.Price;
+            subscription.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger);
             subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             await _subscriptionRepository.SaveChangesAsync();
 
 
@@ -287,7 +288,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
                 try
                 {
                     // Check if subscription needs renewal
-                    if (subscription.NextBillingDate <= DateTime.UtcNow.AddDays(7) && subscription.AutoRenew)
+                    if (subscription.NextBillingDate <= DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS) && subscription.AutoRenew)
                     {
                         var renewalResult = await RenewSubscriptionAsync(subscription.Id.ToString(), tokenModel);
                         if (renewalResult.StatusCode == 200)
@@ -480,7 +481,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             var tempSubscription = new Subscription
             {
                 Id = subscription.Id,
-                CurrentPrice = newPlan.Price,
+                CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger),
                 SubscriptionPlan = newPlan,  // Set plan to get BillingCycle from it
                 SubscriptionPlanId = newPlan.Id,
                 StartDate = subscription.StartDate,
@@ -491,7 +492,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             var chargeForRemainingDays = BillingCycleCalculator.CalculateProratedAmount(
                 tempSubscription,
                 effectiveDate,
-                newPlan.Price,
+                BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger),
                 null // No logger needed for internal calculation
             );
             

@@ -6,6 +6,7 @@ using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Enums;
+using SmartTelehealth.Application.Utilities;
 
 namespace SmartTelehealth.Application.Services;
 
@@ -29,6 +30,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPlanPricingService _pricingService;
+    private readonly IStripeSynchronizationService _stripeSyncService;
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionPlanService with required dependencies
@@ -45,6 +47,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// <param name="subscriptionRepository">Repository for subscription data access</param>
     /// <param name="unitOfWork">Unit of work for transaction management</param>
     /// <param name="pricingService">Service for healthcare pricing calculations</param>
+    /// <param name="stripeSyncService">Service for Stripe synchronization</param>
     public SubscriptionPlanService(
         ISubscriptionPlanRepository subscriptionPlanRepository,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepository,
@@ -57,7 +60,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         IUserService userService,
         ISubscriptionRepository subscriptionRepository,
         IUnitOfWork unitOfWork,
-        IPlanPricingService pricingService)
+        IPlanPricingService pricingService,
+        IStripeSynchronizationService stripeSyncService)
     {
         _subscriptionPlanRepository = subscriptionPlanRepository ?? throw new ArgumentNullException(nameof(subscriptionPlanRepository));
         _planPrivilegeRepository = planPrivilegeRepository ?? throw new ArgumentNullException(nameof(planPrivilegeRepository));
@@ -71,6 +75,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _pricingService = pricingService ?? throw new ArgumentNullException(nameof(pricingService));
+        _stripeSyncService = stripeSyncService ?? throw new ArgumentNullException(nameof(stripeSyncService));
     }
 
     #region Core Plan Management
@@ -188,9 +193,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Plan name is required", StatusCode = 400 };
             }
 
-            if (createDto.Price <= 0)
+            // Allow 0 base price if auto-calculation is enabled
+            if (createDto.BasePrice <= 0 && !createDto.IsAutoCalculatedPrice)
             {
-                return new JsonModel { data = new object(), Message = "Price must be greater than 0", StatusCode = 400 };
+                return new JsonModel { data = new object(), Message = "Base price must be greater than 0 for manual pricing", StatusCode = 400 };
             }
 
             if (createDto.IsTrialAllowed && createDto.TrialDurationInDays <= 0)
@@ -214,6 +220,13 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "A plan with this name already exists", StatusCode = 400 };
             }
 
+            // Validate discount data
+            var discountValidation = ValidatePlanDiscount(createDto);
+            if (!discountValidation.IsValid)
+            {
+                return new JsonModel { data = new object(), Message = discountValidation.ErrorMessage, StatusCode = 400 };
+            }
+
             // BEGIN TRANSACTION - Single atomic operation for all changes
             await _unitOfWork.BeginTransactionAsync();
             
@@ -231,8 +244,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     Name = createDto.Name,
                     Description = createDto.Description,
                     ShortDescription = createDto.ShortDescription,
-                    Price = createDto.Price,
-                    DiscountedPrice = createDto.DiscountedPrice,
+                    BasePrice = createDto.BasePrice,
+                    DiscountPercentage = createDto.DiscountPercentage,
                     DiscountValidUntil = createDto.DiscountValidUntil,
                     BillingCycleId = createDto.BillingCycleId,
                     CurrencyId = createDto.CurrencyId,
@@ -272,9 +285,9 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     VersionCreatedDate = DateTime.UtcNow,
                     IsAutoCalculatedPrice = createDto.IsAutoCalculatedPrice,
                     AdminCommissionPercent = createDto.AdminCommissionPercent,
-                    AdminCommissionFixed = createDto.AdminCommissionFixed,
                     PriceChangeNoticeDays = createDto.PriceChangeNoticeDays,
                     PrivilegesTotalCost = 0,  // Will be calculated if auto-pricing
+                    BillingDiscountPercentage = createDto.BillingDiscountPercentage,
                     
                     // NEW ARCHITECTURE: Discounts are now explicit in the plan price
                     // No billing cycle discount fields needed
@@ -284,11 +297,18 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     CreatedDate = DateTime.UtcNow
                 };
 
-                createdPlan = await _subscriptionPlanRepository.CreatePlanAsync(plan);
+                createdPlan = await _subscriptionPlanRepository.CreateAsync(plan);
 
-                // STEP 2: Create Stripe resources
+                // STEP 2: Load billing cycle first to prevent null references
+                var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(createdPlan.BillingCycleId);
+                if (billingCycle == null)
+                {
+                    throw new Exception($"Billing cycle {createdPlan.BillingCycleId} not found for plan {createdPlan.Name}");
+                }
+                
+                // Create Stripe resources
                 _logger.LogInformation("Creating Stripe resources for plan {PlanName} with billing cycle {BillingCycle}", 
-                    createdPlan.Name, createdPlan.BillingCycle?.Name ?? "Unknown");
+                    createdPlan.Name, billingCycle.Name);
                 
                 // Create Stripe product
                 stripeProductId = await _stripeService.CreateProductAsync(createdPlan.Name, createdPlan.Description ?? "", tokenModel);
@@ -296,12 +316,6 @@ public class SubscriptionPlanService : ISubscriptionPlanService
 
                 // NEW ARCHITECTURE: Create only ONE Stripe price matching the plan's fixed billing cycle
                 // Each plan (Monthly, Quarterly, Annual) has its own explicit price
-                var billingCycle = await _subscriptionRepository.GetBillingCycleByIdAsync(createdPlan.BillingCycleId);
-                
-                if (billingCycle == null)
-                {
-                    throw new Exception($"Billing cycle {createdPlan.BillingCycleId} not found for plan {createdPlan.Name}");
-                }
                 
                 // Determine Stripe recurring interval based on billing cycle
                 var (interval, intervalCount) = billingCycle.Name?.ToLower() switch
@@ -314,11 +328,15 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     _ => ("month", 1) // Default to monthly
                 };
                 
+                // Get currency code for Stripe integration
+                var currency = await _subscriptionRepository.GetCurrencyByIdAsync(createdPlan.CurrencyId);
+                var currencyCode = currency?.Code?.ToLower() ?? "usd"; // Fallback to USD if not found
+                
                 // Create single Stripe price for this plan's billing cycle
                 stripePriceId = await _stripeService.CreatePriceAsync(
                     stripeProductId, 
-                    createdPlan.Price,  // Use plan's explicit price (not multiplied)
-                    "usd", 
+                    createdPlan.BasePrice,  // Use plan's base price
+                    currencyCode, 
                     interval, 
                     intervalCount, 
                     tokenModel);
@@ -327,7 +345,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 createdPlan.StripePriceId = stripePriceId;
 
                 // STEP 3: Update plan with Stripe IDs (CRITICAL STEP)
-                await _subscriptionPlanRepository.UpdatePlanAsync(createdPlan);
+                await _subscriptionPlanRepository.UpdateAsync(createdPlan);
 
                 _logger.LogInformation("Successfully created Stripe resources for plan {PlanName}: Product {ProductId}, Price {PriceId} ({Cycle})", 
                     createdPlan.Name, stripeProductId, stripePriceId, billingCycle.Name);
@@ -375,22 +393,50 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 }
                 
                 // STEP 5: Auto-calculate price if enabled (STILL IN SAME TRANSACTION!)
-                if (createdPlan.IsAutoCalculatedPrice && assignedPrivilegesCount > 0)
+                // Allow auto-calculation even with 0 privileges (will result in base price + commission)
+                if (createdPlan.IsAutoCalculatedPrice)
                 {
                     _logger.LogInformation("Auto-calculating price for plan {PlanId} based on privileges", createdPlan.Id);
                     
                     // Get pricing breakdown (includes privilegesTotalCost)
                     var breakdown = await _pricingService.CalculatePricingBreakdownAsync(createdPlan.Id);
                     
-                    // Update plan with calculated price
-                    createdPlan.Price = breakdown.FinalPrice;
+                    // ✅ CRITICAL FIX: Store original base price before updating
+                    var originalBasePrice = createdPlan.BasePrice;
+                    
+                    // Update plan with calculated base price
+                    createdPlan.BasePrice = breakdown.BasePrice;
                     createdPlan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
                     
-                    await _subscriptionPlanRepository.UpdatePlanAsync(createdPlan);
+                    await _subscriptionPlanRepository.UpdateAsync(createdPlan);
+                    
+                    // ✅ CRITICAL FIX: Update Stripe price to match the auto-calculated base price
+                    if (breakdown.BasePrice != originalBasePrice)
+                    {
+                        _logger.LogInformation("Updating Stripe price from ${OldPrice} to ${NewPrice} for plan {PlanName}", 
+                            originalBasePrice, breakdown.BasePrice, createdPlan.Name);
+                        
+                        // Deactivate old price and create new one with correct base price
+                        var newStripePriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
+                            stripePriceId,
+                            stripeProductId,
+                            breakdown.BasePrice,
+                            currencyCode,
+                            interval,
+                            intervalCount,
+                            tokenModel);
+                        
+                        // Update plan with new Stripe price ID
+                        createdPlan.StripePriceId = newStripePriceId;
+                        await _subscriptionPlanRepository.UpdateAsync(createdPlan);
+                        
+                        _logger.LogInformation("Successfully updated Stripe price to match auto-calculated base price for plan {PlanName}", 
+                            createdPlan.Name);
+                    }
                     
                     _logger.LogInformation(
-                        "Auto-calculated price for plan {PlanName}: ${Price} (Privileges: ${PrivTotal}, Commission: ${Comm})",
-                        createdPlan.Name, breakdown.FinalPrice, breakdown.PrivilegesTotalCost, breakdown.CommissionAmount);
+                        "Auto-calculated price for plan {PlanName}: BasePrice=${BasePrice}, FinalPrice=${FinalPrice} (Privileges: ${PrivTotal}, Commission: ${Comm})",
+                        createdPlan.Name, breakdown.BasePrice, breakdown.FinalPrice, breakdown.PrivilegesTotalCost, breakdown.CommissionAmount);
                 }
 
                 // COMMIT SINGLE TRANSACTION - All operations successful (atomic)
@@ -480,7 +526,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             plan.IsActive = true;
             plan.UpdatedBy = tokenModel.UserID;
             plan.UpdatedDate = DateTime.UtcNow;
-            await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+            await _subscriptionPlanRepository.UpdateAsync(plan);
             return new JsonModel { data = true, Message = "Plan activated", StatusCode = 200 };
         }
         catch (Exception ex)
@@ -628,7 +674,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     CreatedDate = DateTime.UtcNow
                 };
 
-                await _planPrivilegeRepository.AddAsync(planPrivilege);
+                await _planPrivilegeRepository.CreateAsync(planPrivilege);
                 assignedCount++;
             }
             
@@ -650,14 +696,27 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 _logger.LogInformation("Recalculating price for auto-priced plan {PlanId} after privilege assignment", planId);
                 
                 var breakdown = await _pricingService.CalculatePricingBreakdownAsync(planId);
-                plan.Price = breakdown.FinalPrice;
+                plan.BasePrice = breakdown.BasePrice;
                 plan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
                 plan.UpdatedBy = tokenModel.UserID;
                 plan.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+                await _subscriptionPlanRepository.UpdateAsync(plan);
                 
                 _logger.LogInformation("Recalculated price for plan {PlanName}: ${Price}", plan.Name, breakdown.FinalPrice);
+                
+                // CRITICAL: Synchronize with Stripe after privilege changes affect pricing
+                _logger.LogInformation("Synchronizing plan {PlanName} with Stripe after privilege assignment", plan.Name);
+                var syncSuccess = await _stripeSyncService.SynchronizeSubscriptionPlanAsync(plan.Id, tokenModel);
+                
+                if (!syncSuccess)
+                {
+                    _logger.LogWarning("Failed to synchronize plan {PlanName} with Stripe after privilege assignment", plan.Name);
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully synchronized plan {PlanName} with Stripe after privilege assignment", plan.Name);
+                }
             }
 
             // COMMIT TRANSACTION
@@ -726,7 +785,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             planPrivilege.UpdatedBy = tokenModel.UserID;
             planPrivilege.UpdatedDate = DateTime.UtcNow;
             
-            await _planPrivilegeRepository.UpdatePlanPrivilegeAsync(planPrivilege);
+            // Use UpdateAsync for soft delete
+            await _planPrivilegeRepository.UpdateAsync(planPrivilege);
             
             // If plan has auto-calculated pricing, recalculate price
             if (plan.IsAutoCalculatedPrice)
@@ -734,15 +794,28 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 _logger.LogInformation("Recalculating price for auto-priced plan {PlanId} after privilege removal", planId);
                 
                 var breakdown = await _pricingService.CalculatePricingBreakdownAsync(planId);
-                plan.Price = breakdown.FinalPrice;
+                plan.BasePrice = breakdown.BasePrice;
                 plan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
                 plan.UpdatedBy = tokenModel.UserID;
                 plan.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+                await _subscriptionPlanRepository.UpdateAsync(plan);
                 
                 _logger.LogInformation("Recalculated price for plan {PlanName}: ${OldPrice} → ${NewPrice}", 
-                    plan.Name, plan.Price, breakdown.FinalPrice);
+                    plan.Name, plan.BasePrice, breakdown.FinalPrice);
+                
+                // CRITICAL: Synchronize with Stripe after privilege removal affects pricing
+                _logger.LogInformation("Synchronizing plan {PlanName} with Stripe after privilege removal", plan.Name);
+                var syncSuccess = await _stripeSyncService.SynchronizeSubscriptionPlanAsync(plan.Id, tokenModel);
+                
+                if (!syncSuccess)
+                {
+                    _logger.LogWarning("Failed to synchronize plan {PlanName} with Stripe after privilege removal", plan.Name);
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully synchronized plan {PlanName} with Stripe after privilege removal", plan.Name);
+                }
             }
 
             // COMMIT TRANSACTION
@@ -806,7 +879,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             planPrivilege.UpdatedBy = tokenModel.UserID;
             planPrivilege.UpdatedDate = DateTime.UtcNow;
 
-            await _planPrivilegeRepository.UpdatePlanPrivilegeAsync(planPrivilege);
+                await _planPrivilegeRepository.UpdateAsync(planPrivilege);
             
             // If plan has auto-calculated pricing, recalculate price
             if (plan.IsAutoCalculatedPrice)
@@ -814,14 +887,27 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 _logger.LogInformation("Recalculating price for auto-priced plan {PlanId} after privilege update", planId);
                 
                 var breakdown = await _pricingService.CalculatePricingBreakdownAsync(planId);
-                plan.Price = breakdown.FinalPrice;
+                plan.BasePrice = breakdown.BasePrice;
                 plan.PrivilegesTotalCost = breakdown.PrivilegesTotalCost;
                 plan.UpdatedBy = tokenModel.UserID;
                 plan.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+                await _subscriptionPlanRepository.UpdateAsync(plan);
                 
                 _logger.LogInformation("Recalculated price for plan {PlanName}: ${NewPrice}", plan.Name, breakdown.FinalPrice);
+                
+                // CRITICAL: Synchronize with Stripe after privilege update affects pricing
+                _logger.LogInformation("Synchronizing plan {PlanName} with Stripe after privilege update", plan.Name);
+                var syncSuccess = await _stripeSyncService.SynchronizeSubscriptionPlanAsync(plan.Id, tokenModel);
+                
+                if (!syncSuccess)
+                {
+                    _logger.LogWarning("Failed to synchronize plan {PlanName} with Stripe after privilege update", plan.Name);
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully synchronized plan {PlanName} with Stripe after privilege update", plan.Name);
+                }
             }
 
             // COMMIT TRANSACTION
@@ -878,7 +964,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// <summary>
     /// Updates a subscription plan with comprehensive validation (for backward compatibility)
     /// </summary>
-    public async Task<JsonModel> UpdatePlanAsync(string planId, UpdateSubscriptionPlanDto updateDto, TokenModel tokenModel)
+    public async Task<JsonModel> UpdateAsync(string planId, UpdateSubscriptionPlanDto updateDto, TokenModel tokenModel)
     {
         try
         {
@@ -901,7 +987,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
             }
 
-            var originalPrice = existingPlan.Price;
+            var originalBasePrice = existingPlan.BasePrice;
             var originalName = existingPlan.Name;
             var originalDescription = existingPlan.Description;
 
@@ -931,10 +1017,10 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 if (updateDto.DisplayOrder.HasValue)
                     existingPlan.DisplayOrder = updateDto.DisplayOrder.Value;
 
-            // NEW: Handle price updates with Stripe synchronization
-            if (updateDto.Price > 0 && updateDto.Price != originalPrice)
+            // NEW: Handle base price updates with Stripe synchronization
+            if (updateDto.BasePrice > 0 && updateDto.BasePrice != originalBasePrice)
             {
-                existingPlan.Price = updateDto.Price;
+                existingPlan.BasePrice = updateDto.BasePrice;
                 
                 // Sync price changes to Stripe if Stripe integration exists
                 if (!string.IsNullOrEmpty(existingPlan.StripeProductId))
@@ -942,7 +1028,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     try
                     {
                         _logger.LogInformation("Updating Stripe price for plan {PlanName} from {OldPrice} to {NewPrice}", 
-                            existingPlan.Name, originalPrice, updateDto.Price);
+                            existingPlan.Name, originalBasePrice, updateDto.BasePrice);
                         
                         // NEW ARCHITECTURE: Each plan has only ONE Stripe price (matching its billing cycle)
                         // Update only the price that exists for this plan's billing cycle
@@ -964,21 +1050,25 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                             _ => ("month", 1)
                         };
                         
+                        // Get currency code for Stripe integration
+                        var currency = await _subscriptionRepository.GetCurrencyByIdAsync(existingPlan.CurrencyId);
+                        var currencyCode = currency?.Code?.ToLower() ?? "usd"; // Fallback to USD if not found
+                        
                         // NEW ARCHITECTURE: Simply update the single Stripe price
                         if (!string.IsNullOrEmpty(existingPlan.StripePriceId))
                         {
                             var newPriceId = await _stripeService.UpdatePriceWithNewPriceAsync(
                                 existingPlan.StripePriceId,
                                 existingPlan.StripeProductId,
-                                updateDto.Price,  // Use explicit price
-                                "usd",
+                                updateDto.BasePrice,  // Use base price
+                                currencyCode,
                                 interval,
                                 intervalCount,
                                 tokenModel
                             );
                             existingPlan.StripePriceId = newPriceId;
                             _logger.LogInformation("Updated Stripe price for plan {PlanName} ({Cycle}) to ${Price}", 
-                                existingPlan.Name, billingCycle.Name, updateDto.Price);
+                                existingPlan.Name, billingCycle.Name, updateDto.BasePrice);
                         }
                         else
                         {
@@ -1030,7 +1120,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
                 existingPlan.UpdatedDate = DateTime.UtcNow;
 
-                var updatedPlan = await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
+                var updatedPlan = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
                 
                 // COMMIT TRANSACTION - All operations successful
                 await _unitOfWork.CommitTransactionAsync();
@@ -1163,7 +1253,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 existingPlan.UpdatedDate = DateTime.UtcNow;
                 existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
                 
-                var result = await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
+                var result = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
                 if (result == null)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
@@ -1238,7 +1328,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 existingPlan.UpdatedDate = DateTime.UtcNow;
                 existingPlan.UpdatedBy = tokenModel?.UserID ?? 0;
                 
-                var result = await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
+                var result = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
                 if (result == null)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
@@ -1368,14 +1458,16 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     }
                 }
 
-                // Set audit properties for deletion
+                // Set audit properties for soft deletion
+                existingPlan.IsDeleted = true;
                 existingPlan.DeletedBy = tokenModel.UserID;
                 existingPlan.DeletedDate = DateTime.UtcNow;
                 existingPlan.UpdatedBy = tokenModel.UserID;
                 existingPlan.UpdatedDate = DateTime.UtcNow;
 
-                var result = await _subscriptionPlanRepository.DeletePlanAsync(planGuid);
-                if (!result)
+                // Use UpdateAsync instead of DeleteAsync for soft delete
+                var result = await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+                if (result == null)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
                     
@@ -1400,16 +1492,20 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                                 _ => ("month", 1)
                             };
                             
+                            // Get currency code for Stripe integration
+                            var currency = await _subscriptionRepository.GetCurrencyByIdAsync(existingPlan.CurrencyId);
+                            var currencyCode = currency?.Code?.ToLower() ?? "usd"; // Fallback to USD if not found
+                            
                             var recoveredPriceId = await _stripeService.CreatePriceAsync(
                                 recoveredProductId,
-                                existingPlan.Price,
-                                "usd",
+                                existingPlan.BasePrice,
+                                currencyCode,
                                 interval,
                                 intervalCount,
                                 tokenModel);
                             
                             existingPlan.StripePriceId = recoveredPriceId;
-                            await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
+                            await _subscriptionPlanRepository.UpdateAsync(existingPlan);
                             
                             _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
                         }
@@ -1454,16 +1550,20 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                             _ => ("month", 1)
                         };
                         
+                        // Get currency code for Stripe integration
+                        var currency = await _subscriptionRepository.GetCurrencyByIdAsync(existingPlan.CurrencyId);
+                        var currencyCode = currency?.Code?.ToLower() ?? "usd"; // Fallback to USD if not found
+                        
                         var recoveredPriceId = await _stripeService.CreatePriceAsync(
                             recoveredProductId,
-                            existingPlan.Price,
-                            "usd",
+                            existingPlan.BasePrice,
+                            currencyCode,
                             interval,
                             intervalCount,
                             tokenModel);
                         
                         existingPlan.StripePriceId = recoveredPriceId;
-                        await _subscriptionPlanRepository.UpdatePlanAsync(existingPlan);
+                        await _subscriptionPlanRepository.UpdateAsync(existingPlan);
                         
                         _logger.LogInformation("Successfully recovered Stripe resources for plan {PlanName}", existingPlan.Name);
                     }
@@ -1513,7 +1613,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             var displayOrder = plan.DisplayOrder.ToString();
             var totalSubscriptions = "0"; // Not available in DTO
             
-            csv.AppendLine($"{plan.Id},{name},{description},{plan.Price},{currency},{billingCycle},{category},{plan.IsActive},{plan.IsTrialAllowed},{trialDuration},{displayOrder},{features},{terms},{plan.CreatedDate:yyyy-MM-dd HH:mm:ss},{plan.UpdatedDate:yyyy-MM-dd HH:mm:ss},{totalSubscriptions}");
+            csv.AppendLine($"{plan.Id},{name},{description},{plan.BasePrice},{currency},{billingCycle},{category},{plan.IsActive},{plan.IsTrialAllowed},{trialDuration},{displayOrder},{features},{terms},{plan.CreatedDate:yyyy-MM-dd HH:mm:ss},{plan.UpdatedDate:yyyy-MM-dd HH:mm:ss},{totalSubscriptions}");
         }
         
         return csv.ToString();
@@ -1551,7 +1651,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 ActivePlans = plans.Count(p => p.IsActive),
                 InactivePlans = plans.Count(p => !p.IsActive),
                 PlansWithTrial = plans.Count(p => p.IsTrialAllowed),
-                AveragePrice = plans.Any() ? plans.Average(p => p.Price) : 0,
+                AveragePrice = plans.Any() ? plans.Average(p => p.BasePrice) : 0,
                 TotalSubscriptions = 0, // Not available in DTO
                 ExportDate = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")
             },
@@ -1560,7 +1660,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 PlanId = plan.Id,
                 Name = plan.Name,
                 Description = plan.Description,
-                Price = plan.Price,
+                Price = plan.BasePrice,
                 Currency = plan.CurrencyId.ToString(),
                 BillingCycle = plan.BillingCycleId.ToString(),
                 Category = plan.CategoryId.ToString(),
@@ -1615,11 +1715,11 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 PlanName = plan.Name,
                 BillingCycle = plan.BillingCycle.Name,
                 BillingCycleDays = plan.BillingCycle.DurationInDays,
-                Price = plan.Price,
+                Price = plan.BasePrice,
                 // Calculate effective monthly price for comparison
                 PricePerMonth = plan.BillingCycle.DurationInDays > 0 
-                    ? Math.Round(plan.Price / (plan.BillingCycle.DurationInDays / 30.0m), 2)
-                    : plan.Price,
+                    ? Math.Round(plan.BasePrice / (plan.BillingCycle.DurationInDays / 30.0m), 2)
+                    : plan.BasePrice,
                 Privileges = plan.PlanPrivileges.Select(pp => new
                 {
                     PrivilegeId = pp.PrivilegeId,
@@ -1627,12 +1727,14 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                     Value = pp.Value,
                     IsUnlimited = pp.IsUnlimited,
                     UnitCost = pp.UnitCost,
-                    TotalCost = pp.Value * pp.PrivilegeBaseCost
+                    TotalCost = BillingCalculationService.CalculatePrivilegeCost(pp, _logger)
                 }).ToList(),
-                TotalPrivilegesValue = plan.PlanPrivileges.Sum(pp => pp.Value * pp.PrivilegeBaseCost),
-                AdminCommission = plan.AdminCommissionPercent.HasValue 
-                    ? plan.PlanPrivileges.Sum(pp => pp.Value * pp.PrivilegeBaseCost) * (plan.AdminCommissionPercent.Value / 100)
-                    : plan.AdminCommissionFixed ?? 0,
+                TotalPrivilegesValue = BillingCalculationService.CalculatePlanBasePrice(plan.PlanPrivileges, _logger),
+                AdminCommission = BillingCalculationService.CalculateAdminCommission(
+                    BillingCalculationService.CalculatePlanBasePrice(plan.PlanPrivileges, _logger),
+                    plan.AdminCommissionPercent,
+                    0, // Default commission percent - will be overridden by system settings in actual calculations
+                    _logger),
                 IsFeatured = plan.IsFeatured,
                 IsMostPopular = plan.IsMostPopular,
                 Description = plan.Description,
@@ -1680,6 +1782,193 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 Message = "Error retrieving plans for comparison",
                 StatusCode = 500
             };
+        }
+    }
+
+    /// <summary>
+    /// Validates plan discount data
+    /// </summary>
+    /// <param name="createDto">The plan creation DTO</param>
+    /// <returns>Validation result</returns>
+    private (bool IsValid, string ErrorMessage) ValidatePlanDiscount(CreateSubscriptionPlanDto createDto)
+    {
+        try
+        {
+            // If no discount percentage is set, validation passes
+            if (!createDto.DiscountPercentage.HasValue || createDto.DiscountPercentage.Value <= 0)
+            {
+                return (true, string.Empty);
+            }
+
+            var basePrice = createDto.BasePrice;
+            var discountPercentage = createDto.DiscountPercentage.Value;
+
+            // Validate discount percentage is reasonable (not more than 100%)
+            if (discountPercentage >= 100)
+            {
+                return (false, "Discount percentage must be less than 100%");
+            }
+
+            // Validate that discount doesn't make price negative
+            var finalPrice = basePrice * (1 - (discountPercentage / 100));
+            if (finalPrice <= 0)
+            {
+                return (false, "Discount percentage is too high - would result in zero or negative price");
+            }
+
+            // Validate discount is not more than 90% (business rule)
+            if (discountPercentage > 90)
+            {
+                return (false, "Discount percentage cannot exceed 90%");
+            }
+
+            // If discount valid until is set, validate it's in the future
+            if (createDto.DiscountValidUntil.HasValue)
+            {
+                if (createDto.DiscountValidUntil.Value <= DateTime.UtcNow)
+                {
+                    return (false, "Discount valid until date must be in the future");
+                }
+
+                // Validate discount doesn't last more than 1 year
+                if (createDto.DiscountValidUntil.Value > DateTime.UtcNow.AddYears(1))
+                {
+                    return (false, "Discount cannot be valid for more than 1 year");
+                }
+            }
+
+            return (true, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating plan discount");
+            return (false, "Error validating discount data");
+        }
+    }
+
+    #endregion
+
+    #region Additional Plan Methods (for backward compatibility)
+
+    /// <summary>
+    /// Updates a subscription plan with comprehensive validation (for backward compatibility)
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan to update</param>
+    /// <param name="updateDto">DTO containing subscription plan update details</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing the updated subscription plan or error information</returns>
+    public async Task<JsonModel> UpdatePlanAsync(string planId, UpdateSubscriptionPlanDto updateDto, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Updating subscription plan {PlanId} by user {UserId}", planId, tokenModel.UserID);
+
+            if (!Guid.TryParse(planId, out var planGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
+            }
+
+            var existingPlan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planGuid);
+            if (existingPlan == null)
+            {
+                return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
+            }
+
+            // Update plan properties
+            existingPlan.Name = updateDto.Name;
+            existingPlan.Description = updateDto.Description;
+            existingPlan.BasePrice = updateDto.BasePrice;
+            existingPlan.BillingCycleId = updateDto.BillingCycleId;
+            existingPlan.CurrencyId = updateDto.CurrencyId;
+            existingPlan.CategoryId = updateDto.CategoryId;
+            existingPlan.IsActive = updateDto.IsActive;
+            existingPlan.IsMostPopular = updateDto.IsMostPopular;
+            existingPlan.IsTrending = updateDto.IsTrending;
+            existingPlan.DisplayOrder = updateDto.DisplayOrder ?? existingPlan.DisplayOrder;
+            
+            // Update pricing and discount properties
+            existingPlan.IsAutoCalculatedPrice = updateDto.IsAutoCalculatedPrice;
+            existingPlan.AdminCommissionPercent = updateDto.AdminCommissionPercent;
+            existingPlan.PriceChangeNoticeDays = updateDto.PriceChangeNoticeDays;
+            existingPlan.BillingDiscountPercentage = updateDto.BillingDiscountPercentage;
+            existingPlan.DiscountPercentage = updateDto.DiscountPercentage;
+            existingPlan.DiscountValidUntil = updateDto.DiscountValidUntil;
+            
+            existingPlan.UpdatedBy = tokenModel.UserID;
+            existingPlan.UpdatedDate = DateTime.UtcNow;
+
+            // Update in database
+            await _subscriptionPlanRepository.UpdateAsync(existingPlan);
+            await _unitOfWork.SaveChangesAsync();
+
+                // CRITICAL: Synchronize with Stripe after plan update
+                _logger.LogInformation("Synchronizing updated plan {PlanName} with Stripe", existingPlan.Name);
+                var syncSuccess = await _stripeSyncService.SynchronizeSubscriptionPlanAsync(existingPlan.Id, tokenModel);
+            
+            if (!syncSuccess)
+            {
+                _logger.LogWarning("Failed to synchronize plan {PlanName} with Stripe, but plan was updated locally", existingPlan.Name);
+                // Note: We don't fail the operation here as the plan was successfully updated locally
+                // The sync failure will be logged and can be retried later
+            }
+            else
+            {
+                _logger.LogInformation("Successfully synchronized plan {PlanName} with Stripe", existingPlan.Name);
+            }
+
+            var updatedPlanDto = _mapper.Map<SubscriptionPlanDto>(existingPlan);
+            return new JsonModel { data = updatedPlanDto, Message = "Subscription plan updated successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating subscription plan {PlanId}", planId);
+            return new JsonModel { data = new object(), Message = "Error updating subscription plan", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Gets the effective price for a subscription plan with all discounts applied
+    /// </summary>
+    public async Task<JsonModel> GetEffectivePriceAsync(string planId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Calculating effective price for plan {PlanId} by user {UserId}", planId, tokenModel?.UserID ?? 0);
+
+            if (!Guid.TryParse(planId, out var planGuid))
+            {
+                return new JsonModel { data = new object(), Message = "Invalid plan ID format", StatusCode = 400 };
+            }
+
+            var plan = await _subscriptionPlanRepository.GetByIdWithDetailsAsync(planGuid);
+            if (plan == null)
+            {
+                return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
+            }
+
+            var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            
+            return new JsonModel 
+            { 
+                data = new 
+                {
+                    PlanId = planId,
+                    BasePrice = plan.BasePrice,
+                    EffectivePrice = effectivePrice,
+                    DiscountPercentage = plan.DiscountPercentage,
+                    BillingDiscountPercentage = plan.BillingDiscountPercentage,
+                    DiscountValidUntil = plan.DiscountValidUntil,
+                    CurrencyCode = plan.Currency?.Code ?? "USD",
+                    CalculatedAt = DateTime.UtcNow
+                }, 
+                Message = "Effective price calculated successfully", 
+                StatusCode = 200 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating effective price for plan {PlanId}", planId);
+            return new JsonModel { data = new object(), Message = "Error calculating effective price", StatusCode = 500 };
         }
     }
 

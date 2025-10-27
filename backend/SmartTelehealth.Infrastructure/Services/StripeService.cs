@@ -1247,9 +1247,76 @@ public class StripeService : IStripeService
         });
     }
 
-    // Checkout Sessions
-    public async Task<string> CreateCheckoutSessionAsync(string priceId, string successUrl, string cancelUrl, TokenModel tokenModel)
+    /// <summary>
+    /// Ensures a Stripe customer exists for the given user ID
+    /// Creates a new customer if one doesn't exist, or returns existing customer ID
+    /// </summary>
+    public async Task<string> EnsureCustomerExistsAsync(int userId, TokenModel tokenModel)
     {
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                // First, check if user already has a Stripe customer ID in our database
+                var existingCustomerId = await GetStripeCustomerIdForUserAsync(userId);
+                if (!string.IsNullOrEmpty(existingCustomerId))
+                {
+                    // Verify the customer still exists in Stripe
+                    try
+                    {
+                        var customerService = new CustomerService();
+                        var existingCustomer = await customerService.GetAsync(existingCustomerId);
+                        _logger.LogInformation("Using existing Stripe customer {CustomerId} for user {UserId}", 
+                            existingCustomerId, userId);
+                        return existingCustomerId;
+                    }
+                    catch (StripeException ex) when (ex.StripeError.Code == "resource_missing")
+                    {
+                        _logger.LogWarning("Existing Stripe customer {CustomerId} not found in Stripe for user {UserId}. Creating new customer.", 
+                            existingCustomerId, userId);
+                        // Customer doesn't exist in Stripe anymore, create a new one
+                    }
+                }
+
+                // Create new Stripe customer
+                var customerCreateOptions = new CustomerCreateOptions
+                {
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "user_id", userId.ToString() },
+                        { "created_by_user_id", tokenModel.UserID.ToString() },
+                        { "created_by_role_id", tokenModel.RoleID.ToString() },
+                        { "created_at", DateTime.UtcNow.ToString("O") }
+                    }
+                };
+
+                var newCustomerService = new CustomerService();
+                var customer = await newCustomerService.CreateAsync(customerCreateOptions);
+
+                // Store the customer ID in our database for future reference
+                await StoreStripeCustomerIdForUserAsync(userId, customer.Id);
+
+                _logger.LogInformation("Created new Stripe customer {CustomerId} for user {UserId}", 
+                    customer.Id, userId);
+                return customer.Id;
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "Stripe error ensuring customer exists for user {UserId}: {Message}", 
+                    userId, ex.Message);
+                throw new InvalidOperationException($"Failed to ensure customer exists: {ex.Message}", ex);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Creates a checkout session with a specific customer ID
+    /// </summary>
+    public async Task<string> CreateCheckoutSessionWithCustomerAsync(string customerId, string priceId, string successUrl, string cancelUrl, TokenModel tokenModel, string? planId = null)
+    {
+        if (string.IsNullOrEmpty(customerId))
+            throw new ArgumentException("Customer ID is required", nameof(customerId));
+        
         if (string.IsNullOrEmpty(priceId))
             throw new ArgumentException("Price ID is required", nameof(priceId));
         
@@ -1265,6 +1332,7 @@ public class StripeService : IStripeService
             {
                 var checkoutSessionCreateOptions = new SessionCreateOptions
                 {
+                    Customer = customerId,
                     PaymentMethodTypes = new List<string> { "card" },
                     LineItems = new List<SessionLineItemOptions>
                     {
@@ -1279,25 +1347,70 @@ public class StripeService : IStripeService
                     CancelUrl = cancelUrl,
                     Metadata = new Dictionary<string, string>
                     {
+                        { "customer_id", customerId },
+                        { "price_id", priceId },
                         { "created_by_user_id", tokenModel.UserID.ToString() },
                         { "created_by_role_id", tokenModel.RoleID.ToString() },
                         { "created_at", DateTime.UtcNow.ToString("O") }
                     }
                 };
+                
+                // Add plan ID to metadata if provided
+                if (!string.IsNullOrEmpty(planId))
+                {
+                    checkoutSessionCreateOptions.Metadata["plan_id"] = planId;
+                }
 
                 var sessionService = new SessionService();
                 var session = await sessionService.CreateAsync(checkoutSessionCreateOptions);
 
-                _logger.LogInformation("Created Stripe checkout session {SessionId} for price {PriceId} by user {UserId}", 
-                    session.Id, priceId, tokenModel.UserID);
-                return session.Id;
+                _logger.LogInformation("Created Stripe checkout session {SessionId} for customer {CustomerId} with price {PriceId} by user {UserId}", 
+                    session.Id, customerId, priceId, tokenModel.UserID);
+                return session.Url;
             }
             catch (StripeException ex)
             {
-                _logger.LogError(ex, "Stripe error creating checkout session: {Message}", ex.Message);
+                _logger.LogError(ex, "Stripe error creating checkout session with customer: {Message}", ex.Message);
                 throw new InvalidOperationException($"Failed to create checkout session: {ex.Message}", ex);
             }
         });
+    }
+
+    /// <summary>
+    /// Gets the Stripe customer ID for a user from our database
+    /// </summary>
+    private async Task<string> GetStripeCustomerIdForUserAsync(int userId)
+    {
+        try
+        {
+            // This would typically query your user table for the StripeCustomerId field
+            // For now, we'll return null to indicate no customer exists
+            // TODO: Implement database lookup for user's Stripe customer ID
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting Stripe customer ID for user {UserId}", userId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Stores the Stripe customer ID for a user in our database
+    /// </summary>
+    private async Task StoreStripeCustomerIdForUserAsync(int userId, string customerId)
+    {
+        try
+        {
+            // This would typically update your user table with the StripeCustomerId
+            // For now, we'll just log it
+            // TODO: Implement database storage for user's Stripe customer ID
+            _logger.LogInformation("Storing Stripe customer ID {CustomerId} for user {UserId}", customerId, userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error storing Stripe customer ID {CustomerId} for user {UserId}", customerId, userId);
+        }
     }
 
     // Webhook Processing

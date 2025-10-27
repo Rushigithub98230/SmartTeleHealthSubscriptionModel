@@ -17,7 +17,7 @@ public static class BillingCycleValidator
     public static bool IsValidBillingCycleForPlan(SubscriptionPlan plan, MasterBillingCycle billingCycle)
     {
         // Validation rules
-        var planMonthlyPrice = plan.Price;
+        var planMonthlyPrice = plan.BasePrice;
         var billingCycleMonths = billingCycle.DurationInDays / 30.0m;
         
         // Prevent billing cycles that don't make business sense

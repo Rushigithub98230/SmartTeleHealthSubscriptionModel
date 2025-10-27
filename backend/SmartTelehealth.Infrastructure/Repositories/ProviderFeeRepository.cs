@@ -138,23 +138,8 @@ public class ProviderFeeRepository : RepositoryBase<ProviderFee>, IProviderFeeRe
         return await base.UpdateAsync(fee);
     }
 
-    /// <summary>
-    /// Deletes a provider fee by its unique identifier (soft delete)
-    /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is not Guid feeId)
-            return false;
-
-        var fee = await _context.ProviderFees.FindAsync(feeId);
-        if (fee == null)
-            return false;
-
-        fee.IsActive = false;
-        fee.UpdatedDate = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<ProviderFee>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     /// <summary>
     /// Checks if a provider fee exists

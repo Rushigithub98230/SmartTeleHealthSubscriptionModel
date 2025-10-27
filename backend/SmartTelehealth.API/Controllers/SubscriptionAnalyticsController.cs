@@ -213,6 +213,17 @@ public class SubscriptionAnalyticsController : BaseController
     }
 
     /// <summary>
+    /// Retrieves usage statistics analytics including privilege usage, overage charges, and usage trends.
+    /// This endpoint provides detailed usage metrics for subscription optimization and billing analysis.
+    /// </summary>
+    /// <returns>JsonModel containing usage statistics analytics data</returns>
+    [HttpGet("usage-statistics")]
+    public async Task<JsonModel> GetUsageStatistics()
+    {
+        return await _analyticsService.GetUsageStatisticsAsync(GetToken(HttpContext));
+    }
+
+    /// <summary>
     /// Retrieves subscription plan performance analytics including popularity, conversion rates, and retention.
     /// This endpoint provides detailed plan performance metrics for subscription optimization.
     /// </summary>

@@ -44,4 +44,9 @@ public interface ISubscriptionAnalyticsService
     /// Get real-time metrics for live dashboard updates
     /// </summary>
     Task<JsonModel> GetRealTimeMetricsAsync(TokenModel tokenModel);
+
+    /// <summary>
+    /// Get usage statistics for subscriptions
+    /// </summary>
+    Task<JsonModel> GetUsageStatisticsAsync(TokenModel tokenModel);
 }

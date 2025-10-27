@@ -180,7 +180,7 @@ public static class BillingCycleCalculator
         MasterBillingCycle billingCycle)
     {
         // Return plan's explicit price - no calculation needed
-        return plan.Price;
+        return plan.BasePrice;
     }
 
     /// <summary>

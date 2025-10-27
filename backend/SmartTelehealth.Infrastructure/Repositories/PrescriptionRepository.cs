@@ -78,15 +78,8 @@ namespace SmartTelehealth.Infrastructure.Repositories
             return prescription;
         }
         
-        public async Task<bool> DeleteAsync(Guid id)
-        {
-            var prescription = await _context.Prescriptions.FindAsync(id);
-            if (prescription == null) return false;
-
-            prescription.IsDeleted = true;
-            await _context.SaveChangesAsync();
-            return true;
-        }
+        // Note: DeleteAsync is inherited from RepositoryBase<Prescription>
+        // Service layer should handle audit properties and use UpdateAsync for soft deletes
         
         public async Task<IEnumerable<Prescription>> GetOverduePrescriptionsAsync()
         {

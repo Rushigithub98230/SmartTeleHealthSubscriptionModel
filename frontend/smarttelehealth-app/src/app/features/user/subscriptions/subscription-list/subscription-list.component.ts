@@ -42,10 +42,19 @@ export class SubscriptionListComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    console.log('🎯 [SUBSCRIPTION-LIST] Component initialized');
     this.currentUser = this.authService.getCurrentUser();
+    
+    console.log('👤 [SUBSCRIPTION-LIST] Current user:', {
+      id: this.currentUser?.id,
+      email: this.currentUser?.email,
+      name: this.currentUser?.fullName
+    });
     
     if (this.currentUser) {
       this.loadSubscriptions();
+    } else {
+      console.error('❌ [SUBSCRIPTION-LIST] No current user found');
     }
   }
 
@@ -54,23 +63,35 @@ export class SubscriptionListComponent implements OnInit {
    * API: GET /api/Subscriptions/user/{userId}
    */
   loadSubscriptions(): void {
-    if (!this.currentUser) return;
+    if (!this.currentUser) {
+      console.error('❌ [SUBSCRIPTION-LIST] No current user - cannot load subscriptions');
+      return;
+    }
 
+    console.log('📋 [SUBSCRIPTION-LIST] Loading subscriptions for user:', this.currentUser.id);
     this.loading = true;
     this.error = null;
 
     this.subscriptionService.getUserSubscriptions(this.currentUser.id).subscribe({
       next: (response) => {
+        console.log('✅ [SUBSCRIPTION-LIST] Subscriptions loaded:', {
+          statusCode: response.statusCode,
+          subscriptionCount: response.data?.length || 0,
+          subscriptions: response.data
+        });
+        
         if (response.statusCode === 200) {
           this.subscriptions = response.data;
           this.categorizeSubscriptions();
           this.checkFailedPayments();
         } else {
           this.error = response.message || 'Failed to load subscriptions';
+          console.error('❌ [SUBSCRIPTION-LIST] Failed to load subscriptions:', response.message);
         }
         this.loading = false;
       },
       error: (error) => {
+        console.error('❌ [SUBSCRIPTION-LIST] Error loading subscriptions:', error);
         this.error = error.message || 'An error occurred';
         this.loading = false;
       }

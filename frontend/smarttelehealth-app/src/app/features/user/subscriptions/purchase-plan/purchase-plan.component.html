@@ -51,8 +51,18 @@
                 <p class="text-muted">{{plan.description}}</p>
                 
                 <div class="d-flex align-items-baseline mb-3">
-                  <h3 class="text-primary mb-0">${{plan.price}}</h3>
+                  <h3 class="text-primary mb-0">${{calculateFinalPrice() | number:'1.2-2'}}</h3>
                   <span class="text-muted ms-2">/month</span>
+                </div>
+                
+                <!-- Show original price if discounted -->
+                <div *ngIf="getSavingsAmount() > 0" class="mb-2">
+                  <small class="text-muted">
+                    <s>${{plan.price | number:'1.2-2'}}</s>
+                    <span class="text-success ms-2">
+                      <i class="bi bi-percent"></i> Save ${{getSavingsAmount() | number:'1.2-2'}}
+                    </span>
+                  </small>
                 </div>
 
                 <!-- Trial Info -->
@@ -76,7 +86,7 @@
 
             <div class="d-flex justify-content-end mt-4">
               <button class="btn btn-lg btn-primary" (click)="nextStep()">
-                Next: Select Billing Cycle <i class="bi bi-arrow-right ms-2"></i>
+                Next: Review Billing <i class="bi bi-arrow-right ms-2"></i>
               </button>
             </div>
           </div>
@@ -192,9 +202,21 @@
                 <div class="col-12 mb-4">
                   <label class="form-label fw-bold">Payment Method</label>
                   
-                  <div *ngIf="paymentMethods.length === 0" class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    No payment methods found. Please add a payment method first.
+                  <div *ngIf="paymentMethods.length === 0" class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>New User:</strong> You don't have any saved payment methods yet. 
+                    We'll redirect you to Stripe's secure checkout page where you can enter your card details.
+                    <br><br>
+                    <div class="d-grid">
+                      <button class="btn btn-primary" (click)="submitPurchaseWithStripeCheckout()" [disabled]="purchasing">
+                        <span *ngIf="!purchasing">
+                          <i class="bi bi-credit-card me-2"></i> Continue to Secure Checkout
+                        </span>
+                        <span *ngIf="purchasing">
+                          <i class="bi bi-hourglass-split me-2"></i> Creating Checkout Session...
+                        </span>
+                      </button>
+                    </div>
                   </div>
 
                   <div *ngIf="paymentMethods.length > 0" class="row g-3">
@@ -214,8 +236,21 @@
                               <i class="bi bi-credit-card me-2"></i>
                               <strong>{{method.type || 'Card'}}</strong>
                               <span *ngIf="method.card && method.card.last4"> ending in {{method.card.last4}}</span>
+                              <span *ngIf="method.isDefault" class="badge bg-primary ms-2">Default</span>
                             </label>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Option to add new payment method via Stripe checkout -->
+                    <div class="col-md-6">
+                      <div class="card h-100 payment-method-card add-new-card"
+                           (click)="submitPurchaseWithStripeCheckout()">
+                        <div class="card-body text-center">
+                          <i class="bi bi-plus-circle text-primary mb-2" style="font-size: 2rem;"></i>
+                          <h6 class="mb-0">Add New Card</h6>
+                          <small class="text-muted">Secure checkout with Stripe</small>
                         </div>
                       </div>
                     </div>
@@ -282,16 +317,43 @@
               <button class="btn btn-outline-secondary" (click)="previousStep()">
                 <i class="bi bi-arrow-left me-2"></i> Previous
               </button>
-              <button class="btn btn-success btn-lg" (click)="submitPurchase()" 
-                      [disabled]="purchasing">
-                <span *ngIf="!purchasing">
-                  <i class="bi bi-cart-check me-2"></i> Complete Purchase
-                </span>
-                <span *ngIf="purchasing">
-                  <span class="spinner-border spinner-border-sm me-2"></span>
-                  Processing...
-                </span>
-              </button>
+              
+              <!-- Show different buttons based on payment method availability -->
+              <div *ngIf="paymentMethods.length === 0" class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button class="btn btn-success btn-lg" (click)="submitPurchaseWithStripeCheckout()" 
+                        [disabled]="purchasing">
+                  <span *ngIf="!purchasing">
+                    <i class="bi bi-credit-card me-2"></i> Complete Purchase with Stripe
+                  </span>
+                  <span *ngIf="purchasing">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    Creating Checkout Session...
+                  </span>
+                </button>
+              </div>
+              
+              <div *ngIf="paymentMethods.length > 0" class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button class="btn btn-outline-primary btn-lg me-2" (click)="submitPurchaseWithStripeCheckout()" 
+                        [disabled]="purchasing">
+                  <span *ngIf="!purchasing">
+                    <i class="bi bi-plus-circle me-2"></i> Add New Card & Purchase
+                  </span>
+                  <span *ngIf="purchasing">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    Creating Checkout Session...
+                  </span>
+                </button>
+                <button class="btn btn-success btn-lg" (click)="submitPurchase()" 
+                        [disabled]="purchasing || !billingForm.value.paymentMethodId">
+                  <span *ngIf="!purchasing">
+                    <i class="bi bi-cart-check me-2"></i> Complete Purchase
+                  </span>
+                  <span *ngIf="purchasing">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    Processing...
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -181,7 +181,7 @@ public class ScheduledMigrationBackgroundService : BackgroundService
             
             // Update subscription to new plan
             subscription.SubscriptionPlanId = targetPlan.Id;
-            subscription.CurrentPrice = targetPlan.Price;
+            subscription.CurrentPrice = targetPlan.BasePrice;
             subscription.UpdatedBy = 0; // System automated
             subscription.UpdatedDate = DateTime.UtcNow;
             
@@ -223,7 +223,7 @@ public class ScheduledMigrationBackgroundService : BackgroundService
                 }
             }
             
-            await subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await subscriptionRepository.UpdateAsync(subscription);
             
             // CRITICAL FIX (Issue #13): Synchronize privileges from new plan version
             // This ensures users get NEW privileges added in the updated plan version

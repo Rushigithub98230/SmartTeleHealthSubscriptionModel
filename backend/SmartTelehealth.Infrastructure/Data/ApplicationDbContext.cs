@@ -108,6 +108,9 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
     public DbSet<SystemSettings> SystemSettings { get; set; }
     public DbSet<ScheduledPlanMigration> ScheduledPlanMigrations { get; set; }
     
+    // Application logging
+    public DbSet<ApplicationLog> ApplicationLogs { get; set; }
+    
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -138,6 +141,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         ConfigureProviderCategory(builder);
         ConfigureNotification(builder);
         ConfigureAuditLog(builder);
+        ConfigureApplicationLog(builder);
         ConfigureAppointment(builder);
         ConfigureAppointmentParticipant(builder);
         ConfigureAppointmentInvitation(builder);
@@ -608,8 +612,8 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.MaxPauseDurationDays).HasDefaultValue(90);
             
             // Price Properties with Precision
-            entity.Property(e => e.Price).HasPrecision(18, 2);
-            entity.Property(e => e.DiscountedPrice).HasPrecision(18, 2);
+            entity.Property(e => e.BasePrice).HasPrecision(18, 2);
+            entity.Property(e => e.DiscountPercentage).HasPrecision(5, 2);
             
             // Enum Properties
             entity.Property(e => e.PlanType).HasConversion<string>();
@@ -642,7 +646,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.IsAutoCalculatedPrice).HasDefaultValue(true);
             entity.Property(e => e.PrivilegesTotalCost).HasPrecision(18, 2).HasDefaultValue(0);
             entity.Property(e => e.AdminCommissionPercent).HasPrecision(5, 2);
-            entity.Property(e => e.AdminCommissionFixed).HasPrecision(18, 2);
+            // AdminCommissionFixed removed - using AdminCommissionPercent only
             
             // Foreign Key Relationships
             entity.HasOne(e => e.BillingCycle)
@@ -805,6 +809,13 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.HasIndex(e => e.BillingCycleId);
             entity.HasIndex(e => e.IsTrialSubscription);
             entity.HasIndex(e => e.AutoRenew);
+            
+            // CRITICAL FIX: Unique constraint to prevent duplicate active subscriptions
+            // This prevents race conditions where multiple subscriptions could be created for the same user and plan
+            entity.HasIndex(e => new { e.UserId, e.SubscriptionPlanId })
+                .HasFilter("Status IN ('Active', 'Paused')")
+                .IsUnique()
+                .HasDatabaseName("UK_User_Plan_Active");
         });
     }
     
@@ -1278,6 +1289,41 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.NewValues);
             entity.Property(e => e.AffectedColumns).HasMaxLength(2000); // Increased from 500 to 2000 to accommodate large entities like User
             entity.Property(e => e.PrimaryKey).HasMaxLength(50);
+        });
+    }
+
+    private void ConfigureApplicationLog(ModelBuilder builder)
+    {
+        builder.Entity<ApplicationLog>(entity =>
+        {
+            entity.ToTable("ApplicationLogs");
+            entity.HasKey(e => e.Id);
+            
+            // Property configurations
+            entity.Property(e => e.Timestamp).IsRequired();
+            entity.Property(e => e.LogLevel).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Source).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Message).IsRequired();
+            entity.Property(e => e.Exception);
+            entity.Property(e => e.UserId);
+            entity.Property(e => e.Operation).HasMaxLength(100);
+            entity.Property(e => e.AdditionalData).HasMaxLength(2000);
+            entity.Property(e => e.CorrelationId).HasMaxLength(100);
+            
+            // Foreign key relationship
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            // Indexes for performance
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.LogLevel);
+            entity.HasIndex(e => e.Source);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => new { e.Timestamp, e.LogLevel });
+            entity.HasIndex(e => new { e.Source, e.LogLevel });
+            entity.HasIndex(e => e.CorrelationId);
         });
     }
 
@@ -2492,7 +2538,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
 
         foreach (var entry in ChangeTracker.Entries())
         {
-            if (entry.Entity is AuditLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
+            if (entry.Entity is AuditLog || entry.Entity is ApplicationLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
                 continue;
 
             var auditEntry = new AuditEntry(entry)
@@ -2560,7 +2606,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
 
         foreach (var entry in ChangeTracker.Entries())
         {
-            if (entry.Entity is AuditLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
+            if (entry.Entity is AuditLog || entry.Entity is ApplicationLog || entry.State == EntityState.Detached || entry.State == EntityState.Unchanged)
                 continue;
 
             var auditEntry = new AuditEntry(entry)

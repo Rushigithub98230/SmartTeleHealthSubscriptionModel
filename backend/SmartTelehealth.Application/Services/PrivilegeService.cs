@@ -920,7 +920,7 @@ public class PrivilegeService : IPrivilegeService
             planPrivilege.UpdatedDate = DateTime.UtcNow;
 
             // Update in repository
-            await _planPrivilegeRepo.UpdatePlanPrivilegeAsync(planPrivilege);
+            await _planPrivilegeRepo.UpdateAsync(planPrivilege);
 
             _logger.LogInformation("Successfully updated time-based limits for privilege {PrivilegeId}", updateDto.PrivilegeId);
 

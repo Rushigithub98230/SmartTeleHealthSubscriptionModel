@@ -91,14 +91,14 @@ public class UserSubscriptionController : BaseController
                         {
                             migration.FromPlan.Id,
                             migration.FromPlan.Name,
-                            migration.FromPlan.Price,
+                            migration.FromPlan.BasePrice,
                             migration.FromPlan.VersionNumber
                         },
                         toPlan = new
                         {
                             migration.ToPlan.Id,
                             migration.ToPlan.Name,
-                            migration.ToPlan.Price,
+                            migration.ToPlan.BasePrice,
                             migration.ToPlan.VersionNumber
                         },
                         migration.NotificationDate,

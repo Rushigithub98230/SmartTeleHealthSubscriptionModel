@@ -114,7 +114,7 @@
                   <span class="badge bg-secondary">{{getCategoryName(plan.categoryId)}}</span>
                 </td>
                 <td>
-                  <strong class="text-primary">${{plan.price | number:'1.2-2'}}</strong>
+                  <strong class="text-primary">${{plan.basePrice || plan.price | number:'1.2-2'}}</strong>
                   <br>
                   <small class="text-muted">per month</small>
                 </td>
@@ -128,8 +128,8 @@
                     <span class="badge bg-light text-dark me-1" *ngIf="plan.isTrialAllowed">
                       <i class="bi bi-gift"></i> {{plan.trialDurationInDays}}d trial
                     </span>
-                    <span class="badge bg-light text-dark" *ngIf="plan.annualBillingDiscount > 0">
-                      <i class="bi bi-percent"></i> {{plan.annualBillingDiscount}}% off annual
+                    <span class="badge bg-light text-dark" *ngIf="(plan.billingDiscountPercentage || plan.billingDiscount || 0) > 0">
+                      <i class="bi bi-percent"></i> {{plan.billingDiscountPercentage || plan.billingDiscount || 0}}% discount
                     </span>
                   </div>
                 </td>

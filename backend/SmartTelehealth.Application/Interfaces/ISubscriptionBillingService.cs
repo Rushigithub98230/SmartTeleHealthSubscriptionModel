@@ -45,6 +45,18 @@ public interface ISubscriptionBillingService
     /// </summary>
     Task<JsonModel> GetPrivilegeUsageSummaryAsync(int userId, TokenModel tokenModel);
     
+    // ===== ANALYTICS METHODS FOR REAL-TIME METRICS =====
+    
+    /// <summary>
+    /// Gets total revenue for today
+    /// </summary>
+    Task<decimal> GetRevenueTodayAsync();
+    
+    /// <summary>
+    /// Gets count of pending payments
+    /// </summary>
+    Task<int> GetPendingPaymentsCountAsync();
+    
     // ===== CORE BILLING RECORD MANAGEMENT =====
     
     Task<JsonModel> CreateBillingRecordAsync(CreateBillingRecordDto createDto, TokenModel tokenModel);

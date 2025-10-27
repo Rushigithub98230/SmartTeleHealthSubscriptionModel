@@ -19,6 +19,7 @@ public class AnalyticsController : BaseController
     private readonly IAnalyticsService _analyticsService;
     private readonly ISubscriptionService _subscriptionService;
     private readonly ISubscriptionPlanService _subscriptionPlanService;
+    private readonly ISubscriptionBillingService _billingService;
 
     /// <summary>
     /// Initializes a new instance of the AnalyticsController with required services.
@@ -26,11 +27,13 @@ public class AnalyticsController : BaseController
     public AnalyticsController(
         IAnalyticsService analyticsService,
         ISubscriptionService subscriptionService,
-        ISubscriptionPlanService subscriptionPlanService)
+        ISubscriptionPlanService subscriptionPlanService,
+        ISubscriptionBillingService billingService)
     {
         _analyticsService = analyticsService;
         _subscriptionService = subscriptionService;
         _subscriptionPlanService = subscriptionPlanService;
+        _billingService = billingService;
     }
 
     /// <summary>
@@ -41,29 +44,8 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            // Get basic subscription statistics
-            var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
-                1, 1, null, null, null, null, null, null, null, null, GetToken(HttpContext));
-
-            // Get plan statistics
-            var plansResult = await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(
-                new SubscriptionPlanFilterDto { Page = 1, PageSize = 1000 }, GetToken(HttpContext));
-
-            var dashboardData = new
-            {
-                TotalSubscriptions = subscriptionsResult.data?.GetType().GetProperty("TotalCount")?.GetValue(subscriptionsResult.data) ?? 0,
-                ActiveSubscriptions = subscriptionsResult.data?.GetType().GetProperty("ActiveCount")?.GetValue(subscriptionsResult.data) ?? 0,
-                TotalPlans = plansResult.data?.GetType().GetProperty("TotalCount")?.GetValue(plansResult.data) ?? 0,
-                ActivePlans = plansResult.data?.GetType().GetProperty("ActiveCount")?.GetValue(plansResult.data) ?? 0,
-                LastUpdated = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = dashboardData,
-                Message = "Dashboard summary retrieved successfully",
-                StatusCode = 200
-            };
+            var dashboardResult = await _analyticsService.GetSubscriptionDashboardAsync(null, null, GetToken(HttpContext));
+            return dashboardResult;
         }
         catch (Exception ex)
         {
@@ -87,28 +69,8 @@ public class AnalyticsController : BaseController
             var start = !string.IsNullOrEmpty(startDate) ? DateTime.Parse(startDate) : DateTime.UtcNow.AddMonths(-1);
             var end = !string.IsNullOrEmpty(endDate) ? DateTime.Parse(endDate) : DateTime.UtcNow;
 
-            // Get subscription data for revenue calculation
-            var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
-                1, int.MaxValue, null, new[] { "Active" }, null, null, start, end, null, null, GetToken(HttpContext));
-
-            var revenueData = new
-            {
-                StartDate = start,
-                EndDate = end,
-                TotalRevenue = 0m, // Placeholder - would need actual billing data
-                MonthlyRevenue = 0m, // Placeholder
-                YearlyRevenue = 0m, // Placeholder
-                AverageRevenuePerUser = 0m, // Placeholder
-                RevenueByPlan = new object[0], // Placeholder
-                LastUpdated = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = revenueData,
-                Message = "Revenue metrics retrieved successfully",
-                StatusCode = 200
-            };
+            var revenueResult = await _analyticsService.GetRevenueAnalyticsAsync(start, end, GetToken(HttpContext));
+            return revenueResult;
         }
         catch (Exception ex)
         {
@@ -129,20 +91,20 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            var churnData = new
+            var startDate = period.ToLower() switch
             {
-                Period = period,
-                ChurnRate = 0.0, // Placeholder - would need actual churn calculation
-                ChurnedSubscriptions = 0, // Placeholder
-                TotalSubscriptions = 0, // Placeholder
-                ChurnByPlan = new object[0], // Placeholder
-                ChurnTrends = new object[0], // Placeholder
-                LastUpdated = DateTime.UtcNow
+                "week" => DateTime.UtcNow.AddDays(-7),
+                "month" => DateTime.UtcNow.AddMonths(-1),
+                "quarter" => DateTime.UtcNow.AddMonths(-3),
+                "year" => DateTime.UtcNow.AddYears(-1),
+                _ => DateTime.UtcNow.AddMonths(-1)
             };
 
+            var churnResult = await _analyticsService.GetChurnAnalyticsAsync(startDate, DateTime.UtcNow);
+            
             return new JsonModel
             {
-                data = churnData,
+                data = churnResult,
                 Message = "Churn analysis retrieved successfully",
                 StatusCode = 200
             };
@@ -166,30 +128,8 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            // Get all plans
-            var plansResult = await _subscriptionPlanService.GetSubscriptionPlansWithFilteringAsync(
-                new SubscriptionPlanFilterDto { Page = 1, PageSize = 1000 }, GetToken(HttpContext));
-
-            // Get subscription data for each plan
-            var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
-                1, int.MaxValue, null, null, null, null, null, null, null, null, GetToken(HttpContext));
-
-            var planPerformanceData = new
-            {
-                Plans = new object[0], // Placeholder - would need actual plan performance calculation
-                TotalPlans = 0, // Placeholder
-                MostPopularPlan = (string?)null, // Placeholder
-                LeastPopularPlan = (string?)null, // Placeholder
-                AverageSubscriptionsPerPlan = 0.0, // Placeholder
-                LastUpdated = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = planPerformanceData,
-                Message = "Plan performance retrieved successfully",
-                StatusCode = 200
-            };
+            var planResult = await _analyticsService.GetPlanAnalyticsAsync(null, null, GetToken(HttpContext));
+            return planResult;
         }
         catch (Exception ex)
         {
@@ -210,26 +150,8 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
-                1, int.MaxValue, null, null, null, null, null, null, null, null, GetToken(HttpContext));
-
-            var statisticsData = new
-            {
-                TotalSubscriptions = 0, // Placeholder
-                ActiveSubscriptions = 0, // Placeholder
-                PausedSubscriptions = 0, // Placeholder
-                CancelledSubscriptions = 0, // Placeholder
-                TrialSubscriptions = 0, // Placeholder
-                ExpiredSubscriptions = 0, // Placeholder
-                LastUpdated = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = statisticsData,
-                Message = "Subscription statistics retrieved successfully",
-                StatusCode = 200
-            };
+            var statisticsResult = await _analyticsService.GetSubscriptionAnalyticsAsync(null, null, GetToken(HttpContext));
+            return statisticsResult;
         }
         catch (Exception ex)
         {
@@ -250,22 +172,17 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            var trendsData = new
+            var startDate = period.ToLower() switch
             {
-                Period = period,
-                SubscriptionGrowth = new object[0], // Placeholder
-                RevenueTrends = new object[0], // Placeholder
-                ChurnTrends = new object[0], // Placeholder
-                PlanPopularityTrends = new object[0], // Placeholder
-                LastUpdated = DateTime.UtcNow
+                "7days" => DateTime.UtcNow.AddDays(-7),
+                "30days" => DateTime.UtcNow.AddDays(-30),
+                "90days" => DateTime.UtcNow.AddDays(-90),
+                "1year" => DateTime.UtcNow.AddYears(-1),
+                _ => DateTime.UtcNow.AddDays(-30)
             };
 
-            return new JsonModel
-            {
-                data = trendsData,
-                Message = "Subscription trends retrieved successfully",
-                StatusCode = 200
-            };
+            var trendsResult = await _analyticsService.GetSubscriptionAnalyticsAsync(startDate, DateTime.UtcNow, GetToken(HttpContext));
+            return trendsResult;
         }
         catch (Exception ex)
         {
@@ -286,22 +203,8 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            var userGrowthData = new
-            {
-                TotalUsers = 0, // Placeholder
-                NewUsersThisMonth = 0, // Placeholder
-                NewUsersThisYear = 0, // Placeholder
-                UserGrowthRate = 0.0, // Placeholder
-                UserGrowthTrends = new object[0], // Placeholder
-                LastUpdated = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = userGrowthData,
-                Message = "User growth metrics retrieved successfully",
-                StatusCode = 200
-            };
+            var userGrowthResult = await _analyticsService.GetUserAnalyticsAsync(null, null, GetToken(HttpContext));
+            return userGrowthResult;
         }
         catch (Exception ex)
         {
@@ -322,23 +225,8 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            var paymentAnalyticsData = new
-            {
-                TotalPayments = 0, // Placeholder
-                SuccessfulPayments = 0, // Placeholder
-                FailedPayments = 0, // Placeholder
-                PaymentSuccessRate = 0.0, // Placeholder
-                AveragePaymentAmount = 0m, // Placeholder
-                PaymentMethods = new object[0], // Placeholder
-                LastUpdated = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = paymentAnalyticsData,
-                Message = "Payment analytics retrieved successfully",
-                StatusCode = 200
-            };
+            var paymentResult = await _analyticsService.GetBillingAnalyticsAsync(null, null, GetToken(HttpContext));
+            return paymentResult;
         }
         catch (Exception ex)
         {
@@ -359,21 +247,8 @@ public class AnalyticsController : BaseController
     {
         try
         {
-            var exportData = new
-            {
-                Type = type,
-                Format = format,
-                DownloadUrl = "", // Placeholder - would generate actual export file
-                FileName = $"analytics_{type}_{DateTime.UtcNow:yyyyMMdd}.{format}",
-                GeneratedAt = DateTime.UtcNow
-            };
-
-            return new JsonModel
-            {
-                data = exportData,
-                Message = "Analytics export generated successfully",
-                StatusCode = 200
-            };
+            var exportResult = await _analyticsService.ExportSubscriptionAnalyticsAsync(null, null, GetToken(HttpContext));
+            return exportResult;
         }
         catch (Exception ex)
         {
@@ -556,4 +431,41 @@ public class AnalyticsController : BaseController
             };
         }
     }
+    /// <summary>
+    /// Retrieves real-time metrics for dashboard updates.
+    /// This endpoint provides live metrics that are updated frequently for dashboard monitoring.
+    /// </summary>
+    [HttpGet("real-time-metrics")]
+    public async Task<JsonModel> GetRealTimeMetrics()
+    {
+        try
+        {
+            var metrics = new
+            {
+                ActiveSubscriptionsNow = await _subscriptionService.GetActiveSubscriptionsCountAsync(),
+                RevenueToday = await _billingService.GetRevenueTodayAsync(),
+                NewSubscriptionsToday = await _subscriptionService.GetNewSubscriptionsCountAsync(DateTime.Today),
+                TrialsEndingThisWeek = await _subscriptionService.GetTrialsEndingCountAsync(7),
+                PendingPayments = await _billingService.GetPendingPaymentsCountAsync(),
+                LastUpdated = DateTime.UtcNow
+            };
+
+            return new JsonModel
+            {
+                data = metrics,
+                Message = "Real-time metrics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = $"Error retrieving real-time metrics: {ex.Message}",
+                StatusCode = 500
+            };
+        }
+    }
 } 
+    

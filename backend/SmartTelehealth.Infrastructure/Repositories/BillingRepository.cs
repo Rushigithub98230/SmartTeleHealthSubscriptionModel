@@ -1053,5 +1053,21 @@ namespace SmartTelehealth.Infrastructure.Repositories
         }
 
         // === END DATABASE-LEVEL ANALYTICS AGGREGATION METHODS ===
+
+        // Additional analytics methods
+        public async Task<decimal> GetRevenueForDateRangeAsync(DateTime startDate, DateTime endDate)
+        {
+            return await _context.BillingRecords
+                .Where(b => b.CreatedDate >= startDate && b.CreatedDate <= endDate &&
+                           b.Status == BillingRecord.BillingStatus.Paid)
+                .SumAsync(b => b.Amount);
+        }
+
+        public async Task<int> GetPendingPaymentsCountAsync()
+        {
+            return await _context.BillingRecords
+                .Where(b => b.Status == BillingRecord.BillingStatus.Pending)
+                .CountAsync();
+        }
     }
 } 

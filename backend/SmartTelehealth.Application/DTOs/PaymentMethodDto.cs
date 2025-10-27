@@ -10,6 +10,49 @@ namespace SmartTelehealth.Application.DTOs
         public DateTime CreatedDate { get; set; }
     }
 
+    public class AddPaymentMethodDto
+    {
+        public string PaymentMethodId { get; set; } = string.Empty;
+        public int UserId { get; set; }
+        public bool IsDefault { get; set; }
+        public int? CreatedBy { get; set; }
+        public DateTime CreatedDate { get; set; }
+        
+        // Additional properties for Stripe integration
+        public string Type { get; set; } = string.Empty;
+        public string Last4 { get; set; } = string.Empty;
+        public int ExpiryMonth { get; set; }
+        public int ExpiryYear { get; set; }
+    }
+
+    public class UpdatePaymentMethodDto
+    {
+        public string PaymentMethodId { get; set; } = string.Empty;
+        public int UserId { get; set; }
+        public bool IsDefault { get; set; }
+        public int? UpdatedBy { get; set; }
+        public DateTime UpdatedDate { get; set; }
+        
+        // Additional properties for Stripe integration
+        public string Type { get; set; } = string.Empty;
+        public string Last4 { get; set; } = string.Empty;
+        public int ExpiryMonth { get; set; }
+        public int ExpiryYear { get; set; }
+        
+        // Billing address information
+        public BillingAddressDto? BillingAddress { get; set; }
+    }
+
+    public class BillingAddressDto
+    {
+        public string? Line1 { get; set; }
+        public string? Line2 { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public string? PostalCode { get; set; }
+        public string? Country { get; set; }
+    }
+
     public class CardDto
     {
         public string? Brand { get; set; }

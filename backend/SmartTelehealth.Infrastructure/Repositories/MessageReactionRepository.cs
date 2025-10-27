@@ -82,16 +82,8 @@ public class MessageReactionRepository : RepositoryBase<MessageReaction>, IMessa
         return true;
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
-    {
-        var reaction = await _context.MessageReactions.FindAsync(id);
-        if (reaction == null)
-            return false;
-
-        reaction.IsDeleted = true;
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<MessageReaction>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     public async Task<bool> ExistsAsync(Guid id)
     {

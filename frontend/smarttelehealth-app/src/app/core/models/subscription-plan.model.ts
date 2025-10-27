@@ -15,10 +15,13 @@ export interface SubscriptionPlanDto {
   name: string;
   description: string;
   shortDescription?: string;
-  price: number;                 // Monthly base price
-  discountedPrice?: number;
-  discountValidUntil?: Date;
+  basePrice: number;             // Base plan price (PrivilegesTotalCost + AdminCommission)
+  discountPercentage?: number;   // Promotional or admin-defined discount (%)
+  discountValidUntil?: Date;     // Discount validity end date
   billingCycleId: string;
+  billingCycleName: string;
+  billingCycleDescription: string;
+  billingCycleDurationInDays: number;
   currencyId: string;
   categoryId: string;
   isActive: boolean;
@@ -48,6 +51,20 @@ export interface SubscriptionPlanDto {
   hasActiveDiscount: boolean;
   isCurrentlyAvailable: boolean;
   
+  // Healthcare Pricing Model
+  isAutoCalculatedPrice: boolean;
+  adminCommissionPercent?: number;
+  priceChangeNoticeDays: number;
+  privilegesTotalCost: number;
+  
+  // Billing Discount
+  billingDiscountPercentage?: number; // 0-100, billing cycle discount (%)
+  
+  // Legacy fields for backward compatibility (will be removed)
+  price?: number;                     // Legacy - use basePrice
+  discountedPrice?: number;           // Legacy - use discountPercentage
+  billingDiscount?: number;           // Legacy - use billingDiscountPercentage
+  
   // Plan Features
   messagingCount: number;
   includesMedicationDelivery: boolean;
@@ -57,22 +74,10 @@ export interface SubscriptionPlanDto {
   maxConcurrentUsers: number;
   gracePeriodDays: number;
   
-  // Billing Cycle Discounts (NEW - Solution A)
-  monthlyBillingDiscount: number;    // % discount for monthly billing
-  quarterlyBillingDiscount: number;  // % discount for quarterly billing
-  annualBillingDiscount: number;     // % discount for annual billing
-  
-  // Healthcare Pricing Model
-  isAutoCalculatedPrice: boolean;
-  adminCommissionPercent?: number;   // 0-100
-  adminCommissionFixed?: number;
-  privilegesTotalCost: number;
-  
   // Versioning
   versionNumber: number;
   isLatestVersion: boolean;
   parentPlanId?: string;
-  priceChangeNoticeDays: number;
   
   // Relationships
   planPrivileges: PlanPrivilegeDto[];
@@ -90,8 +95,8 @@ export interface CreateSubscriptionPlanDto {
   name: string;                    // Required, max 100
   description?: string;            // Max 500
   shortDescription?: string;       // Max 200
-  price: number;                   // Required, > 0
-  discountedPrice?: number;
+  basePrice: number;               // Required, > 0
+  discountPercentage?: number;     // Promotional discount (%)
   discountValidUntil?: Date;
   billingCycleId: string;          // Required GUID
   currencyId: string;              // Required GUID
@@ -137,13 +142,10 @@ export interface CreateSubscriptionPlanDto {
   // Healthcare Pricing Model
   isAutoCalculatedPrice: boolean;
   adminCommissionPercent?: number;   // 0-100
-  adminCommissionFixed?: number;
   priceChangeNoticeDays: number;     // Default: 10
   
-  // Billing Cycle Discounts
-  monthlyBillingDiscount?: number;
-  quarterlyBillingDiscount?: number;
-  annualBillingDiscount?: number;
+  // Billing Cycle Discount
+  billingDiscountPercentage?: number; // 0-100, billing cycle discount (%)
 }
 
 /**
@@ -153,7 +155,7 @@ export interface UpdateSubscriptionPlanDto {
   id: string;
   name: string;
   description?: string;
-  price: number;
+  basePrice: number;
   billingCycleId: string;
   currencyId: string;
   categoryId: string;
@@ -167,13 +169,10 @@ export interface UpdateSubscriptionPlanDto {
   // Healthcare Pricing Model
   isAutoCalculatedPrice: boolean;
   adminCommissionPercent?: number;
-  adminCommissionFixed?: number;
   priceChangeNoticeDays: number;
   
-  // Billing Discounts
-  monthlyBillingDiscount?: number;
-  quarterlyBillingDiscount?: number;
-  annualBillingDiscount?: number;
+  // Billing Discount
+  billingDiscountPercentage?: number; // 0-100, billing cycle discount (%)
 }
 
 /**

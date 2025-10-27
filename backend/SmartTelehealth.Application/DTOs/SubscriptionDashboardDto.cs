@@ -19,11 +19,6 @@ public class SubscriptionDashboardDto
 
 
 
-public class DateRangeDto
-{
-    public DateTime StartDate { get; set; }
-    public DateTime EndDate { get; set; }
-}
 
 public class OverviewMetricsDto
 {
@@ -56,42 +51,6 @@ public class CohortRetentionDto
     public decimal RetentionRate { get; set; }
 }
 
-public class PlanAnalyticsDto
-{
-    public List<PlanPerformanceDto> PlanPerformance { get; set; } = new();
-    public List<PlanPerformanceDto> TopPerformingPlans { get; set; } = new();
-    public List<PlanPerformanceDto> PlanComparison { get; set; } = new();
-}
-
-public class PlanPerformanceDto
-{
-    public string PlanName { get; set; } = string.Empty;
-    public int TotalSubscriptions { get; set; }
-    public int ActiveSubscriptions { get; set; }
-    public int CancelledSubscriptions { get; set; }
-    public int NewSubscriptionsThisPeriod { get; set; }
-    public decimal Revenue { get; set; }
-    public decimal AverageRevenue { get; set; }
-    public decimal ChurnRate { get; set; }
-    public decimal AverageSubscriptionValue { get; set; }
-    public decimal ConversionRate { get; set; }
-}
-
-public class UsageAnalyticsDto
-{
-    public int TotalUsers { get; set; }
-    public int ActiveUsers { get; set; }
-    public int InactiveUsers { get; set; }
-    public decimal AverageUsage { get; set; }
-    public List<FeatureUsageDto> FeatureUsage { get; set; } = new();
-    public List<UserActivityDto> UserActivity { get; set; } = new();
-    public decimal AverageUsagePerUser { get; set; }
-    public List<UsageDistributionDto> UsageDistribution { get; set; } = new();
-    public List<PeakUsageTimeDto> PeakUsageTimes { get; set; } = new();
-    public int UnderutilizedSubscriptions { get; set; }
-    public int OverutilizedSubscriptions { get; set; }
-    public List<UsageTrendDto> UsageTrends { get; set; } = new();
-}
 
 public class FeatureUsageDto
 {

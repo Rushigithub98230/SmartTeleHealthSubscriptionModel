@@ -80,6 +80,14 @@ public interface ISubscriptionPlanService
     /// <returns>JsonModel containing export result or file data</returns>
     Task<JsonModel> ExportSubscriptionPlansAsync(TokenModel tokenModel, string? searchTerm = null, string? categoryId = null, bool? isActive = null, string format = "csv");
     
+    /// <summary>
+    /// Gets the effective price for a subscription plan with all discounts applied
+    /// </summary>
+    /// <param name="planId">The unique identifier of the subscription plan</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing effective pricing information</returns>
+    Task<JsonModel> GetEffectivePriceAsync(string planId, TokenModel tokenModel);
+    
     #endregion
     
     #region Plan Privilege Management

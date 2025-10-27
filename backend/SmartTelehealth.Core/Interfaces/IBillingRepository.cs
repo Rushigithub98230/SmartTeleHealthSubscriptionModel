@@ -106,4 +106,8 @@ public interface IBillingRepository : IRepositoryBase<BillingRecord>
     /// Gets billing efficiency metrics using database-level aggregation
     /// </summary>
     Task<BillingEfficiencyMetrics> GetBillingEfficiencyMetricsAsync(DateTime startDate, DateTime endDate);
+    
+    // Additional analytics methods
+    Task<decimal> GetRevenueForDateRangeAsync(DateTime startDate, DateTime endDate);
+    Task<int> GetPendingPaymentsCountAsync();
 } 

@@ -61,22 +61,8 @@ public class BillingAdjustmentRepository : RepositoryBase<BillingAdjustment>, IB
         return await base.UpdateAsync(billingAdjustment);
     }
 
-    /// <summary>
-    /// Deletes a billing adjustment by its unique identifier (hard delete)
-    /// </summary>
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is not Guid adjustmentId)
-            return false;
-
-        var billingAdjustment = await GetByIdAsync(adjustmentId);
-        if (billingAdjustment == null)
-            return false;
-
-        _context.BillingAdjustments.Remove(billingAdjustment);
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<BillingAdjustment>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     /// <summary>
     /// Checks if a billing adjustment exists

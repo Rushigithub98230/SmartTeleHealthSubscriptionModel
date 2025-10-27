@@ -13,17 +13,8 @@ public class CalculatePlanPriceDto
     [Required]
     public Guid PlanId { get; set; }
 
-    /// <summary>
-    /// Admin commission percentage (0-100)
-    /// </summary>
-    [Range(0, 100, ErrorMessage = "Admin commission percentage must be between 0 and 100")]
-    public decimal AdminCommissionPercentage { get; set; } = 0;
-
-    /// <summary>
-    /// Fixed admin commission amount
-    /// </summary>
-    [Range(0, double.MaxValue, ErrorMessage = "Admin commission amount must be positive")]
-    public decimal AdminCommissionFixed { get; set; } = 0;
+    // REMOVED: AdminCommissionPercentage parameter for security
+    // Commission is now calculated from plan settings only
 }
 
 /// <summary>

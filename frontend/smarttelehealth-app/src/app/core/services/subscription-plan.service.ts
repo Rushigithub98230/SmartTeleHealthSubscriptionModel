@@ -122,5 +122,23 @@ export class SubscriptionPlanService {
   removePrivilegeFromPlan(planId: string, privilegeId: string): Observable<ApiResponse<any>> {
     return this.commonService.delete(`SubscriptionPlans/admin/${planId}/privileges/${privilegeId}`);
   }
+
+  /**
+   * CRITICAL FIX: Get effective price for a plan (centralized pricing calculation)
+   * API: GET /api/SubscriptionPlans/{planId}/effective-price
+   * Used in: Frontend pricing display to ensure consistency with backend
+   */
+  getEffectivePrice(planId: string): Observable<ApiResponse<{
+    PlanId: string;
+    BasePrice: number;
+    EffectivePrice: number;
+    DiscountPercentage?: number;
+    BillingDiscountPercentage?: number;
+    DiscountValidUntil?: string;
+    CurrencyCode: string;
+    CalculatedAt: string;
+  }>> {
+    return this.commonService.get(`SubscriptionPlans/${planId}/effective-price`);
+  }
 }
 

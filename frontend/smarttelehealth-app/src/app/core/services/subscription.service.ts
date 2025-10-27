@@ -99,6 +99,69 @@ export class SubscriptionService {
   purchaseAdditionalCredits(id: string, dto: any): Observable<ApiResponse<any>> {
     return this.commonService.post(`Subscriptions/${id}/purchase-credits`, dto);
   }
+
+  // ===== ADMIN SUBSCRIPTION METHODS =====
+
+  /**
+   * Cancel subscription (Admin Only)
+   * API: POST /api/admin/subscriptions/{id}/cancel
+   * Backend: CancelUserSubscription(string id, [FromBody] string? reason = null)
+   * Used in: Admin Subscription Management
+   */
+  cancelAdminSubscription(id: string, reason: string): Observable<ApiResponse<any>> {
+    return this.commonService.post(`admin/subscriptions/${id}/cancel`, reason);
+  }
+
+  /**
+   * Pause subscription (Admin Only)  
+   * API: POST /api/admin/subscriptions/{id}/pause
+   * Backend: PauseUserSubscription(string id, [FromBody] string? reason = null)
+   * Note: Backend service doesn't use reason, but controller accepts it
+   * Used in: Admin Subscription Management
+   */
+  pauseAdminSubscription(id: string, reason: string): Observable<ApiResponse<any>> {
+    return this.commonService.post(`admin/subscriptions/${id}/pause`, reason);
+  }
+
+  /**
+   * Resume subscription (Admin Only)
+   * API: POST /api/admin/subscriptions/{id}/resume  
+   * Backend: ResumeUserSubscription(string id)
+   * Used in: Admin Subscription Management
+   */
+  resumeAdminSubscription(id: string): Observable<ApiResponse<any>> {
+    return this.commonService.post(`admin/subscriptions/${id}/resume`, {});
+  }
+
+  /**
+   * Extend subscription (Admin Only)
+   * API: POST /api/admin/subscriptions/{id}/extend
+   * Backend: ExtendUserSubscription(string id, [FromBody] int additionalDays)
+   * Used in: Admin Subscription Management
+   */
+  extendAdminSubscription(id: string, days: number): Observable<ApiResponse<any>> {
+    return this.commonService.post(`admin/subscriptions/${id}/extend`, days);
+  }
+
+  /**
+   * Upgrade subscription (Admin Only)
+   * API: POST /api/admin/subscriptions/{id}/upgrade
+   * Backend: UpgradeUserSubscription(string id, [FromBody] string newPlanId)
+   * Used in: Admin Subscription Management
+   */
+  upgradeAdminSubscription(id: string, newPlanId: string): Observable<ApiResponse<any>> {
+    return this.commonService.post(`admin/subscriptions/${id}/upgrade`, newPlanId);
+  }
+
+  /**
+   * Downgrade subscription (Admin Only)
+   * API: POST /api/admin/subscriptions/{id}/downgrade
+   * Backend: DowngradeUserSubscription(string id, [FromBody] string newPlanId)
+   * Used in: Admin Subscription Management
+   */
+  downgradeAdminSubscription(id: string, newPlanId: string): Observable<ApiResponse<any>> {
+    return this.commonService.post(`admin/subscriptions/${id}/downgrade`, newPlanId);
+  }
 }
 
 

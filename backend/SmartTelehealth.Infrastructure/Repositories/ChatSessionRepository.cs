@@ -82,19 +82,8 @@ public class ChatSessionRepository : RepositoryBase<ChatSession>, IChatSessionRe
         return await base.UpdateAsync(session);
     }
 
-    public override async Task<bool> DeleteAsync(object id)
-    {
-        if (id is not Guid sessionId)
-            return false;
-
-        var session = await _context.ChatSessions.FindAsync(sessionId);
-        if (session == null) return false;
-
-        session.IsDeleted = true;
-        session.UpdatedDate = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-        return true;
-    }
+    // Note: DeleteAsync is inherited from RepositoryBase<ChatSession>
+    // Service layer should handle audit properties and use UpdateAsync for soft deletes
 
     public override async Task<bool> ExistsAsync(object id)
     {

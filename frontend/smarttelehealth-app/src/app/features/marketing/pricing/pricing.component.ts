@@ -1,31 +1,20 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { FormsModule } from '@angular/forms';
 import { SubscriptionPlanService } from '../../../core/services';
 import { SubscriptionPlanDto } from '../../../core/models';
 
-/**
- * Pricing Calculator Component
- * Interactive pricing comparison and calculator
- * 
- * APIs Used:
- * - GET /api/SubscriptionPlans/active
- * 
- * Route: /pricing
- * Access: Public
- */
 @Component({
   selector: 'app-pricing',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule],
+  imports: [CommonModule],
   templateUrl: './pricing.component.html',
   styleUrls: ['./pricing.component.scss']
 })
 export class PricingComponent implements OnInit {
+  // Component properties
   plans: SubscriptionPlanDto[] = [];
   loading = false;
-
+  
   // Calculator settings
   selectedBillingCycle = 'monthly'; // 'monthly', 'quarterly', 'annual'
   
@@ -69,15 +58,15 @@ export class PricingComponent implements OnInit {
    */
   calculatePrice(plan: SubscriptionPlanDto): number {
     const cycle = this.billingCycles.find(c => c.id === this.selectedBillingCycle);
-    if (!cycle) return plan.price;
+    if (!cycle) return plan.basePrice || plan.price || 0;
 
-    const basePrice = plan.price;
+    const basePrice = plan.basePrice || plan.price || 0;
     let discount = 0;
 
-    if (this.selectedBillingCycle === 'quarterly') {
-      discount = plan.quarterlyBillingDiscount || 0;
-    } else if (this.selectedBillingCycle === 'annual') {
-      discount = plan.annualBillingDiscount || 0;
+    // NEW ARCHITECTURE: Each plan has a single billing discount for its specific billing cycle
+    // The plan is already tied to a specific billing cycle, so use its billingDiscountPercentage
+    if (this.selectedBillingCycle === 'quarterly' || this.selectedBillingCycle === 'annual') {
+      discount = plan.billingDiscountPercentage || plan.billingDiscount || 0;
     }
 
     const discountedPrice = basePrice * (1 - discount / 100);
@@ -91,10 +80,10 @@ export class PricingComponent implements OnInit {
     const cycle = this.billingCycles.find(c => c.id === this.selectedBillingCycle);
     if (!cycle) return 0;
 
-    const regularPrice = plan.price * cycle.months;
+    const basePrice = plan.basePrice || plan.price || 0;
+    const regularPrice = basePrice * cycle.months;
     const discountedPrice = this.calculatePrice(plan);
     
     return regularPrice - discountedPrice;
   }
 }
-

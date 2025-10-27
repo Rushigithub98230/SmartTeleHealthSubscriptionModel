@@ -46,6 +46,7 @@ export class SubscriptionDetailComponent implements OnInit {
 
   ngOnInit(): void {
     this.subscriptionId = this.route.snapshot.params['id'];
+    console.log('🎯 [SUBSCRIPTION-DETAIL] Component initialized for subscription:', this.subscriptionId);
     this.loadSubscription();
   }
 
@@ -53,11 +54,19 @@ export class SubscriptionDetailComponent implements OnInit {
    * Load subscription details
    */
   loadSubscription(): void {
+    console.log('📋 [SUBSCRIPTION-DETAIL] Loading subscription details for ID:', this.subscriptionId);
     this.loading = true;
     this.error = null;
 
     this.subscriptionService.getSubscriptionById(this.subscriptionId).subscribe({
       next: (response) => {
+        console.log('✅ [SUBSCRIPTION-DETAIL] Subscription loaded:', {
+          statusCode: response.statusCode,
+          subscriptionId: response.data?.id,
+          status: response.data?.status,
+          planName: response.data?.planName
+        });
+        
         if (response.statusCode === 200) {
           this.subscription = response.data;
           
@@ -65,10 +74,12 @@ export class SubscriptionDetailComponent implements OnInit {
           this.checkForPendingPayment();
         } else {
           this.error = response.message;
+          console.error('❌ [SUBSCRIPTION-DETAIL] Failed to load subscription:', response.message);
         }
         this.loading = false;
       },
       error: (error) => {
+        console.error('❌ [SUBSCRIPTION-DETAIL] Error loading subscription:', error);
         this.error = error.message || 'Failed to load subscription';
         this.loading = false;
       }

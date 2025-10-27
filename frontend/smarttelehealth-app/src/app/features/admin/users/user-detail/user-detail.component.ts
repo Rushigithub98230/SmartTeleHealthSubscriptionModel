@@ -10,6 +10,7 @@ import {
   PrivilegeService,
   CommonService 
 } from '../../../../core/services';
+import { Customer360Service, Customer360Data, CustomerSummary } from '../../../../core/services/customer360.service';
 import { 
   UserDto, 
   SubscriptionDto, 
@@ -21,6 +22,7 @@ import { LineChartComponent } from '../../../../shared/components/line-chart.com
 import { DoughnutChartComponent } from '../../../../shared/components/doughnut-chart.component';
 import { BarChartComponent } from '../../../../shared/components/bar-chart.component';
 import { PieChartComponent } from '../../../../shared/components/pie-chart.component';
+import { SubscriptionTimelineComponent } from '../../../../shared/components/subscription-timeline/subscription-timeline.component';
 import { ChartConfiguration } from 'chart.js';
 
 /**
@@ -59,7 +61,8 @@ import { ChartConfiguration } from 'chart.js';
     PrivilegeProgressBarComponent,
     DoughnutChartComponent,
     BarChartComponent,
-    PieChartComponent
+    PieChartComponent,
+    SubscriptionTimelineComponent
   ],
   templateUrl: './user-detail.component.html',
   styleUrls: ['./user-detail.component.scss']
@@ -120,6 +123,12 @@ export class UserDetailComponent implements OnInit {
     error: null as string | null
   };
 
+  // Customer 360 data
+  customer360Data: Customer360Data | null = null;
+  healthScore: number = 0;
+  healthScoreClass: string = 'health-score-low';
+  customerSummary: CustomerSummary | null = null;
+
   // Modal state for subscription actions
   showPauseModal = false;
   showCancelModal = false;
@@ -139,12 +148,14 @@ export class UserDetailComponent implements OnInit {
     private subscriptionService: SubscriptionService,
     private billingService: BillingService,
     private privilegeService: PrivilegeService,
-    private commonService: CommonService
+    private commonService: CommonService,
+    private customer360Service: Customer360Service
   ) {}
 
   ngOnInit(): void {
     this.userId = +this.route.snapshot.params['id'];
     this.loadOverview();
+    this.loadCustomer360Data();
   }
 
   /**
@@ -181,6 +192,43 @@ export class UserDetailComponent implements OnInit {
         this.overviewLoading = false;
       }
     });
+  }
+
+  /**
+   * Load Customer 360 data for comprehensive user view
+   */
+  loadCustomer360Data(): void {
+    this.customer360Service.getUserCompleteProfile(this.userId).subscribe({
+      next: (data: any) => {
+        this.customer360Data = data;
+        this.customerSummary = data.summary;
+        this.healthScore = data.healthScore;
+        this.healthScoreClass = this.getHealthScoreClass(this.healthScore);
+      },
+      error: (error: any) => {
+        console.error('Error loading Customer 360 data:', error);
+      }
+    });
+  }
+
+  /**
+   * Get health score CSS class based on score
+   */
+  getHealthScoreClass(score: number): string {
+    if (score >= 90) return 'health-score-excellent';
+    if (score >= 70) return 'health-score-good';
+    if (score >= 50) return 'health-score-fair';
+    return 'health-score-poor';
+  }
+
+  /**
+   * Get health score description
+   */
+  getHealthScoreDescription(score: number): string {
+    if (score >= 90) return 'Excellent - Highly engaged customer';
+    if (score >= 70) return 'Good - Active customer with minor issues';
+    if (score >= 50) return 'Fair - Some concerns, needs attention';
+    return 'Poor - High risk of churn, immediate action needed';
   }
 
   /**
@@ -515,9 +563,9 @@ export class UserDetailComponent implements OnInit {
     }
 
     this.actionLoading = true;
-    this.subscriptionService.pauseSubscription(
+    this.subscriptionService.pauseAdminSubscription(
       this.activeSubscription.id,
-      { reason: this.pauseReason }
+      this.pauseReason
     ).subscribe({
       next: (response) => {
         if (response.statusCode === 200) {
@@ -563,7 +611,7 @@ export class UserDetailComponent implements OnInit {
     }
 
     this.actionLoading = true;
-    this.subscriptionService.cancelSubscription(
+    this.subscriptionService.cancelAdminSubscription(
       this.activeSubscription.id,
       this.cancelReason
     ).subscribe({
@@ -599,7 +647,7 @@ export class UserDetailComponent implements OnInit {
     }
 
     this.actionLoading = true;
-    this.subscriptionService.resumeSubscription(this.activeSubscription.id)
+    this.subscriptionService.resumeAdminSubscription(this.activeSubscription.id)
       .subscribe({
         next: (response) => {
           if (response.statusCode === 200) {

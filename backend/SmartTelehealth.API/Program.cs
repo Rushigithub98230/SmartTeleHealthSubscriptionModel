@@ -50,6 +50,32 @@ builder.Services.AddSwaggerGen(options =>
     options.CustomSchemaIds(type => type.FullName);
     options.SupportNonNullableReferenceTypes();
     options.SchemaFilter<IgnoreNavigationPropertiesSchemaFilter>();
+    
+    // Add JWT Authentication to Swagger
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token in the text input below.",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT"
+    });
+    
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 // Database Configuration - Only register if not in test environment
@@ -171,6 +197,7 @@ app.MapControllers();
 // Map SignalR hubs
 app.MapHub<ChatHub>("/chatHub");
 app.MapHub<VideoCallHub>("/videoCallHub");
+app.MapHub<LogsHub>("/logsHub");
 
 // Ensure database is created and seeded (skip in test)
 if (!app.Environment.IsEnvironment("Test"))

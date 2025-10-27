@@ -65,43 +65,69 @@ namespace SmartTelehealth.Application.DTOs
 
     public class CreateSubscriptionDto
     {
+        [Required(ErrorMessage = "User ID is required")]
         public int UserId { get; set; }
+        
         public string SubscriptionId { get; set; } = string.Empty;
+        
+        [Required(ErrorMessage = "Plan ID is required")]
         public string PlanId { get; set; } = string.Empty;
+        
         public string? Name { get; set; }
         public string? Description { get; set; }
+        
+        [Range(0, double.MaxValue, ErrorMessage = "Price must be 0 or positive")]
         public decimal Price { get; set; }
+        
         // NEW ARCHITECTURE: BillingCycleId removed - billing cycle comes from the selected plan
         // Each plan has a fixed billing cycle. Users select a complete plan (e.g., "Basic - Monthly")
         // OLD: public Guid BillingCycleId { get; set; }
+        
+        [Required(ErrorMessage = "Currency ID is required")]
         public Guid CurrencyId { get; set; }
+        
         public bool IsActive { get; set; } = true;
         public DateTime? StartDate { get; set; }
         public bool StartImmediately { get; set; } = true;
+        
+        [Required(ErrorMessage = "Payment method ID is required")]
         public string? PaymentMethodId { get; set; }
+        
         public bool AutoRenew { get; set; } = true;
         // Removed: MonthlyPrice, QuarterlyPrice, AnnualPrice, BillingCycle
     }
 
     public class UpgradeSubscriptionDto
     {
+        [Required(ErrorMessage = "Subscription ID is required")]
         public string SubscriptionId { get; set; } = string.Empty;
+        
+        [Required(ErrorMessage = "User ID is required")]
         public int UserId { get; set; }
-        [Required]
+        
+        [Required(ErrorMessage = "New plan ID is required")]
         public string NewPlanId { get; set; } = string.Empty;
-        [Required]
+        
+        [Required(ErrorMessage = "Payment method ID is required")]
         public string PaymentMethodId { get; set; } = string.Empty;
+        
         public bool Prorate { get; set; } = true;
     }
 
     public class DowngradeSubscriptionDto
     {
+        [Required(ErrorMessage = "Subscription ID is required")]
         public string SubscriptionId { get; set; } = string.Empty;
+        
+        [Required(ErrorMessage = "User ID is required")]
         public int UserId { get; set; }
-        [Required]
+        
+        [Required(ErrorMessage = "New plan ID is required")]
         public string NewPlanId { get; set; } = string.Empty;
-        [Required]
+        
+        [Required(ErrorMessage = "Payment method ID is required")]
         public string PaymentMethodId { get; set; } = string.Empty;
+        
         public bool Prorate { get; set; } = true;
     }
 
@@ -130,20 +156,6 @@ namespace SmartTelehealth.Application.DTOs
         public DateTime CreatedDate { get; set; }
     }
 
-    public class AddPaymentMethodDto
-    {
-        [Required]
-        public string Token { get; set; } = string.Empty;
-        public string PaymentMethodId { get; set; } = string.Empty;
-        public bool IsDefault { get; set; } = false;
-        public bool SetAsDefault { get; set; } = false;
-        
-        // Added missing properties to fix build errors
-        public string Type { get; set; } = string.Empty;
-        public string Last4 { get; set; } = string.Empty;
-        public int ExpiryMonth { get; set; }
-        public int ExpiryYear { get; set; }
-    }
 
     public class ProcessPaymentRequestDto
     {
@@ -199,41 +211,59 @@ namespace SmartTelehealth.Application.DTOs
 
     public class UpdateSubscriptionPlanDto
     {
+        [Required(ErrorMessage = "Plan ID is required")]
         public string Id { get; set; } = string.Empty;
+        
+        [Required(ErrorMessage = "Plan name is required")]
+        [MaxLength(100, ErrorMessage = "Plan name cannot exceed 100 characters")]
         public string Name { get; set; } = string.Empty;
+        
+        [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters")]
         public string? Description { get; set; }
-        public decimal Price { get; set; }
+        
+        [Required(ErrorMessage = "Base price is required")]
+        [Range(0, double.MaxValue, ErrorMessage = "Base price must be 0 or positive")]
+        public decimal BasePrice { get; set; }
+        
+        [Required(ErrorMessage = "Billing cycle ID is required")]
         public Guid BillingCycleId { get; set; }
+        
+        [Required(ErrorMessage = "Currency ID is required")]
         public Guid CurrencyId { get; set; }
+        
+        [Required(ErrorMessage = "Category ID is required")]
         public Guid CategoryId { get; set; }
+        
         public bool IsActive { get; set; }
         
         // Marketing and display properties
         public bool IsMostPopular { get; set; } = false;
         public bool IsTrending { get; set; } = false;
         
-        public int? DisplayOrder { get; set; } // Added property
+        [Range(0, int.MaxValue, ErrorMessage = "Display order must be non-negative")]
+        public int? DisplayOrder { get; set; }
         
-        // ═══════════════════════════════════════════════════════════
-        // HEALTHCARE PRICING MODEL (Choices 1c, 2c, 4d)
-        // ═══════════════════════════════════════════════════════════
-        
-        /// <summary>
-        /// Choice 1c: Pricing mode selection.
-        /// </summary>
+        // Healthcare pricing model
         public bool IsAutoCalculatedPrice { get; set; } = true;
         
-        /// <summary>
-        /// Choice 2c: Per-plan commission override.
-        /// </summary>
+        [Range(0, 100, ErrorMessage = "Commission must be between 0 and 100%")]
         public decimal? AdminCommissionPercent { get; set; }
         
-        public decimal? AdminCommissionFixed { get; set; }
+        [Range(7, 365, ErrorMessage = "Notice period must be between 7 and 365 days")]
+        public int PriceChangeNoticeDays { get; set; } = 10;
         
+        [Range(0, 100, ErrorMessage = "Billing discount must be between 0 and 100%")]
+        public decimal? BillingDiscountPercentage { get; set; }
+    
     /// <summary>
-    /// Choice 4d: Configurable notice period per plan.
+    /// Promotional discount percentage (0-100)
     /// </summary>
-    public int PriceChangeNoticeDays { get; set; } = 10;
+    public decimal? DiscountPercentage { get; set; }
+    
+    /// <summary>
+    /// Promotional discount valid until date
+    /// </summary>
+    public DateTime? DiscountValidUntil { get; set; }
     }
 
     public class SubscriptionStatusHistoryDto

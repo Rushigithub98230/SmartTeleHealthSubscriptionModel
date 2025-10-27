@@ -2,6 +2,7 @@ using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Application.Utilities;
+using SmartTelehealth.Application.Constants;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Enums;
@@ -1095,6 +1096,363 @@ public class PaymentService : IPaymentService
         }
     }
 
+    /// <summary>
+    /// Adds a payment method using DTO (for webhook processing)
+    /// </summary>
+    /// <param name="dto">Payment method data</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing the result</returns>
+    public async Task<JsonModel> AddPaymentMethodAsync(AddPaymentMethodDto dto, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Adding payment method {PaymentMethodId} for user {UserId}", dto.PaymentMethodId, dto.UserId);
+
+            // Add payment method to user's Stripe customer account
+            var methodId = await _stripeService.AddPaymentMethodAsync(dto.UserId.ToString(), dto.PaymentMethodId, tokenModel);
+            var method = new PaymentMethodDto { Id = methodId };
+            
+            _logger.LogInformation("Successfully added payment method for user {UserId}", dto.UserId);
+            return new JsonModel { data = method, Message = "Payment method added successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding payment method {PaymentMethodId} for user {UserId}", dto.PaymentMethodId, dto.UserId);
+            return new JsonModel { data = new object(), Message = "Error adding payment method", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Gets user payment methods (alias for GetPaymentMethodsAsync)
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing payment methods</returns>
+    public async Task<JsonModel> GetUserPaymentMethodsAsync(int userId, TokenModel tokenModel)
+    {
+        return await GetPaymentMethodsAsync(userId, tokenModel);
+    }
+
+    /// <summary>
+    /// Sets a payment method as default
+    /// </summary>
+    /// <param name="paymentMethodId">Payment method ID</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing the result</returns>
+    public async Task<JsonModel> SetDefaultPaymentMethodAsync(string paymentMethodId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Setting payment method {PaymentMethodId} as default for user {UserId}", paymentMethodId, tokenModel.UserID);
+
+            // Set payment method as default in Stripe
+            await _stripeService.SetDefaultPaymentMethodAsync(tokenModel.UserID.ToString(), paymentMethodId, tokenModel);
+            
+            _logger.LogInformation("Successfully set payment method {PaymentMethodId} as default for user {UserId}", paymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = true, Message = "Payment method set as default successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting payment method {PaymentMethodId} as default for user {UserId}", paymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = new object(), Message = "Error setting payment method as default", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Gets a payment method by Stripe ID
+    /// </summary>
+    /// <param name="stripePaymentMethodId">Stripe payment method ID</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing the payment method</returns>
+    public async Task<JsonModel> GetPaymentMethodByStripeIdAsync(string stripePaymentMethodId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting payment method {PaymentMethodId} for user {UserId}", stripePaymentMethodId, tokenModel.UserID);
+
+            // First get the user's Stripe customer ID from subscription
+            var subscriptions = await _subscriptionRepository.GetByUserIdAsync(tokenModel.UserID);
+            var subscription = subscriptions?.FirstOrDefault();
+            if (subscription?.User?.StripeCustomerId == null)
+            {
+                return new JsonModel { data = new object(), Message = "User not found or no Stripe customer ID", StatusCode = 404 };
+            }
+
+            // Get payment method from Stripe using available method
+            var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(subscription.User.StripeCustomerId, tokenModel);
+            var paymentMethod = paymentMethods?.FirstOrDefault(pm => pm.Id == stripePaymentMethodId);
+            
+            if (paymentMethod == null)
+            {
+                return new JsonModel { data = new object(), Message = "Payment method not found", StatusCode = 404 };
+            }
+
+            _logger.LogInformation("Successfully retrieved payment method {PaymentMethodId} for user {UserId}", stripePaymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = paymentMethod, Message = "Payment method retrieved successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting payment method {PaymentMethodId} for user {UserId}", stripePaymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = new object(), Message = "Error retrieving payment method", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Deletes a payment method from user's account
+    /// CRITICAL: Prevents deletion if payment method is used in active subscriptions
+    /// </summary>
+    /// <param name="paymentMethodId">The Stripe payment method ID to delete</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing deletion result and status</returns>
+    public async Task<JsonModel> DeletePaymentMethodAsync(string paymentMethodId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Deleting payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+
+            // First get the user's Stripe customer ID
+            var subscriptions = await _subscriptionRepository.GetByUserIdAsync(tokenModel.UserID);
+            var subscription = subscriptions?.FirstOrDefault();
+            if (subscription?.User?.StripeCustomerId == null)
+            {
+                return new JsonModel { data = new object(), Message = "User not found or no Stripe customer ID", StatusCode = 404 };
+            }
+
+            // Check if payment method is used in any active subscriptions
+            var activeSubscriptions = subscriptions?.Where(s => s.Status == Subscription.SubscriptionStatuses.Active && 
+                                                               s.PaymentMethodId == paymentMethodId).ToList();
+            
+            if (activeSubscriptions?.Any() == true)
+            {
+                _logger.LogWarning("Cannot delete payment method {PaymentMethodId} - used in {Count} active subscriptions", 
+                    paymentMethodId, activeSubscriptions.Count);
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Cannot delete payment method. It is currently used in {activeSubscriptions.Count} active subscription(s). Please update those subscriptions first.", 
+                    StatusCode = 400 
+                };
+            }
+
+            // Check if this is the user's only payment method
+            var allPaymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(subscription.User.StripeCustomerId, tokenModel);
+            if (allPaymentMethods?.Count() <= 1)
+            {
+                _logger.LogWarning("Cannot delete payment method {PaymentMethodId} - it is the only payment method for user {UserId}", 
+                    paymentMethodId, tokenModel.UserID);
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = "Cannot delete payment method. It is your only payment method. Please add another payment method first.", 
+                    StatusCode = 400 
+                };
+            }
+
+            // Remove payment method from Stripe
+            var removeResult = await _stripeService.RemovePaymentMethodAsync(subscription.User.StripeCustomerId, paymentMethodId, tokenModel);
+            
+            if (removeResult)
+            {
+                _logger.LogInformation("Successfully deleted payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+                return new JsonModel { data = true, Message = "Payment method deleted successfully", StatusCode = 200 };
+            }
+            else
+            {
+                _logger.LogWarning("Failed to delete payment method {PaymentMethodId} from Stripe for user {UserId}", paymentMethodId, tokenModel.UserID);
+                return new JsonModel { data = new object(), Message = "Failed to delete payment method from Stripe", StatusCode = 500 };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = new object(), Message = "Error deleting payment method", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Updates payment method details (expiry, billing address, etc.)
+    /// </summary>
+    /// <param name="paymentMethodId">The Stripe payment method ID to update</param>
+    /// <param name="dto">Updated payment method details</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing update result and status</returns>
+    public async Task<JsonModel> UpdatePaymentMethodDetailsAsync(string paymentMethodId, UpdatePaymentMethodDto dto, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Updating payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+
+            // Validate input
+            if (string.IsNullOrEmpty(paymentMethodId))
+            {
+                return new JsonModel { data = new object(), Message = "Payment method ID is required", StatusCode = 400 };
+            }
+
+            if (dto == null)
+            {
+                return new JsonModel { data = new object(), Message = "Update data is required", StatusCode = 400 };
+            }
+
+            // First get the user's Stripe customer ID
+            var subscriptions = await _subscriptionRepository.GetByUserIdAsync(tokenModel.UserID);
+            var subscription = subscriptions?.FirstOrDefault();
+            if (subscription?.User?.StripeCustomerId == null)
+            {
+                return new JsonModel { data = new object(), Message = "User not found or no Stripe customer ID", StatusCode = 404 };
+            }
+
+            // Verify payment method belongs to user
+            var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(subscription.User.StripeCustomerId, tokenModel);
+            var existingMethod = paymentMethods?.FirstOrDefault(pm => pm.Id == paymentMethodId);
+            
+            if (existingMethod == null)
+            {
+                return new JsonModel { data = new object(), Message = "Payment method not found or does not belong to user", StatusCode = 404 };
+            }
+
+            // Update payment method in Stripe
+            var updateResult = await _stripeService.UpdatePaymentMethodAsync(subscription.User.StripeCustomerId, paymentMethodId, tokenModel);
+            
+            if (updateResult)
+            {
+                _logger.LogInformation("Successfully updated payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+                return new JsonModel { data = true, Message = "Payment method updated successfully", StatusCode = 200 };
+            }
+            else
+            {
+                _logger.LogWarning("Failed to update payment method {PaymentMethodId} in Stripe for user {UserId}", paymentMethodId, tokenModel.UserID);
+                return new JsonModel { data = new object(), Message = "Failed to update payment method in Stripe", StatusCode = 500 };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = new object(), Message = "Error updating payment method", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Validates a payment method before use
+    /// </summary>
+    /// <param name="paymentMethodId">The Stripe payment method ID to validate</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing validation result and status</returns>
+    public async Task<JsonModel> ValidatePaymentMethodAsync(string paymentMethodId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Validating payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+
+            // Validate input
+            if (string.IsNullOrEmpty(paymentMethodId))
+            {
+                return new JsonModel { data = new object(), Message = "Payment method ID is required", StatusCode = 400 };
+            }
+
+            // First get the user's Stripe customer ID
+            var subscriptions = await _subscriptionRepository.GetByUserIdAsync(tokenModel.UserID);
+            var subscription = subscriptions?.FirstOrDefault();
+            if (subscription?.User?.StripeCustomerId == null)
+            {
+                return new JsonModel { data = new object(), Message = "User not found or no Stripe customer ID", StatusCode = 404 };
+            }
+
+            // Validate payment method in Stripe
+            var validationResult = await _stripeService.ValidatePaymentMethodAsync(paymentMethodId, tokenModel);
+            
+            if (validationResult)
+            {
+                // Verify payment method belongs to user
+                var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(subscription.User.StripeCustomerId, tokenModel);
+                var userMethod = paymentMethods?.FirstOrDefault(pm => pm.Id == paymentMethodId);
+                
+                if (userMethod != null)
+                {
+                    _logger.LogInformation("Payment method {PaymentMethodId} is valid for user {UserId}", paymentMethodId, tokenModel.UserID);
+                    return new JsonModel { data = new { isValid = true, paymentMethod = userMethod }, Message = "Payment method is valid", StatusCode = 200 };
+                }
+                else
+                {
+                    _logger.LogWarning("Payment method {PaymentMethodId} does not belong to user {UserId}", paymentMethodId, tokenModel.UserID);
+                    return new JsonModel { data = new { isValid = false }, Message = "Payment method does not belong to user", StatusCode = 403 };
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Payment method {PaymentMethodId} validation failed for user {UserId}", paymentMethodId, tokenModel.UserID);
+                return new JsonModel { data = new { isValid = false }, Message = "Payment method validation failed", StatusCode = 400 };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = new object(), Message = "Error validating payment method", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Gets detailed information about a specific payment method
+    /// </summary>
+    /// <param name="paymentMethodId">The Stripe payment method ID</param>
+    /// <param name="tokenModel">Token containing user authentication information</param>
+    /// <returns>JsonModel containing detailed payment method information</returns>
+    public async Task<JsonModel> GetPaymentMethodDetailsAsync(string paymentMethodId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting detailed information for payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+
+            // Validate input
+            if (string.IsNullOrEmpty(paymentMethodId))
+            {
+                return new JsonModel { data = new object(), Message = "Payment method ID is required", StatusCode = 400 };
+            }
+
+            // First get the user's Stripe customer ID
+            var subscriptions = await _subscriptionRepository.GetByUserIdAsync(tokenModel.UserID);
+            var subscription = subscriptions?.FirstOrDefault();
+            if (subscription?.User?.StripeCustomerId == null)
+            {
+                return new JsonModel { data = new object(), Message = "User not found or no Stripe customer ID", StatusCode = 404 };
+            }
+
+            // Get payment method details from Stripe
+            var paymentMethods = await _stripeService.GetCustomerPaymentMethodsAsync(subscription.User.StripeCustomerId, tokenModel);
+            var paymentMethod = paymentMethods?.FirstOrDefault(pm => pm.Id == paymentMethodId);
+            
+            if (paymentMethod == null)
+            {
+                return new JsonModel { data = new object(), Message = "Payment method not found", StatusCode = 404 };
+            }
+
+            // Get usage statistics
+            var usageStats = new
+            {
+                IsUsedInActiveSubscriptions = subscriptions?.Any(s => s.Status == Subscription.SubscriptionStatuses.Active && s.PaymentMethodId == paymentMethodId) ?? false,
+                ActiveSubscriptionCount = subscriptions?.Count(s => s.Status == Subscription.SubscriptionStatuses.Active && s.PaymentMethodId == paymentMethodId) ?? 0,
+                TotalSubscriptionCount = subscriptions?.Count(s => s.PaymentMethodId == paymentMethodId) ?? 0,
+                IsDefault = subscription?.PaymentMethodId == paymentMethodId
+            };
+
+            var detailedInfo = new
+            {
+                PaymentMethod = paymentMethod,
+                UsageStatistics = usageStats,
+                LastUsed = subscriptions?.Where(s => s.PaymentMethodId == paymentMethodId)
+                                         .OrderByDescending(s => s.UpdatedDate)
+                                         .FirstOrDefault()?.UpdatedDate
+            };
+
+            _logger.LogInformation("Successfully retrieved detailed information for payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = detailedInfo, Message = "Payment method details retrieved successfully", StatusCode = 200 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting detailed information for payment method {PaymentMethodId} for user {UserId}", paymentMethodId, tokenModel.UserID);
+            return new JsonModel { data = new object(), Message = "Error retrieving payment method details", StatusCode = 500 };
+        }
+    }
+
     #endregion
 
     #region Helper Methods
@@ -1558,7 +1916,7 @@ public class PaymentService : IPaymentService
             1 => DateTime.UtcNow.AddHours(1),    // 1 hour
             2 => DateTime.UtcNow.AddDays(1),     // 1 day
             3 => DateTime.UtcNow.AddDays(3),     // 3 days
-            _ => DateTime.UtcNow.AddDays(7)      // 7 days for any additional attempts
+            _ => DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS)      // Consistent grace period for any additional attempts
         };
     }
 
@@ -1568,18 +1926,8 @@ public class PaymentService : IPaymentService
     /// </summary>
     private DateTime CalculateNextBillingDate(Subscription subscription)
     {
-        try
-        {
-            var baseDate = subscription.LastBillingDate ?? subscription.StartDate;
-            
-            // REFACTORED: Use centralized calculator for consistency across all services (eliminates duplicate logic)
-            return BillingCycleCalculator.CalculateNextBillingDate(baseDate, subscription.BillingCycle);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error calculating next billing date for subscription {SubscriptionId}", subscription.Id);
-            return (subscription.LastBillingDate ?? subscription.StartDate).AddMonths(1); // Safe fallback
-        }
+        // CONSISTENT FIX: Use centralized billing cycle calculator instead of duplicate implementation
+        return BillingCycleCalculator.CalculateNextBillingDate(DateTime.UtcNow, subscription.BillingCycle);
     }
 
     /// <summary>

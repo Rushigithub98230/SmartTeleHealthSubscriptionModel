@@ -4,12 +4,23 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <a routerLink="/webadmin/users" class="btn btn-outline-secondary mb-3">
-    <i class="bi bi-arrow-left me-2"></i>Back to Users
-  </a>
+        <i class="bi bi-arrow-left me-2"></i>Back to Users
+      </a>
       <h2 class="mb-0">
         <i class="bi bi-person-circle me-2"></i>
         {{user?.fullName || 'User Details'}}
       </h2>
+    </div>
+    
+    <!-- Health Score Badge -->
+    <div class="health-score-section" *ngIf="customerSummary">
+      <div class="health-score-badge" [ngClass]="healthScoreClass">
+        <div class="health-score-value">{{ healthScore }}</div>
+        <div class="health-score-label">Health Score</div>
+      </div>
+      <div class="health-score-description">
+        {{ getHealthScoreDescription(healthScore) }}
+      </div>
     </div>
   </div>
 
@@ -372,6 +383,15 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Subscription Timeline -->
+      <div class="mt-4">
+        <app-subscription-timeline 
+          [subscriptions]="subscriptionsData.past.concat(subscriptionsData.current ? [subscriptionsData.current] : [])"
+          [showAllSubscriptions]="true"
+          [maxEvents]="15">
+        </app-subscription-timeline>
       </div>
     </div>
 

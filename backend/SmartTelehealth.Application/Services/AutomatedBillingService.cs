@@ -3,6 +3,7 @@ using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Application.Utilities;
+using SmartTelehealth.Application.Constants;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.Enums;
@@ -128,7 +129,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             var renewals = await _subscriptionRepository.GetAllSubscriptionsAsync();
             renewals = renewals.Where(s => s.Status == Subscription.SubscriptionStatuses.Active && 
                                           s.EndDate.HasValue && 
-                                          s.EndDate.Value <= DateTime.UtcNow.AddDays(7));
+                                          s.EndDate.Value <= DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS));
             
             foreach (var subscription in renewals)
             {
@@ -261,7 +262,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                     var proratedCredit = Math.Round(oldPlanDailyRate * remainingDays, 2);
 
                     // Calculate prorated charge for new plan (remaining portion)
-                    var newPlanDailyRate = newPlan.Price / totalDays;
+                    var newPlanDailyRate = newPlan.BasePrice / totalDays;
                     var proratedCharge = Math.Round(newPlanDailyRate * remainingDays, 2);
 
                     // Calculate net amount to charge or refund
@@ -272,7 +273,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                         "OldPlan={OldPlan} (${OldPrice}), NewPlan={NewPlan} (${NewPrice}), " +
                         "RemainingDays={RemainingDays}/{TotalDays}, " +
                         "Credit=${Credit}, Charge=${Charge}, Net=${Net}",
-                        subscriptionId, oldPlan.Name, subscription.CurrentPrice, newPlan.Name, newPlan.Price,
+                        subscriptionId, oldPlan.Name, subscription.CurrentPrice, newPlan.Name, newPlan.BasePrice,
                         remainingDays, totalDays, proratedCredit, proratedCharge, netAmount);
 
                     // Process financial adjustment (if significant - ignore < 10 cents to avoid micro-transactions)
@@ -288,7 +289,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                                 subscription,
                                 netAmount,
                                 $"Plan upgrade from {oldPlan.Name} to {newPlan.Name} (prorated for {remainingDays} days of {totalDays} total)",
-                                DateTime.UtcNow.AddDays(7), // 7-day grace period
+                                DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS), // Consistent grace period
                                 tokenModel);
 
                             if (billingResult.StatusCode == 200)
@@ -357,14 +358,14 @@ public class AutomatedBillingService : IAutomatedBillingService
 
                 // Update subscription to new plan
             subscription.SubscriptionPlanId = newPlanId;
-                subscription.CurrentPrice = newPlan.Price;
+                subscription.CurrentPrice = newPlan.BasePrice;
             subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
                 await _subscriptionRepository.UpdateAsync(subscription);
                 
                 _logger.LogInformation("Updated subscription {SubscriptionId} to new plan {NewPlanId} with price ${NewPrice}", 
-                    subscriptionId, newPlanId, newPlan.Price);
+                    subscriptionId, newPlanId, newPlan.BasePrice);
 
                 // Update Stripe subscription if it exists and has valid price ID
                 if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId) && !string.IsNullOrEmpty(newPlan.StripePriceId))
@@ -609,12 +610,12 @@ public class AutomatedBillingService : IAutomatedBillingService
         try
         {
             var plan = subscription.SubscriptionPlan;
-            var monthlyPrice = plan.Price;
+            var monthlyPrice = plan.BasePrice;
             var billingCycleDays = subscription.BillingCycle.DurationInDays;
             var monthsInCycle = billingCycleDays / 30.0m;
             // NEW ARCHITECTURE: Each plan has explicit price, no calculation needed
             // The plan's Price already reflects the correct amount for its billing cycle
-            var correctPrice = plan.Price;
+            var correctPrice = plan.BasePrice;
             
             // If CurrentPrice is wrong, update it
             if (Math.Abs(subscription.CurrentPrice - correctPrice) > 0.01m)
@@ -666,7 +667,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 subscription,
                 billingAmount,
                 $"Automated billing for {subscription.SubscriptionPlan?.Name ?? "subscription"} - {subscription.BillingCycle?.Name ?? "monthly"}",
-                DateTime.UtcNow.AddDays(7), // 7-day grace period
+                DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS), // Consistent grace period
                 tokenModel
             );
             
@@ -900,7 +901,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             }
 
             // Check if subscription is near expiration
-            if (subscription.EndDate.HasValue && subscription.EndDate.Value > DateTime.UtcNow.AddDays(7))
+            if (subscription.EndDate.HasValue && subscription.EndDate.Value > DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS))
             {
                 _logger.LogDebug("Subscription {SubscriptionId} is not near expiration", subscription.Id);
                 return false;
@@ -954,10 +955,8 @@ public class AutomatedBillingService : IAutomatedBillingService
     }
 
     /// <summary>
-    /// Calculates the billing amount for a subscription scaled to billing cycle.
-    /// REFACTORED (PHASE 6): Now uses centralized BillingCycleCalculator for consistency.
-    /// Applies base price (with billing cycle discount) and additional subscription-specific adjustments.
-    /// FIXED: Properly scales monthly price to billing cycle duration with discount support.
+    /// Calculates the billing amount for a subscription with proper validation.
+    /// CRITICAL FIX: Uses centralized billing calculation to prevent double discounting and ensure consistency.
     /// </summary>
     private async Task<decimal> CalculateBillingAmountAsync(Subscription subscription, TokenModel tokenModel)
     {
@@ -965,34 +964,38 @@ public class AutomatedBillingService : IAutomatedBillingService
         {
             var plan = subscription.SubscriptionPlan;
             
-            // NEW ARCHITECTURE: Each plan has explicit price based on privileges
-            // No calculation needed - use the plan's price directly
-            var basePrice = plan.Price;
+            // CRITICAL FIX: Use centralized effective price calculation
+            var basePrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
             
             _logger.LogDebug(
-                "Using explicit plan price for {SubscriptionId}: " +
-                "PlanPrice={PlanPrice}, Cycle={Cycle}",
-                subscription.Id, basePrice, subscription.BillingCycle?.Name);
+                "Using effective plan price for {SubscriptionId}: " +
+                "BasePrice={BasePrice}, EffectivePrice={EffectivePrice}, Cycle={Cycle}",
+                subscription.Id, plan.BasePrice, basePrice, subscription.BillingCycle?.Name);
             
             // Apply additional discounts or adjustments (subscription-specific)
             var additionalDiscounts = await CalculateDiscountAmountAsync(subscription, tokenModel);
             var adjustmentAmount = await CalculateAdjustmentAmountAsync(subscription, tokenModel);
             
-            var finalPrice = basePrice - additionalDiscounts + adjustmentAmount;
+            // CRITICAL FIX: Use centralized billing calculation with proper validation
+            var finalPrice = BillingCalculationService.CalculateFinalBillingAmount(
+                subscription, basePrice, additionalDiscounts, adjustmentAmount, _logger);
             
-            _logger.LogInformation(
-                "Final billing amount for subscription {SubscriptionId}: " +
-                "BasePrice={BasePrice}, AdditionalDiscounts={AdditionalDiscounts}, " +
-                "Adjustments={Adjustments}, Final={Final}",
-                subscription.Id, basePrice, additionalDiscounts, adjustmentAmount, finalPrice);
+            // Validate the calculation is logically correct
+            var isValid = BillingCalculationService.ValidateBillingCalculation(
+                subscription, basePrice, additionalDiscounts, adjustmentAmount, finalPrice, _logger);
             
-            // Ensure minimum amount
-            return Math.Max(finalPrice, 0.01m);
+            if (!isValid)
+            {
+                _logger.LogError("Billing calculation validation failed for subscription {SubscriptionId}, using fallback price", subscription.Id);
+                return Math.Max(subscription.CurrentPrice, 0.01m);
+            }
+            
+            return finalPrice;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating billing amount for subscription {SubscriptionId}", subscription.Id);
-            return subscription.CurrentPrice;
+            return Math.Max(subscription.CurrentPrice, 0.01m);
         }
     }
     
@@ -1010,8 +1013,7 @@ public class AutomatedBillingService : IAutomatedBillingService
 
     /// <summary>
     /// Calculates the renewal amount for a subscription.
-    /// NEW ARCHITECTURE: Delegates to CalculateBillingAmountAsync which uses explicit plan price.
-    /// Applies renewal-specific discounts on top of standard billing calculation.
+    /// CRITICAL FIX: Uses centralized billing calculation to ensure consistency with regular billing.
     /// </summary>
     private async Task<decimal> CalculateRenewalAmountAsync(Subscription subscription, TokenModel tokenModel)
     {
@@ -1021,33 +1023,23 @@ public class AutomatedBillingService : IAutomatedBillingService
             if (plan == null)
             {
                 _logger.LogWarning("Subscription {SubscriptionId} has no plan, using CurrentPrice", subscription.Id);
-                return subscription.CurrentPrice;
+                return Math.Max(subscription.CurrentPrice, 0.01m);
             }
             
-            // NEW ARCHITECTURE: Use standard billing calculation (uses plan.Price directly)
-            var standardBillingAmount = await CalculateBillingAmountAsync(subscription, tokenModel);
-            
-            _logger.LogInformation("Renewal calculation for subscription {SubscriptionId}: " +
-                "PlanPrice=${PlanPrice}, Cycle={Cycle}, StandardBillingAmount=${Amount}",
-                subscription.Id, plan.Price, subscription.BillingCycle?.Name, standardBillingAmount);
-            
-            // Apply renewal-specific discounts (loyalty, promotional, etc.)
-            // These are subscription-specific discounts applied at renewal time
-            var renewalDiscount = await CalculateRenewalDiscountAsync(subscription, tokenModel);
-            
-            // Calculate final renewal amount
-            var finalAmount = standardBillingAmount - renewalDiscount;
+            // CRITICAL FIX: Use the same billing calculation logic as regular billing
+            // This ensures consistency between regular billing and renewal billing
+            var renewalAmount = await CalculateBillingAmountAsync(subscription, tokenModel);
             
             _logger.LogInformation("Renewal amount calculated for subscription {SubscriptionId}: " +
-                "StandardAmount=${StandardAmount}, RenewalDiscount=${RenewalDiscount}, Final=${Final}",
-                subscription.Id, standardBillingAmount, renewalDiscount, finalAmount);
+                "PlanPrice=${PlanPrice}, Cycle={Cycle}, RenewalAmount=${Amount}",
+                subscription.Id, plan.BasePrice, subscription.BillingCycle?.Name, renewalAmount);
             
-            return Math.Max(finalAmount, 0.01m);
+            return renewalAmount;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating renewal amount for subscription {SubscriptionId}", subscription.Id);
-            return subscription.CurrentPrice;
+            return Math.Max(subscription.CurrentPrice, 0.01m);
         }
     }
 
@@ -1077,8 +1069,8 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// </summary>
     private async Task<PaymentResultDto> ProcessPaymentThroughStripeAsync(Subscription subscription, decimal amount, TokenModel tokenModel)
     {
-        const int maxRetries = 3;
-        const int baseDelayMs = 1000; // 1 second base delay
+        const int maxRetries = SubscriptionConstants.MAX_PAYMENT_RETRY_ATTEMPTS;
+        const int baseDelayMs = SubscriptionConstants.PAYMENT_RETRY_BASE_DELAY_MS;
         
         for (int attempt = 1; attempt <= maxRetries; attempt++)
     {
@@ -1204,7 +1196,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 subscription.UpdatedBy = tokenModel.UserID;
                 subscription.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                await _subscriptionRepository.UpdateAsync(subscription);
                 
                 _logger.LogInformation("Updated subscription {SubscriptionId} after successful billing", subscription.Id);
             }
@@ -1218,7 +1210,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 subscription.UpdatedBy = tokenModel.UserID;
                 subscription.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                await _subscriptionRepository.UpdateAsync(subscription);
                 
                 _logger.LogWarning("Updated subscription {SubscriptionId} after failed billing", subscription.Id);
             }
@@ -1259,7 +1251,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                     subscription.Id, subscription.BillingCycle.Name, oldEndDate, subscription.EndDate.Value);
             }
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             _logger.LogInformation("Updated subscription {SubscriptionId} for renewal", subscription.Id);
         }
@@ -1284,7 +1276,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             _logger.LogWarning("Handled renewal failure for subscription {SubscriptionId}", subscription.Id);
         }
@@ -1319,7 +1311,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             failedRecord.StripePaymentIntentId = paymentResult.PaymentIntentId;
             failedRecord.FailureReason = null;
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             _logger.LogInformation("Updated subscription {SubscriptionId} after successful retry", subscription.Id);
         }
@@ -1344,13 +1336,13 @@ public class AutomatedBillingService : IAutomatedBillingService
             subscription.UpdatedDate = DateTime.UtcNow;
             
             // If max retries reached, suspend subscription
-            if (subscription.FailedPaymentAttempts >= 3)
+            if (subscription.FailedPaymentAttempts >= SubscriptionConstants.MAX_FAILED_PAYMENT_ATTEMPTS)
             {
                 subscription.Status = Subscription.SubscriptionStatuses.Suspended;
                 _logger.LogWarning("Suspended subscription {SubscriptionId} after max retry attempts", subscription.Id);
             }
             
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
             
             _logger.LogWarning("Handled retry failure for subscription {SubscriptionId}", subscription.Id);
         }
@@ -1395,35 +1387,20 @@ public class AutomatedBillingService : IAutomatedBillingService
     /// </summary>
     private DateTime CalculateNextBillingDate(Subscription subscription)
     {
-        try
-        {
-            // Use LastBillingDate or StartDate as base to maintain consistent billing schedule
-            var baseDate = subscription.LastBillingDate ?? subscription.StartDate;
-
-            // REFACTORED: Use centralized calculator for consistency (eliminates duplicate logic)
-            var nextDate = BillingCycleCalculator.CalculateNextBillingDate(baseDate, subscription.BillingCycle);
-            
-            _logger.LogDebug("Calculated next billing date for subscription {SubscriptionId}: " +
-                "BaseDate={BaseDate:yyyy-MM-dd}, Cycle={Cycle}, NextDate={NextDate:yyyy-MM-dd}",
-                subscription.Id, baseDate, subscription.BillingCycle?.Name, nextDate);
-            
-            return nextDate;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error calculating next billing date for subscription {SubscriptionId}", subscription.Id);
-            return DateTime.UtcNow.AddMonths(1);
-        }
+        // CONSISTENT FIX: Use centralized billing service instead of duplicate implementation
+        return _billingService.CalculateNextBillingDate(DateTime.UtcNow, subscription.BillingCycle);
     }
 
     /// <summary>
-    /// Calculates discount amount for a subscription
+    /// Calculates discount amount for a subscription with proper validation and capping.
+    /// FIXED: Prevents excessive discount stacking that could cause revenue loss.
     /// </summary>
     private async Task<decimal> CalculateDiscountAmountAsync(Subscription subscription, TokenModel tokenModel)
     {
         try
         {
             decimal totalDiscount = 0;
+            var basePrice = subscription.CurrentPrice;
             
             // Check for subscription plan discounts
             if (subscription.SubscriptionPlan != null)
@@ -1431,7 +1408,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 // Early bird discount for new subscriptions (first 30 days)
                 if (subscription.CreatedDate > DateTime.UtcNow.AddDays(-30))
                 {
-                    var earlyBirdDiscount = subscription.CurrentPrice * 0.1m; // 10% early bird discount
+                    var earlyBirdDiscount = basePrice * 0.1m; // 10% early bird discount
                     totalDiscount += earlyBirdDiscount;
                     _logger.LogInformation("Applied early bird discount of {Discount} for subscription {SubscriptionId}", 
                         earlyBirdDiscount, subscription.Id);
@@ -1440,7 +1417,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 // Volume discount for annual plans
                 if (subscription.SubscriptionPlan.BillingCycle?.Name == "annual")
                 {
-                    var volumeDiscount = subscription.CurrentPrice * 0.15m; // 15% annual discount
+                    var volumeDiscount = basePrice * 0.15m; // 15% annual discount
                     totalDiscount += volumeDiscount;
                     _logger.LogInformation("Applied annual volume discount of {Discount} for subscription {SubscriptionId}", 
                         volumeDiscount, subscription.Id);
@@ -1449,7 +1426,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 // Loyalty discount for long-term subscribers (6+ months)
                 if (subscription.CreatedDate < DateTime.UtcNow.AddMonths(-6))
                 {
-                    var loyaltyDiscount = subscription.CurrentPrice * 0.05m; // 5% loyalty discount
+                    var loyaltyDiscount = basePrice * 0.05m; // 5% loyalty discount
                     totalDiscount += loyaltyDiscount;
                     _logger.LogInformation("Applied loyalty discount of {Discount} for subscription {SubscriptionId}", 
                         loyaltyDiscount, subscription.Id);
@@ -1468,7 +1445,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                         if (!string.IsNullOrEmpty(promoCode))
                         {
                             // Apply promotional discount based on code
-                            var promoDiscount = ApplyPromotionalDiscount(promoCode, subscription.CurrentPrice);
+                            var promoDiscount = ApplyPromotionalDiscount(promoCode, basePrice);
                             totalDiscount += promoDiscount;
                             _logger.LogInformation("Applied promotional discount of {Discount} for code {PromoCode} on subscription {SubscriptionId}", 
                                 promoDiscount, promoCode, subscription.Id);
@@ -1481,8 +1458,16 @@ public class AutomatedBillingService : IAutomatedBillingService
                 }
             }
             
-            // Ensure discount doesn't exceed the base amount
-            return Math.Min(totalDiscount, subscription.CurrentPrice);
+            // CRITICAL FIX: Validate and cap total discounts to prevent revenue loss
+            var validatedDiscount = BillingValidationService.ValidateAndCapDiscounts(basePrice, totalDiscount, 50m);
+            
+            if (validatedDiscount != totalDiscount)
+            {
+                _logger.LogWarning("Total discount {TotalDiscount} exceeded maximum allowed for subscription {SubscriptionId}, capped to {CappedDiscount}",
+                    totalDiscount, subscription.Id, validatedDiscount);
+            }
+            
+            return validatedDiscount;
         }
         catch (Exception ex)
         {
@@ -1512,6 +1497,26 @@ public class AutomatedBillingService : IAutomatedBillingService
     }
 
     /// <summary>
+    /// Gets the effective price for a subscription plan, considering discounts and validity periods.
+    /// Returns the discounted price if valid, otherwise returns the base price.
+    /// </summary>
+    /// <param name="plan">The subscription plan to get the effective price for</param>
+    /// <returns>The effective price to use for billing</returns>
+    private decimal GetEffectivePlanPrice(SubscriptionPlan plan)
+    {
+        try
+        {
+            // CRITICAL FIX: Use centralized effective price calculation
+            return BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating effective price for plan {PlanName}, using base price", plan.Name);
+            return plan.BasePrice;
+        }
+    }
+
+    /// <summary>
     /// Calculates adjustment amount for a subscription
     /// </summary>
     private async Task<decimal> CalculateAdjustmentAmountAsync(Subscription subscription, TokenModel tokenModel)
@@ -1523,16 +1528,13 @@ public class AutomatedBillingService : IAutomatedBillingService
             // Check for subscription plan adjustments
             if (subscription.SubscriptionPlan != null)
             {
-                // Overage charges for usage-based plans
-                if (subscription.SubscriptionPlan.PlanType == PlanType.UsageBased)
+                // Overage charges for plans with usage-based privileges
+                var overageCharge = await CalculateOverageChargeAsync(subscription);
+                totalAdjustment += overageCharge;
+                if (overageCharge > 0)
                 {
-                    var overageCharge = await CalculateOverageChargeAsync(subscription);
-                    totalAdjustment += overageCharge;
-                    if (overageCharge > 0)
-                    {
-                        _logger.LogInformation("Applied overage charge of {Charge} for subscription {SubscriptionId}", 
-                            overageCharge, subscription.Id);
-                    }
+                    _logger.LogInformation("Applied overage charge of {Charge} for subscription {SubscriptionId}", 
+                        overageCharge, subscription.Id);
                 }
                 
                 // Late payment fees
@@ -1544,8 +1546,8 @@ public class AutomatedBillingService : IAutomatedBillingService
                         lateFee, subscription.Id);
                 }
                 
-                // Service charges for premium features
-                if (subscription.SubscriptionPlan.PlanType == PlanType.Premium)
+                // Service charges for plans with premium features
+                if (subscription.SubscriptionPlan.IsFeatured || subscription.SubscriptionPlan.IsMostPopular)
                 {
                     var serviceCharge = subscription.CurrentPrice * 0.02m; // 2% service charge
                     totalAdjustment += serviceCharge;
@@ -1609,6 +1611,13 @@ public class AutomatedBillingService : IAutomatedBillingService
                 var actualUsage = await GetActualUsageForPrivilegeAsync(subscription.Id, privilege.PrivilegeId);
                 var totalLimit = privilege.Value; // Total privilege limit
 
+                // Skip overage calculation for unlimited privileges (Value = -1)
+                if (totalLimit == SubscriptionConstants.UNLIMITED_PRIVILEGE_VALUE)
+                {
+                    _logger.LogDebug("Skipping overage calculation for unlimited privilege {PrivilegeId}", privilege.PrivilegeId);
+                    continue;
+                }
+
                 if (actualUsage > totalLimit)
                 {
                     var overage = actualUsage - totalLimit;
@@ -1670,7 +1679,7 @@ public class AutomatedBillingService : IAutomatedBillingService
                 ShippingAmount = 0,
                 TotalAmount = overageAmount,
                 BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7), // 7 days to pay overage
+                DueDate = DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS), // Consistent grace period
                 Description = $"Overage charges for subscription {subscription.Id}",
                 IsRecurring = false,
                 NextBillingDate = null
@@ -2018,7 +2027,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             var renewalSubscriptions = allSubscriptions.Where(s => 
                 s.Status == Subscription.SubscriptionStatuses.Active && 
                 s.EndDate.HasValue && 
-                s.EndDate.Value <= DateTime.UtcNow.AddDays(7)).ToList();
+                s.EndDate.Value <= DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS)).ToList();
 
             var processedCount = 0;
             var failedCount = 0;

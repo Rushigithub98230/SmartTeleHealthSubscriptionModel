@@ -14,6 +14,11 @@ public class PricingBreakdown
     public decimal CommissionPercent { get; set; }
     public decimal CommissionAmount { get; set; }
     public bool IsFixedCommission { get; set; }
+    public decimal BasePrice { get; set; }
+    public decimal? PromotionalDiscountPercent { get; set; }
+    public decimal? PromotionalDiscountAmount { get; set; }
+    public decimal? BillingDiscountPercent { get; set; }
+    public decimal? BillingDiscountAmount { get; set; }
     public decimal FinalPrice { get; set; }
     public decimal? ManualPrice { get; set; }
 }

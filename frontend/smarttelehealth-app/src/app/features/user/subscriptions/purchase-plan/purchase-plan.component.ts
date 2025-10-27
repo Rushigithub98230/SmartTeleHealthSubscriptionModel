@@ -11,6 +11,7 @@ import {
   CommonService,
   MasterDataService
 } from '../../../../core/services';
+import { StripeCheckoutService } from '../../../../core/services/stripe-checkout.service';
 import {
   SubscriptionPlanDto,
   CreateSubscriptionDto,
@@ -69,6 +70,10 @@ export class PurchasePlanComponent implements OnInit {
   currencies: CurrencyDto[] = [];
   selectedCurrencyId: string = '';
 
+  // CRITICAL FIX: Centralized pricing from backend
+  effectivePrice: number | null = null;
+  loadingPrice = false;
+
   constructor(
     private fb: FormBuilder,
     private route: ActivatedRoute,
@@ -79,12 +84,21 @@ export class PurchasePlanComponent implements OnInit {
     private authService: AuthService,
     private privilegeService: PrivilegeService,
     private commonService: CommonService,
-    private masterDataService: MasterDataService
+    private masterDataService: MasterDataService,
+    private stripeCheckoutService: StripeCheckoutService
   ) {}
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
     this.planId = this.route.snapshot.params['planId'];
+    
+    console.log('🎯 [PURCHASE-PLAN] Component initialized');
+    console.log('👤 [PURCHASE-PLAN] Current user:', {
+      id: this.currentUser?.id,
+      email: this.currentUser?.email,
+      name: this.currentUser?.fullName
+    });
+    console.log('📋 [PURCHASE-PLAN] Plan ID:', this.planId);
     
     this.initForm();
     this.loadBillingCycles();  // ✅ Load from backend
@@ -99,7 +113,7 @@ export class PurchasePlanComponent implements OnInit {
   initForm(): void {
     this.billingForm = this.fb.group({
       // billingCycleId removed - comes from selected plan (fixed)
-      paymentMethodId: ['', Validators.required],
+      paymentMethodId: [''], // Remove required validator - will be handled conditionally
       autoRenew: [true]
     });
   }
@@ -157,21 +171,57 @@ export class PurchasePlanComponent implements OnInit {
   }
 
   /**
-   * Load plan details
+   * Load plan details and effective price
    */
   loadPlan(): void {
+    console.log('📋 [PURCHASE-PLAN] Loading plan details for plan:', this.planId);
     this.loading = true;
+    this.loadingPrice = true;
+    
+    // Load plan details
     this.planService.getPlanById(this.planId).subscribe({
       next: (response) => {
+        console.log('✅ [PURCHASE-PLAN] Plan loaded:', {
+          statusCode: response.statusCode,
+          planName: response.data?.name,
+          planPrice: response.data?.basePrice || response.data?.price,
+          billingCycle: response.data?.billingCycleName
+        });
+        
         if (response.statusCode === 200) {
           this.plan = response.data;
-          console.log('✅ Loaded plan:', this.plan);
+          console.log('✅ [PURCHASE-PLAN] Plan details:', this.plan);
+          
+          // CRITICAL FIX: Load effective price from backend
+          this.loadEffectivePrice();
         }
         this.loading = false;
       },
       error: (error) => {
+        console.error('❌ [PURCHASE-PLAN] Error loading plan:', error);
         this.error = 'Failed to load plan details';
         this.loading = false;
+        this.loadingPrice = false;
+      }
+    });
+  }
+
+  /**
+   * CRITICAL FIX: Load effective price from centralized backend API
+   */
+  loadEffectivePrice(): void {
+    this.planService.getEffectivePrice(this.planId).subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          this.effectivePrice = response.data.EffectivePrice;
+          console.log('✅ Loaded effective price:', this.effectivePrice);
+        }
+        this.loadingPrice = false;
+      },
+      error: (error) => {
+        console.error('Failed to load effective price:', error);
+        this.loadingPrice = false;
+        // Don't set error - fallback to local calculation
       }
     });
   }
@@ -196,35 +246,73 @@ export class PurchasePlanComponent implements OnInit {
    * Load user's payment methods
    */
   loadPaymentMethods(): void {
-    if (!this.currentUser) return;
+    if (!this.currentUser) {
+      console.log('⚠️ [PURCHASE-PLAN] No current user - skipping payment methods load');
+      return;
+    }
+    
+    console.log('💳 [PURCHASE-PLAN] Loading payment methods for user:', this.currentUser.id);
     
     this.paymentService.getPaymentMethods(this.currentUser.id).subscribe({
       next: (response) => {
+        console.log('✅ [PURCHASE-PLAN] Payment methods loaded:', {
+          statusCode: response.statusCode,
+          methodCount: response.data?.length || 0,
+          methods: response.data
+        });
+        
         if (response.statusCode === 200) {
           this.paymentMethods = response.data;
           
-          // Auto-select default payment method
+          // Auto-select default payment method if available
           const defaultMethod = this.paymentMethods.find(pm => pm.isDefault);
           if (defaultMethod) {
             this.billingForm.patchValue({ paymentMethodId: defaultMethod.id });
+            console.log('🎯 [PURCHASE-PLAN] Auto-selected default payment method:', defaultMethod.id);
           }
+          
+          console.log('✅ [PURCHASE-PLAN] Loaded payment methods:', this.paymentMethods.length);
         }
       },
-      error: (error) => console.error('Error loading payment methods:', error)
+      error: (error) => {
+        console.error('❌ [PURCHASE-PLAN] Error loading payment methods:', error);
+        // Don't set error - user can still proceed with Stripe checkout
+      }
     });
   }
 
   /**
-   * Calculate final price
-   * NOTE: Plan already has its price set for its specific billing cycle
-   * This just returns the plan's price as-is
+   * CRITICAL FIX: Calculate final price using centralized backend API
+   * This ensures frontend and backend use identical pricing calculations
    */
   calculateFinalPrice(): number {
     if (!this.plan) return 0;
     
-    // Plan price is already set for its billing cycle
-    // No calculation needed - admin set the price when creating the plan
-    return this.plan.price;
+    // Use the effective price from the backend API if available
+    if (this.effectivePrice !== null) {
+      return this.effectivePrice;
+    }
+    
+    // Fallback to local calculation if API hasn't been called yet
+    let basePrice = this.plan.basePrice || this.plan.price || 0;
+    
+    // Apply promotional discount if available and valid
+    if (this.plan.discountedPrice && this.plan.discountValidUntil) {
+      const now = new Date();
+      const validUntil = new Date(this.plan.discountValidUntil);
+      if (now <= validUntil) {
+        basePrice = this.plan.discountedPrice;
+      }
+    }
+    
+    // Apply billing discount if set
+    const billingDiscount = this.plan.billingDiscountPercentage || this.plan.billingDiscount;
+    if (billingDiscount && billingDiscount > 0) {
+      const discountAmount = basePrice * (billingDiscount / 100);
+      basePrice = basePrice - discountAmount;
+    }
+    
+    return Math.max(basePrice, 0); // Ensure price doesn't go negative
   }
 
   /**
@@ -245,16 +333,9 @@ export class PurchasePlanComponent implements OnInit {
     
     if (!cycle) return 0;
     
-    const cycleName = cycle.name?.toLowerCase() || '';
-    if (cycleName.includes('annual') || cycleName.includes('year')) {
-      return this.plan.annualBillingDiscount || 0;
-    } else if (cycleName.includes('quarter')) {
-      return this.plan.quarterlyBillingDiscount || 0;
-    } else if (cycleName.includes('month')) {
-      return this.plan.monthlyBillingDiscount || 0;
-    }
-    
-    return 0;
+    // NEW ARCHITECTURE: Each plan has a single billing discount for its specific billing cycle
+    // The plan is already tied to a specific billing cycle, so use its billingDiscount
+    return this.plan.billingDiscountPercentage || this.plan.billingDiscount || 0;
   }
 
   /**
@@ -262,16 +343,28 @@ export class PurchasePlanComponent implements OnInit {
    */
   getBasePrice(): number {
     if (!this.plan) return 0;
-    return this.plan.price;  // Plan price is the base price
+    return this.plan.basePrice || this.plan.price || 0;  // Plan price is the base price
   }
 
   /**
    * Navigate to next step
    */
   nextStep(): void {
-    if (this.currentStep === 2 && this.billingForm.get('paymentMethodId')?.invalid) {
-      this.error = 'Please select a payment method';
-      return;
+    // For step 2 (payment method selection), handle different scenarios
+    if (this.currentStep === 2) {
+      // If user has no payment methods, redirect to Stripe checkout
+      if (this.paymentMethods.length === 0) {
+        console.log('🛒 [PURCHASE-PLAN] No payment methods - redirecting to Stripe checkout');
+        this.submitPurchaseWithStripeCheckout();
+        return;
+      }
+      
+      // If user has payment methods but hasn't selected one, show error
+      const selectedPaymentMethod = this.billingForm.get('paymentMethodId')?.value;
+      if (!selectedPaymentMethod || selectedPaymentMethod.trim() === '') {
+        this.error = 'Please select a payment method';
+        return;
+      }
     }
     
     if (this.currentStep < this.totalSteps) {
@@ -291,12 +384,89 @@ export class PurchasePlanComponent implements OnInit {
   }
 
   /**
-   * Submit purchase - creates subscription
+   * Submit purchase using Stripe Checkout (Recommended)
+   * More secure and PCI compliant
+   */
+  submitPurchaseWithStripeCheckout(): void {
+    console.log('🛒 [PURCHASE-PLAN] Stripe checkout initiated');
+    console.log('👤 [PURCHASE-PLAN] User:', {
+      id: this.currentUser?.id,
+      email: this.currentUser?.email
+    });
+    console.log('📋 [PURCHASE-PLAN] Plan:', {
+      id: this.planId,
+      name: this.plan?.name,
+      price: this.calculateFinalPrice()
+    });
+    
+    if (!this.currentUser || !this.plan) {
+      this.error = 'Please complete all required fields';
+      console.error('❌ [PURCHASE-PLAN] Missing required data:', {
+        hasUser: !!this.currentUser,
+        hasPlan: !!this.plan
+      });
+      return;
+    }
+
+    this.purchasing = true;
+    this.error = null;
+
+    const request = {
+      planId: this.planId,
+      successUrl: `${window.location.origin}/web/subscriptions/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${window.location.origin}/web/subscriptions/purchase/${this.planId}?cancelled=true`
+    };
+
+    console.log('🔗 [PURCHASE-PLAN] Creating checkout session with request:', request);
+
+    this.stripeCheckoutService.createCheckoutSession(request).subscribe({
+      next: (response) => {
+        console.log('✅ [PURCHASE-PLAN] Checkout session created:', {
+          statusCode: response.statusCode,
+          hasUrl: !!response.data?.url
+        });
+        
+        this.purchasing = false;
+        
+        if (response.statusCode === 200 && response.data?.url) {
+          console.log('🚀 [PURCHASE-PLAN] Redirecting to Stripe checkout');
+          // Redirect to Stripe checkout
+          this.stripeCheckoutService.redirectToCheckout(response.data.url);
+        } else {
+          this.error = response.message || 'Failed to create checkout session';
+          console.error('❌ [PURCHASE-PLAN] Checkout session creation failed:', response.message);
+        }
+      },
+      error: (error) => {
+        console.error('❌ [PURCHASE-PLAN] Checkout session error:', error);
+        this.purchasing = false;
+        this.error = error.message || 'Failed to create checkout session';
+      }
+    });
+  }
+
+  /**
+   * Submit purchase - creates subscription (Direct API method)
    * API: POST /api/Subscriptions
+   * Note: This method is less secure than Stripe Checkout
    */
   submitPurchase(): void {
     if (this.billingForm.invalid || !this.currentUser || !this.plan) {
       this.error = 'Please complete all required fields';
+      return;
+    }
+
+    // Validate payment method before submission
+    const paymentMethodId = this.billingForm.value.paymentMethodId;
+    if (!paymentMethodId) {
+      this.error = 'Please select a payment method';
+      return;
+    }
+
+    // Check if payment method exists in user's payment methods
+    const selectedPaymentMethod = this.paymentMethods.find(pm => pm.id === paymentMethodId);
+    if (!selectedPaymentMethod) {
+      this.error = 'Selected payment method is not valid';
       return;
     }
 
@@ -306,8 +476,8 @@ export class PurchasePlanComponent implements OnInit {
     const dto: CreateSubscriptionDto = {
       userId: this.currentUser.id,
       planId: this.planId,
-      price: this.plan.price,
-      billingCycleId: this.plan.billingCycleId,  // ✅ FIXED - from plan, not user input
+      price: this.plan.basePrice || this.plan.price || 0,
+      // REMOVED: billingCycleId - comes from plan (fixed billing cycle)
       currencyId: this.plan.currencyId,  // ✅ From plan
       paymentMethodId: this.billingForm.value.paymentMethodId,
       autoRenew: this.billingForm.value.autoRenew,
@@ -329,22 +499,60 @@ export class PurchasePlanComponent implements OnInit {
             queryParams: { success: 'true', newSubscription: 'true' }
           });
         } else {
-          this.error = response.message || 'Purchase failed';
+          // Handle specific error cases
+          if (response.statusCode === 400) {
+            this.error = response.message || 'Invalid request. Please check your information and try again.';
+          } else if (response.statusCode === 404) {
+            this.error = 'The selected plan is no longer available. Please choose a different plan.';
+          } else if (response.statusCode === 500) {
+            this.error = 'A server error occurred. Please try again later or contact support.';
+          } else {
+            this.error = response.message || 'Purchase failed. Please try again.';
+          }
         }
       },
       error: (error) => {
         this.purchasing = false;
-        this.error = error.message || 'An error occurred during purchase';
+        
+        // Handle network and other errors
+        if (error.status === 0) {
+          this.error = 'Network error. Please check your connection and try again.';
+        } else if (error.status === 401) {
+          this.error = 'Your session has expired. Please log in again.';
+          // Redirect to login
+          this.router.navigate(['/auth/login']);
+        } else if (error.status === 403) {
+          this.error = 'You do not have permission to perform this action.';
+        } else if (error.status >= 500) {
+          this.error = 'Server error. Please try again later or contact support.';
+        } else {
+          this.error = error.message || 'An unexpected error occurred during purchase.';
+        }
+        
         console.error('❌ Purchase error:', error);
       }
     });
   }
 
   /**
-   * Get plan's billing cycle (fixed)
+   * Get plan's billing cycle (fixed) - now uses plan's embedded billing cycle data
    */
   getSelectedCycle(): BillingCycleDto | undefined {
     if (!this.plan) return undefined;
+    
+    // Use embedded billing cycle data from plan if available
+    if (this.plan.billingCycleName) {
+      return {
+        id: this.plan.billingCycleId,
+        name: this.plan.billingCycleName,
+        description: this.plan.billingCycleDescription,
+        durationInDays: this.plan.billingCycleDurationInDays,
+        isActive: true,
+        displayOrder: 1
+      };
+    }
+    
+    // Fallback to lookup from loaded billing cycles
     return this.billingCycles.find(c => c.id === this.plan!.billingCycleId);
   }
 
@@ -389,7 +597,7 @@ export class PurchasePlanComponent implements OnInit {
   getSavingsAmount(): number {
     const basePrice = this.getBasePrice();
     const finalPrice = this.calculateFinalPrice();
-    return basePrice - finalPrice;
+    return Math.max(basePrice - finalPrice, 0); // Ensure savings don't go negative
   }
 }
 

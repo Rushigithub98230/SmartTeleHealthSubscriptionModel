@@ -15,6 +15,7 @@ import {
   CategoryDto,
   PrivilegeDto
 } from '../../../../core/models';
+import { BillingCycleDto, CurrencyDto } from '../../../../core/models/master-data.model';
 
 /**
  * Admin Edit Plan Component - 4-Step Stepper Form
@@ -48,6 +49,8 @@ export class PlanEditComponent implements OnInit {
   categories: CategoryDto[] = [];
   availablePrivileges: PrivilegeDto[] = [];
   selectedPrivileges: any[] = [];
+  billingCycles: BillingCycleDto[] = []; // ✅ Added missing property with proper type
+  currencies: CurrencyDto[] = [];         // ✅ Added missing property with proper type
 
   loading = false;
   updating = false;
@@ -68,6 +71,8 @@ export class PlanEditComponent implements OnInit {
     this.initForms();
     this.loadCategories();
     this.loadPrivileges();
+    this.loadBillingCycles();
+    this.loadCurrencies();
     this.loadPlan();
   }
 
@@ -75,8 +80,10 @@ export class PlanEditComponent implements OnInit {
     this.basicInfoForm = this.fb.group({
       name: ['', [Validators.required, Validators.maxLength(100)]],
       description: [''],
-      price: [0, [Validators.required, Validators.min(0.01)]],
+      basePrice: [0, [Validators.required, Validators.min(0)]], // ✅ Use BasePrice to match backend
       categoryId: ['', Validators.required],
+      billingCycleId: ['', Validators.required], // ✅ Added missing field
+      currencyId: ['', Validators.required],     // ✅ Added missing field
       isActive: [true],
       isMostPopular: [false],
       isTrending: [false],
@@ -84,9 +91,7 @@ export class PlanEditComponent implements OnInit {
     });
 
     this.billingForm = this.fb.group({
-      monthlyBillingDiscount: [0],
-      quarterlyBillingDiscount: [5],
-      annualBillingDiscount: [15],
+      billingDiscount: [0], // Single discount field
       isAutoCalculatedPrice: [true],
       adminCommissionPercent: [10],
       priceChangeNoticeDays: [10]
@@ -109,6 +114,44 @@ export class PlanEditComponent implements OnInit {
         if (response.statusCode === 200) {
           this.availablePrivileges = response.data;
         }
+      }
+    });
+  }
+
+  /**
+   * Load billing cycles from backend dynamically
+   * API: GET /api/MasterData/billing-cycles
+   */
+  loadBillingCycles(): void {
+    this.masterDataService.getBillingCycles().subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          this.billingCycles = response.data;
+          console.log('✅ Loaded billing cycles for edit:', this.billingCycles);
+        }
+      },
+      error: (error) => {
+        console.error('❌ Error loading billing cycles for edit:', error);
+        this.billingCycles = [];
+      }
+    });
+  }
+
+  /**
+   * Load currencies from backend dynamically
+   * API: GET /api/MasterData/currencies
+   */
+  loadCurrencies(): void {
+    this.masterDataService.getCurrencies().subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          this.currencies = response.data;
+          console.log('✅ Loaded currencies for edit:', this.currencies);
+        }
+      },
+      error: (error) => {
+        console.error('❌ Error loading currencies for edit:', error);
+        this.currencies = [];
       }
     });
   }
@@ -146,8 +189,10 @@ export class PlanEditComponent implements OnInit {
     this.basicInfoForm.patchValue({
       name: this.plan.name,
       description: this.plan.description,
-      price: this.plan.price,
+      basePrice: this.plan.basePrice, // ✅ Use basePrice to match backend
       categoryId: this.plan.categoryId,
+      billingCycleId: this.plan.billingCycleId, // ✅ Added missing field
+      currencyId: this.plan.currencyId,         // ✅ Added missing field
       isActive: this.plan.isActive,
       isMostPopular: this.plan.isMostPopular,
       isTrending: this.plan.isTrending,
@@ -155,9 +200,7 @@ export class PlanEditComponent implements OnInit {
     });
 
     this.billingForm.patchValue({
-      monthlyBillingDiscount: this.plan.monthlyBillingDiscount || 0,
-      quarterlyBillingDiscount: this.plan.quarterlyBillingDiscount || 5,
-      annualBillingDiscount: this.plan.annualBillingDiscount || 15,
+      billingDiscount: this.plan.billingDiscountPercentage || this.plan.billingDiscount || 0, // Use correct field name
       isAutoCalculatedPrice: this.plan.isAutoCalculatedPrice,
       adminCommissionPercent: this.plan.adminCommissionPercent || 10,
       priceChangeNoticeDays: this.plan.priceChangeNoticeDays || 10
@@ -197,6 +240,8 @@ export class PlanEditComponent implements OnInit {
   submitUpdate(): void {
     if (this.basicInfoForm.invalid || this.billingForm.invalid) {
       this.error = 'Please fill all required fields';
+      this.markFormGroupTouched(this.basicInfoForm);
+      this.markFormGroupTouched(this.billingForm);
       return;
     }
 
@@ -207,7 +252,7 @@ export class PlanEditComponent implements OnInit {
       id: this.planId,
       name: this.basicInfoForm.value.name,
       description: this.basicInfoForm.value.description,
-      price: this.basicInfoForm.value.price,
+      basePrice: this.basicInfoForm.value.basePrice, // ✅ Use basePrice to match backend
       categoryId: this.basicInfoForm.value.categoryId,
       billingCycleId: this.plan?.billingCycleId || '',
       currencyId: this.plan?.currencyId || '',
@@ -218,24 +263,41 @@ export class PlanEditComponent implements OnInit {
       isAutoCalculatedPrice: this.billingForm.value.isAutoCalculatedPrice,
       adminCommissionPercent: this.billingForm.value.adminCommissionPercent,
       priceChangeNoticeDays: this.billingForm.value.priceChangeNoticeDays,
-      monthlyBillingDiscount: this.billingForm.value.monthlyBillingDiscount,
-      quarterlyBillingDiscount: this.billingForm.value.quarterlyBillingDiscount,
-      annualBillingDiscount: this.billingForm.value.annualBillingDiscount
+      billingDiscountPercentage: this.billingForm.value.billingDiscount // ✅ Use correct field name
     };
 
     this.planService.updatePlan(this.planId, dto).subscribe({
       next: (response) => {
         this.updating = false;
         if (response.statusCode === 200) {
+          alert('Plan updated successfully!');
           this.router.navigate(['/webadmin/plans']);
         } else {
-          this.error = response.message;
+          this.error = response.message || 'Update failed';
+          alert(this.error);
         }
       },
       error: (error) => {
         this.updating = false;
-        this.error = error.message;
+        console.error('Update error:', error);
+        
+        if (error.error?.errors) {
+          const validationErrors = Object.entries(error.error.errors)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+          this.error = `Validation errors: ${validationErrors}`;
+        } else {
+          this.error = error.error?.message || error.message || 'An error occurred while updating the plan';
+        }
+        
+        alert(this.error);
       }
+    });
+  }
+
+  private markFormGroupTouched(formGroup: FormGroup): void {
+    Object.keys(formGroup.controls).forEach(key => {
+      formGroup.get(key)?.markAsTouched();
     });
   }
 
@@ -243,15 +305,47 @@ export class PlanEditComponent implements OnInit {
     return this.categories.find(c => c.id === categoryId)?.name || 'Unknown';
   }
 
+  getPrivilegeName(privilegeId: string): string {
+    const priv = this.availablePrivileges.find(p => p.id === privilegeId);
+    return priv?.name || 'Unknown Privilege';
+  }
+
+  getBillingCycleName(billingCycleId: string): string {
+    const cycle = this.billingCycles.find(c => c.id === billingCycleId);
+    return cycle?.name || 'Unknown Cycle';
+  }
+
   addPrivilege(privilege: PrivilegeDto): void {
     this.selectedPrivileges.push({
       privilegeId: privilege.id,
       privilegeName: privilege.name,
-      value: 50,
-      privilegeBaseCost: 5,
-      unitCost: 10,
+      value: this.getDefaultValueForPrivilege(privilege), // ✅ Use intelligent defaults
+      privilegeBaseCost: 0,  // ✅ Default to 0 - admin must set explicitly
+      unitCost: 0,           // ✅ Default to 0 - admin must set explicitly
       durationMonths: 1
     });
+  }
+
+  /**
+   * Get default value for privilege based on privilege type
+   */
+  getDefaultValueForPrivilege(privilege: PrivilegeDto): number {
+    // Set sensible defaults based on privilege name/type
+    const privilegeName = privilege.name?.toLowerCase() || '';
+    
+    if (privilegeName.includes('consultation') || privilegeName.includes('appointment')) {
+      return 5; // 5 consultations per month
+    } else if (privilegeName.includes('message') || privilegeName.includes('chat')) {
+      return 50; // 50 messages per month
+    } else if (privilegeName.includes('prescription') || privilegeName.includes('medication')) {
+      return 3; // 3 prescriptions per month
+    } else if (privilegeName.includes('video') || privilegeName.includes('call')) {
+      return 10; // 10 video calls per month
+    } else if (privilegeName.includes('unlimited')) {
+      return -1; // Unlimited
+    } else {
+      return 10; // Default to 10 for other privileges
+    }
   }
 
   removePrivilege(index: number): void {

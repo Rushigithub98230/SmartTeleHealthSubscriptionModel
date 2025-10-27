@@ -8,10 +8,14 @@ public class SubscriptionPlanDto
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string? ShortDescription { get; set; }
-    public decimal Price { get; set; }
-    public decimal? DiscountedPrice { get; set; }
+    public decimal BasePrice { get; set; }
+    public decimal? DiscountPercentage { get; set; }
     public DateTime? DiscountValidUntil { get; set; }
+    public decimal? BillingDiscountPercentage { get; set; }
     public Guid BillingCycleId { get; set; }
+    public string BillingCycleName { get; set; } = string.Empty;
+    public string BillingCycleDescription { get; set; } = string.Empty;
+    public int BillingCycleDurationInDays { get; set; }
     public Guid CurrencyId { get; set; }
     public Guid CategoryId { get; set; }
     public bool IsActive { get; set; }

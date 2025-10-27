@@ -128,10 +128,9 @@ public class PlanVersioningService : IPlanVersioningService
                 VersionCreatedDate = DateTime.UtcNow,
                 
                 // Pricing fields
-                Price = updateDto.Price,
+                BasePrice = updateDto.BasePrice,
                 IsAutoCalculatedPrice = updateDto.IsAutoCalculatedPrice,
                 AdminCommissionPercent = updateDto.AdminCommissionPercent,
-                AdminCommissionFixed = updateDto.AdminCommissionFixed,
                 
                 // Marketing properties
                 IsFeatured = existingPlan.IsFeatured,
@@ -173,8 +172,8 @@ public class PlanVersioningService : IPlanVersioningService
             if (createdVersion.IsAutoCalculatedPrice)
             {
                 var calculatedPrice = await _pricingService.CalculatePlanPriceAsync(createdVersion.Id, true);
-                createdVersion.Price = calculatedPrice;
-                await _subscriptionPlanRepository.UpdatePlanAsync(createdVersion);
+                createdVersion.BasePrice = calculatedPrice;
+                await _subscriptionPlanRepository.UpdateAsync(createdVersion);
                 
                 _logger.LogInformation(
                     "Auto-calculated price for plan v{Version}: ${Price}",
@@ -252,8 +251,8 @@ public class PlanVersioningService : IPlanVersioningService
                     Name = version.Name,
                     VersionNumber = version.VersionNumber,
                     IsLatestVersion = version.IsLatestVersion,
-                    Price = version.Price,
-                    CalculatedPrice = version.CalculatedPrice,
+                    Price = version.BasePrice,
+                    CalculatedPrice = version.BasePrice,
                     VersionCreatedDate = version.VersionCreatedDate,
                     ActiveSubscriptionsCount = activeCount,
                     IsAutoCalculatedPrice = version.IsAutoCalculatedPrice
@@ -358,12 +357,12 @@ public class PlanVersioningService : IPlanVersioningService
                         SubscriptionId = subscription.Id,
                         CurrentPlanVersionId = oldVersion.Id,
                         CurrentPlanVersionNumber = oldVersion.VersionNumber,
-                        CurrentPrice = oldVersion.Price,
+                        CurrentPrice = oldVersion.BasePrice,
                         LatestPlanVersionId = latestVersion.Id,
                         LatestPlanVersionNumber = latestVersion.VersionNumber,
-                        LatestPrice = latestVersion.Price,
-                        PriceDifference = latestVersion.Price - oldVersion.Price,
-                        SavingsAmount = Math.Max(0, latestVersion.Price - oldVersion.Price),
+                        LatestPrice = latestVersion.BasePrice,
+                        PriceDifference = latestVersion.BasePrice - oldVersion.BasePrice,
+                        SavingsAmount = Math.Max(0, latestVersion.BasePrice - oldVersion.BasePrice),
                         NextBillingDate = subscription.NextBillingDate,
                         CanMigrate = subscription.Status == Subscription.SubscriptionStatuses.Active,
                         GrandfatheredSince = oldVersion.VersionCreatedDate
@@ -382,7 +381,7 @@ public class PlanVersioningService : IPlanVersioningService
                     PlanName = latestVersion.Name,
                     LatestVersionId = latestVersion.Id,
                     LatestVersionNumber = latestVersion.VersionNumber,
-                    LatestPrice = latestVersion.Price,
+                    LatestPrice = latestVersion.BasePrice,
                     TotalVersions = versions.Count(),
                     OldVersionsCount = versions.Count(v => !v.IsLatestVersion),
                     GrandfatheredUserCount = grandfatheredUsers.Count,
@@ -525,7 +524,7 @@ public class PlanVersioningService : IPlanVersioningService
                     subscription.AutoRenew = false; // Disable auto-renewal
                     subscription.Notes = $"User cancelled due to price change: {response.Reason}";
                     
-                    await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                    await _subscriptionRepository.UpdateAsync(subscription);
                     
                     _logger.LogInformation(
                         "User {UserId} opted to cancel subscription {SubId} due to price change",
@@ -655,11 +654,15 @@ public class PlanVersioningService : IPlanVersioningService
                 _ => ("month", 1)
             };
             
+            // Get currency code for Stripe integration
+            var currency = await _subscriptionRepository.GetCurrencyByIdAsync(plan.CurrencyId);
+            var currencyCode = currency?.Code?.ToLower() ?? "usd"; // Fallback to USD if not found
+            
             // Create single Stripe price for this plan's billing cycle
             var stripePriceId = await _stripeService.CreatePriceAsync(
                 stripeProductId,
-                plan.Price,  // Use plan's explicit price (not multiplied)
-                "usd",
+                plan.BasePrice,  // Use plan's base price
+                currencyCode,
                 interval,
                 intervalCount,
                 tokenModel);
@@ -667,7 +670,7 @@ public class PlanVersioningService : IPlanVersioningService
             // NEW ARCHITECTURE: Simply set the single Stripe price ID
             plan.StripePriceId = stripePriceId;
             
-            await _subscriptionPlanRepository.UpdatePlanAsync(plan);
+            await _subscriptionPlanRepository.UpdateAsync(plan);
             
             _logger.LogInformation(
                 "Stripe resources created for plan v{Version}: Product {ProductId}, Price {PriceId} ({Cycle})",
@@ -807,15 +810,15 @@ Dear {subscription.User.FirstName},
 
 We are updating the pricing for your subscription plan '{oldPlan.Name}'.
 
-Current Plan: {oldPlan.Name} v{oldPlan.VersionNumber} - ${oldPlan.Price}/month
-New Plan: {newPlan.Name} v{newPlan.VersionNumber} - ${newPlan.Price}/month
+Current Plan: {oldPlan.Name} v{oldPlan.VersionNumber} - ${oldPlan.BasePrice}/month
+New Plan: {newPlan.Name} v{newPlan.VersionNumber} - ${newPlan.BasePrice}/month
 
 Migration Date: {migrationDate:MMMM dd, yyyy} (Your next renewal date)
 Notice Period: {noticeDays} days
 
 What This Means:
-- You will continue to enjoy your current plan at ${oldPlan.Price}/month until {migrationDate:MMMM dd, yyyy}
-- On {migrationDate:MMMM dd, yyyy}, you will automatically migrate to the new plan at ${newPlan.Price}/month
+- You will continue to enjoy your current plan at ${oldPlan.BasePrice}/month until {migrationDate:MMMM dd, yyyy}
+- On {migrationDate:MMMM dd, yyyy}, you will automatically migrate to the new plan at ${newPlan.BasePrice}/month
 - Any additional privileges you purchase before migration will be billed at current market rates
 
 Your Options:

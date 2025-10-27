@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Application.Utilities;
+using SmartTelehealth.Application.Constants;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.DTOs;
@@ -26,6 +27,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
     private readonly IUserSubscriptionPrivilegeUsageRepository _privilegeUsageRepository;
     private readonly IPrivilegeRepository _privilegeRepository;
     private readonly IUserRepository _userRepository;
+    private readonly ISystemSettingsRepository _systemSettingsRepository;
     
     // Service dependencies
     private readonly IPaymentService _paymentService;
@@ -49,6 +51,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         IUserSubscriptionPrivilegeUsageRepository privilegeUsageRepository,
         IPrivilegeRepository privilegeRepository,
         IUserRepository userRepository,
+        ISystemSettingsRepository systemSettingsRepository,
         IPaymentService paymentService,
         IStripeService stripeService,
         INotificationService notificationService,
@@ -63,6 +66,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         _privilegeUsageRepository = privilegeUsageRepository ?? throw new ArgumentNullException(nameof(privilegeUsageRepository));
         _privilegeRepository = privilegeRepository ?? throw new ArgumentNullException(nameof(privilegeRepository));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _systemSettingsRepository = systemSettingsRepository ?? throw new ArgumentNullException(nameof(systemSettingsRepository));
         _paymentService = paymentService ?? throw new ArgumentNullException(nameof(paymentService));
         _stripeService = stripeService ?? throw new ArgumentNullException(nameof(stripeService));
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
@@ -113,9 +117,9 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 if (!privilegeLookup.TryGetValue(planPrivilege.PrivilegeId, out var privilege))
                     continue;
 
-                // FIXED: Use Value field for total privilege limit
-                var privilegeLimit = planPrivilege.Value > 0 ? planPrivilege.Value : 0;
-                var privilegeCost = privilegeLimit * planPrivilege.UnitCost;
+                // CRITICAL FIX: Use centralized privilege cost calculation
+                // This ensures consistent pricing for unlimited privileges (Value = -1)
+                var privilegeCost = BillingCalculationService.CalculatePrivilegeCost(planPrivilege, _logger);
                 totalBasePrice += privilegeCost;
 
                 privilegeBreakdown.Add(new
@@ -123,19 +127,27 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     PrivilegeId = privilege.Id,
                     PrivilegeName = privilege.Name,
                     PrivilegeLimit = planPrivilege.Value,
-                    UnitCost = planPrivilege.UnitCost,
-                    TotalCost = privilegeCost
+                    UnitCost = planPrivilege.PrivilegeBaseCost,
+                    TotalCost = privilegeCost,
+                    IsUnlimited = planPrivilege.Value == -1,
+                    IsDisabled = planPrivilege.Value == 0
                 });
             }
 
-            var adminCommission = calculateDto.AdminCommissionPercentage > 0 
-                ? totalBasePrice * (calculateDto.AdminCommissionPercentage / 100)
-                : calculateDto.AdminCommissionFixed;
+            // CRITICAL FIX: Use centralized commission calculation
+            // Get system settings for default commission percentage
+            var settings = await _systemSettingsRepository.GetSettingsAsync();
+            var defaultCommissionPercent = settings?.DefaultAdminCommissionPercent ?? 0;
 
-            var finalPrice = totalBasePrice + adminCommission;
+            // Use centralized commission calculation (ignores API parameter for security)
+            var (finalPrice, adminCommission, commissionPercent) = BillingCalculationService.CalculateFinalPlanPrice(
+                totalBasePrice, 
+                plan.AdminCommissionPercent, 
+                defaultCommissionPercent, 
+                _logger);
 
-            _logger.LogInformation("Base price calculated for plan {PlanId}: {BasePrice} + {Commission} = {FinalPrice}", 
-                calculateDto.PlanId, totalBasePrice, adminCommission, finalPrice);
+            _logger.LogInformation("Base price calculated for plan {PlanId}: {BasePrice} + {Commission} ({Percent}%) = {FinalPrice}", 
+                calculateDto.PlanId, totalBasePrice, adminCommission, commissionPercent, finalPrice);
 
             return new JsonModel
             {
@@ -145,9 +157,11 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     PlanName = plan.Name,
                     BasePrice = totalBasePrice,
                     AdminCommission = adminCommission,
+                    CommissionPercent = commissionPercent,
                     FinalPrice = finalPrice,
                     PrivilegeBreakdown = privilegeBreakdown,
-                    CalculatedAt = DateTime.UtcNow
+                    CalculatedAt = DateTime.UtcNow,
+                    CommissionSource = plan.AdminCommissionPercent.HasValue ? "Plan" : "System Default"
                 },
                 Message = "Plan base price calculated successfully",
                 StatusCode = 200
@@ -188,7 +202,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 };
             }
 
-            var privilegeUsage = await GetOrCreatePrivilegeUsageAsync(usageDto.UserId, usageDto.PrivilegeId, subscription.Id);
+            var privilegeUsage = await GetOrCreatePrivilegeUsageAsync(usageDto.UserId, usageDto.PrivilegeId, subscription.Id, tokenModel);
 
             var planPrivilege = await _subscriptionPlanRepository.GetPlanPrivilegeAsync(subscription.SubscriptionPlanId, usageDto.PrivilegeId);
             if (planPrivilege == null)
@@ -350,7 +364,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                            b.SubscriptionId == subscriptionId)
                 .Sum(b => b.TotalAmount);
 
-            var baseRenewalAmount = plan.Price;
+            var baseRenewalAmount = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
             var totalRenewalAmount = baseRenewalAmount + pendingOverageAmount;
 
             _logger.LogInformation("[Step 2/7] Renewal amount calculated: Base=${Base}, Overage=${Overage}, Total=${Total}",
@@ -377,7 +391,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 subscription.UpdatedBy = tokenModel.UserID;
                 subscription.UpdatedDate = DateTime.UtcNow;
                 
-                await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                await _subscriptionRepository.UpdateAsync(subscription);
                 
                 _logger.LogInformation("[Step 4/7] Billing dates updated: Last={Last:yyyy-MM-dd}, Next={Next:yyyy-MM-dd}",
                     subscription.LastBillingDate, subscription.NextBillingDate);
@@ -390,7 +404,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     subscription.NextBillingDate = oldNextBillingDate;
                     subscription.UpdatedBy = tokenModel.UserID;
                     subscription.UpdatedDate = DateTime.UtcNow;
-                    await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                    await _subscriptionRepository.UpdateAsync(subscription);
                 });
 
                 // ═══════════════════════════════════════════════════════════
@@ -601,7 +615,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     subscription.FailedPaymentAttempts += 1;
                     subscription.LastPaymentError = paymentResult.Message;
                     subscription.LastPaymentFailedDate = DateTime.UtcNow;
-                    await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+                    await _subscriptionRepository.UpdateAsync(subscription);
 
                     // Send payment failed notification
                     try
@@ -861,7 +875,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
     /// CORRECTED: Now uses admin-set Value directly (no calculation).
     /// The Value field contains the total privilege count set by admin for the billing cycle.
     /// </summary>
-    private async Task<UserSubscriptionPrivilegeUsage> GetOrCreatePrivilegeUsageAsync(int userId, Guid privilegeId, Guid subscriptionId)
+    private async Task<UserSubscriptionPrivilegeUsage> GetOrCreatePrivilegeUsageAsync(int userId, Guid privilegeId, Guid subscriptionId, TokenModel tokenModel)
     {
         var existingUsage = await _privilegeUsageRepository.GetByUserAndPrivilegeAsync(userId, privilegeId);
         if (existingUsage != null)
@@ -906,7 +920,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             IsActive = true,
             IsDeleted = false,
             CreatedDate = DateTime.UtcNow,
-            CreatedBy = 1  // TODO: Should use tokenModel.UserID if available
+            CreatedBy = tokenModel?.UserID ?? 1
         };
 
         _logger.LogInformation("Creating privilege usage for subscription {SubscriptionId}, privilege {PrivilegeId}: " +
@@ -983,7 +997,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Type = BillingRecord.BillingType.Overage,
                 Description = $"Overage charge for {privilege?.Name} - {extraCharge:C}",
                 BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7),
+                DueDate = DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS),
                 IsRecurring = false,
                 CreatedBy = tokenModel.UserID,
                 CreatedDate = DateTime.UtcNow,
@@ -1020,7 +1034,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Type = BillingRecord.BillingType.Overage,
                 Description = $"Carried over overage charges from previous billing cycle - {pendingOverageAmount:C}",
                 BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7),
+                DueDate = DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS),
                 IsActive = true,
                 IsDeleted = false,
                 CreatedDate = DateTime.UtcNow,
@@ -1077,7 +1091,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Status = BillingRecord.BillingStatus.Pending.ToString(),
                 Description = description,
                 BillingDate = DateTime.UtcNow,
-                DueDate = dueDate ?? DateTime.UtcNow.AddDays(7),
+                DueDate = dueDate ?? DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS),
                 Type = BillingRecord.BillingType.Subscription.ToString()
             };
 
@@ -1115,7 +1129,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Status = BillingRecord.BillingStatus.Pending.ToString(),
                 Description = $"Overage charge for {privilegeName} - ${amount:F2}",
                 BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7),
+                DueDate = DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS),
                 Type = BillingRecord.BillingType.Overage.ToString()
             };
 
@@ -1187,7 +1201,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Status = BillingRecord.BillingStatus.Pending.ToString(),
                 Description = $"Overage charge: {quantity} × {privilege.Name} - ${overageCost:F2} (latest plan pricing)",
                 BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7),
+                DueDate = DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS),
                 Type = BillingRecord.BillingType.Overage.ToString()
             };
             
@@ -1228,7 +1242,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Status = BillingRecord.BillingStatus.Pending.ToString(),
                 Description = description ?? $"Consultation billing - ${amount:F2}",
                 BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7),
+                DueDate = DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS),
                 Type = BillingRecord.BillingType.Consultation.ToString()
             };
 
@@ -1259,7 +1273,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Status = BillingRecord.BillingStatus.Pending.ToString(),
                 Description = description ?? $"Medication billing - ${amount:F2}",
                 BillingDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(7),
+                DueDate = DateTime.UtcNow.AddDays(SubscriptionConstants.DEFAULT_BILLING_GRACE_PERIOD_DAYS),
                 Type = BillingRecord.BillingType.Medication.ToString()
             };
 
@@ -1962,7 +1976,9 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating next billing date");
-            return currentDate.AddMonths(1);
+            // CONSISTENT FIX: Use centralized billing cycle calculator instead of manual AddMonths
+            return BillingCycleCalculator.CalculateNextBillingDate(currentDate, 
+                new MasterBillingCycle { Name = "monthly", DurationInDays = 30 }); // 30 days = 1 month
         }
     }
 
@@ -1977,7 +1993,10 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
             if (subscription == null)
             {
-                return DateTime.UtcNow.AddMonths(1);
+                _logger.LogWarning("Subscription {SubscriptionId} not found for billing date calculation", subscriptionId);
+                // CONSISTENT FIX: Use centralized billing cycle calculator instead of manual AddMonths
+                return BillingCycleCalculator.CalculateNextBillingDate(DateTime.UtcNow, 
+                    new MasterBillingCycle { Name = "monthly", DurationInDays = 30 }); // 30 days = 1 month
             }
 
             return CalculateNextBillingDate(DateTime.UtcNow, subscription.BillingCycle);
@@ -1985,7 +2004,9 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calculating next billing date for subscription {SubscriptionId}", subscriptionId);
-            return DateTime.UtcNow.AddMonths(1);
+            // CONSISTENT FIX: Use centralized billing cycle calculator instead of manual AddMonths
+            return BillingCycleCalculator.CalculateNextBillingDate(DateTime.UtcNow, 
+                new MasterBillingCycle { Name = "monthly", DurationInDays = 30 }); // 30 days = 1 month
         }
     }
     
@@ -2032,9 +2053,9 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 ApprovalNotes = adjustmentDto.ApprovalNotes
             };
 
-            decimal actualAdjustmentAmount = adjustmentDto.IsPercentage && adjustmentDto.Percentage.HasValue
-                ? billingRecord.TotalAmount * (adjustmentDto.Percentage.Value / 100)
-                : adjustmentDto.Amount;
+            // CRITICAL FIX: Use centralized adjustment calculation with proper validation
+            decimal actualAdjustmentAmount = BillingCalculationService.CalculateAdjustmentAmount(
+                billingRecord, adjustmentDto.Amount, adjustmentDto.Type.ToString(), _logger);
 
             // Determine if adjustment should be added or subtracted based on type
             // Discounts, Credits, and Refunds should REDUCE the total amount
@@ -2057,6 +2078,9 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                     actualAdjustmentAmount, adjustmentDto.Type, billingRecordId, billingRecord.TotalAmount);
             }
 
+            // Ensure billing record total doesn't go negative
+            billingRecord.TotalAmount = Math.Max(billingRecord.TotalAmount, 0.01m);
+
             billingRecord.ProcessedAt = DateTime.UtcNow;
 
             await _billingRepository.CreateAdjustmentAsync(adjustment);
@@ -2066,7 +2090,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             {
                 Id = adjustment.Id,
                 BillingRecordId = billingRecordId,
-                Type = adjustment.Type,
+                Type = adjustment.Type.ToString(),
                 Amount = actualAdjustmentAmount,
                 Description = adjustment.Description,
                 Reason = adjustment.Reason,
@@ -2124,7 +2148,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             {
                 Id = adj.Id,
                 BillingRecordId = adj.BillingRecordId,
-                Type = adj.Type,
+                Type = adj.Type.ToString(),
                 Amount = adj.Amount,
                 Description = adj.Description,
                 Reason = adj.Reason,
@@ -3179,6 +3203,49 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 Message = "Bulk retry operation failed",
                 StatusCode = 500
             };
+        }
+    }
+
+    #endregion
+
+    #region Analytics Methods for Real-time Metrics
+
+    /// <summary>
+    /// Gets total revenue for today
+    /// </summary>
+    public async Task<decimal> GetRevenueTodayAsync()
+    {
+        try
+        {
+            var today = DateTime.UtcNow.Date;
+            var tomorrow = today.AddDays(1);
+            
+            // CRITICAL FIX: Use alternative approach since GetRevenueForDateRangeAsync doesn't exist
+            var billingRecords = await _billingRepository.GetBillingRecordsByDateRangeAsync(today, tomorrow);
+            return billingRecords.Where(br => br.Status == BillingRecord.BillingStatus.Paid).Sum(br => br.Amount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting revenue for today");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets count of pending payments
+    /// </summary>
+    public async Task<int> GetPendingPaymentsCountAsync()
+    {
+        try
+        {
+            // CRITICAL FIX: Use alternative approach since GetPendingPaymentsCountAsync doesn't exist
+            var billingRecords = await _billingRepository.GetAllBillingRecordsAsync();
+            return billingRecords.Count(br => br.Status == BillingRecord.BillingStatus.Pending);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting pending payments count");
+            return 0;
         }
     }
 

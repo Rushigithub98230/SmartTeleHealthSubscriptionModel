@@ -95,6 +95,7 @@ export interface SubscriptionDto {
 
 /**
  * Create Subscription DTO (Request)
+ * Updated to match backend DTO structure
  */
 export interface CreateSubscriptionDto {
   userId: number;
@@ -103,7 +104,7 @@ export interface CreateSubscriptionDto {
   name?: string;
   description?: string;
   price: number;
-  billingCycleId: string;        // GUID
+  // REMOVED: billingCycleId - comes from plan (fixed billing cycle)
   currencyId: string;            // GUID
   isActive: boolean;
   startDate?: Date;

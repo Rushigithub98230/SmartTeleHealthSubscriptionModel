@@ -1,0 +1,171 @@
+<!-- Advanced Filter Component -->
+<div class="advanced-filter-container">
+  <!-- Filter Header -->
+  <div class="filter-header" (click)="toggleExpansion()">
+    <div class="filter-title">
+      <i class="bi bi-funnel" [class.rotated]="isExpanded"></i>
+      <span>Advanced Filters</span>
+      <span class="filter-summary" *ngIf="!isExpanded">{{ getFilterSummary() }}</span>
+    </div>
+    <div class="filter-actions">
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="resetFilter(); $event.stopPropagation()">
+        <i class="bi bi-arrow-clockwise"></i> Reset
+      </button>
+      <i class="bi bi-chevron-down" [class.rotated]="isExpanded"></i>
+    </div>
+  </div>
+
+  <!-- Filter Panel -->
+  <div class="filter-panel" [class.expanded]="isExpanded" [formGroup]="filterForm">
+    <!-- Preset Selection -->
+    <div class="preset-section">
+      <label class="form-label">Quick Filters</label>
+      <div class="preset-controls">
+        <select class="form-select" [(ngModel)]="selectedPreset" (change)="onPresetChange(selectedPreset)" [ngModelOptions]="{standalone: true}">
+          <option *ngFor="let preset of availablePresets" [value]="preset.id">
+            {{ preset.name }}
+          </option>
+        </select>
+        <div class="preset-actions">
+          <button type="button" class="btn btn-sm btn-outline-primary" (click)="saveCurrentAsPreset()">
+            <i class="bi bi-bookmark-plus"></i> Save
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger" 
+                  *ngIf="selectedPreset !== 'all' && !getPresetById(selectedPreset)?.isDefault"
+                  (click)="deletePreset(selectedPreset)">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Controls -->
+    <div class="filter-controls">
+      <!-- Search Term -->
+      <div class="filter-group">
+        <label class="form-label">Search</label>
+        <input type="text" class="form-control" formControlName="searchTerm" 
+               placeholder="Search by name, email, or ID...">
+      </div>
+
+      <!-- Status Filter -->
+      <div class="filter-group">
+        <label class="form-label">Status</label>
+        <select class="form-select" formControlName="statuses" multiple>
+          <option *ngFor="let status of getStatusOptions()" [value]="status">
+            {{ status }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Amount Range -->
+      <div class="filter-group">
+        <label class="form-label">Amount Range</label>
+        <div class="input-group">
+          <input type="number" class="form-control" formControlName="minAmount" 
+                 placeholder="Min" min="0" step="0.01">
+          <span class="input-group-text">to</span>
+          <input type="number" class="form-control" formControlName="maxAmount" 
+                 placeholder="Max" min="0" step="0.01">
+        </div>
+        <div class="invalid-feedback" *ngIf="!isAmountRangeValid()">
+          Minimum amount must be less than or equal to maximum amount
+        </div>
+      </div>
+
+      <!-- Date Range -->
+      <div class="filter-group">
+        <label class="form-label">Date Range</label>
+        <div class="input-group">
+          <input type="date" class="form-control" formControlName="createdDateFrom">
+          <span class="input-group-text">to</span>
+          <input type="date" class="form-control" formControlName="createdDateTo">
+        </div>
+        <div class="invalid-feedback" *ngIf="!isDateRangeValid()">
+          Start date must be before or equal to end date
+        </div>
+      </div>
+
+      <!-- Additional Filters for Subscriptions -->
+      <div class="filter-group" *ngIf="filterType === 'subscription'">
+        <label class="form-label">Billing Cycle</label>
+        <select class="form-select" formControlName="billingCycleIds" multiple>
+          <option *ngFor="let cycle of getBillingCycleOptions()" [value]="cycle">
+            {{ cycle }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Additional Filters for Billing -->
+      <div class="filter-group" *ngIf="filterType === 'billing'">
+        <label class="form-label">Type</label>
+        <select class="form-select" formControlName="types" multiple>
+          <option *ngFor="let type of getTypeOptions()" [value]="type">
+            {{ type }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Boolean Filters -->
+      <div class="filter-group">
+        <label class="form-label">Special Filters</label>
+        <div class="form-check-group">
+          <div class="form-check" *ngIf="filterType === 'subscription'">
+            <input class="form-check-input" type="checkbox" formControlName="isTrial" id="isTrial">
+            <label class="form-check-label" for="isTrial">Trial Only</label>
+          </div>
+          <div class="form-check" *ngIf="filterType === 'subscription'">
+            <input class="form-check-input" type="checkbox" formControlName="isPaused" id="isPaused">
+            <label class="form-check-label" for="isPaused">Paused Only</label>
+          </div>
+          <div class="form-check" *ngIf="filterType === 'subscription'">
+            <input class="form-check-input" type="checkbox" formControlName="hasFailedPayments" id="hasFailedPayments">
+            <label class="form-check-label" for="hasFailedPayments">Failed Payments</label>
+          </div>
+          <div class="form-check" *ngIf="filterType === 'billing'">
+            <input class="form-check-input" type="checkbox" formControlName="isPaid" id="isPaid">
+            <label class="form-check-label" for="isPaid">Paid Only</label>
+          </div>
+          <div class="form-check" *ngIf="filterType === 'billing'">
+            <input class="form-check-input" type="checkbox" formControlName="isPending" id="isPending">
+            <label class="form-check-label" for="isPending">Pending Only</label>
+          </div>
+          <div class="form-check" *ngIf="filterType === 'billing'">
+            <input class="form-check-input" type="checkbox" formControlName="isFailed" id="isFailed">
+            <label class="form-check-label" for="isFailed">Failed Only</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sorting -->
+      <div class="filter-group">
+        <label class="form-label">Sort By</label>
+        <div class="input-group">
+          <select class="form-select" formControlName="sortColumn">
+            <option *ngFor="let column of getSortColumnOptions()" [value]="column">
+              {{ column }}
+            </option>
+          </select>
+          <select class="form-select" formControlName="sortOrder">
+            <option *ngFor="let order of getSortOrderOptions()" [value]="order">
+              {{ order === 'asc' ? 'Ascending' : 'Descending' }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="filter-actions">
+      <button type="button" class="btn btn-primary" (click)="applyFilter()">
+        <i class="bi bi-search"></i> Apply Filters
+      </button>
+      <button type="button" class="btn btn-outline-secondary" (click)="resetFilter()">
+        <i class="bi bi-arrow-clockwise"></i> Reset
+      </button>
+      <button type="button" class="btn btn-outline-danger" (click)="clearFilter()">
+        <i class="bi bi-x-circle"></i> Clear All
+      </button>
+    </div>
+  </div>
+</div>

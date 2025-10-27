@@ -9,9 +9,7 @@ public interface ISubscriptionPlanPrivilegeRepository : IRepositoryBase<Subscrip
     // Custom methods with different names to avoid overriding base methods
     Task<SubscriptionPlanPrivilege?> GetByIdWithDetailsAsync(Guid id);
     Task<IEnumerable<SubscriptionPlanPrivilege>> GetAllWithDetailsAsync();
-    Task<SubscriptionPlanPrivilege> CreatePlanPrivilegeAsync(SubscriptionPlanPrivilege planPrivilege);
-    Task<SubscriptionPlanPrivilege> UpdatePlanPrivilegeAsync(SubscriptionPlanPrivilege planPrivilege);
-    Task<bool> DeletePlanPrivilegeAsync(Guid id);
+    // Note: CreateAsync, UpdateAsync, DeleteAsync are inherited from IRepositoryBase<SubscriptionPlanPrivilege>
     Task<bool> ExistsPlanPrivilegeAsync(Guid id);
     
     Task<IEnumerable<SubscriptionPlanPrivilege>> GetByPlanIdAsync(Guid planId);

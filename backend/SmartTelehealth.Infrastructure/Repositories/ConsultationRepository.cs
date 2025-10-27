@@ -158,4 +158,54 @@ public class ConsultationRepository : RepositoryBase<Consultation>, IConsultatio
             .OrderByDescending(c => c.EndedAt)
             .ToListAsync();
     }
+
+    // Analytics methods
+    public async Task<int> GetTotalConsultationsCountAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Consultations
+            .Where(c => c.CreatedDate >= startDate && c.CreatedDate <= endDate)
+            .CountAsync();
+    }
+
+    public async Task<int> GetCompletedConsultationsCountAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Consultations
+            .Where(c => c.CreatedDate >= startDate && c.CreatedDate <= endDate &&
+                       c.Status == Consultation.ConsultationStatus.Completed)
+            .CountAsync();
+    }
+
+    public async Task<int> GetCancelledConsultationsCountAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Consultations
+            .Where(c => c.CreatedDate >= startDate && c.CreatedDate <= endDate &&
+                       c.Status == Consultation.ConsultationStatus.Cancelled)
+            .CountAsync();
+    }
+
+    public async Task<int> GetPendingConsultationsCountAsync(DateTime startDate, DateTime endDate)
+    {
+        return await _context.Consultations
+            .Where(c => c.CreatedDate >= startDate && c.CreatedDate <= endDate &&
+                       (c.Status == Consultation.ConsultationStatus.Scheduled || 
+                        c.Status == Consultation.ConsultationStatus.InProgress))
+            .CountAsync();
+    }
+
+    public async Task<double> GetAverageConsultationDurationAsync(DateTime startDate, DateTime endDate)
+    {
+        var completedConsultations = await _context.Consultations
+            .Where(c => c.CreatedDate >= startDate && c.CreatedDate <= endDate &&
+                       c.Status == Consultation.ConsultationStatus.Completed &&
+                       c.StartedAt.HasValue && c.EndedAt.HasValue)
+            .ToListAsync();
+
+        if (!completedConsultations.Any())
+            return 0;
+
+        var totalDuration = completedConsultations
+            .Sum(c => (c.EndedAt!.Value - c.StartedAt!.Value).TotalMinutes);
+
+        return totalDuration / completedConsultations.Count;
+    }
 } 

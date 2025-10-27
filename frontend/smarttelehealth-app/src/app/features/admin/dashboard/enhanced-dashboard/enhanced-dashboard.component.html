@@ -1,0 +1,321 @@
+<!-- Enhanced Dashboard Component -->
+<div class="enhanced-dashboard">
+  <!-- Page Header -->
+  <div class="page-header bg-light py-4 mb-4">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-0">
+            <i class="bi bi-speedometer2"></i> Enhanced Analytics Dashboard
+          </h2>
+          <p class="text-muted mb-0">Real-time insights and comprehensive analytics</p>
+        </div>
+        <div class="d-flex gap-2">
+          <!-- Date Range Selector -->
+          <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0">Period:</label>
+            <select class="form-select" [(ngModel)]="selectedDateRange" (change)="onDateRangeChange()">
+              <option *ngFor="let option of dateRangeOptions" [value]="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+          
+          <!-- Custom Date Range -->
+          <div class="d-flex align-items-center gap-2" *ngIf="isCustomDateRange()">
+            <input type="date" class="form-control" [(ngModel)]="customStartDate" (change)="onDateRangeChange()">
+            <span>to</span>
+            <input type="date" class="form-control" [(ngModel)]="customEndDate" (change)="onDateRangeChange()">
+          </div>
+
+          <!-- Export Options -->
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" (click)="exportAnalytics('pdf')">PDF Report</a></li>
+              <li><a class="dropdown-item" (click)="exportAnalytics('csv')">CSV Data</a></li>
+              <li><a class="dropdown-item" (click)="exportAnalytics('excel')">Excel File</a></li>
+            </ul>
+          </div>
+
+          <!-- Refresh Button -->
+          <button class="btn btn-primary" (click)="refreshDashboard()" [disabled]="loading">
+            <i class="bi bi-arrow-clockwise" [class.spin]="loading"></i> Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <!-- Loading State -->
+    <div *ngIf="loading" class="text-center py-5">
+      <div class="spinner-border text-primary"></div>
+      <p class="mt-3">Loading dashboard data...</p>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error" class="alert alert-danger">
+      <i class="bi bi-exclamation-triangle"></i> {{ error }}
+      <button class="btn btn-sm btn-outline-danger ms-2" (click)="refreshDashboard()">Retry</button>
+    </div>
+
+    <!-- Dashboard Content -->
+    <div *ngIf="!loading && !error && dashboardData">
+      <!-- Real-time Metrics Banner -->
+      <div class="real-time-banner bg-primary text-white p-3 mb-4 rounded">
+        <div class="row text-center">
+          <div class="col-md-2">
+            <h4 class="mb-0">{{ formatNumber(realTimeMetrics?.activeSubscriptionsNow || 0) }}</h4>
+            <small>Active Now</small>
+          </div>
+          <div class="col-md-2">
+            <h4 class="mb-0">{{ formatCurrency(realTimeMetrics?.revenueToday || 0) }}</h4>
+            <small>Revenue Today</small>
+          </div>
+          <div class="col-md-2">
+            <h4 class="mb-0">{{ formatNumber(realTimeMetrics?.newSubscriptionsToday || 0) }}</h4>
+            <small>New Today</small>
+          </div>
+          <div class="col-md-2">
+            <h4 class="mb-0">{{ formatNumber(realTimeMetrics?.trialsEndingThisWeek || 0) }}</h4>
+            <small>Trials Ending</small>
+          </div>
+          <div class="col-md-2">
+            <h4 class="mb-0">{{ formatNumber(realTimeMetrics?.pendingPayments || 0) }}</h4>
+            <small>Pending Payments</small>
+          </div>
+          <div class="col-md-2">
+            <small class="text-light">
+              <i class="bi bi-clock"></i> Updated: {{ getLastUpdatedTime() }}
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <div class="card kpi-card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h3 class="mb-0 text-primary">{{ formatCurrency(dashboardData.overview.totalRevenue) }}</h3>
+                  <small class="text-muted">Total Revenue</small>
+                </div>
+                <div class="kpi-icon">
+                  <i class="bi bi-currency-dollar text-primary"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-3">
+          <div class="card kpi-card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h3 class="mb-0 text-success">{{ formatNumber(dashboardData.overview.activeSubscriptions) }}</h3>
+                  <small class="text-muted">Active Subscriptions</small>
+                </div>
+                <div class="kpi-icon">
+                  <i class="bi bi-check-circle text-success"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="card kpi-card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h3 class="mb-0 text-info">{{ formatCurrency(dashboardData.revenue.monthlyRecurringRevenue) }}</h3>
+                  <small class="text-muted">Monthly Recurring Revenue</small>
+                </div>
+                <div class="kpi-icon">
+                  <i class="bi bi-graph-up text-info"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="card kpi-card">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h3 class="mb-0" [ngClass]="getGrowthClass(dashboardData.revenue.revenueGrowth)">
+                    <i [class]="getGrowthIcon(dashboardData.revenue.revenueGrowth)"></i>
+                    {{ formatPercentage(abs(dashboardData.revenue.revenueGrowth)) }}
+                  </h3>
+                  <small class="text-muted">Revenue Growth</small>
+                </div>
+                <div class="kpi-icon">
+                  <i class="bi bi-trending-up text-warning"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row 1 -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="bi bi-graph-up"></i> Revenue Trend
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas baseChart
+                      [data]="revenueChartData"
+                      type="line"
+                      [options]="revenueChartOptions">
+              </canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="bi bi-pie-chart"></i> Subscription Status
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas baseChart
+                      [data]="subscriptionGrowthChartData"
+                      type="doughnut"
+                      [options]="{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            position: 'bottom'
+                          }
+                        }
+                      }">
+              </canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row 2 -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="bi bi-exclamation-triangle"></i> Churn Analysis
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas baseChart
+                      [data]="churnChartData"
+                      type="bar"
+                      [options]="{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                          y: {
+                            beginAtZero: true
+                          }
+                        },
+                        plugins: {
+                          legend: {
+                            display: false
+                          }
+                        }
+                      }">
+              </canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="bi bi-bar-chart"></i> Plan Performance
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas baseChart
+                      [data]="planPerformanceChartData"
+                      type="bar"
+                      [options]="planPerformanceChartOptions">
+              </canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional Metrics -->
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">Key Metrics</h5>
+            </div>
+            <div class="card-body">
+              <div class="metric-item">
+                <span class="metric-label">Churn Rate:</span>
+                <span class="metric-value">{{ formatPercentage(dashboardData.churn.churnRate) }}</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Retention Rate:</span>
+                <span class="metric-value">{{ formatPercentage(dashboardData.churn.retentionRate) }}</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Average Lifetime:</span>
+                <span class="metric-value">{{ dashboardData.churn.averageLifetime }} days</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">ARPU:</span>
+                <span class="metric-value">{{ formatCurrency(dashboardData.revenue.averageRevenuePerUser) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">Subscription Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <div class="metric-item" *ngFor="let status of getObjectKeys(dashboardData.subscriptions.subscriptionsByStatus)">
+                <span class="metric-label">{{ status }}:</span>
+                <span class="metric-value">{{ formatNumber(dashboardData.subscriptions.subscriptionsByStatus[status]) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">Plan Revenue</h5>
+            </div>
+            <div class="card-body">
+              <div class="metric-item" *ngFor="let plan of dashboardData.revenue.revenueByPlan">
+                <span class="metric-label">{{ plan.planName }}:</span>
+                <span class="metric-value">{{ formatCurrency(plan.revenue) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

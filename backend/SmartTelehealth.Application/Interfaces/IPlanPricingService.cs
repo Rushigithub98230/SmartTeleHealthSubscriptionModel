@@ -54,5 +54,13 @@ public interface IPlanPricingService
     /// <param name="planId">The subscription plan ID</param>
     /// <returns>PricingBreakdown object with detailed cost information</returns>
     Task<PricingBreakdown> CalculatePricingBreakdownAsync(Guid planId);
+    
+    /// <summary>
+    /// CRITICAL FIX: Calculates the effective price for a plan after applying all discounts.
+    /// This ensures consistent pricing calculations across frontend and backend.
+    /// </summary>
+    /// <param name="planId">The subscription plan ID</param>
+    /// <returns>The effective price after applying promotional and billing discounts</returns>
+    Task<decimal> GetEffectivePriceAsync(Guid planId);
 }
 

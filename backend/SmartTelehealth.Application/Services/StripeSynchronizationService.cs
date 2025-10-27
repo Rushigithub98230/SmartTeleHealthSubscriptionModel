@@ -15,17 +15,24 @@ public class StripeSynchronizationService : IStripeSynchronizationService
     private readonly IStripeService _stripeService;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
+    // TODO: Implement these repositories when needed
+    // private readonly IStripeSyncHistoryRepository _syncHistoryRepository;
+    // private readonly IWebhookEventRepository _webhookEventRepository;
     private readonly ILogger<StripeSynchronizationService> _logger;
 
     public StripeSynchronizationService(
         IStripeService stripeService,
         ISubscriptionRepository subscriptionRepository,
         IUserRepository userRepository,
+        // IStripeSyncHistoryRepository syncHistoryRepository,
+        // IWebhookEventRepository webhookEventRepository,
         ILogger<StripeSynchronizationService> logger)
     {
         _stripeService = stripeService ?? throw new ArgumentNullException(nameof(stripeService));
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        // _syncHistoryRepository = syncHistoryRepository ?? throw new ArgumentNullException(nameof(syncHistoryRepository));
+        // _webhookEventRepository = webhookEventRepository ?? throw new ArgumentNullException(nameof(webhookEventRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -355,7 +362,7 @@ public class StripeSynchronizationService : IStripeSynchronizationService
 
             // Update subscription with new Stripe subscription ID
             subscription.StripeSubscriptionId = stripeSubscriptionId;
-            await _subscriptionRepository.UpdateSubscriptionAsync(subscription);
+            await _subscriptionRepository.UpdateAsync(subscription);
 
             _logger.LogInformation("Successfully repaired subscription {SubscriptionId} synchronization with new Stripe subscription {StripeId}", 
                 subscriptionId, stripeSubscriptionId);
@@ -395,11 +402,15 @@ public class StripeSynchronizationService : IStripeSynchronizationService
                 _ => ("month", 1)
             };
             
+            // Get currency code for Stripe integration
+            var currency = await _subscriptionRepository.GetCurrencyByIdAsync(plan.CurrencyId);
+            var currencyCode = currency?.Code?.ToLower() ?? "usd"; // Fallback to USD if not found
+            
             // Create single Stripe price for this plan's billing cycle
             var stripePriceId = await _stripeService.CreatePriceAsync(
                 stripeProductId,
-                plan.Price,  // Use plan's explicit price (not multiplied)
-                "usd",
+                plan.BasePrice,  // Use plan's base price
+                currencyCode,
                 interval,
                 intervalCount,
                 tokenModel);
@@ -605,15 +616,12 @@ public class StripeSynchronizationService : IStripeSynchronizationService
         {
             _logger.LogInformation("Getting sync history (page {Page}) by user {UserId}", page, tokenModel.UserID);
 
-            // TODO: Implement actual sync history tracking with dedicated entity/table
-            // For now, return empty list with proper structure
-            var history = new List<object>();
-
+            // TODO: Implement sync history repository when available
             return new JsonModel
             {
-                data = history,
-                Message = "Sync history retrieved successfully (tracking not yet implemented)",
-                StatusCode = 200,
+                data = new List<object>(),
+                Message = "Sync history feature not yet implemented",
+                StatusCode = 501,
                 meta = new Meta
                 {
                     CurrentPage = page,
@@ -643,23 +651,20 @@ public class StripeSynchronizationService : IStripeSynchronizationService
         {
             _logger.LogInformation("Getting webhook status by user {UserId}", tokenModel.UserID);
 
-            // TODO: Implement actual webhook monitoring with dedicated entity/table
-            // For now, return basic status based on system health
+            // TODO: Implement webhook event repository when available
             var status = new
             {
                 webhookHealthy = true,
-                lastWebhookReceived = DateTime.UtcNow.AddMinutes(-5),
-                webhooksProcessedToday = 0,
-                failedWebhooksToday = 0,
+                lastWebhookReceived = DateTime.UtcNow.AddHours(-1),
                 recentEvents = new List<object>(),
-                statusMessage = "Webhook monitoring not yet fully implemented"
+                statusMessage = "Webhook monitoring not yet implemented"
             };
 
             return new JsonModel
             {
                 data = status,
-                Message = "Webhook status retrieved successfully",
-                StatusCode = 200
+                Message = "Webhook status feature not yet implemented",
+                StatusCode = 501
             };
         }
         catch (Exception ex)

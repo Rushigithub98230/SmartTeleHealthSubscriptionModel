@@ -15,7 +15,6 @@ namespace SmartTelehealth.Application.Interfaces
         // Missing methods from controllers
         Task<JsonModel> GetActiveSubscriptionsAsync(int page, int pageSize, string? searchTerm, string[]? planId, string[]? userId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
         Task<JsonModel> GetSubscriptionByIdAsync(string subscriptionId, TokenModel tokenModel);
-        Task<JsonModel> GetBillingHistoryAsync(string subscriptionId, TokenModel tokenModel);
         Task<JsonModel> ProcessPaymentAsync(string subscriptionId, PaymentRequestDto paymentRequest, TokenModel tokenModel);
         Task<JsonModel> GetUsageStatisticsAsync(string subscriptionId, TokenModel tokenModel);
         Task<JsonModel> GetAllSubscriptionsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? planId, string[]? userId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
@@ -46,6 +45,11 @@ namespace SmartTelehealth.Application.Interfaces
         
         // Comprehensive filtering method
         Task<JsonModel> GetSubscriptionsWithFilteringAsync(SubscriptionFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false);
+        
+        // Analytics methods for real-time metrics
+        Task<int> GetActiveSubscriptionsCountAsync();
+        Task<int> GetNewSubscriptionsCountAsync(DateTime date);
+        Task<int> GetTrialsEndingCountAsync(int days);
         
     // Purchase additional privilege credits with upfront payment
     Task<JsonModel> PurchaseAdditionalCreditsAsync(Guid subscriptionId, PurchaseAdditionalCreditsDto dto, TokenModel tokenModel);

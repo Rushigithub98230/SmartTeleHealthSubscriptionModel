@@ -21,6 +21,7 @@ public class SubscriptionsController : BaseController
     private readonly ISubscriptionLifecycleService _subscriptionLifecycleService;
     private readonly ISubscriptionPlanService _subscriptionPlanService;
     private readonly IPrivilegeService _privilegeService;
+    private readonly ISubscriptionBillingService _subscriptionBillingService;
     
 
     /// <summary>
@@ -30,12 +31,14 @@ public class SubscriptionsController : BaseController
     /// <param name="subscriptionLifecycleService">Service for handling subscription lifecycle operations</param>
     /// <param name="subscriptionPlanService">Service for handling subscription plan-related business logic</param>
     /// <param name="privilegeService">Service for privilege management operations</param>
-    public SubscriptionsController(ISubscriptionService subscriptionService, ISubscriptionLifecycleService subscriptionLifecycleService, ISubscriptionPlanService subscriptionPlanService, IPrivilegeService privilegeService)
+    /// <param name="subscriptionBillingService">Service for subscription billing operations</param>
+    public SubscriptionsController(ISubscriptionService subscriptionService, ISubscriptionLifecycleService subscriptionLifecycleService, ISubscriptionPlanService subscriptionPlanService, IPrivilegeService privilegeService, ISubscriptionBillingService subscriptionBillingService)
     {
         _subscriptionService = subscriptionService;
         _subscriptionLifecycleService = subscriptionLifecycleService;
         _subscriptionPlanService = subscriptionPlanService;
         _privilegeService = privilegeService;
+        _subscriptionBillingService = subscriptionBillingService;
     }
 
     /// <summary>
@@ -364,11 +367,13 @@ public class SubscriptionsController : BaseController
     /// - Shows failed payments, refunds, and adjustments
     /// - Provides financial audit trail for the subscription
     /// - Access restricted to subscription owner or admins
+    /// - Uses SubscriptionBillingService directly for proper separation of concerns
     /// </remarks>
     [HttpGet("{id}/billing-history")]
     public async Task<JsonModel> GetBillingHistory(string id)
     {
-        return await _subscriptionService.GetBillingHistoryAsync(id, GetToken(HttpContext));
+        // Use SubscriptionBillingService directly instead of deprecated SubscriptionService method
+        return await _subscriptionBillingService.GetSubscriptionBillingHistoryAsync(Guid.Parse(id), GetToken(HttpContext));
     }
 
     /// <summary>

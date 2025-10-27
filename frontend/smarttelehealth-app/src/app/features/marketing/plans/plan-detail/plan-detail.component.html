@@ -35,27 +35,18 @@
         <div class="card price-card sticky-top" style="top: 20px;">
           <div class="card-body text-center">
             <h2 class="price-amount text-primary mb-1">
-              ${{getCalculatedPrice() | number:'1.2-2'}}
+              ${{getPlanPrice() | number:'1.2-2'}}
             </h2>
             <p class="text-muted mb-4">
-              for {{billingCycles[selectedCycleIndex].months}} 
-              {{billingCycles[selectedCycleIndex].months === 1 ? 'month' : 'months'}}
+              per {{plan && plan.billingCycleName ? plan.billingCycleName.toLowerCase() : 'billing cycle'}}
             </p>
 
-            <!-- Billing Cycle Selection -->
-            <div class="btn-group-vertical w-100 mb-4">
-              <button 
-                *ngFor="let cycle of billingCycles; let i = index"
-                class="btn text-start"
-                [ngClass]="selectedCycleIndex === i ? 'btn-primary' : 'btn-outline-primary'"
-                (click)="selectCycle(i)">
-                <div class="d-flex justify-content-between">
-                  <span>{{cycle.name}}</span>
-                  <span *ngIf="cycle.discount > 0" class="badge bg-success">
-                    {{cycle.discount}}% off
-                  </span>
-                </div>
-              </button>
+            <!-- Fixed Billing Cycle Information -->
+            <div class="alert alert-info mb-4">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Fixed Billing Cycle:</strong> {{plan.billingCycleName}}
+              <br>
+              <small>This plan has a fixed billing cycle of {{plan.billingCycleDurationInDays}} days</small>
             </div>
 
             <button class="btn btn-success btn-lg w-100 mb-3" (click)="purchasePlan()">
@@ -110,15 +101,15 @@
                 <ul class="list-unstyled">
                   <li class="mb-2">
                     <i class="bi bi-cash me-2 text-primary"></i>
-                    Monthly: ${{plan.price | number:'1.2-2'}}
+                    {{plan.billingCycleName}}: ${{plan.basePrice || plan.price | number:'1.2-2'}}
                   </li>
-                  <li class="mb-2" *ngIf="plan.quarterlyBillingDiscount">
+                  <li class="mb-2" *ngIf="(plan.billingDiscountPercentage || plan.billingDiscount || 0) > 0">
                     <i class="bi bi-percent me-2 text-success"></i>
-                    Quarterly discount: {{plan.quarterlyBillingDiscount}}%
+                    Billing discount: {{plan.billingDiscountPercentage || plan.billingDiscount || 0}}%
                   </li>
-                  <li class="mb-2" *ngIf="plan.annualBillingDiscount">
-                    <i class="bi bi-percent me-2 text-success"></i>
-                    Annual discount: {{plan.annualBillingDiscount}}%
+                  <li class="mb-2">
+                    <i class="bi bi-calendar me-2 text-info"></i>
+                    Billing cycle: {{plan.billingCycleDurationInDays}} days
                   </li>
                 </ul>
               </div>

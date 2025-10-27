@@ -1,8 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { SubscriptionPlanService, CategoryService } from '../../../../core/services';
+import { SubscriptionPlanService, CategoryService, AuthService } from '../../../../core/services';
 import { SubscriptionPlanDto, CategoryDto } from '../../../../core/models';
 
 /**
@@ -37,10 +37,13 @@ export class PlanListComponent implements OnInit {
 
   constructor(
     private planService: SubscriptionPlanService,
-    private categoryService: CategoryService
+    private categoryService: CategoryService,
+    private authService: AuthService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
+    console.log('🎯 [PLAN-LIST] Component initialized');
     this.loadCategories();
     this.loadPlans();
   }
@@ -52,6 +55,26 @@ export class PlanListComponent implements OnInit {
     // Since we don't have access to privilege details in marketing view,
     // return a generic name
     return 'Privilege';
+  }
+
+  /**
+   * Handle plan purchase - redirect to appropriate flow
+   */
+  purchasePlan(planId: string): void {
+    console.log('🛒 [PLAN-LIST] Purchase button clicked for plan:', planId);
+    console.log('🔐 [PLAN-LIST] User authenticated:', this.authService.isAuthenticated());
+    
+    if (this.authService.isAuthenticated()) {
+      // User is authenticated - go directly to purchase flow
+      console.log('✅ [PLAN-LIST] User authenticated - redirecting to purchase flow');
+      this.router.navigate(['/web/subscriptions/purchase', planId]);
+    } else {
+      // User is not authenticated - redirect to registration
+      console.log('📝 [PLAN-LIST] User not authenticated - redirecting to registration');
+      this.router.navigate(['/web/register'], { 
+        queryParams: { planId: planId, redirect: 'purchase' } 
+      });
+    }
   }
 
   /**
@@ -74,6 +97,13 @@ export class PlanListComponent implements OnInit {
    * API: GET /api/SubscriptionPlans/active
    */
   loadPlans(): void {
+    console.log('📋 [PLAN-LIST] Loading plans with filters:', {
+      page: this.currentPage,
+      pageSize: this.pageSize,
+      searchTerm: this.searchTerm,
+      categoryId: this.selectedCategoryId
+    });
+    
     this.loading = true;
     
     this.planService.getActivePlans(
@@ -83,6 +113,12 @@ export class PlanListComponent implements OnInit {
       this.selectedCategoryId || undefined
     ).subscribe({
       next: (response) => {
+        console.log('✅ [PLAN-LIST] Plans loaded successfully:', {
+          statusCode: response.statusCode,
+          planCount: response.data?.length || 0,
+          totalRecords: response.meta?.totalRecords || 0
+        });
+        
         if (response.statusCode === 200) {
           this.plans = response.data;
           
@@ -94,7 +130,7 @@ export class PlanListComponent implements OnInit {
         this.loading = false;
       },
       error: (error) => {
-        console.error('Error loading plans:', error);
+        console.error('❌ [PLAN-LIST] Error loading plans:', error);
         this.loading = false;
       }
     });
@@ -128,10 +164,14 @@ export class PlanListComponent implements OnInit {
   /**
    * Calculate savings for annual billing
    */
-  getAnnualSavings(plan: SubscriptionPlanDto): number {
-    const monthlyTotal = plan.price * 12;
-    const annualPrice = monthlyTotal * (1 - plan.annualBillingDiscount / 100);
-    return monthlyTotal - annualPrice;
+  getSavings(plan: SubscriptionPlanDto): number {
+    // NEW ARCHITECTURE: Each plan has a single billing discount for its specific billing cycle
+    const billingDiscount = plan.billingDiscountPercentage || plan.billingDiscount;
+    if (!billingDiscount || billingDiscount <= 0) return 0;
+    
+    const basePrice = plan.basePrice || plan.price || 0;
+    const discountAmount = basePrice * (billingDiscount / 100);
+    return discountAmount;
   }
 }
 

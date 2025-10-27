@@ -20,7 +20,7 @@ import { CommonService, ApiResponse } from './common.service';
   providedIn: 'root'
 })
 export class StripeSyncService {
-  private readonly baseUrl = 'api/admin/AdminStripeSync';
+  private readonly baseUrl = 'admin/AdminStripeSync';
 
   constructor(private commonService: CommonService) {}
 

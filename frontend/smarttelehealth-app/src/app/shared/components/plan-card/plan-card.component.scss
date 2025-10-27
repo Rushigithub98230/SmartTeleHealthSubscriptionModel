@@ -1,0 +1,260 @@
+.plan-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  position: relative;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  &.featured {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  }
+
+  &.most-popular {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    transform: scale(1.05);
+    
+    &:hover {
+      transform: scale(1.05) translateY(-4px);
+    }
+  }
+}
+
+.plan-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.plan-badges {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &.most-popular {
+    background: #10b981;
+    color: white;
+  }
+
+  &.trending {
+    background: #f59e0b;
+    color: white;
+  }
+
+  &.featured {
+    background: #3b82f6;
+    color: white;
+  }
+}
+
+.plan-name {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.plan-description {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.pricing-section {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.discount-badge {
+  background: #ef4444;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  display: inline-block;
+  margin-bottom: 16px;
+  font-weight: 600;
+  font-size: 14px;
+
+  .discount-percentage {
+    display: block;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .discount-status {
+    display: block;
+    font-size: 12px;
+    opacity: 0.9;
+  }
+}
+
+.price-display {
+  margin-bottom: 8px;
+}
+
+.original-price {
+  font-size: 18px;
+  color: #9ca3af;
+  text-decoration: line-through;
+  margin-bottom: 4px;
+}
+
+.effective-price {
+  font-size: 36px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.billing-cycle {
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.discount-amount {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.trial-info {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.trial-badge {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  i {
+    font-size: 16px;
+  }
+}
+
+.features-section {
+  margin-bottom: 24px;
+
+  h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0 0 16px 0;
+  }
+}
+
+.features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    color: #4b5563;
+    font-size: 14px;
+
+    i {
+      color: #10b981;
+      width: 16px;
+      text-align: center;
+    }
+  }
+}
+
+.plan-actions {
+  margin-bottom: 16px;
+}
+
+.btn {
+  width: 100%;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &.btn-primary {
+    background: #3b82f6;
+    color: white;
+
+    &:hover {
+      background: #2563eb;
+    }
+  }
+
+  &.btn-block {
+    display: block;
+  }
+}
+
+.discount-warning {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  i {
+    font-size: 16px;
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .plan-card {
+    padding: 20px;
+  }
+
+  .plan-name {
+    font-size: 20px;
+  }
+
+  .effective-price {
+    font-size: 28px;
+  }
+}
+
+.plan-card.most-popular {
+  transform: none;
+  
+  &:hover {
+    transform: translateY(-4px);
+  }
+}
+

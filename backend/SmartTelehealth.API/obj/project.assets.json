@@ -3642,7 +3642,8 @@
           "Microsoft.Extensions.Configuration.Abstractions": "8.0.0",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.0",
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
-          "SmartTelehealth.Core": "1.0.0"
+          "SmartTelehealth.Core": "1.0.0",
+          "Stripe.net": "45.0.0"
         },
         "compile": {
           "bin/placeholder/SmartTelehealth.Application.dll": {}

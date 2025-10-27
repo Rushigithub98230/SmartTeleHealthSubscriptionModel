@@ -1009,6 +1009,63 @@ public class UserService : IUserService
                 ? (int)(DateTime.UtcNow - user.CreatedDate.Value).TotalDays 
                 : 0;
 
+            // Build detailed subscription history
+            var subscriptionHistory = allSubscriptions.Select(s => new SubscriptionHistoryDto
+            {
+                Id = s.Id,
+                PlanName = s.SubscriptionPlan?.Name ?? "Unknown",
+                StartDate = s.StartDate,
+                EndDate = s.EndDate,
+                Status = s.Status,
+                BillingCycle = s.SubscriptionPlan?.BillingCycle?.Name ?? "Unknown",
+                Price = s.CurrentPrice,
+                IsActive = s.IsSubscriptionActive
+            }).OrderByDescending(s => s.StartDate).ToList();
+
+            // Build privilege usage history
+            var privilegeUsageHistory = new List<PrivilegeUsageHistoryDto>();
+            if (currentSubscription != null)
+            {
+                var usages = await _subscriptionRepository.GetUserSubscriptionPrivilegeUsagesAsync(currentSubscription.Id);
+                privilegeUsageHistory = usages.Select(u => new PrivilegeUsageHistoryDto
+                {
+                    PrivilegeId = u.PrivilegeId,
+                    PrivilegeName = u.Privilege?.Name ?? "Unknown",
+                    UsedValue = u.UsedValue,
+                    LimitValue = u.AllowedValue,
+                    UsagePercentage = u.UsagePercentage,
+                    UsedAt = u.LastUsedAt ?? DateTime.UtcNow,
+                    IsOverage = u.IsExhausted,
+                    OverageAmount = u.IsExhausted ? (u.UsedValue - u.AllowedValue) * 1.0m : 0 // Placeholder calculation
+                }).OrderByDescending(u => u.UsedAt).ToList();
+            }
+
+            // Build upcoming renewals
+            var upcomingRenewals = activeSubscriptions
+                .Where(s => s.NextBillingDate > DateTime.UtcNow)
+                .Select(s => new UpcomingRenewalDto
+                {
+                    SubscriptionId = s.Id,
+                    PlanName = s.SubscriptionPlan?.Name ?? "Unknown",
+                    RenewalDate = s.NextBillingDate,
+                    Amount = s.CurrentPrice,
+                    AutoRenew = s.AutoRenew,
+                    DaysUntilRenewal = (int)(s.NextBillingDate - DateTime.UtcNow).TotalDays
+                }).OrderBy(r => r.RenewalDate).ToList();
+
+            // Build invoice summary
+            var invoices = billingRecords
+                .Where(b => !string.IsNullOrEmpty(b.InvoiceNumber))
+                .Select(b => new InvoiceSummaryDto
+                {
+                    InvoiceNumber = b.InvoiceNumber,
+                    Date = b.BillingDate,
+                    Amount = b.TotalAmount,
+                    Status = b.Status.ToString(),
+                    DueDate = b.DueDate,
+                    PaidAt = b.PaidAt
+                }).OrderByDescending(i => i.Date).ToList();
+
             // Build analytics DTO
             var analytics = new UserAnalyticsDto
             {
@@ -1048,7 +1105,13 @@ public class UserService : IUserService
                 LastLoginDate = user.LastLoginAt,
                 LastActivityDate = user.LastLoginAt, // Can be enhanced with more activity tracking
                 AccountAgeDays = accountAgeDays,
-                IsActiveAccount = user.IsActive
+                IsActiveAccount = user.IsActive,
+
+                // Enhanced Analytics - Detailed Timeline and History
+                SubscriptionHistory = subscriptionHistory,
+                PrivilegeUsageHistory = privilegeUsageHistory,
+                UpcomingRenewals = upcomingRenewals,
+                Invoices = invoices
             };
 
             return new JsonModel 

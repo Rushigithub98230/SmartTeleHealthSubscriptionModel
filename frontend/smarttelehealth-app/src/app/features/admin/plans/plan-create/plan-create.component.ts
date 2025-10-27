@@ -48,6 +48,7 @@ export class PlanCreateComponent implements OnInit {
   // Forms for each step
   basicInfoForm!: FormGroup;
   billingForm!: FormGroup;
+  privilegeForm!: FormGroup;
 
   // Data
   categories: CategoryDto[] = [];
@@ -61,6 +62,7 @@ export class PlanCreateComponent implements OnInit {
   creating = false;
   loadingCycles = false;
   error: string | null = null;
+  selectedPrivilegeToAdd: PrivilegeDto | null = null;
 
   constructor(
     private fb: FormBuilder,
@@ -88,7 +90,7 @@ export class PlanCreateComponent implements OnInit {
       name: ['', [Validators.required, Validators.maxLength(100)]],
       description: ['', Validators.maxLength(500)],
       shortDescription: ['', Validators.maxLength(200)],
-      price: [0, [Validators.required, Validators.min(0.01)]],
+      price: [0, [Validators.required, Validators.min(0)]],
       categoryId: ['', Validators.required],
       billingCycleId: ['', Validators.required],  // Dynamic selection
       currencyId: ['', Validators.required],      // Dynamic selection
@@ -98,14 +100,26 @@ export class PlanCreateComponent implements OnInit {
       isMostPopular: [false],
       isTrending: [false],                        // ✅ ADDED
       displayOrder: [0],
-      isActive: [true]
+      isActive: [true],
+      // Plan features
+      messagingCount: [10],
+      includesMedicationDelivery: [true],
+      includesFollowUpCare: [true],
+      deliveryFrequencyDays: [30],
+      maxPauseDurationDays: [90],
+      maxConcurrentUsers: [1],
+      gracePeriodDays: [0]
+    });
+
+    // Step 2: Privileges Form (for stepper validation)
+    this.privilegeForm = this.fb.group({
+      // This form is mainly for stepper validation
+      // Actual privilege data is managed in selectedPrivileges array
     });
 
     // Step 3: Billing & Discounts Form
     this.billingForm = this.fb.group({
-      monthlyBillingDiscount: [0, [Validators.min(0), Validators.max(100)]],
-      quarterlyBillingDiscount: [5, [Validators.min(0), Validators.max(100)]],
-      annualBillingDiscount: [15, [Validators.min(0), Validators.max(100)]],
+      billingDiscount: [0, [Validators.min(0), Validators.max(100)]], // ✅ Single discount field
       isAutoCalculatedPrice: [true],
       adminCommissionPercent: [10, [Validators.min(0), Validators.max(100)]],
       priceChangeNoticeDays: [10]
@@ -237,18 +251,18 @@ export class PlanCreateComponent implements OnInit {
   /**
    * Add privilege to plan
    * Sets Value (total count) as main field
-   * Time-based limits removed from backend - only total count matters
+   * All costs default to 0 and must be explicitly set by admin
    */
   addPrivilege(privilege: PrivilegeDto): void {
     const planPrivilege: PlanPrivilegeDto = {
       privilegeId: privilege.id,
       
-      // MAIN ALLOCATION (Required)
-      value: 50,                      // Total count for billing period
+      // MAIN ALLOCATION (Required) - Use sensible defaults based on privilege type
+      value: this.getDefaultValueForPrivilege(privilege),
       
-      // PRICING
-      privilegeBaseCost: 5,           // Unit cost for plan price calculation
-      unitCost: 10,                   // Overage price per unit
+      // PRICING - Default to 0, admin must explicitly set costs
+      privilegeBaseCost: 0,           // ✅ Default to 0 - admin must set explicitly
+      unitCost: 0,                    // ✅ Default to 0 - admin must set explicitly
       
       // OTHER
       durationMonths: 1,
@@ -259,7 +273,7 @@ export class PlanCreateComponent implements OnInit {
 
     this.selectedPrivileges.push(planPrivilege);
     this.onPrivilegeValueChange(); // Recalculate price
-    console.log('✅ Added privilege - Total count:', planPrivilege.value);
+    console.log('✅ Added privilege - Total count:', planPrivilege.value, 'Base cost:', planPrivilege.privilegeBaseCost);
   }
 
   /**
@@ -306,6 +320,34 @@ export class PlanCreateComponent implements OnInit {
   }
 
   /**
+   * Handle privilege selection change
+   */
+  onPrivilegeSelectionChange(event: any): void {
+    this.selectedPrivilegeToAdd = event.value;
+  }
+
+  /**
+   * Get category name by ID
+   */
+  getCategoryName(categoryId: string): string {
+    const category = this.categories.find(c => c.id === categoryId);
+    return category?.name || 'Unknown Category';
+  }
+
+  /**
+   * Get currency name by ID
+   */
+  getCurrencyName(currencyId: string): string {
+    const currency = this.currencies.find(c => c.id === currencyId);
+    return currency ? `${currency.code} - ${currency.name}` : 'Unknown Currency';
+  }
+
+  getBillingCycleName(billingCycleId: string): string {
+    const cycle = this.billingCycles.find(c => c.id === billingCycleId);
+    return cycle ? cycle.name : 'Unknown';
+  }
+
+  /**
    * Submit plan creation
    * API: POST /api/SubscriptionPlans/admin
    */
@@ -332,21 +374,39 @@ export class PlanCreateComponent implements OnInit {
       return;
     }
 
+    // ✅ Validate that all privileges have explicit costs set
+    const privilegesWithMissingCosts = this.selectedPrivileges.filter(p => 
+      p.privilegeBaseCost === undefined || p.privilegeBaseCost === null || p.privilegeBaseCost < 0
+    );
+
+    if (privilegesWithMissingCosts.length > 0) {
+      this.error = 'Please set explicit costs for all privileges. All costs must be explicitly entered (use 0 if no cost) and cannot be negative.';
+      console.error('❌ Privileges with missing or invalid costs:', privilegesWithMissingCosts);
+      return;
+    }
+
+    // ✅ Validate that all privileges have explicit unit costs set
+    const privilegesWithMissingUnitCosts = this.selectedPrivileges.filter(p => 
+      p.unitCost === undefined || p.unitCost === null || p.unitCost < 0
+    );
+
+    if (privilegesWithMissingUnitCosts.length > 0) {
+      this.error = 'Please set explicit unit costs for all privileges. All costs must be explicitly entered (use 0 if no cost) and cannot be negative.';
+      console.error('❌ Privileges with missing unit costs:', privilegesWithMissingUnitCosts);
+      return;
+    }
+
     this.creating = true;
     this.error = null;
 
     const dto: CreateSubscriptionPlanDto = {
       ...this.basicInfoForm.value,
-      ...this.billingForm.value,
-      privileges: this.selectedPrivileges,
-      // Plan features with defaults
-      messagingCount: 10,
-      includesMedicationDelivery: true,
-      includesFollowUpCare: true,
-      deliveryFrequencyDays: 30,
-      maxPauseDurationDays: 90,
-      maxConcurrentUsers: 1,
-      gracePeriodDays: 0
+      // ✅ Use correct field name to match backend DTO
+      billingDiscountPercentage: this.billingForm.value.billingDiscount,
+      isAutoCalculatedPrice: this.billingForm.value.isAutoCalculatedPrice,
+      adminCommissionPercent: this.billingForm.value.adminCommissionPercent,
+      priceChangeNoticeDays: this.billingForm.value.priceChangeNoticeDays,
+      privileges: this.selectedPrivileges
     };
 
     // ✅ NEW: Log DTO for debugging
@@ -358,10 +418,12 @@ export class PlanCreateComponent implements OnInit {
         
         if (response.statusCode === 201 || response.statusCode === 200) {
           console.log('✅ Plan created successfully:', response.data);
+          alert('Plan created successfully!');
           // Success - navigate to plan list
           this.router.navigate(['/webadmin/plans']);
         } else {
           this.error = response.message || 'Failed to create plan';
+          alert(this.error);
           console.error('❌ API returned non-success:', response);
         }
       },
@@ -378,19 +440,26 @@ export class PlanCreateComponent implements OnInit {
         } else {
           this.error = error.error?.message || error.message || 'An error occurred while creating the plan';
         }
+        
+        alert(this.error);
       }
     });
   }
 
   /**
    * Calculate cost for a single privilege
+   * For unlimited privileges (-1), use the explicit base cost set by admin
+   * No automatic multiplication or special logic - admin must set explicit cost
    */
   calculatePrivilegeCost(priv: PlanPrivilegeDto): number {
     const value = priv.value || 0;
     const baseCost = priv.privilegeBaseCost || 0;
     
-    // For unlimited (-1), don't include in price calculation
-    if (value === -1) return 0;
+    // For unlimited (-1), use the explicit base cost set by admin
+    if (value === -1) {
+      // ✅ Use explicit base cost - no automatic multiplication
+      return baseCost;
+    }
     
     return value * baseCost;
   }
@@ -414,12 +483,19 @@ export class PlanCreateComponent implements OnInit {
   }
 
   /**
-   * Calculate final plan price with commission
+   * Calculate final plan price with commission and discount
    */
   calculateFinalPrice(): number {
     const privilegeCost = this.calculateTotalPrivilegeCost();
     const commission = this.calculateCommission();
-    return privilegeCost + commission;
+    
+    // Apply discount if provided by admin
+    const discountPercent = this.billingForm.value.billingDiscount || 0;
+    const priceBeforeDiscount = privilegeCost + commission;
+    const discountAmount = priceBeforeDiscount * (discountPercent / 100);
+    const finalPrice = priceBeforeDiscount - discountAmount;
+    
+    return finalPrice;
   }
 
   /**
@@ -455,11 +531,52 @@ export class PlanCreateComponent implements OnInit {
   }
 
   /**
-   * Get category name by ID for display
+   * Get default value for privilege based on privilege type
    */
-  getCategoryName(categoryId: string): string {
-    const category = this.categories.find(c => c.id === categoryId);
-    return category?.name || 'Unknown';
+  getDefaultValueForPrivilege(privilege: PrivilegeDto): number {
+    // Set sensible defaults based on privilege name/type
+    const privilegeName = privilege.name?.toLowerCase() || '';
+    
+    if (privilegeName.includes('consultation') || privilegeName.includes('appointment')) {
+      return 5; // 5 consultations per month
+    } else if (privilegeName.includes('message') || privilegeName.includes('chat')) {
+      return 50; // 50 messages per month
+    } else if (privilegeName.includes('prescription') || privilegeName.includes('medication')) {
+      return 3; // 3 prescriptions per month
+    } else if (privilegeName.includes('video') || privilegeName.includes('call')) {
+      return 10; // 10 video calls per month
+    } else if (privilegeName.includes('unlimited')) {
+      return -1; // Unlimited
+    } else {
+      return 10; // Default to 10 for other privileges
+    }
   }
+
+  /**
+   * Get selected billing cycle name for display
+   */
+  getSelectedBillingCycleName(): string {
+    const billingCycleId = this.basicInfoForm.value.billingCycleId;
+    const selectedCycle = this.billingCycles.find(c => c.id === billingCycleId);
+    return selectedCycle?.name || 'Unknown';
+  }
+
+  /**
+   * Get help text for discount field based on selected billing cycle
+   */
+  getDiscountHelpText(): string {
+    const cycleName = this.getSelectedBillingCycleName().toLowerCase();
+    switch (cycleName) {
+      case 'monthly':
+        return 'Set discount percentage for monthly billing (0% = no discount)';
+      case 'quarterly':
+        return 'Set discount percentage for quarterly billing (e.g., 5% for quarterly plans)';
+      case 'annual':
+        return 'Set discount percentage for annual billing (e.g., 15% for annual plans)';
+      default:
+        return 'Set discount percentage for this billing cycle';
+    }
+  }
+
 }
 

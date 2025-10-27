@@ -11,9 +11,7 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     // Custom methods with different names to avoid overriding base methods
     Task<Subscription?> GetByIdWithDetailsAsync(Guid id);
     Task<IEnumerable<Subscription>> GetAllWithDetailsAsync();
-    Task<Subscription> CreateSubscriptionAsync(Subscription subscription);
-    Task<Subscription> UpdateSubscriptionAsync(Subscription subscription);
-    Task<bool> DeleteSubscriptionAsync(Guid id);
+    // Note: CreateAsync, UpdateAsync, DeleteAsync are inherited from IRepositoryBase<Subscription>
     Task<bool> ExistsSubscriptionAsync(Guid id);
     
     // Subscription-specific methods
@@ -95,4 +93,8 @@ public interface ISubscriptionRepository : IRepositoryBase<Subscription>
     Task<IEnumerable<BillingRecord>> GetBillingRecordsByUserIdAsync(int userId);
     Task<IEnumerable<SubscriptionPayment>> GetPaymentsByUserIdAsync(int userId);
     Task<IEnumerable<UserSubscriptionPrivilegeUsage>> GetUserSubscriptionPrivilegeUsagesAsync(Guid subscriptionId);
+    
+    // Additional analytics methods
+    Task<int> GetNewSubscriptionsCountAsync(DateTime startDate, DateTime endDate);
+    Task<int> GetTrialsEndingCountAsync(DateTime endDate);
 } 
