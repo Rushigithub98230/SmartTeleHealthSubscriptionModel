@@ -80,24 +80,52 @@
               </div>
               <div class="row">
                 <div class="col-md-4 mb-3">
-                  <label class="form-label">Monthly Price <span class="text-danger">*</span></label>
+                  <label class="form-label">Base Price <span class="text-danger">*</span></label>
                   <div class="input-group">
                     <span class="input-group-text">$</span>
-                    <input type="number" class="form-control" formControlName="price" step="0.01">
+                    <input type="number" class="form-control" formControlName="basePrice" step="0.01">
                   </div>
                 </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Billing Cycle <span class="text-danger">*</span></label>
+                  <select class="form-select" formControlName="billingCycleId">
+                    <option value="">Select Billing Cycle</option>
+                    <option *ngFor="let cycle of billingCycles" [value]="cycle.id">{{cycle.name}}</option>
+                  </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Currency <span class="text-danger">*</span></label>
+                  <select class="form-select" formControlName="currencyId">
+                    <option value="">Select Currency</option>
+                    <option *ngFor="let currency of currencies" [value]="currency.id">{{currency.code}} - {{currency.name}}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
                 <div class="col-md-4 mb-3">
                   <label class="form-label">Display Order</label>
                   <input type="number" class="form-control" formControlName="displayOrder">
                 </div>
-                <div class="col-md-4">
-                  <div class="form-check mt-4">
-                    <input type="checkbox" class="form-check-input" formControlName="isActive" id="isActive">
-                    <label class="form-check-label" for="isActive">Active</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="form-check-input" formControlName="isMostPopular" id="isMostPopular">
-                    <label class="form-check-label" for="isMostPopular">Most Popular</label>
+                <div class="col-md-8">
+                  <div class="row">
+                    <div class="col-md-4">
+                      <div class="form-check mt-4">
+                        <input type="checkbox" class="form-check-input" formControlName="isActive" id="isActive">
+                        <label class="form-check-label" for="isActive">Active</label>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="form-check mt-4">
+                        <input type="checkbox" class="form-check-input" formControlName="isMostPopular" id="isMostPopular">
+                        <label class="form-check-label" for="isMostPopular">Most Popular</label>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="form-check mt-4">
+                        <input type="checkbox" class="form-check-input" formControlName="isTrending" id="isTrending">
+                        <label class="form-check-label" for="isTrending">Trending</label>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -161,15 +189,104 @@
             </div>
           </div>
 
-          <!-- STEP 3: Billing (same as create) -->
+          <!-- STEP 3: Billing & Pricing (same as create) -->
           <div *ngIf="currentStep === 3" class="step-content">
-            <h4 class="mb-4">Step 3: Billing Cycle Discounts</h4>
+            <h4 class="mb-4">Step 3: Billing & Pricing</h4>
             <form [formGroup]="billingForm">
               <div class="row">
+                <!-- Promotional Discount -->
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Billing Discount (%)</label>
-                  <input type="number" class="form-control" formControlName="billingDiscount" min="0" max="100">
-                  <small class="form-text text-muted">Discount for this billing cycle (0-100%)</small>
+                  <label for="discountPercentage" class="form-label">Promotional Discount (%)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      id="discountPercentage"
+                      class="form-control" 
+                      [class.is-invalid]="billingForm.get('discountPercentage')?.invalid && billingForm.get('discountPercentage')?.touched"
+                      formControlName="discountPercentage"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="0">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text">Promotional discount percentage (applied first)</div>
+                </div>
+
+                <!-- Promotional Discount Expiry -->
+                <div class="col-md-6 mb-3">
+                  <label for="discountValidUntil" class="form-label">Promotional Discount Valid Until</label>
+                  <input 
+                    type="date" 
+                    id="discountValidUntil"
+                    class="form-control" 
+                    formControlName="discountValidUntil">
+                  <div class="form-text">Leave empty for no expiration</div>
+                </div>
+
+                <!-- Billing Discount -->
+                <div class="col-md-6 mb-3">
+                  <label for="billingDiscountPercentage" class="form-label">Billing Discount (%)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      id="billingDiscountPercentage"
+                      class="form-control" 
+                      [class.is-invalid]="billingForm.get('billingDiscountPercentage')?.invalid && billingForm.get('billingDiscountPercentage')?.touched"
+                      formControlName="billingDiscountPercentage"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="0">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text">Billing cycle discount percentage (applied after promotional)</div>
+                </div>
+
+                <!-- Admin Commission -->
+                <div class="col-md-6 mb-3">
+                  <label for="adminCommissionPercent" class="form-label">Admin Commission (%)</label>
+                  <div class="input-group">
+                    <input 
+                      type="number" 
+                      id="adminCommissionPercent"
+                      class="form-control" 
+                      formControlName="adminCommissionPercent"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="10">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text">Admin commission percentage</div>
+                </div>
+
+                <!-- Price Change Notice -->
+                <div class="col-md-6 mb-3">
+                  <label for="priceChangeNoticeDays" class="form-label">Price Change Notice (Days)</label>
+                  <input 
+                    type="number" 
+                    id="priceChangeNoticeDays"
+                    class="form-control" 
+                    formControlName="priceChangeNoticeDays"
+                    min="0"
+                    placeholder="10">
+                  <div class="form-text">Days notice before price changes take effect</div>
+                </div>
+
+                <!-- Auto Calculated Price -->
+                <div class="col-md-6 mb-3">
+                  <div class="form-check mt-4">
+                    <input 
+                      type="checkbox" 
+                      class="form-check-input" 
+                      id="isAutoCalculatedPrice"
+                      formControlName="isAutoCalculatedPrice">
+                    <label class="form-check-label" for="isAutoCalculatedPrice">
+                      Auto Calculated Price
+                    </label>
+                  </div>
+                  <div class="form-text">Calculate price automatically from privileges + commission - discounts</div>
                 </div>
               </div>
             </form>

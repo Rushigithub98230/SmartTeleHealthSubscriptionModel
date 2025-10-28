@@ -61,10 +61,13 @@ export class PlanListAdminComponent implements OnInit {
     this.categoryService.getAllCategories().subscribe({
       next: (response) => {
         if (response.statusCode === 200) {
-          this.categories = response.data;
+          this.categories = response.data || [];
         }
       },
-      error: (error) => console.error('Error loading categories:', error)
+      error: (error) => {
+        console.error('Error loading categories:', error);
+        this.categories = [];
+      }
     });
   }
 
@@ -79,7 +82,14 @@ export class PlanListAdminComponent implements OnInit {
     this.planService.getAllPlansAdmin(this.currentPage, this.pageSize).subscribe({
       next: (response) => {
         if (response.statusCode === 200) {
-          this.plans = this.filterPlans(response.data);
+          // Ensure planPrivileges is initialized for each plan
+          const plans = response.data || [];
+          plans.forEach(plan => {
+            if (!plan.planPrivileges) {
+              plan.planPrivileges = [];
+            }
+          });
+          this.plans = this.filterPlans(plans);
           
           if (response.meta) {
             this.totalRecords = response.meta.totalRecords;
@@ -151,6 +161,33 @@ export class PlanListAdminComponent implements OnInit {
           this.loadPlans(); // Reload to reflect changes
         } else {
           alert(response.message || 'Failed to deactivate plan');
+        }
+        this.actionLoading = false;
+      },
+      error: (error) => {
+        alert(error.message || 'An error occurred');
+        this.actionLoading = false;
+      }
+    });
+  }
+
+  /**
+   * Reactivate plan
+   * API: POST /api/SubscriptionPlans/{id}/reactivate
+   */
+  reactivatePlan(planId: string): void {
+    if (!confirm('Are you sure you want to reactivate this plan?')) {
+      return;
+    }
+
+    this.actionLoading = true;
+
+    this.planService.reactivatePlan(planId).subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          this.loadPlans(); // Reload to reflect changes
+        } else {
+          alert(response.message || 'Failed to reactivate plan');
         }
         this.actionLoading = false;
       },

@@ -323,22 +323,34 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
 
     private async Task<object> CalculateChurnMetricsAsync(IEnumerable<Subscription> subscriptions, DateTime start, DateTime end)
     {
-        var cancelledInPeriod = subscriptions.Count(s => s.Status == "Cancelled" && s.CancelledDate >= start && s.CancelledDate <= end);
-        var totalAtStart = subscriptions.Count(s => s.StartDate <= start);
-        var churnRate = totalAtStart > 0 ? (double)cancelledInPeriod / totalAtStart * 100 : 0;
+        // Correct churn calculation: cancelled in period / active at start of period
+        var activeAtStart = subscriptions.Count(s => 
+            s.StartDate <= start && 
+            (s.CancelledDate == null || s.CancelledDate > start));
+            
+        var cancelledInPeriod = subscriptions.Count(s => 
+            s.Status == Subscription.SubscriptionStatuses.Cancelled.ToString() && 
+            s.CancelledDate.HasValue && 
+            s.CancelledDate >= start && 
+            s.CancelledDate <= end);
+            
+        var churnRate = activeAtStart > 0 ? (double)cancelledInPeriod / activeAtStart * 100 : 0;
 
         return new
         {
             ChurnRate = churnRate,
             CancelledSubscriptions = cancelledInPeriod,
-            TotalAtStart = totalAtStart
+            TotalAtStart = activeAtStart
         };
     }
 
     private async Task<object> CalculateGrowthMetricsAsync(IEnumerable<Subscription> subscriptions, DateTime start, DateTime end)
     {
         var newSubscriptions = subscriptions.Count(s => s.StartDate >= start && s.StartDate <= end);
-        var growthRate = start > DateTime.MinValue ? (double)newSubscriptions / start.Day * 100 : 0;
+        
+        // Calculate growth rate properly: (new subscriptions in period / total subscriptions at start) * 100
+        var totalAtStart = subscriptions.Count(s => s.StartDate <= start);
+        var growthRate = totalAtStart > 0 ? (double)newSubscriptions / totalAtStart * 100 : 0;
 
         return new
         {

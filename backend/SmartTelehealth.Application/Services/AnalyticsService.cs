@@ -90,6 +90,7 @@ public class AnalyticsService : IAnalyticsService
                 AverageRevenuePerUser = averageRevenuePerUser,
                 RevenueByCategory = revenueByCategory.Cast<SmartTelehealth.Core.DTOs.CategoryRevenueData>().ToList(),
                 RevenueTrend = revenueTrend.ToList(),
+                RevenueByPlan = await GetRevenueByPlanAsync(startDate, endDate, tokenModel),
                 Period = new DateRangeDto { StartDate = startDate, EndDate = endDate },
                 GeneratedAt = DateTime.UtcNow
             };
@@ -117,22 +118,46 @@ public class AnalyticsService : IAnalyticsService
         {
             _logger.LogInformation("Getting subscription analytics for period {StartDate} to {EndDate}", startDate, endDate);
 
+            // Input validation
+            if (tokenModel == null)
+            {
+                _logger.LogWarning("TokenModel is null");
+                return new JsonModel { data = new object(), Message = "Invalid token", StatusCode = 401 };
+            }
+
             // Collect data from subscription service
             var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
                 1, int.MaxValue, null, null, null, null, startDate, endDate, null, null, tokenModel);
 
-            var subscriptions = subscriptionsResult.data as dynamic;
-            if (subscriptions?.Data == null)
+            if (subscriptionsResult.StatusCode != 200 || subscriptionsResult.data == null)
             {
                 return new JsonModel { data = new object(), Message = "No subscription data available", StatusCode = 404 };
             }
 
-            var subscriptionData = subscriptions.Data.ToList();
-            var totalSubscriptions = subscriptionData.Count;
-            var activeSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "Active"));
-            var cancelledSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "Cancelled"));
-            var pausedSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "Paused"));
-            var trialSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "TrialActive"));
+            // Cast to strongly typed collection
+            var subscriptionData = subscriptionsResult.data as IEnumerable<SubscriptionDto>;
+            if (subscriptionData == null)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription data format", StatusCode = 500 };
+            }
+
+            var subscriptions = subscriptionData.ToList();
+            var totalSubscriptions = subscriptions.Count;
+            var activeSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Active.ToString());
+            var cancelledSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Cancelled.ToString());
+            var pausedSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Paused.ToString());
+            var trialSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.TrialActive.ToString());
+
+            // Calculate period-based metrics
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-1);
+            var end = endDate ?? DateTime.UtcNow;
+            
+            var newSubscriptionsThisPeriod = subscriptions.Count(s => s.CreatedDate >= start && s.CreatedDate <= end);
+            var cancelledSubscriptionsThisPeriod = subscriptions.Count(s => s.CancelledDate.HasValue && s.CancelledDate >= start && s.CancelledDate <= end);
+            
+            // Calculate average subscription value safely
+            var subscriptionsWithPrice = subscriptions.Where(s => s.CurrentPrice > 0).ToList();
+            var averageSubscriptionValue = subscriptionsWithPrice.Any() ? subscriptionsWithPrice.Average(s => s.CurrentPrice) : 0;
 
             var analytics = new SubscriptionAnalyticsDto
             {
@@ -141,10 +166,10 @@ public class AnalyticsService : IAnalyticsService
                 CancelledSubscriptions = cancelledSubscriptions,
                 PausedSubscriptions = pausedSubscriptions,
                 TrialSubscriptions = trialSubscriptions,
-                NewSubscriptionsThisPeriod = subscriptionData.Count((Func<dynamic, bool>)(s => s.CreatedDate >= startDate)),
-                CancelledSubscriptionsThisPeriod = subscriptionData.Count((Func<dynamic, bool>)(s => s.CancelledDate >= startDate)),
-                AverageSubscriptionValue = subscriptionData.Where((Func<dynamic, bool>)(s => (decimal)s.CurrentPrice > 0)).Average((Func<dynamic, decimal>)(s => (decimal)s.CurrentPrice)),
-                Period = new DateRangeDto { StartDate = startDate, EndDate = endDate },
+                NewSubscriptionsThisPeriod = newSubscriptionsThisPeriod,
+                CancelledSubscriptionsThisPeriod = cancelledSubscriptionsThisPeriod,
+                AverageSubscriptionValue = averageSubscriptionValue,
+                Period = new DateRangeDto { StartDate = start, EndDate = end },
                 GeneratedAt = DateTime.UtcNow
             };
 
@@ -171,27 +196,43 @@ public class AnalyticsService : IAnalyticsService
         {
             _logger.LogInformation("Getting subscription analytics for plan {PlanId}", planId);
 
+            // Input validation
+            if (tokenModel == null)
+            {
+                _logger.LogWarning("TokenModel is null");
+                return new JsonModel { data = new object(), Message = "Invalid token", StatusCode = 401 };
+            }
+
             var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
                 1, int.MaxValue, planId, null, null, null, startDate, endDate, null, null, tokenModel);
 
-            var subscriptions = subscriptionsResult.data as dynamic;
-            if (subscriptions?.Data == null)
+            if (subscriptionsResult.StatusCode != 200 || subscriptionsResult.data == null)
             {
                 return new JsonModel { data = new object(), Message = "No subscription data available for plan", StatusCode = 404 };
             }
 
-            var subscriptionData = subscriptions.Data.ToList();
+            // Cast to strongly typed collection
+            var subscriptionData = subscriptionsResult.data as IEnumerable<SubscriptionDto>;
+            if (subscriptionData == null)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription data format", StatusCode = 500 };
+            }
+
+            var subscriptions = subscriptionData.ToList();
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-1);
+            var end = endDate ?? DateTime.UtcNow;
+
             var analytics = new SubscriptionAnalyticsDto
             {
-                TotalSubscriptions = subscriptionData.Count,
-                ActiveSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "Active")),
-                CancelledSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "Cancelled")),
-                PausedSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "Paused")),
-                TrialSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "TrialActive")),
-                NewSubscriptionsThisPeriod = subscriptionData.Count((Func<dynamic, bool>)(s => s.CreatedDate >= startDate)),
-                CancelledSubscriptionsThisPeriod = subscriptionData.Count((Func<dynamic, bool>)(s => s.CancelledDate >= startDate)),
-                AverageSubscriptionValue = subscriptionData.Where((Func<dynamic, bool>)(s => (decimal)s.CurrentPrice > 0)).Average((Func<dynamic, decimal>)(s => (decimal)s.CurrentPrice)),
-                Period = new DateRangeDto { StartDate = startDate, EndDate = endDate },
+                TotalSubscriptions = subscriptions.Count,
+                ActiveSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Active.ToString()),
+                CancelledSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Cancelled.ToString()),
+                PausedSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Paused.ToString()),
+                TrialSubscriptions = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.TrialActive.ToString()),
+                NewSubscriptionsThisPeriod = subscriptions.Count(s => s.CreatedDate >= start && s.CreatedDate <= end),
+                CancelledSubscriptionsThisPeriod = subscriptions.Count(s => s.CancelledDate.HasValue && s.CancelledDate >= start && s.CancelledDate <= end),
+                AverageSubscriptionValue = subscriptions.Where(s => s.CurrentPrice > 0).Any() ? subscriptions.Where(s => s.CurrentPrice > 0).Average(s => s.CurrentPrice) : 0,
+                Period = new DateRangeDto { StartDate = start, EndDate = end },
                 GeneratedAt = DateTime.UtcNow
             };
 
@@ -386,51 +427,51 @@ public class AnalyticsService : IAnalyticsService
         {
             _logger.LogInformation("Getting subscription dashboard for period {StartDate} to {EndDate}", startDate, endDate);
 
+            // Input validation
+            if (tokenModel == null)
+            {
+                _logger.LogWarning("TokenModel is null");
+                return new JsonModel { data = new object(), Message = "Invalid token", StatusCode = 401 };
+            }
+
             // Collect data from multiple sources
             var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
                 1, int.MaxValue, null, null, null, null, startDate, endDate, null, null, tokenModel);
 
-            var subscriptions = subscriptionsResult.data as dynamic;
-            if (subscriptions?.Data == null)
+            if (subscriptionsResult.StatusCode != 200 || subscriptionsResult.data == null)
             {
                 return new JsonModel { data = new object(), Message = "No subscription data available", StatusCode = 404 };
             }
 
-            var subscriptionData = subscriptions.Data.ToList();
+            // Cast to strongly typed collection
+            var subscriptionData = subscriptionsResult.data as IEnumerable<SubscriptionDto>;
+            if (subscriptionData == null)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription data format", StatusCode = 500 };
+            }
+
+            var subscriptions = subscriptionData.ToList();
             var totalRevenue = await GetTotalRevenueAsync(startDate, endDate, tokenModel);
             var mrr = await GetMonthlyRecurringRevenueAsync(tokenModel);
 
-            // Convert dynamic objects to strongly typed objects to avoid lambda expression issues
-            var activeCount = 0;
-            var cancelledCount = 0;
-            var pausedCount = 0;
-            var trialCount = 0;
-            var newCount = 0;
-            var cancelledThisPeriodCount = 0;
-            decimal totalValue = 0;
-            int valueCount = 0;
+            // Calculate metrics using strongly typed LINQ queries
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-1);
+            var end = endDate ?? DateTime.UtcNow;
 
-            foreach (var s in subscriptionData)
-            {
-                if (s.Status == "Active") activeCount++;
-                if (s.Status == "Cancelled") cancelledCount++;
-                if (s.Status == "Paused") pausedCount++;
-                if (s.Status == "TrialActive") trialCount++;
-                if (s.CreatedDate >= startDate) newCount++;
-                if (s.CancelledDate >= startDate) cancelledThisPeriodCount++;
-                
-                if (s.CurrentPrice != null && (decimal)s.CurrentPrice > 0)
-                {
-                    totalValue += (decimal)s.CurrentPrice;
-                    valueCount++;
-                }
-            }
-
-            var averageValue = valueCount > 0 ? totalValue / valueCount : 0;
+            var activeCount = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Active.ToString());
+            var cancelledCount = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Cancelled.ToString());
+            var pausedCount = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.Paused.ToString());
+            var trialCount = subscriptions.Count(s => s.Status == Subscription.SubscriptionStatuses.TrialActive.ToString());
+            var newCount = subscriptions.Count(s => s.CreatedDate >= start && s.CreatedDate <= end);
+            var cancelledThisPeriodCount = subscriptions.Count(s => s.CancelledDate.HasValue && s.CancelledDate >= start && s.CancelledDate <= end);
+            
+            // Calculate average value safely
+            var subscriptionsWithPrice = subscriptions.Where(s => s.CurrentPrice > 0).ToList();
+            var averageValue = subscriptionsWithPrice.Any() ? subscriptionsWithPrice.Average(s => s.CurrentPrice) : 0;
 
             var dashboard = new SubscriptionDashboardAnalyticsDto
             {
-                TotalSubscriptions = subscriptionData.Count,
+                TotalSubscriptions = subscriptions.Count,
                 ActiveSubscriptions = activeCount,
                 CancelledSubscriptions = cancelledCount,
                 PausedSubscriptions = pausedCount,
@@ -440,7 +481,7 @@ public class AnalyticsService : IAnalyticsService
                 AverageSubscriptionValue = averageValue,
                 TotalRevenue = totalRevenue,
                 MonthlyRecurringRevenue = mrr,
-                Period = new DateRangeDto { StartDate = startDate ?? DateTime.UtcNow.AddMonths(-1), EndDate = endDate ?? DateTime.UtcNow },
+                Period = new DateRangeDto { StartDate = start, EndDate = end },
                 GeneratedAt = DateTime.UtcNow
             };
 
@@ -470,27 +511,37 @@ public class AnalyticsService : IAnalyticsService
             var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
                 1, int.MaxValue, null, null, null, null, startDate, endDate, null, null, null);
 
-            var subscriptions = subscriptionsResult.data as dynamic;
-            if (subscriptions?.Data == null)
+            if (subscriptionsResult.StatusCode != 200 || subscriptionsResult.data == null)
             {
                 return new ChurnAnalyticsDto();
             }
 
-            var subscriptionData = subscriptions.Data.ToList();
-            var totalSubscriptions = subscriptionData.Count;
-            
-            // Count cancelled subscriptions manually to avoid dynamic lambda issues
-            var cancelledSubscriptions = 0;
-            foreach (var s in subscriptionData)
+            // Cast to strongly typed collection
+            var subscriptionData = subscriptionsResult.data as IEnumerable<SubscriptionDto>;
+            if (subscriptionData == null)
             {
-                if (s.Status == "Cancelled") cancelledSubscriptions++;
+                return new ChurnAnalyticsDto();
             }
+
+            var subscriptions = subscriptionData.ToList();
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-1);
+            var end = endDate ?? DateTime.UtcNow;
             
-            var churnRate = totalSubscriptions > 0 ? (decimal)cancelledSubscriptions / totalSubscriptions * 100 : 0;
+            // Correct churn calculation: cancelled in period / active at start of period
+            var activeAtStart = subscriptions.Count(s => 
+                s.StartDate <= start && 
+                (s.CancelledDate == null || s.CancelledDate > start));
+                
+            var cancelledInPeriod = subscriptions.Count(s => 
+                s.CancelledDate.HasValue && 
+                s.CancelledDate >= start && 
+                s.CancelledDate <= end);
+                
+            var churnRate = activeAtStart > 0 ? (decimal)cancelledInPeriod / activeAtStart * 100 : 0;
 
             return new ChurnAnalyticsDto
             {
-                TotalChurnedSubscriptions = cancelledSubscriptions,
+                TotalChurnedSubscriptions = cancelledInPeriod,
                 ChurnRate = churnRate,
                 ChurnByPlan = new List<ChurnByPlanDto>(),
                 ChurnByReason = new List<ChurnByReasonDto>(),
@@ -515,13 +566,26 @@ public class AnalyticsService : IAnalyticsService
         {
             _logger.LogInformation("Getting plan analytics for period {StartDate} to {EndDate}", startDate, endDate);
 
+            // Input validation
+            if (tokenModel == null)
+            {
+                _logger.LogWarning("TokenModel is null");
+                return new JsonModel { data = new object(), Message = "Invalid token", StatusCode = 401 };
+            }
+
             var plansResult = await _planService.GetSubscriptionPlansWithFilteringAsync(
                 new SubscriptionPlanFilterDto { Page = 1, PageSize = 1000 }, tokenModel);
 
-            var plans = plansResult.data as dynamic;
-            if (plans?.Data == null)
+            if (plansResult.StatusCode != 200 || plansResult.data == null)
             {
                 return new JsonModel { data = new object(), Message = "No plan data available", StatusCode = 404 };
+            }
+
+            // Cast to strongly typed collection
+            var planData = plansResult.data as IEnumerable<SubscriptionPlanDto>;
+            if (planData == null)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid plan data format", StatusCode = 500 };
             }
 
             var analytics = new PlanAnalyticsDto
@@ -958,10 +1022,42 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
-            var users = await _userRepository.GetAllAsync();
-            var totalRevenue = await GetTotalRevenueAsync(null, null, tokenModel);
+            _logger.LogInformation("Calculating average revenue per user for user {UserId}", tokenModel?.UserID);
+
+            // Input validation
+            if (tokenModel == null)
+            {
+                _logger.LogWarning("TokenModel is null");
+                return 0;
+            }
+
+            // Get billing records for the last 12 months
+            var startDate = DateTime.UtcNow.AddMonths(-12);
+            var endDate = DateTime.UtcNow;
             
-            return users.Any() ? totalRevenue / users.Count() : 0;
+            var billingRecords = await _billingRepository.GetBillingRecordsByDateRangeAsync(startDate, endDate);
+            var paidRecords = billingRecords?
+                .Where(b => b.Status == BillingRecord.BillingStatus.Paid && 
+                           b.TotalAmount > 0 && 
+                           b.UserId > 0)
+                .ToList() ?? new List<BillingRecord>();
+
+            if (!paidRecords.Any())
+            {
+                _logger.LogInformation("No paid billing records found for ARPU calculation");
+                return 0;
+            }
+
+            // Get unique users who have made payments
+            var uniqueUsers = paidRecords.Select(b => b.UserId).Distinct().Count();
+            var totalRevenue = paidRecords.Sum(b => b.TotalAmount);
+
+            var arpu = uniqueUsers > 0 ? totalRevenue / uniqueUsers : 0;
+
+            _logger.LogInformation("Calculated ARPU: {ARPU} for {UserCount} unique users with {TotalRevenue} total revenue", 
+                arpu, uniqueUsers, totalRevenue);
+
+            return arpu;
         }
         catch (Exception ex)
         {
@@ -1037,8 +1133,66 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
-            // Placeholder implementation - would need category-based revenue calculation
-            return new List<CategoryRevenueDto>();
+            _logger.LogInformation("Getting revenue by category for period {StartDate} to {EndDate}", startDate, endDate);
+
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+
+            // Get billing records for the period
+            var billingRecords = await _billingRepository.GetBillingRecordsByDateRangeAsync(start, end);
+            var paidRecords = billingRecords?.Where(b => b.Status == BillingRecord.BillingStatus.Paid && b.SubscriptionId.HasValue).ToList() ?? new List<BillingRecord>();
+
+            if (!paidRecords.Any())
+            {
+                return new List<CategoryRevenueDto>();
+            }
+
+            // Group by subscription to get plan categories
+            var subscriptionIds = paidRecords.Select(b => b.SubscriptionId.Value).Distinct().ToList();
+            var categoryRevenue = new Dictionary<string, CategoryRevenueDto>();
+
+            foreach (var subscriptionId in subscriptionIds)
+            {
+                try
+                {
+                    var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
+                    if (subscription?.SubscriptionPlan?.Category != null)
+                    {
+                        var categoryName = subscription.SubscriptionPlan.Category.Name;
+                        var revenue = paidRecords.Where(b => b.SubscriptionId == subscriptionId).Sum(b => b.TotalAmount);
+
+                        if (categoryRevenue.ContainsKey(categoryName))
+                        {
+                            categoryRevenue[categoryName].Revenue += revenue;
+                            categoryRevenue[categoryName].TransactionCount += paidRecords.Count(b => b.SubscriptionId == subscriptionId);
+                        }
+                        else
+                        {
+                            categoryRevenue[categoryName] = new CategoryRevenueDto
+                            {
+                                CategoryName = categoryName,
+                                Revenue = revenue,
+                                TransactionCount = paidRecords.Count(b => b.SubscriptionId == subscriptionId),
+                                Percentage = 0 // Will be calculated after all categories are processed
+                            };
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing subscription {SubscriptionId} for category revenue", subscriptionId);
+                    continue;
+                }
+            }
+
+            // Calculate percentages
+            var totalRevenue = categoryRevenue.Values.Sum(c => c.Revenue);
+            foreach (var category in categoryRevenue.Values)
+            {
+                category.Percentage = totalRevenue > 0 ? (category.Revenue / totalRevenue) * 100 : 0;
+            }
+
+            return categoryRevenue.Values.OrderByDescending(c => c.Revenue).ToList();
         }
         catch (Exception ex)
         {
@@ -1054,13 +1208,110 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
-            // Placeholder implementation - would need time-series revenue calculation
-            return new List<RevenueTrendDto>();
+            _logger.LogInformation("Getting revenue trend for period {StartDate} to {EndDate}", startDate, endDate);
+
+            var start = startDate ?? DateTime.UtcNow.AddMonths(-12);
+            var end = endDate ?? DateTime.UtcNow;
+
+            // Get billing records for the period
+            var billingRecords = await _billingRepository.GetBillingRecordsByDateRangeAsync(start, end);
+            var paidRecords = billingRecords?.Where(b => b.Status == BillingRecord.BillingStatus.Paid).ToList() ?? new List<BillingRecord>();
+
+            if (!paidRecords.Any())
+            {
+                return new List<RevenueTrendDto>();
+            }
+
+            // Group by month and calculate trend data
+            var trendData = paidRecords
+                .Where(b => b.CreatedDate.HasValue)
+                .GroupBy(b => new { b.CreatedDate.Value.Year, b.CreatedDate.Value.Month })
+                .Select(g => new RevenueTrendDto
+                {
+                    Period = $"{g.Key.Year}-{g.Key.Month:D2}",
+                    Revenue = g.Sum(b => b.TotalAmount),
+                    TransactionCount = g.Count(),
+                    AverageTransactionValue = g.Count() > 0 ? g.Average(b => b.TotalAmount) : 0
+                })
+                .OrderBy(t => t.Period)
+                .ToList();
+
+            // Calculate growth rate
+            for (int i = 1; i < trendData.Count; i++)
+            {
+                var previousRevenue = trendData[i - 1].Revenue;
+                trendData[i].GrowthRate = previousRevenue > 0 ? 
+                    ((trendData[i].Revenue - previousRevenue) / previousRevenue) * 100 : 0;
+            }
+
+            return trendData;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting revenue trend");
             return new List<RevenueTrendDto>();
+        }
+    }
+
+    /// <summary>
+    /// Gets revenue by plan
+    /// </summary>
+    public async Task<List<PlanRevenueDto>> GetRevenueByPlanAsync(DateTime? startDate = null, DateTime? endDate = null, TokenModel tokenModel = null)
+    {
+        try
+        {
+            _logger.LogInformation("Getting revenue by plan for period {StartDate} to {EndDate}", startDate, endDate);
+
+            // Get all subscription plans
+            var plansResult = await _planService.GetSubscriptionPlansWithFilteringAsync(
+                new SubscriptionPlanFilterDto { Page = 1, PageSize = 1000 }, tokenModel);
+
+            var plans = plansResult.data as dynamic;
+            if (plans?.Data == null)
+            {
+                return new List<PlanRevenueDto>();
+            }
+
+            var planData = plans.Data.ToList();
+            var revenueByPlan = new List<PlanRevenueDto>();
+
+            foreach (var plan in planData)
+            {
+                // Get subscriptions for this plan
+                var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
+                    1, int.MaxValue, plan.Id.ToString(), null, null, null, startDate, endDate, null, null, tokenModel);
+
+                var subscriptions = subscriptionsResult.data as dynamic;
+                if (subscriptions?.Data != null)
+                {
+                    var subscriptionData = subscriptions.Data.ToList();
+                    var activeSubscriptions = subscriptionData.Count((Func<dynamic, bool>)(s => s.Status == "Active"));
+                    
+                    // Calculate revenue for this plan
+                    decimal planRevenue = 0;
+                    foreach (var sub in subscriptionData)
+                    {
+                        if (sub.Status == "Active" && sub.CurrentPrice != null)
+                        {
+                            planRevenue += (decimal)sub.CurrentPrice;
+                        }
+                    }
+
+                    revenueByPlan.Add(new PlanRevenueDto
+                    {
+                        PlanName = plan.Name,
+                        Revenue = planRevenue,
+                        SubscriptionCount = activeSubscriptions
+                    });
+                }
+            }
+
+            return revenueByPlan;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting revenue by plan");
+            return new List<PlanRevenueDto>();
         }
     }
 
@@ -1071,16 +1322,94 @@ public class AnalyticsService : IAnalyticsService
     {
         try
         {
+            _logger.LogInformation("Calculating monthly recurring revenue for user {UserId}", tokenModel?.UserID);
+
+            // Input validation
+            if (tokenModel == null)
+            {
+                _logger.LogWarning("TokenModel is null");
+                return 0;
+            }
+
             var subscriptionsResult = await _subscriptionService.GetAllUserSubscriptionsAsync(
                 1, int.MaxValue, null, new[] { "Active" }, null, null, null, null, null, null, tokenModel);
 
-            var subscriptions = subscriptionsResult.data as dynamic;
-            if (subscriptions?.Data == null)
+            if (subscriptionsResult.StatusCode != 200 || subscriptionsResult.data == null)
             {
                 return 0;
             }
 
-            return subscriptions.Data.Where((Func<dynamic, bool>)(s => s.Status == "Active")).Sum((Func<dynamic, decimal>)(s => s.CurrentPrice));
+            // Cast to strongly typed collection
+            var subscriptionData = subscriptionsResult.data as IEnumerable<SubscriptionDto>;
+            if (subscriptionData == null)
+            {
+                return 0;
+            }
+
+            var activeSubscriptions = subscriptionData.Where(s => s.Status == Subscription.SubscriptionStatuses.Active.ToString()).ToList();
+            decimal mrr = 0;
+
+            foreach (var subscription in activeSubscriptions)
+            {
+                try
+                {
+                    // Get subscription plan with billing cycle details
+                    if (!Guid.TryParse(subscription.PlanId, out var planId))
+                    {
+                        _logger.LogWarning("Invalid plan ID format for subscription {SubscriptionId}", subscription.Id);
+                        continue;
+                    }
+
+                    var plan = await _subscriptionPlanRepository.GetByIdAsync(planId);
+                    if (plan?.BillingCycle == null)
+                    {
+                        _logger.LogWarning("Plan or billing cycle not found for subscription {SubscriptionId}", subscription.Id);
+                        continue;
+                    }
+
+                    var billingCycle = plan.BillingCycle;
+                    var currentPrice = subscription.CurrentPrice;
+
+                    // Normalize to monthly recurring revenue based on billing cycle
+                    switch (billingCycle.Name.ToLowerInvariant())
+                    {
+                        case "monthly":
+                        case "month":
+                            mrr += currentPrice;
+                            break;
+                        case "annual":
+                        case "yearly":
+                        case "year":
+                            mrr += currentPrice / 12;
+                            break;
+                        case "quarterly":
+                        case "quarter":
+                            mrr += currentPrice / 3;
+                            break;
+                        case "weekly":
+                        case "week":
+                            mrr += currentPrice * 4.33m; // Average weeks per month
+                            break;
+                        case "daily":
+                        case "day":
+                            mrr += currentPrice * 30.44m; // Average days per month
+                            break;
+                        default:
+                            _logger.LogWarning("Unknown billing cycle {BillingCycle} for subscription {SubscriptionId}", billingCycle.Name, subscription.Id);
+                            // Default to monthly if unknown
+                            mrr += currentPrice;
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing subscription {SubscriptionId} for MRR calculation", subscription.Id);
+                    continue;
+                }
+            }
+
+            _logger.LogInformation("Calculated MRR: {MRR} for {SubscriptionCount} active subscriptions", mrr, activeSubscriptions.Count);
+            return mrr;
         }
         catch (Exception ex)
         {

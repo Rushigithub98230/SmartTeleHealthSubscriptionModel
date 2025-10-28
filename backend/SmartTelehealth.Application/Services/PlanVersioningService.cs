@@ -819,16 +819,14 @@ Notice Period: {noticeDays} days
 What This Means:
 - You will continue to enjoy your current plan at ${oldPlan.BasePrice}/month until {migrationDate:MMMM dd, yyyy}
 - On {migrationDate:MMMM dd, yyyy}, you will automatically migrate to the new plan at ${newPlan.BasePrice}/month
-- Any additional privileges you purchase before migration will be billed at current market rates
 
 Your Options:
 1. Accept: Continue with the automatic migration (no action needed)
-2. Downgrade: Switch to a different plan that better fits your needs
-3. Cancel: Cancel your subscription before the migration date
+2. Cancel: Cancel your subscription before the migration date
 
-Please note: If you purchase additional privileges during this period, they will be charged at our current pricing to ensure fairness.
+If you choose to cancel, your subscription will remain active until {migrationDate:MMMM dd, yyyy} and will automatically cancel at that time. You will not be charged for the new plan.
 
-To review your options or respond to this change, please visit your account dashboard.
+To respond to this change, please visit your account dashboard.
 
 Best regards,
 SmartTelehealth Team

@@ -1022,6 +1022,29 @@ public class SubscriptionPlansController : BaseController
     }
 
     /// <summary>
+    /// Retrieves privilege usage summary for a specific subscription (user access).
+    /// This endpoint provides users with their subscription's privilege usage information
+    /// including current usage, limits, and remaining allowances.
+    /// </summary>
+    /// <param name="subscriptionId">The unique identifier of the subscription</param>
+    /// <returns>JsonModel containing privilege usage summary or error information</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns privilege usage summary for the specified subscription
+    /// - Shows current usage vs. allowed limits for each privilege
+    /// - Includes usage percentages and remaining allowances
+    /// - Access restricted to subscription owner or administrators
+    /// - Used for user dashboard and privilege management
+    /// - Provides real-time usage information
+    /// </remarks>
+    [HttpGet("privileges/usage-summary")]
+    public async Task<JsonModel> GetUserPrivilegeUsageSummary([FromQuery] string subscriptionId)
+    {
+        var token = GetToken(HttpContext);
+        return await _privilegeService.GetUsageSummaryAsync(null, null, subscriptionId, null, null, token);
+    }
+
+    /// <summary>
     /// Exports privilege usage data for analysis and reporting.
     /// This endpoint allows administrators to export privilege usage data in various formats.
     /// </summary>

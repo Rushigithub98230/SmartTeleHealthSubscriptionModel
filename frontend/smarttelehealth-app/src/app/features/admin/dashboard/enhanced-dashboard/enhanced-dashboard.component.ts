@@ -180,6 +180,41 @@ export class EnhancedDashboardComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Refresh dashboard data (can be called manually or by events)
+   */
+  refreshDashboard(): void {
+    this.loadDashboardData();
+  }
+
+  /**
+   * Handle real-time metrics update
+   */
+  onRealTimeMetricsUpdate(metrics: RealTimeMetrics): void {
+    this.realTimeMetrics = metrics;
+    // Optionally refresh charts or specific data
+    this.updateChartsWithRealTimeData();
+  }
+
+  /**
+   * Update charts with real-time data
+   */
+  private updateChartsWithRealTimeData(): void {
+    if (this.realTimeMetrics && this.dashboardData) {
+      // Update revenue chart with latest data
+      if (this.revenueChartData) {
+        this.revenueChartData.datasets[0].data.push(this.realTimeMetrics.revenueToday);
+        this.revenueChartData.labels.push(new Date().toLocaleDateString());
+        
+        // Keep only last 30 data points
+        if (this.revenueChartData.datasets[0].data.length > 30) {
+          this.revenueChartData.datasets[0].data.shift();
+          this.revenueChartData.labels.shift();
+        }
+      }
+    }
+  }
+
+  /**
    * Export analytics data
    */
   exportAnalytics(format: 'pdf' | 'csv' | 'excel'): void {
@@ -200,13 +235,6 @@ export class EnhancedDashboardComponent implements OnInit, OnDestroy {
         this.error = 'Failed to export analytics data';
       }
     });
-  }
-
-  /**
-   * Refresh dashboard data
-   */
-  refreshDashboard(): void {
-    this.loadDashboardData();
   }
 
   /**

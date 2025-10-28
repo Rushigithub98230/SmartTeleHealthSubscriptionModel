@@ -607,5 +607,32 @@ public class MappingProfile : Profile
             // .ForMember(dest => dest.UsagePeriodId, opt => opt.MapFrom(src => src.UsagePeriodId)) // REMOVED - not used
             .ForMember(dest => dest.DurationMonths, opt => opt.MapFrom(src => src.DurationMonths));
 
+        // ApplicationLog mappings
+        CreateMap<ApplicationLog, ApplicationLogDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.Timestamp, opt => opt.MapFrom(src => src.Timestamp))
+            .ForMember(dest => dest.LogLevel, opt => opt.MapFrom(src => src.LogLevel))
+            .ForMember(dest => dest.Source, opt => opt.MapFrom(src => src.Source))
+            .ForMember(dest => dest.Message, opt => opt.MapFrom(src => src.Message))
+            .ForMember(dest => dest.Exception, opt => opt.MapFrom(src => src.Exception))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.UserId))
+            .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? $"{src.User.FirstName} {src.User.LastName}" : null))
+            .ForMember(dest => dest.Operation, opt => opt.MapFrom(src => src.Operation))
+            .ForMember(dest => dest.AdditionalData, opt => opt.MapFrom(src => src.AdditionalData))
+            .ForMember(dest => dest.CorrelationId, opt => opt.MapFrom(src => src.CorrelationId));
+
+        // AuditLog mappings
+        CreateMap<AuditLog, AuditLogDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.UserId))
+            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type))
+            .ForMember(dest => dest.TableName, opt => opt.MapFrom(src => src.TableName))
+            .ForMember(dest => dest.DateTime, opt => opt.MapFrom(src => src.DateTime))
+            .ForMember(dest => dest.OldValues, opt => opt.MapFrom(src => src.OldValues))
+            .ForMember(dest => dest.NewValues, opt => opt.MapFrom(src => src.NewValues))
+            .ForMember(dest => dest.AffectedColumns, opt => opt.MapFrom(src => src.AffectedColumns))
+            .ForMember(dest => dest.PrimaryKey, opt => opt.MapFrom(src => src.PrimaryKey))
+            .ForMember(dest => dest.OrganizationId, opt => opt.MapFrom(src => src.OrganizationId));
+
     }
 } 

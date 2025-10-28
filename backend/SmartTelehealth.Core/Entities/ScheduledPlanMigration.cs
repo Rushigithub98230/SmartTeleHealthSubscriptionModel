@@ -53,8 +53,10 @@ public class ScheduledPlanMigration : BaseEntity
     public DateTime? UserDecisionDate { get; set; }
     
     /// <summary>
-    /// If user chose to downgrade, the plan they selected.
+    /// DEPRECATED: Downgrade option removed. Users can only Accept or Cancel.
+    /// Kept for backward compatibility with existing data.
     /// </summary>
+    [Obsolete("Downgrade option removed. Users can only Accept or Cancel.")]
     public Guid? DowngradeToPlanId { get; set; }
     
     public DateTime? CompletedDate { get; set; }

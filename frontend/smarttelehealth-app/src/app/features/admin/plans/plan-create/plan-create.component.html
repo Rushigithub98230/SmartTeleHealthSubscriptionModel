@@ -140,28 +140,19 @@
                 </div>
 
                 <div class="row">
-                  <!-- Base Price -->
+                  <!-- Base Price (Auto-calculated) -->
                   <div class="col-md-4 mb-3">
-                    <label for="price" class="form-label">Base Price <span class="text-danger">*</span></label>
+                    <label class="form-label">Calculated Price</label>
                     <div class="input-group">
                       <span class="input-group-text">$</span>
                       <input 
-                        type="number" 
-                        id="price"
+                        type="text" 
                         class="form-control" 
-                        [class.is-invalid]="basicInfoForm.get('price')?.invalid && basicInfoForm.get('price')?.touched"
-                        formControlName="price"
-                        step="0.01"
-                        min="0"
+                        [value]="calculateFinalPrice() | number:'1.2-2'"
+                        readonly
                         placeholder="0.00">
                     </div>
-                    <div class="form-text">Base price before discounts</div>
-                    <div class="invalid-feedback" *ngIf="basicInfoForm.get('price')?.hasError('required')">
-                      Base price is required
-                    </div>
-                    <div class="invalid-feedback" *ngIf="basicInfoForm.get('price')?.hasError('min')">
-                      Price must be 0 or greater
-                    </div>
+                    <div class="form-text">Price calculated from privileges + commission - discounts</div>
                   </div>
 
                   <!-- Billing Cycle -->
@@ -397,6 +388,23 @@
                 <i class="bi bi-info-circle text-muted" style="font-size: 2rem;"></i>
                 <p class="text-muted mt-2">No privileges configured yet. Add privileges to define what this plan includes.</p>
               </div>
+
+              <!-- Real-time Price Preview -->
+              <div *ngIf="selectedPrivileges.length > 0" class="mt-4">
+                <div class="alert alert-info">
+                  <h6 class="alert-heading">
+                    <i class="bi bi-eye me-2"></i>
+                    Live Price Preview
+                  </h6>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span>Current calculated price:</span>
+                    <strong class="h5 text-primary mb-0">${{calculateFinalPrice() | number:'1.2-2'}}</strong>
+                  </div>
+                  <small class="text-muted mt-2 d-block">
+                    Price updates automatically as you configure privileges and discounts
+                  </small>
+                </div>
+              </div>
             </div>
 
             <!-- STEP 3: BILLING & PRICING -->
@@ -404,27 +412,66 @@
               <h4 class="mb-4">Step 3: Billing & Pricing</h4>
               <form [formGroup]="billingForm">
                 <div class="row">
-                  <!-- Billing Discount -->
+                  <!-- Promotional Discount -->
                   <div class="col-md-6 mb-3">
-                    <label for="billingDiscount" class="form-label">Billing Discount (%)</label>
+                    <label for="discountPercentage" class="form-label">Promotional Discount (%)</label>
                     <div class="input-group">
                       <input 
                         type="number" 
-                        id="billingDiscount"
+                        id="discountPercentage"
                         class="form-control" 
-                        [class.is-invalid]="billingForm.get('billingDiscount')?.invalid && billingForm.get('billingDiscount')?.touched"
-                        formControlName="billingDiscount"
+                        [class.is-invalid]="billingForm.get('discountPercentage')?.invalid && billingForm.get('discountPercentage')?.touched"
+                        formControlName="discountPercentage"
                         min="0"
                         max="100"
                         step="0.01"
                         placeholder="0">
                       <span class="input-group-text">%</span>
                     </div>
-                    <div class="form-text">Discount percentage for this billing cycle</div>
-                    <div class="invalid-feedback" *ngIf="billingForm.get('billingDiscount')?.hasError('min')">
+                    <div class="form-text">Promotional discount percentage (applied first)</div>
+                    <div class="invalid-feedback" *ngIf="billingForm.get('discountPercentage')?.hasError('min')">
                       Discount cannot be negative
                     </div>
-                    <div class="invalid-feedback" *ngIf="billingForm.get('billingDiscount')?.hasError('max')">
+                    <div class="invalid-feedback" *ngIf="billingForm.get('discountPercentage')?.hasError('max')">
+                      Discount cannot exceed 100%
+                    </div>
+                  </div>
+
+                  <!-- Promotional Discount Expiry -->
+                  <div class="col-md-6 mb-3">
+                    <label for="discountValidUntil" class="form-label">Promotional Discount Valid Until</label>
+                    <input 
+                      type="date" 
+                      id="discountValidUntil"
+                      class="form-control" 
+                      formControlName="discountValidUntil"
+                      [min]="today">
+                    <div class="form-text">Leave empty for no expiration</div>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <!-- Billing Discount -->
+                  <div class="col-md-6 mb-3">
+                    <label for="billingDiscountPercentage" class="form-label">Billing Discount (%)</label>
+                    <div class="input-group">
+                      <input 
+                        type="number" 
+                        id="billingDiscountPercentage"
+                        class="form-control" 
+                        [class.is-invalid]="billingForm.get('billingDiscountPercentage')?.invalid && billingForm.get('billingDiscountPercentage')?.touched"
+                        formControlName="billingDiscountPercentage"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        placeholder="0">
+                      <span class="input-group-text">%</span>
+                    </div>
+                    <div class="form-text">Billing cycle discount percentage (applied after promotional)</div>
+                    <div class="invalid-feedback" *ngIf="billingForm.get('billingDiscountPercentage')?.hasError('min')">
+                      Discount cannot be negative
+                    </div>
+                    <div class="invalid-feedback" *ngIf="billingForm.get('billingDiscountPercentage')?.hasError('max')">
                       Discount cannot exceed 100%
                     </div>
                   </div>
@@ -456,15 +503,13 @@
                 </div>
 
                 <div class="row">
-                  <!-- Auto Calculated Price -->
+                  <!-- Price Calculation Info -->
                   <div class="col-md-6 mb-3">
-                    <div class="form-check">
-                      <input class="form-check-input" type="checkbox" formControlName="isAutoCalculatedPrice" id="isAutoCalculatedPrice">
-                      <label class="form-check-label" for="isAutoCalculatedPrice">
-                        Auto-calculate price from privileges
-                      </label>
+                    <div class="alert alert-info">
+                      <i class="bi bi-info-circle me-2"></i>
+                      <strong>Automatic Price Calculation</strong><br>
+                      Price is automatically calculated from privilege costs + admin commission - discounts
                     </div>
-                    <div class="form-text">If enabled, price will be calculated from privilege costs + admin commission</div>
                   </div>
 
                   <!-- Price Change Notice -->
@@ -482,6 +527,109 @@
                   </div>
                 </div>
               </form>
+
+              <!-- Price Breakdown Section -->
+              <div *ngIf="selectedPrivileges.length > 0" class="mt-4">
+                <h5 class="mb-3">
+                  <i class="bi bi-calculator text-primary me-2"></i>
+                  Price Breakdown
+                </h5>
+                
+                <div class="card">
+                  <div class="card-body">
+                    <!-- Privilege Details -->
+                    <div class="mb-4">
+                      <h6 class="text-muted mb-3">Privilege Costs</h6>
+                      <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                          <thead class="table-light">
+                            <tr>
+                              <th>Privilege</th>
+                              <th class="text-center">Count</th>
+                              <th class="text-center">Base Cost</th>
+                              <th class="text-center">Total Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let detail of getPriceBreakdown().privilegeDetails">
+                              <td>
+                                <strong>{{detail.privilegeName}}</strong>
+                                <span *ngIf="detail.isUnlimited" class="badge bg-info ms-2">Unlimited</span>
+                                <span *ngIf="detail.isDisabled" class="badge bg-secondary ms-2">Disabled</span>
+                              </td>
+                              <td class="text-center">
+                                <span *ngIf="detail.isUnlimited">∞</span>
+                                <span *ngIf="detail.isDisabled">0</span>
+                                <span *ngIf="!detail.isUnlimited && !detail.isDisabled">{{detail.value}}</span>
+                              </td>
+                              <td class="text-center">${{detail.baseCost | number:'1.2-2'}}</td>
+                              <td class="text-center">
+                                <strong>${{detail.totalCost | number:'1.2-2'}}</strong>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- Summary Calculation -->
+                    <div class="row">
+                      <div class="col-md-8">
+                        <div class="d-flex justify-content-between mb-2">
+                          <span>Total Privilege Cost:</span>
+                          <strong>${{getPriceBreakdown().privilegeCost | number:'1.2-2'}}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                          <span>Admin Commission ({{getPriceBreakdown().commissionPercent}}%):</span>
+                          <strong>${{getPriceBreakdown().commission | number:'1.2-2'}}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 border-top pt-2">
+                          <span>Base Price:</span>
+                          <strong>${{getPriceBreakdown().basePrice | number:'1.2-2'}}</strong>
+                        </div>
+                        
+                        <!-- Promotional Discount -->
+                        <div *ngIf="getPriceBreakdown().promotionalDiscountPercent > 0" class="d-flex justify-content-between mb-2 text-warning">
+                          <span>
+                            Promotional Discount ({{getPriceBreakdown().promotionalDiscountPercent}}%)
+                            <span *ngIf="!getPriceBreakdown().isPromotionalValid" class="badge bg-danger ms-1">Expired</span>
+                          </span>
+                          <strong>-${{getPriceBreakdown().promotionalDiscountAmount | number:'1.2-2'}}</strong>
+                        </div>
+                        <div *ngIf="getPriceBreakdown().promotionalDiscountPercent > 0 && getPriceBreakdown().isPromotionalValid" class="d-flex justify-content-between mb-2">
+                          <span>After Promotional Discount:</span>
+                          <strong>${{getPriceBreakdown().priceAfterPromotional | number:'1.2-2'}}</strong>
+                        </div>
+                        
+                        <!-- Billing Discount -->
+                        <div *ngIf="getPriceBreakdown().billingDiscountPercent > 0" class="d-flex justify-content-between mb-2 text-success">
+                          <span>Billing Discount ({{getPriceBreakdown().billingDiscountPercent}}%):</span>
+                          <strong>-${{getPriceBreakdown().billingDiscountAmount | number:'1.2-2'}}</strong>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between border-top pt-2">
+                          <span class="h5">Final Price:</span>
+                          <strong class="h5 text-primary">${{getPriceBreakdown().finalPrice | number:'1.2-2'}}</strong>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="alert alert-info">
+                          <h6 class="alert-heading">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Pricing Formula
+                          </h6>
+                          <small>
+                            <strong>Step 1:</strong> Privilege Costs + Commission<br>
+                            <strong>Step 2:</strong> Apply Promotional Discount<br>
+                            <strong>Step 3:</strong> Apply Billing Discount<br>
+                            <strong>Final:</strong> Max(Result, $0)
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- STEP 4: REVIEW & CREATE -->
@@ -502,7 +650,7 @@
                         <li><strong>Category:</strong> {{getCategoryName(basicInfoForm.value.categoryId)}}</li>
                         <li><strong>Billing Cycle:</strong> {{getBillingCycleName(basicInfoForm.value.billingCycleId)}}</li>
                         <li><strong>Currency:</strong> {{getCurrencyName(basicInfoForm.value.currencyId)}}</li>
-                        <li><strong>Base Price:</strong> ${{basicInfoForm.value.price}}</li>
+                        <li><strong>Calculated Price:</strong> ${{calculateFinalPrice() | number:'1.2-2'}}</li>
                       </ul>
                     </div>
                     <div class="col-md-6">
@@ -551,9 +699,118 @@
                 </div>
                 <div class="card-body">
                   <div class="row text-center">
-                    <div class="col-md-12">
+                    <div class="col-md-6">
+                      <h6>Promotional Discount</h6>
+                      <p class="text-warning mb-0">{{billingForm.value.discountPercentage}}% discount</p>
+                      <small *ngIf="billingForm.value.discountValidUntil" class="text-muted">
+                        Valid until: {{billingForm.value.discountValidUntil | date:'short'}}
+                      </small>
+                    </div>
+                    <div class="col-md-6">
                       <h6>Billing Discount</h6>
-                      <p class="text-success mb-0">{{billingForm.value.billingDiscount}}% discount</p>
+                      <p class="text-success mb-0">{{billingForm.value.billingDiscountPercentage}}% discount</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detailed Price Breakdown -->
+              <div class="card mb-4">
+                <div class="card-header">
+                  <h6 class="mb-0">
+                    <i class="bi bi-calculator text-primary me-2"></i>
+                    Final Price Breakdown
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <!-- Privilege Details Table -->
+                  <div class="mb-4">
+                    <h6 class="text-muted mb-3">Privilege Cost Details</h6>
+                    <div class="table-responsive">
+                      <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                          <tr>
+                            <th>Privilege</th>
+                            <th class="text-center">Count</th>
+                            <th class="text-center">Base Cost</th>
+                            <th class="text-center">Total Cost</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let detail of getPriceBreakdown().privilegeDetails">
+                            <td>
+                              <strong>{{detail.privilegeName}}</strong>
+                              <span *ngIf="detail.isUnlimited" class="badge bg-info ms-2">Unlimited</span>
+                              <span *ngIf="detail.isDisabled" class="badge bg-secondary ms-2">Disabled</span>
+                            </td>
+                            <td class="text-center">
+                              <span *ngIf="detail.isUnlimited">∞</span>
+                              <span *ngIf="detail.isDisabled">0</span>
+                              <span *ngIf="!detail.isUnlimited && !detail.isDisabled">{{detail.value}}</span>
+                            </td>
+                            <td class="text-center">${{detail.baseCost | number:'1.2-2'}}</td>
+                            <td class="text-center">
+                              <strong>${{detail.totalCost | number:'1.2-2'}}</strong>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- Final Calculation Summary -->
+                  <div class="row">
+                    <div class="col-md-8">
+                      <div class="calculation-summary">
+                        <div class="d-flex justify-content-between mb-2">
+                          <span>Total Privilege Cost:</span>
+                          <strong>${{getPriceBreakdown().privilegeCost | number:'1.2-2'}}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                          <span>Admin Commission ({{getPriceBreakdown().commissionPercent}}%):</span>
+                          <strong>${{getPriceBreakdown().commission | number:'1.2-2'}}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 border-top pt-2">
+                          <span>Base Price:</span>
+                          <strong>${{getPriceBreakdown().basePrice | number:'1.2-2'}}</strong>
+                        </div>
+                        
+                        <!-- Promotional Discount -->
+                        <div *ngIf="getPriceBreakdown().promotionalDiscountPercent > 0" class="d-flex justify-content-between mb-2 text-warning">
+                          <span>
+                            Promotional Discount ({{getPriceBreakdown().promotionalDiscountPercent}}%)
+                            <span *ngIf="!getPriceBreakdown().isPromotionalValid" class="badge bg-danger ms-1">Expired</span>
+                          </span>
+                          <strong>-${{getPriceBreakdown().promotionalDiscountAmount | number:'1.2-2'}}</strong>
+                        </div>
+                        <div *ngIf="getPriceBreakdown().promotionalDiscountPercent > 0 && getPriceBreakdown().isPromotionalValid" class="d-flex justify-content-between mb-2">
+                          <span>After Promotional Discount:</span>
+                          <strong>${{getPriceBreakdown().priceAfterPromotional | number:'1.2-2'}}</strong>
+                        </div>
+                        
+                        <!-- Billing Discount -->
+                        <div *ngIf="getPriceBreakdown().billingDiscountPercent > 0" class="d-flex justify-content-between mb-2 text-success">
+                          <span>Billing Discount ({{getPriceBreakdown().billingDiscountPercent}}%):</span>
+                          <strong>-${{getPriceBreakdown().billingDiscountAmount | number:'1.2-2'}}</strong>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between border-top pt-2 bg-light p-2 rounded">
+                          <span class="h4">Final Plan Price:</span>
+                          <strong class="h4 text-primary">${{getPriceBreakdown().finalPrice | number:'1.2-2'}}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="alert alert-success">
+                        <h6 class="alert-heading">
+                          <i class="bi bi-check-circle me-2"></i>
+                          Price Calculation Complete
+                        </h6>
+                        <small>
+                          This price will be automatically calculated and applied to the plan. 
+                          Backend validates all discounts and ensures accurate pricing.
+                        </small>
+                      </div>
                     </div>
                   </div>
                 </div>

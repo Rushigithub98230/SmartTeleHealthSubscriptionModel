@@ -208,6 +208,8 @@ namespace SmartTelehealth.Application.DTOs
     {
         public string CategoryName { get; set; } = string.Empty;
         public decimal Revenue { get; set; }
+        public int TransactionCount { get; set; }
+        public decimal Percentage { get; set; }
         
         // Added missing properties to fix build errors
         public Guid CategoryId { get; set; }
@@ -219,6 +221,9 @@ namespace SmartTelehealth.Application.DTOs
         public DateTime Date { get; set; }
         public decimal Revenue { get; set; }
         public decimal Growth { get; set; }
+        public int TransactionCount { get; set; }
+        public decimal AverageTransactionValue { get; set; }
+        public decimal GrowthRate { get; set; }
         
         // Added missing properties to fix build errors
         public string Period { get; set; } = string.Empty;

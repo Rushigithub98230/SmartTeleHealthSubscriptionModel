@@ -238,7 +238,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             entity.PaymentMethodId = createDto.PaymentMethodId;
             
             // CRITICAL FIX: Use centralized effective price calculation
-            entity.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            entity.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
             
             _logger.LogInformation("Using effective plan price for subscription: " +
                 "PlanName={PlanName}, BillingCycle={BillingCycle}, BasePrice=${BasePrice}, EffectivePrice=${EffectivePrice}",
@@ -1385,7 +1385,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         );
         
         // Calculate charge for new plan (difference between new plan effective price and unused credit)
-        var newPlanEffectivePrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger);
+        var newPlanEffectivePrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, null, _logger);
         var charge = newPlanEffectivePrice - credit;
         
         _logger.LogInformation(
@@ -1429,7 +1429,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             // Update local subscription
             entity.SubscriptionPlanId = Guid.Parse(newPlanId);
-            entity.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger);
+            entity.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, null, _logger);
             entity.UpdatedBy = tokenModel.UserID;
             entity.UpdatedDate = DateTime.UtcNow;
             
@@ -2244,7 +2244,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
                 // CONSISTENT FIX: Always ensure current price is set correctly during trial-to-active conversion
                 if (subscription.SubscriptionPlan != null)
                 {
-                    var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(subscription.SubscriptionPlan, _logger);
+                    var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(subscription.SubscriptionPlan, null, _logger);
                     if (subscription.CurrentPrice != effectivePrice)
                     {
                         _logger.LogInformation("Updating subscription {SubscriptionId} price from ${OldPrice} to ${NewPrice} during trial conversion", 
@@ -2624,7 +2624,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             {
                 IsSuccessful = true,
                 TransactionId = $"txn_{Guid.NewGuid():N}",
-                Amount = BillingCalculationService.GetEffectivePlanPrice(subscription.SubscriptionPlan, _logger),
+                Amount = BillingCalculationService.GetEffectivePlanPrice(subscription.SubscriptionPlan, null, _logger),
                 Currency = subscription.SubscriptionPlan?.Currency?.Code ?? "USD"
             };
         }
@@ -2962,7 +2962,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     {
         try
         {
-            var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
             
             // If using base price, use existing Stripe price ID
             if (effectivePrice == plan.BasePrice)
@@ -3081,7 +3081,7 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             // SRP Refactoring: Use centralized billing record factory method
             var billingResult = await _billingService.CreateSubscriptionBillingAsync(
                 subscription,
-                BillingCalculationService.GetEffectivePlanPrice(plan, _logger),
+                BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger),
                 $"Initial billing for {plan.Name} subscription",
                 subscription.NextBillingDate,
                 tokenModel

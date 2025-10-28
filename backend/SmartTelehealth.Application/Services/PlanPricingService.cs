@@ -76,11 +76,17 @@ public class PlanPricingService : IPlanPricingService
             if (!planPrivileges.Any())
             {
                 _logger.LogInformation("Plan {PlanId} has no active privileges, calculating base price + commission", planId);
-                // Return base price (0) + commission, not just 0
+                // CRITICAL FIX: Use centralized commission calculation for empty plans
                 var emptyPlanSettings = await _systemSettingsRepository.GetSettingsAsync();
-                decimal emptyPlanCommissionPercent = plan.AdminCommissionPercent ?? emptyPlanSettings?.DefaultAdminCommissionPercent ?? 0;
-                decimal defaultCommission = 0 * (emptyPlanCommissionPercent / 100);
-                return defaultCommission; // Base price is 0, but commission still applies
+                var emptyDefaultCommissionPercent = emptyPlanSettings?.DefaultAdminCommissionPercent ?? 0;
+                
+                var (emptyFinalPrice, emptyCommission, emptyCommissionPercent) = BillingCalculationService.CalculateFinalPlanPrice(
+                    0, // No privileges cost
+                    plan.AdminCommissionPercent,
+                    emptyDefaultCommissionPercent,
+                    _logger);
+                
+                return emptyFinalPrice; // Base price is 0, but commission still applies
             }
             
             decimal privilegesTotalCost = 0;
@@ -397,9 +403,13 @@ public class PlanPricingService : IPlanPricingService
         
         // CRITICAL FIX: Use centralized effective price calculation
         // This ensures consistent discount application across all services
-        decimal finalPrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+        decimal finalPrice = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
         
-        // Calculate discount amounts for breakdown (for informational purposes)
+        // CRITICAL: Only admin-set discount percentages are used
+        // No automatic promotional codes or discounts are applied
+        // Only plan.DiscountPercentage and plan.BillingDiscountPercentage are used
+        
+        // Calculate discount amounts for breakdown display (using centralized logic)
         decimal? promotionalDiscountAmount = null;
         decimal? billingDiscountAmount = null;
         
@@ -436,8 +446,9 @@ public class PlanPricingService : IPlanPricingService
     }
 
     /// <summary>
-    /// Calculates the effective price for a subscription plan, considering all discounts and billing cycles
-    /// This is the price that should be used for billing and Stripe synchronization
+    /// Calculates the effective price for a subscription plan, considering all discounts.
+    /// This is the price that should be used for billing and Stripe synchronization.
+    /// CORRECTED: Removed billing cycle multiplier - BillingDiscountPercentage already handles cycle discounts.
     /// </summary>
     public async Task<decimal> CalculateEffectivePriceAsync(Guid planId, string billingCycle = "monthly")
     {
@@ -445,20 +456,13 @@ public class PlanPricingService : IPlanPricingService
         if (plan == null)
             throw new ArgumentException($"Plan {planId} not found");
 
-        // Get the pricing breakdown
+        // Get the pricing breakdown (already includes BillingDiscountPercentage)
         var breakdown = await CalculatePricingBreakdownAsync(planId);
         
-        // Apply billing cycle multiplier if needed
-        decimal multiplier = billingCycle.ToLower() switch
-        {
-            "weekly" => 0.25m,    // 1/4 of monthly
-            "monthly" => 1.0m,    // Base price
-            "quarterly" => 3.0m,  // 3 months
-            "annual" => 12.0m,    // 12 months
-            _ => 1.0m
-        };
-
-        return breakdown.FinalPrice * multiplier;
+        // CORRECTED: Return the final price as-is (no multiplier needed)
+        // BillingDiscountPercentage already handles billing cycle discounts
+        // Each plan has a fixed billing cycle, no multiplication needed
+        return breakdown.FinalPrice;
     }
 
     /// <summary>
@@ -479,33 +483,9 @@ public class PlanPricingService : IPlanPricingService
                 throw new ArgumentException($"Plan {planId} not found");
             }
             
-            // Start with base price
-            decimal price = plan.BasePrice;
-            
-            // Apply promotional discount if valid
-            if (plan.DiscountPercentage.HasValue && plan.DiscountPercentage.Value > 0)
-            {
-                // Check if discount is still valid
-                bool isDiscountValid = !plan.DiscountValidUntil.HasValue || 
-                                     plan.DiscountValidUntil.Value >= DateTime.UtcNow;
-                
-                if (isDiscountValid)
-                {
-                    price = price * (1 - (plan.DiscountPercentage.Value / 100));
-                    _logger.LogInformation("Applied promotional discount {Discount}% to plan {PlanId}: ${BasePrice} -> ${EffectivePrice}", 
-                        plan.DiscountPercentage.Value, planId, plan.BasePrice, price);
-                }
-            }
-            
-            // Apply billing discount
-            if (plan.BillingDiscountPercentage.HasValue && plan.BillingDiscountPercentage.Value > 0)
-            {
-                price = price * (1 - (plan.BillingDiscountPercentage.Value / 100));
-                _logger.LogInformation("Applied billing discount {Discount}% to plan {PlanId}: ${BeforePrice} -> ${EffectivePrice}", 
-                    plan.BillingDiscountPercentage.Value, planId, price / (1 - (plan.BillingDiscountPercentage.Value / 100)), price);
-            }
-            
-            var finalPrice = Math.Max(price, 0); // Ensure price doesn't go negative
+            // CRITICAL FIX: Use centralized effective price calculation
+            // This ensures consistent discount application across all services
+            var finalPrice = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
             
             _logger.LogInformation("Final effective price for plan {PlanId}: ${FinalPrice}", planId, finalPrice);
             

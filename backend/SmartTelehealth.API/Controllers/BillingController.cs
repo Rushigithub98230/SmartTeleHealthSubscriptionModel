@@ -75,7 +75,6 @@ public class BillingController : BaseController
     /// </remarks>
     [HttpGet]
     [HttpGet("records")]
-    [AllowAnonymous]
     public async Task<JsonModel> GetAllBillingRecords(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
@@ -190,6 +189,49 @@ public class BillingController : BaseController
     public async Task<JsonModel> GetUserBillingHistory(int userId)
     {
         return await _billingService.GetUserBillingHistoryAsync(userId, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Retrieves billing records for the current authenticated user with filtering and pagination.
+    /// This endpoint provides user-specific billing records with comprehensive filtering capabilities
+    /// for status, type, date range, and other criteria.
+    /// </summary>
+    /// <param name="page">Page number for pagination (default: 1)</param>
+    /// <param name="pageSize">Number of records per page (default: 10)</param>
+    /// <param name="status">Filter by billing status array</param>
+    /// <param name="type">Filter by billing type array</param>
+    /// <param name="subscriptionId">Filter by subscription ID array</param>
+    /// <param name="startDate">Start date for date range filtering</param>
+    /// <param name="endDate">End date for date range filtering</param>
+    /// <param name="sortBy">Field to sort by</param>
+    /// <param name="sortOrder">Sort order (asc/desc)</param>
+    /// <returns>JsonModel containing paginated billing records with metadata</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Returns billing records for the authenticated user only
+    /// - Supports comprehensive filtering by status, type, and date range
+    /// - Provides pagination with configurable page size
+    /// - Includes sorting capabilities
+    /// - Access restricted to authenticated users
+    /// - Used for user billing history and payment tracking
+    /// - Returns detailed billing information with payment status
+    /// </remarks>
+    [HttpGet("records")]
+    public async Task<JsonModel> GetUserBillingRecords(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string[]? status = null,
+        [FromQuery] string[]? type = null,
+        [FromQuery] string[]? subscriptionId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null)
+    {
+        var token = GetToken(HttpContext);
+        return await _billingService.GetUserBillingRecordsAsync(
+            token.UserID, page, pageSize, status, type, subscriptionId, 
+            startDate, endDate, sortBy, sortOrder, token);
     }
 
     /// <summary>

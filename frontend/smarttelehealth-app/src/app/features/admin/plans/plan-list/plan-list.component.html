@@ -135,7 +135,7 @@
                 </td>
                 <td>
                   <span class="badge bg-primary">
-                    {{plan.planPrivileges.length || 0}} privileges
+                    {{(plan.planPrivileges?.length || 0)}} privileges
                   </span>
                 </td>
                 <td>
@@ -153,6 +153,14 @@
                       [disabled]="actionLoading"
                       title="Deactivate">
                       <i class="bi bi-x-circle"></i>
+                    </button>
+                    <button 
+                      *ngIf="!plan.isActive"
+                      class="btn btn-outline-success" 
+                      (click)="reactivatePlan(plan.id)"
+                      [disabled]="actionLoading"
+                      title="Reactivate">
+                      <i class="bi bi-check-circle"></i>
                     </button>
                   </div>
                 </td>

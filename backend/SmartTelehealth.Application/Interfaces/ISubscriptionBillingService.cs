@@ -62,6 +62,7 @@ public interface ISubscriptionBillingService
     Task<JsonModel> CreateBillingRecordAsync(CreateBillingRecordDto createDto, TokenModel tokenModel);
     Task<JsonModel> GetBillingRecordAsync(Guid id, TokenModel tokenModel);
     Task<JsonModel> GetUserBillingHistoryAsync(int userId, TokenModel tokenModel);
+    Task<JsonModel> GetUserBillingRecordsAsync(int userId, int page, int pageSize, string[]? status, string[]? type, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);
     Task<JsonModel> GetSubscriptionBillingHistoryAsync(Guid subscriptionId, TokenModel tokenModel);
     Task<JsonModel> GetBillingRecordsWithFilteringAsync(BillingFilterDto filter, TokenModel? tokenModel = null, bool adminOnly = false);
     Task<JsonModel> GetAllBillingRecordsAsync(int page, int pageSize, string? searchTerm, string[]? status, string[]? type, string[]? userId, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel);

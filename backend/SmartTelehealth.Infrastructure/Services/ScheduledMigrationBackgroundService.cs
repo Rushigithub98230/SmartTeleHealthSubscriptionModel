@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.DTOs;
+using SmartTelehealth.Application.Utilities;
 
 namespace SmartTelehealth.Infrastructure.Services;
 
@@ -166,6 +167,31 @@ public class ScheduledMigrationBackgroundService : BackgroundService
                 throw new InvalidOperationException($"Subscription {migration.SubscriptionId} not found");
             }
             
+            // Check user decision - handle cancellation
+            if (migration.UserDecision == "Cancel")
+            {
+                _logger.LogInformation(
+                    "User rejected migration for subscription {SubId}. Marking for cancellation at renewal.",
+                    subscription.Id);
+                
+                // Mark subscription for auto-cancel at renewal
+                subscription.PendingCancellationAtRenewal = true;
+                subscription.PendingCancellationReason = "User rejected plan version migration";
+                
+                // Update migration status
+                migration.Status = "UserOptedOut";
+                migration.CompletedDate = DateTime.UtcNow;
+                
+                await subscriptionRepository.UpdateAsync(subscription);
+                await unitOfWork.CommitTransactionAsync();
+                
+                _logger.LogInformation(
+                    "Subscription {SubId} marked for cancellation at next renewal",
+                    subscription.Id);
+                
+                return; // Don't proceed with migration
+            }
+            
             var targetPlanId = migration.DowngradeToPlanId ?? migration.ToPlanId;
             var targetPlan = await subscriptionPlanRepository.GetByIdWithDetailsAsync(targetPlanId);
             
@@ -179,9 +205,24 @@ public class ScheduledMigrationBackgroundService : BackgroundService
                 subscription.Id, migration.FromPlan.Name, migration.FromPlan.VersionNumber,
                 targetPlan.Name, targetPlan.VersionNumber);
             
+            // Get system default commission for price calculation
+            var systemSettingsRepo = serviceProvider.GetRequiredService<ISystemSettingsRepository>();
+            var systemSettings = await systemSettingsRepo.GetSettingsAsync();
+            var defaultCommission = systemSettings?.DefaultAdminCommissionPercent ?? 0;
+            
             // Update subscription to new plan
             subscription.SubscriptionPlanId = targetPlan.Id;
-            subscription.CurrentPrice = targetPlan.BasePrice;
+            
+            // Use calculated effective price instead of stored BasePrice
+            subscription.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(
+                targetPlan, 
+                defaultCommission,
+                _logger);
+            
+            _logger.LogInformation(
+                "Migration: Calculated effective price for subscription {SubId}: ${Price}",
+                subscription.Id, subscription.CurrentPrice);
+            
             subscription.UpdatedBy = 0; // System automated
             subscription.UpdatedDate = DateTime.UtcNow;
             

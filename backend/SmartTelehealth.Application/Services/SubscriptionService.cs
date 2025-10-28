@@ -1341,7 +1341,14 @@ public class SubscriptionService : ISubscriptionService
     {
         try
         {
-            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(Guid.Parse(subscriptionId));
+            // Validate that subscriptionId is a valid GUID before parsing
+            if (string.IsNullOrEmpty(subscriptionId) || !Guid.TryParse(subscriptionId, out Guid subscriptionGuid))
+            {
+                _logger.LogWarning("Invalid subscription ID format: {SubscriptionId}", subscriptionId);
+                return false;
+            }
+            
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionGuid);
             return subscription != null && subscription.UserId == userId;
         }
         catch (Exception ex)

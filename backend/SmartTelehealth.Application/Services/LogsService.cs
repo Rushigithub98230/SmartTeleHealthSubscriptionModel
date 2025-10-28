@@ -8,23 +8,26 @@ using SmartTelehealth.Core.Interfaces;
 namespace SmartTelehealth.Application.Services;
 
 /// <summary>
-/// Service for managing application logs and audit logs.
+/// Service for managing application logs, audit logs, and file logs.
 /// </summary>
 public class LogsService : ILogsService
 {
     private readonly IApplicationLogRepository _applicationLogRepository;
     private readonly IAuditLogRepository _auditLogRepository;
+    private readonly IFileLogReaderService _fileLogReaderService;
     private readonly IMapper _mapper;
     private readonly ILogger<LogsService> _logger;
 
     public LogsService(
         IApplicationLogRepository applicationLogRepository,
         IAuditLogRepository auditLogRepository,
+        IFileLogReaderService fileLogReaderService,
         IMapper mapper,
         ILogger<LogsService> logger)
     {
         _applicationLogRepository = applicationLogRepository;
         _auditLogRepository = auditLogRepository;
+        _fileLogReaderService = fileLogReaderService;
         _mapper = mapper;
         _logger = logger;
     }
@@ -230,6 +233,115 @@ public class LogsService : ILogsService
             {
                 data = new object(),
                 Message = "Failed to retrieve log",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Gets file logs within the specified date range.
+    /// </summary>
+    public async Task<JsonModel> GetFileLogsAsync(DateTime startDate, DateTime endDate, TokenModel token)
+    {
+        try
+        {
+            _logger.LogInformation("Getting file logs from {StartDate} to {EndDate} by user {UserId}", 
+                startDate, endDate, token?.UserID ?? 0);
+
+            var logEntries = await _fileLogReaderService.ReadLogFilesAsync(startDate, endDate);
+
+            var result = new
+            {
+                logs = logEntries,
+                totalCount = logEntries.Count,
+                startDate = startDate,
+                endDate = endDate
+            };
+
+            return new JsonModel
+            {
+                data = result,
+                Message = "File logs retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting file logs from {StartDate} to {EndDate} by user {UserId}", 
+                startDate, endDate, token?.UserID ?? 0);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve file logs",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Gets recent file logs.
+    /// </summary>
+    public async Task<JsonModel> GetRecentFileLogsAsync(int count, TokenModel token)
+    {
+        try
+        {
+            _logger.LogInformation("Getting {Count} recent file logs by user {UserId}", count, token?.UserID ?? 0);
+
+            var logEntries = await _fileLogReaderService.ReadRecentLogsAsync(count);
+
+            var result = new
+            {
+                logs = logEntries,
+                totalCount = logEntries.Count,
+                requestedCount = count
+            };
+
+            return new JsonModel
+            {
+                data = result,
+                Message = "Recent file logs retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting {Count} recent file logs by user {UserId}", count, token?.UserID ?? 0);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve recent file logs",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Gets log statistics for the specified date range.
+    /// </summary>
+    public async Task<JsonModel> GetLogStatisticsAsync(DateTime startDate, DateTime endDate, TokenModel token)
+    {
+        try
+        {
+            _logger.LogInformation("Getting log statistics from {StartDate} to {EndDate} by user {UserId}", 
+                startDate, endDate, token?.UserID ?? 0);
+
+            var statistics = await _fileLogReaderService.GetLogStatisticsAsync(startDate, endDate);
+
+            return new JsonModel
+            {
+                data = statistics,
+                Message = "Log statistics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting log statistics from {StartDate} to {EndDate} by user {UserId}", 
+                startDate, endDate, token?.UserID ?? 0);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve log statistics",
                 StatusCode = 500
             };
         }

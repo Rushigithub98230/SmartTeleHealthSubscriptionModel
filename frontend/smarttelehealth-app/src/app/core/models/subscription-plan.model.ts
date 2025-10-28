@@ -80,7 +80,7 @@ export interface SubscriptionPlanDto {
   parentPlanId?: string;
   
   // Relationships
-  planPrivileges: PlanPrivilegeDto[];
+  planPrivileges?: PlanPrivilegeDto[];
   category?: CategoryDto;
   
   // Audit
@@ -95,7 +95,7 @@ export interface CreateSubscriptionPlanDto {
   name: string;                    // Required, max 100
   description?: string;            // Max 500
   shortDescription?: string;       // Max 200
-  basePrice: number;               // Required, > 0
+  basePrice?: number;              // ✅ Optional - calculated automatically from privileges
   discountPercentage?: number;     // Promotional discount (%)
   discountValidUntil?: Date;
   billingCycleId: string;          // Required GUID

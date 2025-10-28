@@ -127,6 +127,10 @@ public static class DependencyInjection
         // Register Logs Service
         services.AddScoped<SmartTelehealth.Application.Interfaces.ILogsService, SmartTelehealth.Application.Services.LogsService>();
         
+        // Register Logs Services
+        services.AddScoped<IFileLogReaderService, FileLogReaderService>();
+        services.AddScoped<IRealTimeLogsService, RealTimeLogsService>();
+        
         // Register Provider Fee Services
         services.AddScoped<IProviderFeeService, ProviderFeeService>();
         services.AddScoped<ICategoryFeeRangeService, CategoryFeeRangeService>();

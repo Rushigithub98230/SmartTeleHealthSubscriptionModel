@@ -188,12 +188,18 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
                 provider.GetRequiredService<IPlanPricingService>(),
-                provider.GetRequiredService<IStripeSynchronizationService>()
+                provider.GetRequiredService<IStripeSynchronizationService>(),
+                provider.GetRequiredService<IPlanVersioningService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISystemSettingsRepository>()
             )
         );
         
         // Register Stripe Synchronization Service
         services.AddScoped<IStripeSynchronizationService, StripeSynchronizationService>();
+        
+        // Register Logs Services
+        services.AddScoped<ILogsService, LogsService>();
+        services.AddScoped<IFileLogReaderService, FileLogReaderService>();
         
         return services;
     }

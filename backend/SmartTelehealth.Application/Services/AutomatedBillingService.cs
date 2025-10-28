@@ -750,6 +750,31 @@ public class AutomatedBillingService : IAutomatedBillingService
     {
         try
         {
+            // Check if subscription is pending cancellation
+            if (subscription.PendingCancellationAtRenewal)
+            {
+                _logger.LogInformation(
+                    "Subscription {SubId} is pending cancellation. Cancelling instead of renewing.",
+                    subscription.Id);
+                
+                // Cancel subscription
+                var systemToken = new TokenModel { UserID = 0, RoleID = 1 };
+                
+                // Update subscription status to cancelled
+                subscription.Status = Subscription.SubscriptionStatuses.Cancelled;
+                subscription.CancelledDate = DateTime.UtcNow;
+                subscription.CancellationReason = subscription.PendingCancellationReason ?? "Scheduled cancellation at renewal";
+                
+                await _subscriptionRepository.UpdateAsync(subscription);
+                await _unitOfWork.SaveChangesAsync();
+                
+                _logger.LogInformation(
+                    "Subscription {SubId} cancelled at renewal as scheduled",
+                    subscription.Id);
+                
+                return; // Don't process billing
+            }
+            
             _logger.LogInformation("Delegating renewal for subscription {SubscriptionId} to centralized billing service", 
                 subscription.Id);
         
@@ -965,7 +990,7 @@ public class AutomatedBillingService : IAutomatedBillingService
             var plan = subscription.SubscriptionPlan;
             
             // CRITICAL FIX: Use centralized effective price calculation
-            var basePrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            var basePrice = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
             
             _logger.LogDebug(
                 "Using effective plan price for {SubscriptionId}: " +
@@ -1392,79 +1417,31 @@ public class AutomatedBillingService : IAutomatedBillingService
     }
 
     /// <summary>
-    /// Calculates discount amount for a subscription with proper validation and capping.
-    /// FIXED: Prevents excessive discount stacking that could cause revenue loss.
+    /// Calculates discount amount for a subscription.
+    /// CRITICAL CHANGE: No automatic discounts applied - only admin-set plan discount percentages are used.
+    /// Promotional codes and automatic discounts are completely removed.
     /// </summary>
     private async Task<decimal> CalculateDiscountAmountAsync(Subscription subscription, TokenModel tokenModel)
     {
         try
         {
+            // CRITICAL CHANGE: No automatic discounts applied
+            // Only admin-set discount percentages on plans are used
+            // Promotional codes and automatic discounts are completely removed
+            
             decimal totalDiscount = 0;
-            var basePrice = subscription.CurrentPrice;
             
-            // Check for subscription plan discounts
-            if (subscription.SubscriptionPlan != null)
-            {
-                // Early bird discount for new subscriptions (first 30 days)
-                if (subscription.CreatedDate > DateTime.UtcNow.AddDays(-30))
-                {
-                    var earlyBirdDiscount = basePrice * 0.1m; // 10% early bird discount
-                    totalDiscount += earlyBirdDiscount;
-                    _logger.LogInformation("Applied early bird discount of {Discount} for subscription {SubscriptionId}", 
-                        earlyBirdDiscount, subscription.Id);
-                }
-                
-                // Volume discount for annual plans
-                if (subscription.SubscriptionPlan.BillingCycle?.Name == "annual")
-                {
-                    var volumeDiscount = basePrice * 0.15m; // 15% annual discount
-                    totalDiscount += volumeDiscount;
-                    _logger.LogInformation("Applied annual volume discount of {Discount} for subscription {SubscriptionId}", 
-                        volumeDiscount, subscription.Id);
-                }
-                
-                // Loyalty discount for long-term subscribers (6+ months)
-                if (subscription.CreatedDate < DateTime.UtcNow.AddMonths(-6))
-                {
-                    var loyaltyDiscount = basePrice * 0.05m; // 5% loyalty discount
-                    totalDiscount += loyaltyDiscount;
-                    _logger.LogInformation("Applied loyalty discount of {Discount} for subscription {SubscriptionId}", 
-                        loyaltyDiscount, subscription.Id);
-                }
-            }
+            _logger.LogDebug("No automatic discounts applied for subscription {SubscriptionId}. " +
+                "Only admin-set plan discount percentages are used.", subscription.Id);
             
-            // Check for promotional codes in subscription plan features (if available)
-            if (!string.IsNullOrEmpty(subscription.SubscriptionPlan?.Features))
-            {
-                try
-                {
-                    var features = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(subscription.SubscriptionPlan.Features);
-                    if (features != null && features.ContainsKey("promo_code"))
-                    {
-                        var promoCode = features["promo_code"].ToString();
-                        if (!string.IsNullOrEmpty(promoCode))
-                        {
-                            // Apply promotional discount based on code
-                            var promoDiscount = ApplyPromotionalDiscount(promoCode, basePrice);
-                            totalDiscount += promoDiscount;
-                            _logger.LogInformation("Applied promotional discount of {Discount} for code {PromoCode} on subscription {SubscriptionId}", 
-                                promoDiscount, promoCode, subscription.Id);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to parse subscription plan features for promotional codes");
-                }
-            }
-            
-            // CRITICAL FIX: Validate and cap total discounts to prevent revenue loss
-            var validatedDiscount = BillingValidationService.ValidateAndCapDiscounts(basePrice, totalDiscount, 50m);
+            // Validate and cap any discounts to prevent revenue loss
+            var validatedDiscount = BillingValidationService.ValidateAndCapDiscounts(
+                subscription.CurrentPrice, totalDiscount, 50m);
             
             if (validatedDiscount != totalDiscount)
             {
-                _logger.LogWarning("Total discount {TotalDiscount} exceeded maximum allowed for subscription {SubscriptionId}, capped to {CappedDiscount}",
-                    totalDiscount, subscription.Id, validatedDiscount);
+                _logger.LogWarning("Discounts capped for subscription {SubscriptionId}: Original={Original}, Capped={Capped}",
+                    subscription.Id, totalDiscount, validatedDiscount);
             }
             
             return validatedDiscount;
@@ -1476,25 +1453,7 @@ public class AutomatedBillingService : IAutomatedBillingService
         }
     }
     
-    private decimal ApplyPromotionalDiscount(string promoCode, decimal baseAmount)
-    {
-        // Define promotional codes and their discounts
-        var promoDiscounts = new Dictionary<string, decimal>
-        {
-            { "WELCOME10", 0.10m },    // 10% off
-            { "SAVE20", 0.20m },       // 20% off
-            { "FIRST50", 0.50m },      // 50% off first month
-            { "STUDENT15", 0.15m },    // 15% off for students
-            { "SENIOR20", 0.20m }      // 20% off for seniors
-        };
-        
-        if (promoDiscounts.TryGetValue(promoCode.ToUpper(), out var discountPercentage))
-        {
-            return baseAmount * discountPercentage;
-        }
-        
-        return 0;
-    }
+    // REMOVED: ApplyPromotionalDiscount method - promotional codes are no longer supported
 
     /// <summary>
     /// Gets the effective price for a subscription plan, considering discounts and validity periods.
@@ -1507,7 +1466,7 @@ public class AutomatedBillingService : IAutomatedBillingService
         try
         {
             // CRITICAL FIX: Use centralized effective price calculation
-            return BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            return BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
         }
         catch (Exception ex)
         {

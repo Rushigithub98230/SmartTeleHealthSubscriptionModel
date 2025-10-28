@@ -365,6 +365,9 @@ public class SubscriptionPlan : BaseEntity
     /// Applies sequential discount calculations: BasePrice → DiscountPercentage → BillingDiscountPercentage
     /// NOTE: This property cannot access system settings, so it returns 0 commission when AdminCommissionPercent is null.
     /// Use PlanPricingService.CalculatePlanPriceAsync() for proper system default fallback.
+    /// 
+    /// IMPORTANT: This computed property uses the SAME LOGIC as BillingCalculationService.GetEffectivePlanPrice()
+    /// to ensure consistency across the application.
     /// </summary>
     [NotMapped]
     public decimal EffectivePrice

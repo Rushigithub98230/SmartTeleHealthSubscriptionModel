@@ -39,15 +39,15 @@ public class WebhookService : IWebhookService
         ISubscriptionService subscriptionService,
         ILogger<WebhookService> logger)
     {
-        _subscriptionRepository = subscriptionRepository;
-        _billingService = billingService;
-        _lifecycleService = lifecycleService;
-        _notificationService = notificationService;
-        _userRepository = userRepository;
-        _billingRepository = billingRepository;
-        _paymentService = paymentService;
-        _subscriptionService = subscriptionService;
-        _logger = logger;
+        _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
+        _billingService = billingService ?? throw new ArgumentNullException(nameof(billingService));
+        _lifecycleService = lifecycleService ?? throw new ArgumentNullException(nameof(lifecycleService));
+        _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+        _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
+        _paymentService = paymentService ?? throw new ArgumentNullException(nameof(paymentService));
+        _subscriptionService = subscriptionService ?? throw new ArgumentNullException(nameof(subscriptionService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     #region Core Subscription Events
@@ -433,13 +433,363 @@ public class WebhookService : IWebhookService
         }
     }
 
-    #endregion
+    /// <summary>
+    /// Handles subscription trial started event from Stripe
+    /// </summary>
+    public async Task HandleCustomerSubscriptionTrialStartedAsync(Event stripeEvent)
+    {
+        try
+        {
+            var subscription = stripeEvent.Data.Object as Stripe.Subscription;
+            if (subscription == null)
+            {
+                _logger.LogWarning("Subscription trial started event received but no subscription data found");
+                return;
+            }
 
-    #region Payment Events
+            _logger.LogInformation("Processing trial started for subscription {StripeSubscriptionId}", subscription.Id);
+
+            var tokenModel = new TokenModel { UserID = 1 };
+            var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscription.Id, tokenModel);
+            
+            if (localSubscriptionResult.StatusCode == 200)
+            {
+                var subscriptionData = localSubscriptionResult.data as dynamic;
+                if (subscriptionData != null)
+                {
+                    // Update subscription to TrialActive
+                    var updateDto = new UpdateSubscriptionDto
+                    {
+                        Status = "TrialActive",
+                        TrialEndDate = subscription.TrialEnd,
+                        UpdatedDate = DateTime.UtcNow
+                    };
+
+                    await _lifecycleService.UpdateSubscriptionAsync(localSubscriptionResult.data.ToString(), updateDto, tokenModel);
+                    
+                    // Send trial started notification
+                    await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                    {
+                        UserId = subscriptionData.UserId,
+                        Title = "Trial Started",
+                        Message = "Your free trial has begun! Enjoy full access to all features.",
+                        Type = "TrialStarted",
+                        IsRead = false,
+                        Priority = "Normal"
+                    }, tokenModel);
+
+                    _logger.LogInformation("Successfully updated subscription to trial started for {SubscriptionId}", localSubscriptionResult.data);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing trial started event");
+            throw;
+        }
+    }
 
     /// <summary>
-    /// Handles payment succeeded event from Stripe
+    /// Handles subscription trial ended event from Stripe
     /// </summary>
+    public async Task HandleCustomerSubscriptionTrialEndedAsync(Event stripeEvent)
+    {
+        try
+        {
+            var subscription = stripeEvent.Data.Object as Stripe.Subscription;
+            if (subscription == null)
+            {
+                _logger.LogWarning("Subscription trial ended event received but no subscription data found");
+                return;
+            }
+
+            _logger.LogInformation("Processing trial ended for subscription {StripeSubscriptionId}", subscription.Id);
+
+            var tokenModel = new TokenModel { UserID = 1 };
+            var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscription.Id, tokenModel);
+            
+            if (localSubscriptionResult.StatusCode == 200)
+            {
+                var subscriptionData = localSubscriptionResult.data as dynamic;
+                if (subscriptionData != null)
+                {
+                    // Update subscription status based on trial outcome
+                    string newStatus = subscription.Status == "active" ? "Active" : "TrialExpired";
+                    
+                    var updateDto = new UpdateSubscriptionDto
+                    {
+                        Status = newStatus,
+                        UpdatedDate = DateTime.UtcNow
+                    };
+
+                    await _lifecycleService.UpdateSubscriptionAsync(localSubscriptionResult.data.ToString(), updateDto, tokenModel);
+                    
+                    // Send trial ended notification
+                    await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                    {
+                        UserId = subscriptionData.UserId,
+                        Title = "Trial Ended",
+                        Message = newStatus == "Active" 
+                            ? "Your trial has ended and your subscription is now active!" 
+                            : "Your trial has ended. Please add a payment method to continue.",
+                        Type = "TrialEnded",
+                        IsRead = false,
+                        Priority = "High"
+                    }, tokenModel);
+
+                    _logger.LogInformation("Successfully updated subscription trial ended for {SubscriptionId}", localSubscriptionResult.data);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing trial ended event");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Handles invoice payment action required event from Stripe
+    /// </summary>
+    public async Task HandleInvoicePaymentActionRequiredAsync(Event stripeEvent)
+    {
+        try
+        {
+            var invoice = stripeEvent.Data.Object as Stripe.Invoice;
+            if (invoice == null)
+            {
+                _logger.LogWarning("Invoice payment action required event received but no invoice data found");
+                return;
+            }
+
+            _logger.LogInformation("Processing payment action required for invoice {InvoiceId}", invoice.Id);
+
+            var subscriptionId = GetSubscriptionIdFromInvoice(invoice);
+            if (!string.IsNullOrEmpty(subscriptionId))
+            {
+                var tokenModel = new TokenModel { UserID = 1 };
+                var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscriptionId, tokenModel);
+                
+                if (localSubscriptionResult.StatusCode == 200)
+                {
+                    var subscriptionData = localSubscriptionResult.data as dynamic;
+                    if (subscriptionData != null)
+                    {
+                        // Send payment action required notification
+                        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                        {
+                            UserId = subscriptionData.UserId,
+                            Title = "Payment Action Required",
+                            Message = "Your payment requires additional authentication. Please complete the payment process.",
+                            Type = "PaymentActionRequired",
+                            IsRead = false,
+                            Priority = "High"
+                        }, tokenModel);
+
+                        _logger.LogInformation("Successfully sent payment action required notification for subscription {SubscriptionId}", localSubscriptionResult.data);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing payment action required event");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Handles payment intent requires action event from Stripe
+    /// </summary>
+    public async Task HandlePaymentIntentRequiresActionAsync(Event stripeEvent)
+    {
+        try
+        {
+            var paymentIntent = stripeEvent.Data.Object as Stripe.PaymentIntent;
+            if (paymentIntent == null)
+            {
+                _logger.LogWarning("Payment intent requires action event received but no payment intent data found");
+                return;
+            }
+
+            _logger.LogInformation("Processing payment intent requires action for payment intent {PaymentIntentId}", paymentIntent.Id);
+
+            // Extract subscription ID from metadata if available
+            if (paymentIntent.Metadata.TryGetValue("subscription_id", out var subscriptionIdStr))
+            {
+                var tokenModel = new TokenModel { UserID = 1 };
+                var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscriptionIdStr, tokenModel);
+                
+                if (localSubscriptionResult.StatusCode == 200)
+                {
+                    var subscriptionData = localSubscriptionResult.data as dynamic;
+                    if (subscriptionData != null)
+                    {
+                        // Send payment action required notification
+                        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                        {
+                            UserId = subscriptionData.UserId,
+                            Title = "Payment Authentication Required",
+                            Message = "Your payment requires additional authentication. Please complete the authentication process.",
+                            Type = "PaymentAuthenticationRequired",
+                            IsRead = false,
+                            Priority = "High"
+                        }, tokenModel);
+
+                        _logger.LogInformation("Successfully sent payment authentication required notification for subscription {SubscriptionId}", localSubscriptionResult.data);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing payment intent requires action event");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Handles charge succeeded event from Stripe
+    /// </summary>
+    public async Task HandleChargeSucceededAsync(Event stripeEvent)
+    {
+        try
+        {
+            var charge = stripeEvent.Data.Object as Stripe.Charge;
+            if (charge == null)
+            {
+                _logger.LogWarning("Charge succeeded event received but no charge data found");
+                return;
+            }
+
+            _logger.LogInformation("Processing charge succeeded event for charge {ChargeId}", charge.Id);
+
+            // Extract subscription ID from metadata if available
+            if (charge.Metadata.TryGetValue("subscription_id", out var subscriptionIdStr))
+            {
+                var tokenModel = new TokenModel { UserID = 1 };
+                var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscriptionIdStr, tokenModel);
+                
+                if (localSubscriptionResult.StatusCode == 200)
+                {
+                    var subscriptionData = localSubscriptionResult.data as dynamic;
+                    if (subscriptionData != null)
+                    {
+                        // Log successful charge for audit purposes
+                        _logger.LogInformation("Charge {ChargeId} succeeded for subscription {SubscriptionId}, amount: {Amount}", 
+                            charge.Id, localSubscriptionResult.data, charge.Amount);
+
+                        // Update subscription last payment date
+                        var updateDto = new UpdateSubscriptionDto
+                        {
+                            LastPaymentDate = DateTime.UtcNow,
+                            UpdatedDate = DateTime.UtcNow
+                        };
+
+                        await _lifecycleService.UpdateSubscriptionAsync(localSubscriptionResult.data.ToString(), updateDto, tokenModel);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing charge succeeded event");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Handles charge failed event from Stripe
+    /// </summary>
+    public async Task HandleChargeFailedAsync(Event stripeEvent)
+    {
+        try
+        {
+            var charge = stripeEvent.Data.Object as Stripe.Charge;
+            if (charge == null)
+            {
+                _logger.LogWarning("Charge failed event received but no charge data found");
+                return;
+            }
+
+            _logger.LogInformation("Processing charge failed event for charge {ChargeId}", charge.Id);
+
+            // Extract subscription ID from metadata if available
+            if (charge.Metadata.TryGetValue("subscription_id", out var subscriptionIdStr))
+            {
+                var tokenModel = new TokenModel { UserID = 1 };
+                var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscriptionIdStr, tokenModel);
+                
+                if (localSubscriptionResult.StatusCode == 200)
+                {
+                    var subscriptionData = localSubscriptionResult.data as dynamic;
+                    if (subscriptionData != null)
+                    {
+                        // Log failed charge for audit purposes
+                        _logger.LogWarning("Charge {ChargeId} failed for subscription {SubscriptionId}, amount: {Amount}, failure code: {FailureCode}", 
+                            charge.Id, localSubscriptionResult.data, charge.Amount, charge.FailureCode);
+
+                        // Send payment failed notification
+                        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                        {
+                            UserId = subscriptionData.UserId,
+                            Title = "Payment Failed",
+                            Message = $"Your payment of ${charge.Amount / 100m:F2} failed. Please update your payment method.",
+                            Type = "PaymentFailed",
+                            IsRead = false,
+                            Priority = "High"
+                        }, tokenModel);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing charge failed event");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Handles charge captured event from Stripe
+    /// </summary>
+    public async Task HandleChargeCapturedAsync(Event stripeEvent)
+    {
+        try
+        {
+            var charge = stripeEvent.Data.Object as Stripe.Charge;
+            if (charge == null)
+            {
+                _logger.LogWarning("Charge captured event received but no charge data found");
+                return;
+            }
+
+            _logger.LogInformation("Processing charge captured event for charge {ChargeId}", charge.Id);
+
+            // Extract subscription ID from metadata if available
+            if (charge.Metadata.TryGetValue("subscription_id", out var subscriptionIdStr))
+            {
+                var tokenModel = new TokenModel { UserID = 1 };
+                var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscriptionIdStr, tokenModel);
+                
+                if (localSubscriptionResult.StatusCode == 200)
+                {
+                    var subscriptionData = localSubscriptionResult.data as dynamic;
+                    if (subscriptionData != null)
+                    {
+                        // Log captured charge for audit purposes
+                        _logger.LogInformation("Charge {ChargeId} captured for subscription {SubscriptionId}, amount: {Amount}", 
+                            charge.Id, localSubscriptionResult.data, charge.Amount);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing charge captured event");
+            throw;
+        }
+    }
     public async Task HandlePaymentSucceededAsync(Event stripeEvent)
     {
         Stripe.Invoice? invoice = null;
@@ -786,32 +1136,6 @@ public class WebhookService : IWebhookService
         }
     }
 
-    /// <summary>
-    /// Handles payment intent requires action event from Stripe
-    /// </summary>
-    public async Task HandlePaymentIntentRequiresActionAsync(Event stripeEvent)
-    {
-        try
-        {
-            var paymentIntent = stripeEvent.Data.Object as Stripe.PaymentIntent;
-            if (paymentIntent == null)
-            {
-                _logger.LogWarning("Payment intent requires action event received but no payment intent data found");
-                return;
-            }
-
-            _logger.LogInformation("Processing payment intent requires action event for payment intent {PaymentIntentId}", paymentIntent.Id);
-            
-            // Log that additional action is required
-            _logger.LogInformation("Payment intent {PaymentIntentId} requires additional action: {NextAction}", 
-                paymentIntent.Id, paymentIntent.NextAction?.Type);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing payment intent requires action event");
-            throw;
-        }
-    }
 
     #endregion
 
@@ -976,31 +1300,6 @@ public class WebhookService : IWebhookService
         }
     }
 
-    /// <summary>
-    /// Handles invoice payment action required event from Stripe
-    /// </summary>
-    public async Task HandleInvoicePaymentActionRequiredAsync(Event stripeEvent)
-    {
-        try
-        {
-            var invoice = stripeEvent.Data.Object as Stripe.Invoice;
-            if (invoice == null)
-            {
-                _logger.LogWarning("Invoice payment action required event received but no invoice data found");
-                return;
-            }
-
-            _logger.LogInformation("Processing invoice payment action required event for invoice {InvoiceId}", invoice.Id);
-            
-            // Log action required
-            _logger.LogInformation("Invoice {InvoiceId} payment requires additional action", invoice.Id);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing invoice payment action required event");
-            throw;
-        }
-    }
 
     #endregion
 

@@ -91,10 +91,12 @@ export class PlanEditComponent implements OnInit {
     });
 
     this.billingForm = this.fb.group({
-      billingDiscount: [0], // Single discount field
+      discountPercentage: [0, [Validators.min(0), Validators.max(100)]],
+      discountValidUntil: [null],
+      billingDiscountPercentage: [0, [Validators.min(0), Validators.max(100)]],
       isAutoCalculatedPrice: [true],
-      adminCommissionPercent: [10],
-      priceChangeNoticeDays: [10]
+      adminCommissionPercent: [10, [Validators.min(0), Validators.max(100)]],
+      priceChangeNoticeDays: [10, [Validators.min(0)]]
     });
   }
 
@@ -200,7 +202,9 @@ export class PlanEditComponent implements OnInit {
     });
 
     this.billingForm.patchValue({
-      billingDiscount: this.plan.billingDiscountPercentage || this.plan.billingDiscount || 0, // Use correct field name
+      discountPercentage: this.plan.discountPercentage || 0,
+      discountValidUntil: this.plan.discountValidUntil,
+      billingDiscountPercentage: this.plan.billingDiscountPercentage || 0,
       isAutoCalculatedPrice: this.plan.isAutoCalculatedPrice,
       adminCommissionPercent: this.plan.adminCommissionPercent || 10,
       priceChangeNoticeDays: this.plan.priceChangeNoticeDays || 10
@@ -263,7 +267,9 @@ export class PlanEditComponent implements OnInit {
       isAutoCalculatedPrice: this.billingForm.value.isAutoCalculatedPrice,
       adminCommissionPercent: this.billingForm.value.adminCommissionPercent,
       priceChangeNoticeDays: this.billingForm.value.priceChangeNoticeDays,
-      billingDiscountPercentage: this.billingForm.value.billingDiscount // ✅ Use correct field name
+      discountPercentage: this.billingForm.value.discountPercentage,
+      discountValidUntil: this.billingForm.value.discountValidUntil,
+      billingDiscountPercentage: this.billingForm.value.billingDiscountPercentage
     };
 
     this.planService.updatePlan(this.planId, dto).subscribe({

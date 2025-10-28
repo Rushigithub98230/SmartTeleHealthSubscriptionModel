@@ -31,6 +31,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPlanPricingService _pricingService;
     private readonly IStripeSynchronizationService _stripeSyncService;
+    private readonly IPlanVersioningService _planVersioningService;
+    private readonly ISystemSettingsRepository _systemSettingsRepository;
 
     /// <summary>
     /// Initializes a new instance of the SubscriptionPlanService with required dependencies
@@ -48,6 +50,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     /// <param name="unitOfWork">Unit of work for transaction management</param>
     /// <param name="pricingService">Service for healthcare pricing calculations</param>
     /// <param name="stripeSyncService">Service for Stripe synchronization</param>
+    /// <param name="planVersioningService">Service for plan versioning and migration</param>
+    /// <param name="systemSettingsRepository">Repository for system settings</param>
     public SubscriptionPlanService(
         ISubscriptionPlanRepository subscriptionPlanRepository,
         ISubscriptionPlanPrivilegeRepository planPrivilegeRepository,
@@ -61,7 +65,9 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         ISubscriptionRepository subscriptionRepository,
         IUnitOfWork unitOfWork,
         IPlanPricingService pricingService,
-        IStripeSynchronizationService stripeSyncService)
+        IStripeSynchronizationService stripeSyncService,
+        IPlanVersioningService planVersioningService,
+        ISystemSettingsRepository systemSettingsRepository)
     {
         _subscriptionPlanRepository = subscriptionPlanRepository ?? throw new ArgumentNullException(nameof(subscriptionPlanRepository));
         _planPrivilegeRepository = planPrivilegeRepository ?? throw new ArgumentNullException(nameof(planPrivilegeRepository));
@@ -76,6 +82,8 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _pricingService = pricingService ?? throw new ArgumentNullException(nameof(pricingService));
         _stripeSyncService = stripeSyncService ?? throw new ArgumentNullException(nameof(stripeSyncService));
+        _planVersioningService = planVersioningService ?? throw new ArgumentNullException(nameof(planVersioningService));
+        _systemSettingsRepository = systemSettingsRepository ?? throw new ArgumentNullException(nameof(systemSettingsRepository));
     }
 
     #region Core Plan Management
@@ -193,7 +201,41 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Plan name is required", StatusCode = 400 };
             }
 
-            // Allow 0 base price if auto-calculation is enabled
+            // ✅ NEW: Always calculate base price from privileges if auto-calculation is enabled
+            // This ensures pricing consistency and eliminates manual input errors
+            if (createDto.IsAutoCalculatedPrice)
+            {
+                _logger.LogInformation("Auto-calculating base price from privileges for plan '{PlanName}'", createDto.Name);
+                
+                // Calculate base price from privileges + commission
+                decimal calculatedBasePrice = 0;
+                
+                if (createDto.Privileges != null && createDto.Privileges.Any())
+                {
+                    foreach (var privilege in createDto.Privileges)
+                    {
+                        // Calculate privilege cost: Value × PrivilegeBaseCost
+                        decimal privilegeCost = privilege.Value > 0 
+                            ? privilege.Value * privilege.PrivilegeBaseCost
+                            : (privilege.Value == -1 ? privilege.PrivilegeBaseCost : 0);
+                        
+                        calculatedBasePrice += privilegeCost;
+                    }
+                    
+                    // Add admin commission
+                    decimal commissionPercent = createDto.AdminCommissionPercent ?? 10; // Default 10%
+                    decimal commission = calculatedBasePrice * (commissionPercent / 100);
+                    calculatedBasePrice += commission;
+                }
+                
+                // Override the provided base price with calculated value
+                createDto.BasePrice = calculatedBasePrice;
+                
+                _logger.LogInformation("Calculated base price for plan '{PlanName}': ${CalculatedPrice} (from {PrivilegeCount} privileges + {CommissionPercent}% commission)", 
+                    createDto.Name, calculatedBasePrice, createDto.Privileges?.Count ?? 0, createDto.AdminCommissionPercent ?? 10);
+            }
+
+            // Allow 0 base price if auto-calculation is enabled (will be calculated)
             if (createDto.BasePrice <= 0 && !createDto.IsAutoCalculatedPrice)
             {
                 return new JsonModel { data = new object(), Message = "Base price must be greater than 0 for manual pricing", StatusCode = 400 };
@@ -1874,6 +1916,27 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Subscription plan not found", StatusCode = 404 };
             }
 
+            // CRITICAL: Check for active subscriptions
+            var activeSubscriptionsCount = await _subscriptionPlanRepository
+                .GetActiveSubscriptionsCountAsync(planGuid);
+
+            // Decision: Create version if active subscriptions exist
+            if (activeSubscriptionsCount > 0)
+            {
+                _logger.LogInformation(
+                    "Plan {PlanId} has {Count} active subscriptions. Creating new version instead of updating.",
+                    planGuid, activeSubscriptionsCount);
+
+                // Use plan versioning service to create new version
+                return await _planVersioningService.CreateNewPlanVersionAsync(
+                    planGuid,
+                    updateDto,
+                    tokenModel);
+            }
+
+            // No active subscriptions - safe to update in-place
+            _logger.LogInformation("Plan {PlanId} has no active subscriptions. Updating in-place.", planGuid);
+
             // Update plan properties
             existingPlan.Name = updateDto.Name;
             existingPlan.Description = updateDto.Description;
@@ -1886,7 +1949,6 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             existingPlan.IsTrending = updateDto.IsTrending;
             existingPlan.DisplayOrder = updateDto.DisplayOrder ?? existingPlan.DisplayOrder;
             
-            // Update pricing and discount properties
             existingPlan.IsAutoCalculatedPrice = updateDto.IsAutoCalculatedPrice;
             existingPlan.AdminCommissionPercent = updateDto.AdminCommissionPercent;
             existingPlan.PriceChangeNoticeDays = updateDto.PriceChangeNoticeDays;
@@ -1894,30 +1956,48 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             existingPlan.DiscountPercentage = updateDto.DiscountPercentage;
             existingPlan.DiscountValidUntil = updateDto.DiscountValidUntil;
             
+            // Auto-recalculate BasePrice if using auto-calculation
+            if (existingPlan.IsAutoCalculatedPrice)
+            {
+                var privilegesTotalCost = await CalculatePrivilegesTotalCostAsync(existingPlan);
+                var systemSettings = await _systemSettingsRepository.GetSettingsAsync();
+                var defaultCommission = systemSettings?.DefaultAdminCommissionPercent ?? 0;
+                
+                var (calculatedPrice, _, _) = BillingCalculationService.CalculateFinalPlanPrice(
+                    privilegesTotalCost,
+                    existingPlan.AdminCommissionPercent,
+                    defaultCommission,
+                    _logger);
+                
+                existingPlan.BasePrice = calculatedPrice;
+                existingPlan.PrivilegesTotalCost = privilegesTotalCost;
+                
+                _logger.LogInformation("Auto-recalculated BasePrice for plan {PlanId}: ${BasePrice}", 
+                    planGuid, calculatedPrice);
+            }
+            
             existingPlan.UpdatedBy = tokenModel.UserID;
             existingPlan.UpdatedDate = DateTime.UtcNow;
 
-            // Update in database
             await _subscriptionPlanRepository.UpdateAsync(existingPlan);
             await _unitOfWork.SaveChangesAsync();
 
-                // CRITICAL: Synchronize with Stripe after plan update
-                _logger.LogInformation("Synchronizing updated plan {PlanName} with Stripe", existingPlan.Name);
-                var syncSuccess = await _stripeSyncService.SynchronizeSubscriptionPlanAsync(existingPlan.Id, tokenModel);
+            // Synchronize with Stripe
+            _logger.LogInformation("Synchronizing updated plan {PlanName} with Stripe", existingPlan.Name);
+            var syncSuccess = await _stripeSyncService.SynchronizeSubscriptionPlanAsync(existingPlan.Id, tokenModel);
             
             if (!syncSuccess)
             {
-                _logger.LogWarning("Failed to synchronize plan {PlanName} with Stripe, but plan was updated locally", existingPlan.Name);
-                // Note: We don't fail the operation here as the plan was successfully updated locally
-                // The sync failure will be logged and can be retried later
-            }
-            else
-            {
-                _logger.LogInformation("Successfully synchronized plan {PlanName} with Stripe", existingPlan.Name);
+                _logger.LogWarning("Failed to synchronize plan {PlanName} with Stripe", existingPlan.Name);
             }
 
             var updatedPlanDto = _mapper.Map<SubscriptionPlanDto>(existingPlan);
-            return new JsonModel { data = updatedPlanDto, Message = "Subscription plan updated successfully", StatusCode = 200 };
+            return new JsonModel 
+            { 
+                data = updatedPlanDto, 
+                Message = "Subscription plan updated successfully", 
+                StatusCode = 200 
+            };
         }
         catch (Exception ex)
         {
@@ -1946,7 +2026,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 return new JsonModel { data = new object(), Message = "Plan not found", StatusCode = 404 };
             }
 
-            var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
             
             return new JsonModel 
             { 
@@ -1970,6 +2050,32 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             _logger.LogError(ex, "Error calculating effective price for plan {PlanId}", planId);
             return new JsonModel { data = new object(), Message = "Error calculating effective price", StatusCode = 500 };
         }
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Calculates the total cost of all privileges associated with a plan.
+    /// Used for BasePrice auto-recalculation when privileges change.
+    /// </summary>
+    /// <param name="plan">The subscription plan</param>
+    /// <returns>Total cost of all privileges</returns>
+    private async Task<decimal> CalculatePrivilegesTotalCostAsync(SubscriptionPlan plan)
+    {
+        var planPrivileges = await _planPrivilegeRepository.GetByPlanIdAsync(plan.Id);
+        
+        decimal totalCost = 0;
+        foreach (var pp in planPrivileges)
+        {
+            totalCost += pp.Value * pp.PrivilegeBaseCost;
+        }
+        
+        _logger.LogDebug("Calculated privileges total cost for plan {PlanId}: ${Cost}", 
+            plan.Id, totalCost);
+        
+        return totalCost;
     }
 
     #endregion

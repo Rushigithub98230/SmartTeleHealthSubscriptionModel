@@ -72,7 +72,7 @@ export class PrivilegeService {
    */
   getUsageSummary(subscriptionId: string): Observable<ApiResponse<PrivilegeUsageSummary>> {
     return this.commonService.get<PrivilegeUsageSummary>(
-      'SubscriptionPlans/admin/privileges/usage-summary',
+      'SubscriptionPlans/privileges/usage-summary',
       { subscriptionId: subscriptionId }
     );
   }

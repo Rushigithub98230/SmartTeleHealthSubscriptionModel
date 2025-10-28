@@ -113,11 +113,23 @@ public class StripeWebhookController : BaseController
         Event stripeEvent;
         try
         {
-            stripeEvent = EventUtility.ConstructEvent(
-                json,
-                Request.Headers["Stripe-Signature"],
-                webhookSecret
-            );
+            // Check if this is a local development environment
+            var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+            var hasStripeSignature = !string.IsNullOrEmpty(Request.Headers["Stripe-Signature"]);
+            
+            if (isDevelopment && !hasStripeSignature)
+            {
+                _logger.LogWarning("Development mode: Skipping signature validation for local testing");
+                stripeEvent = Event.FromJson(json);
+            }
+            else
+            {
+                stripeEvent = EventUtility.ConstructEvent(
+                    json,
+                    Request.Headers["Stripe-Signature"],
+                    webhookSecret
+                );
+            }
         }
         catch (StripeException ex)
         {
@@ -329,7 +341,7 @@ public class StripeWebhookController : BaseController
             case "invoice.voided":
                 await _webhookService.HandleInvoiceVoidedAsync(stripeEvent);
                 break;
-            case "checkout.session.completed":
+                case "checkout.session.completed":
                 await _webhookService.HandleCheckoutSessionCompletedAsync(stripeEvent);
                 break;
             default:

@@ -85,8 +85,12 @@ export class AnalyticsComponent implements OnInit {
 
     this.analyticsService.getRevenueAnalytics().subscribe({
       next: (response) => {
+        console.log('[AnalyticsComponent] Revenue analytics response:', response);
         if (response.statusCode === 200) {
           this.revenueAnalytics = response.data;
+          console.log('[AnalyticsComponent] Revenue analytics data:', this.revenueAnalytics);
+          console.log('[AnalyticsComponent] RevenueByPlan type:', typeof this.revenueAnalytics?.revenueByPlan);
+          console.log('[AnalyticsComponent] RevenueByPlan value:', this.revenueAnalytics?.revenueByPlan);
         }
         this.loading.revenue = false;
       },
@@ -133,7 +137,10 @@ export class AnalyticsComponent implements OnInit {
    * Get plan revenue entries
    */
   getPlanRevenueEntries(): Array<{plan: string, revenue: number}> {
-    if (!this.revenueAnalytics?.revenueByPlan) return [];
+    if (!this.revenueAnalytics?.revenueByPlan || !Array.isArray(this.revenueAnalytics.revenueByPlan)) {
+      console.log('[AnalyticsComponent] revenueByPlan is not an array:', this.revenueAnalytics?.revenueByPlan);
+      return [];
+    }
     return this.revenueAnalytics.revenueByPlan.map(pr => ({
       plan: pr.planName,
       revenue: pr.revenue

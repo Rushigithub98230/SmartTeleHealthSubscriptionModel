@@ -15,9 +15,10 @@ public class CreateSubscriptionPlanDto
     [MaxLength(200)]
     public string? ShortDescription { get; set; }
     
-    [Required]
+    // ✅ BasePrice is now calculated automatically from privileges + commission
+    // Only used for manual override if IsAutoCalculatedPrice = false
     [Range(0, double.MaxValue, ErrorMessage = "Base price must be 0 or positive")]
-    public decimal BasePrice { get; set; }
+    public decimal BasePrice { get; set; } = 0; // Default to 0, will be calculated
     
     [Range(0, 100, ErrorMessage = "Discount percentage must be between 0 and 100%")]
     public decimal? DiscountPercentage { get; set; }

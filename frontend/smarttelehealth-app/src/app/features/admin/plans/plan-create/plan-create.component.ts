@@ -44,6 +44,7 @@ export class PlanCreateComponent implements OnInit {
   // Stepper state
   currentStep = 1;
   totalSteps = 4;
+  today: string = ''; // For date input validation
 
   // Forms for each step
   basicInfoForm!: FormGroup;
@@ -79,6 +80,22 @@ export class PlanCreateComponent implements OnInit {
     this.loadPrivileges();
     this.loadBillingCycles();
     this.loadCurrencies();
+    
+    // ✅ Add real-time price updates
+    this.setupPriceUpdateListeners();
+    
+    // ✅ Set today's date for discount expiry validation
+    this.today = new Date().toISOString().split('T')[0];
+  }
+
+  /**
+   * Setup listeners for real-time price updates
+   */
+  setupPriceUpdateListeners(): void {
+    // Listen to billing form changes
+    this.billingForm.valueChanges.subscribe(() => {
+      console.log('💰 Billing form changed - price updated');
+    });
   }
 
   /**
@@ -90,7 +107,7 @@ export class PlanCreateComponent implements OnInit {
       name: ['', [Validators.required, Validators.maxLength(100)]],
       description: ['', Validators.maxLength(500)],
       shortDescription: ['', Validators.maxLength(200)],
-      price: [0, [Validators.required, Validators.min(0)]],
+      // ✅ REMOVED: price field - will be calculated automatically from privileges
       categoryId: ['', Validators.required],
       billingCycleId: ['', Validators.required],  // Dynamic selection
       currencyId: ['', Validators.required],      // Dynamic selection
@@ -119,8 +136,14 @@ export class PlanCreateComponent implements OnInit {
 
     // Step 3: Billing & Discounts Form
     this.billingForm = this.fb.group({
-      billingDiscount: [0, [Validators.min(0), Validators.max(100)]], // ✅ Single discount field
-      isAutoCalculatedPrice: [true],
+      // ✅ Promotional Discount Fields (matching backend)
+      discountPercentage: [0, [Validators.min(0), Validators.max(100)]],
+      discountValidUntil: [null],
+      
+      // ✅ Billing Discount Field
+      billingDiscountPercentage: [0, [Validators.min(0), Validators.max(100)]],
+      
+      // ✅ Commission and Settings
       adminCommissionPercent: [10, [Validators.min(0), Validators.max(100)]],
       priceChangeNoticeDays: [10]
     });
@@ -401,9 +424,13 @@ export class PlanCreateComponent implements OnInit {
 
     const dto: CreateSubscriptionPlanDto = {
       ...this.basicInfoForm.value,
-      // ✅ Use correct field name to match backend DTO
-      billingDiscountPercentage: this.billingForm.value.billingDiscount,
-      isAutoCalculatedPrice: this.billingForm.value.isAutoCalculatedPrice,
+      // ✅ Calculate base price automatically from privileges
+      basePrice: this.calculateFinalPrice(),
+      // ✅ All discount fields matching backend DTO exactly
+      discountPercentage: this.billingForm.value.discountPercentage,
+      discountValidUntil: this.billingForm.value.discountValidUntil,
+      billingDiscountPercentage: this.billingForm.value.billingDiscountPercentage,
+      isAutoCalculatedPrice: true, // ✅ Always true - price is calculated from privileges
       adminCommissionPercent: this.billingForm.value.adminCommissionPercent,
       priceChangeNoticeDays: this.billingForm.value.priceChangeNoticeDays,
       privileges: this.selectedPrivileges
@@ -483,45 +510,127 @@ export class PlanCreateComponent implements OnInit {
   }
 
   /**
-   * Calculate final plan price with commission and discount
+   * Calculate final plan price matching backend logic exactly
+   * Backend: BasePrice → Promotional Discount → Billing Discount
    */
   calculateFinalPrice(): number {
     const privilegeCost = this.calculateTotalPrivilegeCost();
     const commission = this.calculateCommission();
     
-    // Apply discount if provided by admin
-    const discountPercent = this.billingForm.value.billingDiscount || 0;
-    const priceBeforeDiscount = privilegeCost + commission;
-    const discountAmount = priceBeforeDiscount * (discountPercent / 100);
-    const finalPrice = priceBeforeDiscount - discountAmount;
+    // Step 1: Calculate base price (privileges + commission)
+    let price = privilegeCost + commission;
     
-    return finalPrice;
+    // Step 2: Apply promotional discount if valid (matching backend logic)
+    const promotionalDiscountPercent = this.billingForm.value.discountPercentage || 0;
+    const discountValidUntil = this.billingForm.value.discountValidUntil;
+    
+    if (promotionalDiscountPercent > 0 && this.isPromotionalDiscountValid(discountValidUntil)) {
+      const promotionalDiscountAmount = price * (promotionalDiscountPercent / 100);
+      price = price * (1 - (promotionalDiscountPercent / 100));
+    }
+    
+    // Step 3: Apply billing discount (matching backend logic)
+    const billingDiscountPercent = this.billingForm.value.billingDiscountPercentage || 0;
+    if (billingDiscountPercent > 0) {
+      const billingDiscountAmount = price * (billingDiscountPercent / 100);
+      price = price * (1 - (billingDiscountPercent / 100));
+    }
+    
+    // Ensure price doesn't go negative (matching backend)
+    return Math.max(price, 0);
   }
 
   /**
-   * Called when privilege values change - updates auto-calculated price
+   * Check if promotional discount is valid (matching backend validation)
+   */
+  private isPromotionalDiscountValid(discountValidUntil: Date | null): boolean {
+    if (!discountValidUntil) return true; // No expiration = always valid
+    return new Date(discountValidUntil) >= new Date();
+  }
+
+  /**
+   * Get detailed price breakdown matching backend calculation exactly
+   */
+  getPriceBreakdown(): any {
+    const privilegeCost = this.calculateTotalPrivilegeCost();
+    const commission = this.calculateCommission();
+    const commissionPercent = this.billingForm.value.adminCommissionPercent || 10;
+    
+    // Step 1: Base price (privileges + commission)
+    let price = privilegeCost + commission;
+    
+    // Step 2: Promotional discount calculation
+    const promotionalDiscountPercent = this.billingForm.value.discountPercentage || 0;
+    const discountValidUntil = this.billingForm.value.discountValidUntil;
+    const isPromotionalValid = this.isPromotionalDiscountValid(discountValidUntil);
+    
+    let promotionalDiscountAmount = 0;
+    let priceAfterPromotional = price;
+    
+    if (promotionalDiscountPercent > 0 && isPromotionalValid) {
+      promotionalDiscountAmount = price * (promotionalDiscountPercent / 100);
+      priceAfterPromotional = price * (1 - (promotionalDiscountPercent / 100));
+    }
+    
+    // Step 3: Billing discount calculation
+    const billingDiscountPercent = this.billingForm.value.billingDiscountPercentage || 0;
+    let billingDiscountAmount = 0;
+    let finalPrice = priceAfterPromotional;
+    
+    if (billingDiscountPercent > 0) {
+      billingDiscountAmount = priceAfterPromotional * (billingDiscountPercent / 100);
+      finalPrice = priceAfterPromotional * (1 - (billingDiscountPercent / 100));
+    }
+    
+    // Ensure final price doesn't go negative
+    finalPrice = Math.max(finalPrice, 0);
+
+    return {
+      // Base calculation
+      privilegeCost: privilegeCost,
+      commission: commission,
+      commissionPercent: commissionPercent,
+      basePrice: price,
+      
+      // Promotional discount
+      promotionalDiscountPercent: promotionalDiscountPercent,
+      promotionalDiscountAmount: promotionalDiscountAmount,
+      isPromotionalValid: isPromotionalValid,
+      priceAfterPromotional: priceAfterPromotional,
+      
+      // Billing discount
+      billingDiscountPercent: billingDiscountPercent,
+      billingDiscountAmount: billingDiscountAmount,
+      
+      // Final result
+      finalPrice: finalPrice,
+      privilegeDetails: this.getPrivilegeCostBreakdown()
+    };
+  }
+
+  /**
+   * Get detailed breakdown of each privilege cost
+   */
+  getPrivilegeCostBreakdown(): any[] {
+    return this.selectedPrivileges.map(privilege => {
+      const privilegeCost = this.calculatePrivilegeCost(privilege);
+      return {
+        privilegeName: this.getPrivilegeName(privilege.privilegeId),
+        value: privilege.value,
+        baseCost: privilege.privilegeBaseCost,
+        totalCost: privilegeCost,
+        isUnlimited: privilege.value === -1,
+        isDisabled: privilege.value === 0
+      };
+    });
+  }
+
+  /**
+   * Called when privilege values change - updates calculated price display
    */
   onPrivilegeValueChange(): void {
-    if (this.billingForm.value.isAutoCalculatedPrice) {
-      const calculatedPrice = this.calculateFinalPrice();
-      this.basicInfoForm.patchValue({ price: calculatedPrice }, { emitEvent: false });
-      console.log('💰 Price auto-calculated:', calculatedPrice);
-    }
-  }
-
-  /**
-   * Toggle between auto-calculated and manual price entry
-   */
-  togglePriceCalculation(): void {
-    const currentMode = this.billingForm.value.isAutoCalculatedPrice;
-    this.billingForm.patchValue({ isAutoCalculatedPrice: !currentMode });
-    
-    if (!currentMode) {
-      // Switching TO auto-calculate mode
-      this.onPrivilegeValueChange();
-    }
-    
-    console.log('🔄 Price calculation mode:', !currentMode ? 'Auto' : 'Manual');
+    // ✅ Price is always calculated automatically - no toggle needed
+    console.log('💰 Price updated:', this.calculateFinalPrice());
   }
 
   private markFormGroupTouched(formGroup: FormGroup): void {

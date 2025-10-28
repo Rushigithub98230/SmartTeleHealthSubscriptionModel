@@ -265,6 +265,18 @@ public class Subscription : BaseEntity
     public DateTime? CancelledDate { get; set; }
     
     /// <summary>
+    /// Indicates subscription is scheduled for cancellation at next renewal.
+    /// Used when user rejects plan migration but wants to continue until end of billing period.
+    /// </summary>
+    public bool PendingCancellationAtRenewal { get; set; } = false;
+    
+    /// <summary>
+    /// Reason for pending cancellation.
+    /// </summary>
+    [MaxLength(500)]
+    public string? PendingCancellationReason { get; set; }
+    
+    /// <summary>
     /// Date when the subscription expires.
     /// Used for expiration tracking and access control.
     /// Set when subscription reaches its natural end or is set to expire.

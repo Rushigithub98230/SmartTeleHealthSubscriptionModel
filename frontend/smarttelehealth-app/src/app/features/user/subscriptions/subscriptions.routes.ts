@@ -6,16 +6,16 @@ export const SUBSCRIPTION_ROUTES: Routes = [
     loadComponent: () => import('./subscription-list/subscription-list.component').then(m => m.SubscriptionListComponent)
   },
   {
-    path: ':id',
-    loadComponent: () => import('./subscription-detail/subscription-detail.component').then(m => m.SubscriptionDetailComponent)
+    path: 'success',
+    loadComponent: () => import('./subscription-success/subscription-success.component').then(m => m.SubscriptionSuccessComponent)
   },
   {
     path: 'purchase/:planId',
     loadComponent: () => import('./purchase-plan/purchase-plan.component').then(m => m.PurchasePlanComponent)
   },
   {
-    path: 'success',
-    loadComponent: () => import('./subscription-success/subscription-success.component').then(m => m.SubscriptionSuccessComponent)
+    path: ':id',
+    loadComponent: () => import('./subscription-detail/subscription-detail.component').then(m => m.SubscriptionDetailComponent)
   }
 ];
 

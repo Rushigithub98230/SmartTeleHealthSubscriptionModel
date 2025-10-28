@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject, interval, Subscription } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
+import { map, catchError, tap } from 'rxjs/operators';
 import { ApiResponse } from '../models/api-response.model';
 
 /**
@@ -20,7 +20,47 @@ export class EnhancedAnalyticsService {
   private realTimeMetricsSubject = new BehaviorSubject<RealTimeMetrics | null>(null);
   public realTimeMetrics$ = this.realTimeMetricsSubject.asObservable();
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    // Listen for relevant events that should trigger analytics refresh
+    this.setupEventListeners();
+  }
+
+  /**
+   * Setup event listeners for real-time updates
+   */
+  private setupEventListeners(): void {
+    // Listen for subscription events
+    window.addEventListener('subscription.created', () => this.refreshMetrics());
+    window.addEventListener('subscription.cancelled', () => this.refreshMetrics());
+    window.addEventListener('subscription.activated', () => this.refreshMetrics());
+    window.addEventListener('subscription.paused', () => this.refreshMetrics());
+    
+    // Listen for payment events
+    window.addEventListener('payment.completed', () => this.refreshMetrics());
+    window.addEventListener('payment.failed', () => this.refreshMetrics());
+    window.addEventListener('payment.refunded', () => this.refreshMetrics());
+    
+    // Listen for plan events
+    window.addEventListener('plan.created', () => this.refreshMetrics());
+    window.addEventListener('plan.updated', () => this.refreshMetrics());
+    window.addEventListener('plan.deleted', () => this.refreshMetrics());
+  }
+
+  /**
+   * Refresh metrics immediately
+   */
+  private refreshMetrics(): void {
+    this.getRealTimeMetrics().subscribe({
+      next: (response: any) => {
+        if (response.statusCode === 200 && response.data) {
+          this.realTimeMetricsSubject.next(response.data);
+        }
+      },
+      error: (error: any) => {
+        console.error('Error refreshing metrics:', error);
+      }
+    });
+  }
 
   /**
    * Get comprehensive dashboard metrics

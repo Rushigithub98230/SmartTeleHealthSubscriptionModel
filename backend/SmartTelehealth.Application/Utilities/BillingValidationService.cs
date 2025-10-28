@@ -182,5 +182,180 @@ public static class BillingValidationService
 
         return (true, string.Empty);
     }
+
+    // REMOVED: ValidatePromotionalCode method - promotional codes are no longer supported
+    // Only admin-set discount percentages on plans are used
+
+    /// <summary>
+    /// Validates that a billing cycle is compatible with a subscription plan.
+    /// </summary>
+    /// <param name="billingCycleName">Billing cycle name to validate</param>
+    /// <param name="plan">Subscription plan to validate against</param>
+    /// <returns>Validation result with error message if invalid</returns>
+    public static (bool IsValid, string ErrorMessage) ValidateBillingCycleCompatibility(string billingCycleName, SubscriptionPlan plan)
+    {
+        if (string.IsNullOrWhiteSpace(billingCycleName))
+            return (false, "Billing cycle name cannot be empty");
+
+        if (plan == null)
+            return (false, "Subscription plan is required");
+
+        // Check if billing cycle is supported
+        if (!IsValidBillingCycle(billingCycleName))
+            return (false, $"Billing cycle '{billingCycleName}' is not supported");
+
+        // Check if plan supports this billing cycle
+        if (plan.BillingCycleId == null)
+            return (false, "Plan does not have an associated billing cycle");
+
+        return (true, string.Empty);
+    }
+
+    /// <summary>
+    /// Validates that a payment method is valid for processing.
+    /// </summary>
+    /// <param name="paymentMethodId">Payment method ID to validate</param>
+    /// <param name="customerId">Customer ID to validate against</param>
+    /// <returns>Validation result with error message if invalid</returns>
+    public static (bool IsValid, string ErrorMessage) ValidatePaymentMethod(string paymentMethodId, string customerId)
+    {
+        if (string.IsNullOrWhiteSpace(paymentMethodId))
+            return (false, "Payment method ID cannot be empty");
+
+        if (string.IsNullOrWhiteSpace(customerId))
+            return (false, "Customer ID cannot be empty");
+
+        // Basic format validation for Stripe payment method IDs
+        if (!paymentMethodId.StartsWith("pm_"))
+            return (false, "Invalid payment method ID format");
+
+        // Basic format validation for Stripe customer IDs
+        if (!customerId.StartsWith("cus_"))
+            return (false, "Invalid customer ID format");
+
+        return (true, string.Empty);
+    }
+
+    /// <summary>
+    /// Validates that a refund amount is valid for a billing record.
+    /// </summary>
+    /// <param name="refundAmount">Refund amount to validate</param>
+    /// <param name="billingRecord">Billing record to validate against</param>
+    /// <returns>Validation result with error message if invalid</returns>
+    public static (bool IsValid, string ErrorMessage) ValidateRefundAmount(decimal refundAmount, BillingRecord billingRecord)
+    {
+        if (billingRecord == null)
+            return (false, "Billing record is required");
+
+        if (refundAmount <= 0)
+            return (false, "Refund amount must be greater than zero");
+
+        if (refundAmount > billingRecord.TotalAmount)
+            return (false, "Refund amount cannot exceed the total amount paid");
+
+        if (billingRecord.Status != BillingRecord.BillingStatus.Paid)
+            return (false, "Refunds can only be processed for paid billing records");
+
+        return (true, string.Empty);
+    }
+
+    /// <summary>
+    /// Validates that a subscription plan is valid for creation or updates.
+    /// </summary>
+    /// <param name="plan">Subscription plan to validate</param>
+    /// <returns>Validation result with error message if invalid</returns>
+    public static (bool IsValid, string ErrorMessage) ValidateSubscriptionPlan(SubscriptionPlan plan)
+    {
+        if (plan == null)
+            return (false, "Subscription plan is required");
+
+        if (string.IsNullOrWhiteSpace(plan.Name))
+            return (false, "Plan name is required");
+
+        if (plan.Name.Length > 100)
+            return (false, "Plan name cannot exceed 100 characters");
+
+        if (plan.BasePrice < 0)
+            return (false, "Base price cannot be negative");
+
+        if (plan.BasePrice > 100000)
+            return (false, "Base price cannot exceed $100,000");
+
+        if (plan.DiscountPercentage.HasValue && !IsValidPercentage(plan.DiscountPercentage.Value))
+            return (false, "Discount percentage must be between 0 and 100");
+
+        if (plan.BillingDiscountPercentage.HasValue && !IsValidPercentage(plan.BillingDiscountPercentage.Value))
+            return (false, "Billing discount percentage must be between 0 and 100");
+
+        if (plan.AdminCommissionPercent.HasValue && !IsValidPercentage(plan.AdminCommissionPercent.Value))
+            return (false, "Admin commission percentage must be between 0 and 100");
+
+        if (plan.DiscountValidUntil.HasValue && plan.DiscountValidUntil.Value <= DateTime.UtcNow)
+            return (false, "Discount valid until date must be in the future");
+
+        return (true, string.Empty);
+    }
+
+    /// <summary>
+    /// Validates that a user is eligible for a subscription plan.
+    /// </summary>
+    /// <param name="userId">User ID to validate</param>
+    /// <param name="plan">Subscription plan to validate against</param>
+    /// <returns>Validation result with error message if invalid</returns>
+    public static (bool IsValid, string ErrorMessage) ValidateUserEligibility(Guid userId, SubscriptionPlan plan)
+    {
+        if (userId == Guid.Empty)
+            return (false, "User ID is required");
+
+        if (plan == null)
+            return (false, "Subscription plan is required");
+
+        if (!plan.IsActive)
+            return (false, "Subscription plan is not active");
+
+        // Add additional eligibility checks here (e.g., user status, existing subscriptions, etc.)
+        return (true, string.Empty);
+    }
+
+    /// <summary>
+    /// Validates that a billing adjustment is within acceptable limits.
+    /// </summary>
+    /// <param name="adjustmentAmount">Adjustment amount to validate</param>
+    /// <param name="adjustmentType">Type of adjustment</param>
+    /// <param name="currentAmount">Current billing amount</param>
+    /// <returns>Validation result with error message if invalid</returns>
+    public static (bool IsValid, string ErrorMessage) ValidateBillingAdjustment(decimal adjustmentAmount, BillingAdjustment.AdjustmentType adjustmentType, decimal currentAmount)
+    {
+        if (adjustmentAmount == 0)
+            return (false, "Adjustment amount cannot be zero");
+
+        if (currentAmount <= 0)
+            return (false, "Current amount must be greater than zero");
+
+        // Validate adjustment limits based on type
+        switch (adjustmentType)
+        {
+            case BillingAdjustment.AdjustmentType.Discount:
+            case BillingAdjustment.AdjustmentType.Credit:
+                if (Math.Abs(adjustmentAmount) > currentAmount)
+                    return (false, "Discount/credit cannot exceed current amount");
+                break;
+
+            case BillingAdjustment.AdjustmentType.ServiceFee:
+            case BillingAdjustment.AdjustmentType.TaxAdjustment:
+                if (adjustmentAmount < 0)
+                    return (false, "Fees and taxes cannot be negative");
+                break;
+
+            case BillingAdjustment.AdjustmentType.Refund:
+                if (adjustmentAmount <= 0)
+                    return (false, "Refund amount must be positive");
+                if (adjustmentAmount > currentAmount)
+                    return (false, "Refund cannot exceed current amount");
+                break;
+        }
+
+        return (true, string.Empty);
+    }
 }
 

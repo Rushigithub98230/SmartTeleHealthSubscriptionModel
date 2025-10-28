@@ -175,6 +175,19 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 var app = builder.Build();
 
+// Configure database sink for Serilog after services are built
+var serviceProvider = app.Services;
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .Enrich.WithEnvironmentName()
+    .Enrich.WithThreadId()
+    .WriteTo.Console()
+    .WriteTo.File("logs/audit-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14, restrictedToMinimumLevel: LogEventLevel.Information)
+    .WriteTo.Sink(new SmartTelehealth.Infrastructure.Logging.DatabaseLogSink(serviceProvider))
+    .CreateLogger();
+
 // Add global exception handling middleware
 app.UseMiddleware<SmartTelehealth.API.GlobalExceptionMiddleware>();
 

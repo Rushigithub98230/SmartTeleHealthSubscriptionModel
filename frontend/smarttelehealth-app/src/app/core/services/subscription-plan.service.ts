@@ -124,7 +124,7 @@ export class SubscriptionPlanService {
   }
 
   /**
-   * CRITICAL FIX: Get effective price for a plan (centralized pricing calculation)
+   * Get effective price for a plan (centralized pricing calculation)
    * API: GET /api/SubscriptionPlans/{planId}/effective-price
    * Used in: Frontend pricing display to ensure consistency with backend
    */
@@ -139,6 +139,65 @@ export class SubscriptionPlanService {
     CalculatedAt: string;
   }>> {
     return this.commonService.get(`SubscriptionPlans/${planId}/effective-price`);
+  }
+
+  /**
+   * Reactivate plan (Admin Only)
+   * API: POST /api/SubscriptionPlans/admin/{planId}/reactivate
+   * Used in: Admin Plan List Actions
+   */
+  reactivatePlan(planId: string): Observable<ApiResponse<any>> {
+    return this.commonService.post(`SubscriptionPlans/admin/${planId}/reactivate`, {});
+  }
+
+  /**
+   * Activate plan (Admin Only)
+   * API: POST /api/SubscriptionPlans/admin/{planId}/activate
+   * Used in: Admin Plan List Actions
+   */
+  activatePlan(planId: string): Observable<ApiResponse<any>> {
+    return this.commonService.post(`SubscriptionPlans/admin/${planId}/activate`, {});
+  }
+
+  /**
+   * Get plan privileges (Admin Only)
+   * API: GET /api/SubscriptionPlans/admin/{planId}/privileges
+   * Used in: Admin Plan Edit - Privilege Management
+   */
+  getPlanPrivileges(planId: string): Observable<ApiResponse<PlanPrivilegeDto[]>> {
+    return this.commonService.get(`SubscriptionPlans/admin/${planId}/privileges`);
+  }
+
+  /**
+   * Update plan privilege (Admin Only)
+   * API: PUT /api/SubscriptionPlans/admin/{planId}/privileges/{privilegeId}
+   * Used in: Admin Plan Edit - Privilege Configuration
+   */
+  updatePlanPrivilege(planId: string, privilegeId: string, privilege: PlanPrivilegeDto): Observable<ApiResponse<any>> {
+    return this.commonService.put(`SubscriptionPlans/admin/${planId}/privileges/${privilegeId}`, privilege);
+  }
+
+  /**
+   * Export plans (Admin Only)
+   * API: GET /api/SubscriptionPlans/admin/export
+   * Used in: Admin Plan Management - Export functionality
+   */
+  exportPlans(searchTerm?: string, categoryId?: string, isActive?: boolean, format: string = 'csv'): Observable<ApiResponse<any>> {
+    const params: any = { format };
+    if (searchTerm) params.searchTerm = searchTerm;
+    if (categoryId) params.categoryId = categoryId;
+    if (isActive !== undefined) params.isActive = isActive;
+    
+    return this.commonService.get('SubscriptionPlans/admin/export', params);
+  }
+
+  /**
+   * Get plans for comparison (Admin Only)
+   * API: GET /api/SubscriptionPlans/admin/compare/{categoryId}
+   * Used in: Admin Plan Management - Comparison feature
+   */
+  getPlansForComparison(categoryId: string): Observable<ApiResponse<SubscriptionPlanDto[]>> {
+    return this.commonService.get(`SubscriptionPlans/admin/compare/${categoryId}`);
   }
 }
 

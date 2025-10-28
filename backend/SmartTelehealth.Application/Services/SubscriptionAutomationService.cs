@@ -235,7 +235,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             // Update subscription
             var oldPlanId = subscription.SubscriptionPlanId;
             subscription.SubscriptionPlanId = newPlan.Id;
-            subscription.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger);
+            subscription.CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, null, _logger);
             subscription.UpdatedBy = tokenModel.UserID;
             subscription.UpdatedDate = DateTime.UtcNow;
             
@@ -481,7 +481,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             var tempSubscription = new Subscription
             {
                 Id = subscription.Id,
-                CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger),
+                CurrentPrice = BillingCalculationService.GetEffectivePlanPrice(newPlan, null, _logger),
                 SubscriptionPlan = newPlan,  // Set plan to get BillingCycle from it
                 SubscriptionPlanId = newPlan.Id,
                 StartDate = subscription.StartDate,
@@ -492,7 +492,7 @@ public class SubscriptionAutomationService : ISubscriptionAutomationService
             var chargeForRemainingDays = BillingCycleCalculator.CalculateProratedAmount(
                 tempSubscription,
                 effectiveDate,
-                BillingCalculationService.GetEffectivePlanPrice(newPlan, _logger),
+                BillingCalculationService.GetEffectivePlanPrice(newPlan, null, _logger),
                 null // No logger needed for internal calculation
             );
             

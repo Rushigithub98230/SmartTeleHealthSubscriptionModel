@@ -76,20 +76,39 @@ public static class BillingCalculationService
     /// Step 3: Apply BillingDiscountPercentage
     /// </summary>
     /// <param name="plan">The subscription plan</param>
+    /// <param name="systemDefaultCommissionPercent">Optional system default commission percentage for fresh calculation</param>
     /// <param name="logger">Optional logger for debugging</param>
     /// <returns>The effective price to use for billing</returns>
-    public static decimal GetEffectivePlanPrice(SubscriptionPlan plan, ILogger? logger = null)
+    public static decimal GetEffectivePlanPrice(
+        SubscriptionPlan plan, 
+        decimal? systemDefaultCommissionPercent = null,
+        ILogger? logger = null)
     {
         try
         {
             if (plan == null)
                 throw new ArgumentNullException(nameof(plan));
 
-            // Step 1: Start with base price
-            decimal price = plan.BasePrice;
-            
-            logger?.LogInformation("Starting with base price for plan {PlanName}: ${BasePrice}",
-                plan.Name, price);
+            // Step 1: Calculate base price with commission
+            decimal price;
+            if (plan.IsAutoCalculatedPrice && systemDefaultCommissionPercent.HasValue)
+            {
+                // Calculate fresh from components
+                var commissionPercent = plan.AdminCommissionPercent ?? systemDefaultCommissionPercent.Value;
+                var commissionAmount = plan.PrivilegesTotalCost * (commissionPercent / 100);
+                price = plan.PrivilegesTotalCost + commissionAmount;
+                
+                logger?.LogDebug("Calculated base price: ${Price} (Privileges: ${Priv}, Commission: {Pct}%)",
+                    price, plan.PrivilegesTotalCost, commissionPercent);
+            }
+            else
+            {
+                // Use stored BasePrice for manual pricing or when default commission not provided
+                price = plan.BasePrice;
+                
+                logger?.LogDebug("Starting with stored base price for plan {PlanName}: ${BasePrice}",
+                    plan.Name, price);
+            }
 
             // Step 2: Apply promotional discount if valid
             if (plan.DiscountPercentage.HasValue && plan.DiscountPercentage.Value > 0 &&
@@ -98,18 +117,18 @@ public static class BillingCalculationService
                 var discountAmount = price * (plan.DiscountPercentage.Value / 100);
                 price = price * (1 - (plan.DiscountPercentage.Value / 100));
                 
-                logger?.LogInformation("Applied promotional discount for plan {PlanName}: Base=${BasePrice}, Discount={Discount}%, After=${AfterPrice}",
-                    plan.Name, plan.BasePrice, plan.DiscountPercentage.Value, price);
+                logger?.LogDebug("Applied promotional discount: {Pct}% = ${Amount}, New price: ${Price}",
+                    plan.DiscountPercentage.Value, discountAmount, price);
             }
 
-            // Step 3: Apply billing discount
+            // Step 3: Apply billing cycle discount
             if (plan.BillingDiscountPercentage.HasValue && plan.BillingDiscountPercentage.Value > 0)
             {
                 var discountAmount = price * (plan.BillingDiscountPercentage.Value / 100);
                 price = price * (1 - (plan.BillingDiscountPercentage.Value / 100));
                 
-                logger?.LogInformation("Applied billing discount for plan {PlanName}: Before=${BeforePrice}, Discount={Discount}%, Final=${FinalPrice}",
-                    plan.Name, price / (1 - (plan.BillingDiscountPercentage.Value / 100)), plan.BillingDiscountPercentage.Value, price);
+                logger?.LogDebug("Applied billing discount: {Pct}% = ${Amount}, Final price: ${Price}",
+                    plan.BillingDiscountPercentage.Value, discountAmount, price);
             }
             
             var finalPrice = Math.Max(price, 0); // Ensure price doesn't go negative
@@ -121,8 +140,8 @@ public static class BillingCalculationService
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Error calculating effective price for plan {PlanName}, using base price", plan.Name);
-            return plan.BasePrice;
+            logger?.LogError(ex, "Error calculating effective price for plan {PlanName}, using stored BasePrice", plan?.Name);
+            return Math.Max(plan?.BasePrice ?? 0, 0);
         }
     }
 
@@ -477,6 +496,143 @@ public static class BillingCalculationService
             return (privilegesTotalCost, 0, 0); // Safe fallback - return privileges cost without commission
         }
     }
+
+    // REMOVED: CalculateBillingCycleMultiplier method - conflicts with required pricing model
+    // BillingDiscountPercentage already handles billing cycle discounts
+    // Each plan has a fixed billing cycle, no multiplication needed
+
+    // REMOVED: CalculatePromotionalDiscount method - promotional codes are no longer supported
+    // Only admin-set discount percentages on plans are used
+
+    /// <summary>
+    /// Calculates tax amount based on tax rate and taxable amount.
+    /// SINGLE SOURCE OF TRUTH for tax calculations.
+    /// </summary>
+    /// <param name="taxableAmount">The amount to calculate tax on</param>
+    /// <param name="taxRate">Tax rate as percentage (e.g., 8.5 for 8.5%)</param>
+    /// <param name="logger">Optional logger for debugging</param>
+    /// <returns>Tax amount</returns>
+    public static decimal CalculateTaxAmount(decimal taxableAmount, decimal taxRate, ILogger? logger = null)
+    {
+        try
+        {
+            if (taxableAmount <= 0)
+            {
+                logger?.LogDebug("Non-positive taxable amount, no tax calculated");
+                return 0;
+            }
+
+            if (taxRate < 0 || taxRate > 100)
+            {
+                logger?.LogWarning("Invalid tax rate {Rate}%, using 0", taxRate);
+                return 0;
+            }
+
+            var taxAmount = taxableAmount * (taxRate / 100);
+            logger?.LogDebug("Tax calculation: ${Amount} × {Rate}% = ${Tax}", taxableAmount, taxRate, taxAmount);
+            return taxAmount;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error calculating tax for amount ${Amount} at rate {Rate}%", taxableAmount, taxRate);
+            return 0; // Safe fallback
+        }
+    }
+
+    /// <summary>
+    /// Calculates shipping amount based on shipping rules.
+    /// SINGLE SOURCE OF TRUTH for shipping calculations.
+    /// </summary>
+    /// <param name="orderAmount">The order amount</param>
+    /// <param name="shippingRules">Shipping rules configuration</param>
+    /// <param name="logger">Optional logger for debugging</param>
+    /// <returns>Shipping amount</returns>
+    public static decimal CalculateShippingAmount(decimal orderAmount, ShippingRules shippingRules, ILogger? logger = null)
+    {
+        try
+        {
+            if (shippingRules == null)
+            {
+                logger?.LogDebug("No shipping rules provided, no shipping charge");
+                return 0;
+            }
+
+            // Free shipping threshold check
+            if (shippingRules.FreeShippingThreshold.HasValue && orderAmount >= shippingRules.FreeShippingThreshold.Value)
+            {
+                logger?.LogDebug("Order amount ${Amount} exceeds free shipping threshold ${Threshold}, no shipping charge",
+                    orderAmount, shippingRules.FreeShippingThreshold.Value);
+                return 0;
+            }
+
+            // Fixed shipping rate
+            if (shippingRules.FixedShippingRate.HasValue)
+            {
+                logger?.LogDebug("Applied fixed shipping rate: ${Rate}", shippingRules.FixedShippingRate.Value);
+                return shippingRules.FixedShippingRate.Value;
+            }
+
+            // Percentage-based shipping
+            if (shippingRules.ShippingPercentage.HasValue)
+            {
+                var shippingAmount = orderAmount * (shippingRules.ShippingPercentage.Value / 100);
+                logger?.LogDebug("Applied percentage shipping: {Percent}% of ${Amount} = ${Shipping}",
+                    shippingRules.ShippingPercentage.Value, orderAmount, shippingAmount);
+                return shippingAmount;
+            }
+
+            logger?.LogDebug("No applicable shipping rules, no shipping charge");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error calculating shipping for order amount ${Amount}", orderAmount);
+            return 0; // Safe fallback
+        }
+    }
+
+    /// <summary>
+    /// Calculates the total amount including all components (base, discounts, taxes, shipping).
+    /// SINGLE SOURCE OF TRUTH for complete billing amount calculations.
+    /// </summary>
+    /// <param name="baseAmount">Base amount</param>
+    /// <param name="discounts">Total discounts</param>
+    /// <param name="taxes">Total taxes</param>
+    /// <param name="shipping">Shipping amount</param>
+    /// <param name="logger">Optional logger for debugging</param>
+    /// <returns>Total amount</returns>
+    public static decimal CalculateTotalAmount(decimal baseAmount, decimal discounts, decimal taxes, decimal shipping, ILogger? logger = null)
+    {
+        try
+        {
+            // Validate and cap discounts
+            var validatedDiscounts = BillingValidationService.ValidateAndCapDiscounts(baseAmount, discounts, 50m);
+            
+            // Calculate subtotal after discounts
+            var subtotal = baseAmount - validatedDiscounts;
+            
+            // Ensure subtotal is not negative
+            subtotal = Math.Max(subtotal, 0);
+            
+            // Calculate total
+            var total = subtotal + taxes + shipping;
+            
+            // Ensure minimum amount
+            total = Math.Max(total, 0.01m);
+
+            logger?.LogInformation(
+                "Total amount calculation: Base=${Base}, Discounts=${Discounts}, Subtotal=${Subtotal}, " +
+                "Taxes=${Taxes}, Shipping=${Shipping}, Total=${Total}",
+                baseAmount, validatedDiscounts, subtotal, taxes, shipping, total);
+
+            return total;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error calculating total amount");
+            return Math.Max(baseAmount, 0.01m); // Safe fallback
+        }
+    }
 }
 
 /// <summary>
@@ -488,6 +644,16 @@ public enum ProrationType
     Downgrade,
     Cancellation,
     MidCycleChange
+}
+
+/// <summary>
+/// Configuration class for shipping rules
+/// </summary>
+public class ShippingRules
+{
+    public decimal? FreeShippingThreshold { get; set; }
+    public decimal? FixedShippingRate { get; set; }
+    public decimal? ShippingPercentage { get; set; }
 }
 
 

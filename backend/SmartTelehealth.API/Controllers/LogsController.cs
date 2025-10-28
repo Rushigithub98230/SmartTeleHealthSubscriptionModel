@@ -66,5 +66,35 @@ public class LogsController : BaseController
         var tokenModel = GetToken(HttpContext);
         return await _logsService.GetLogByIdAsync(id, logType, tokenModel);
     }
+
+    /// <summary>
+    /// Retrieves file logs within the specified date range.
+    /// </summary>
+    [HttpGet("file-logs")]
+    public async Task<JsonModel> GetFileLogs([FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
+    {
+        var tokenModel = GetToken(HttpContext);
+        return await _logsService.GetFileLogsAsync(startDate, endDate, tokenModel);
+    }
+
+    /// <summary>
+    /// Retrieves recent file logs.
+    /// </summary>
+    [HttpGet("file-logs/recent")]
+    public async Task<JsonModel> GetRecentFileLogs([FromQuery] int count = 100)
+    {
+        var tokenModel = GetToken(HttpContext);
+        return await _logsService.GetRecentFileLogsAsync(count, tokenModel);
+    }
+
+    /// <summary>
+    /// Retrieves log statistics for the specified date range.
+    /// </summary>
+    [HttpGet("statistics")]
+    public async Task<JsonModel> GetLogStatistics([FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
+    {
+        var tokenModel = GetToken(HttpContext);
+        return await _logsService.GetLogStatisticsAsync(startDate, endDate, tokenModel);
+    }
 }
 

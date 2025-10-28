@@ -7,6 +7,7 @@ using SmartTelehealth.Application.Constants;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Interfaces;
 using SmartTelehealth.Core.DTOs;
+using SmartTelehealth.Core.Enums;
 
 namespace SmartTelehealth.Application.Services;
 
@@ -364,7 +365,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                            b.SubscriptionId == subscriptionId)
                 .Sum(b => b.TotalAmount);
 
-            var baseRenewalAmount = BillingCalculationService.GetEffectivePlanPrice(plan, _logger);
+            var baseRenewalAmount = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
             var totalRenewalAmount = baseRenewalAmount + pendingOverageAmount;
 
             _logger.LogInformation("[Step 2/7] Renewal amount calculated: Base=${Base}, Overage=${Overage}, Total=${Total}",
@@ -452,35 +453,19 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 // STEP 6: RESET PRIVILEGE USAGE (With Compensation)
                 // ═══════════════════════════════════════════════════════════
                 var privilegeUsages = await _privilegeUsageRepository.GetByUserIdAsync(subscription.UserId);
-                var resetCount = 0;
-                
-                foreach (var usage in privilegeUsages.Where(u => u.SubscriptionId == subscriptionId))
-                {
-                    var planPrivilege = plan.PlanPrivileges.FirstOrDefault(pp => pp.Id == usage.SubscriptionPlanPrivilegeId);
-                    
-                    if (planPrivilege != null)
-                    {
-                        var (allowedValue, periodStart, periodEnd) = PrivilegeAllocationCalculator.CalculatePrivilegeAllocation(
-                            subscription, 
-                            planPrivilege);
-                        
-                        usage.UsedValue = 0;
-                        usage.AllowedValue = allowedValue;
-                        usage.UsagePeriodStart = periodStart;
-                        usage.UsagePeriodEnd = periodEnd;
-                        usage.ResetAt = DateTime.UtcNow;
-                        usage.UpdatedBy = tokenModel.UserID;
-                        usage.UpdatedDate = DateTime.UtcNow;
-                        
-                        await _privilegeUsageRepository.UpdatePrivilegeUsageAsync(usage);
-                        resetCount++;
-                        
-                        _logger.LogDebug("Reset privilege {PrivilegeName}: Used=0, Allowed={Allowed}, Period={Start:yyyy-MM-dd} to {End:yyyy-MM-dd}",
-                            planPrivilege.Privilege?.Name ?? "Unknown", allowedValue, periodStart, periodEnd);
-                    }
-                }
+                var subscriptionPrivileges = privilegeUsages.Where(u => u.SubscriptionId == subscriptionId).ToList();
 
-                _logger.LogInformation("[Step 6/7] Privilege usage reset complete: {Count} privileges reset", resetCount);
+                // Use centralized helper for consistent privilege reset logic
+                // This ensures all privilege resets use the same logic across all services
+                await PrivilegeResetHelper.ResetPrivilegesForBillingPeriodAsync(
+                    subscription,
+                    subscriptionPrivileges,
+                    async (usage) => await _privilegeUsageRepository.UpdatePrivilegeUsageAsync(usage),
+                    tokenModel.UserID,
+                    _logger
+                );
+
+                _logger.LogInformation("[Step 6/7] Privilege usage reset complete: {Count} privileges reset", subscriptionPrivileges.Count);
 
                 // Register compensation: Restore original privilege usage
                 saga.AddCompensation(async () =>
@@ -1384,6 +1369,43 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         {
             _logger.LogError(ex, "Error getting billing history for user {UserId}", userId);
             return new JsonModel { data = new object(), Message = "Error retrieving billing history", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Retrieves billing records for a specific user with filtering and pagination
+    /// </summary>
+    public async Task<JsonModel> GetUserBillingRecordsAsync(int userId, int page, int pageSize, string[]? status, string[]? type, string[]? subscriptionId, DateTime? startDate, DateTime? endDate, string? sortBy, string? sortOrder, TokenModel tokenModel)
+    {
+        try
+        {
+            // Validate access - users can only access their own billing records
+            if (tokenModel.RoleID != (int)RoleId.Admin && tokenModel.UserID != userId)
+            {
+                return new JsonModel { data = new object(), Message = "Access denied", StatusCode = 403 };
+            }
+
+            var filter = new BillingFilterDto
+            {
+                Page = page,
+                PageSize = pageSize,
+                UserId = userId,
+                Statuses = status?.ToList(),
+                Types = type?.ToList(),
+                SubscriptionIds = subscriptionId?.Select(Guid.Parse).ToList(),
+                CreatedDateFrom = startDate,
+                CreatedDateTo = endDate,
+                SortColumn = sortBy ?? "CreatedDate",
+                SortOrder = sortOrder ?? "desc"
+            };
+
+            var result = await GetBillingRecordsWithFilteringAsync(filter, tokenModel, adminOnly: false);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting billing records for user {UserId}", userId);
+            return new JsonModel { data = new object(), Message = "Error retrieving billing records", StatusCode = 500 };
         }
     }
 

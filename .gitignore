@@ -27,14 +27,13 @@ obj/
 *.sourcelink.json
 *.genruntimeconfig.cache
 *.backup.json
-*.json
-*.txt
+
 
 # Ignore node modules
 frontend/node_modules/
 
 # Ignore environment files
-.env
+
 
 # Ignore test output
 TestResults/
