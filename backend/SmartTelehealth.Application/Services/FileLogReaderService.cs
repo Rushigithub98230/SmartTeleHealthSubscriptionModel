@@ -21,11 +21,11 @@ public class FileLogReaderService : IFileLogReaderService
         _logger = logger;
         _logsDirectory = Path.Combine(Directory.GetCurrentDirectory(), "logs");
         
-        // Regex pattern to match Serilog structured log entries
-        // Format: [timestamp] [level] [source] message {properties}
+        // Regex pattern to match Serilog file output format
+        // Format: yyyy-MM-dd HH:mm:ss.fff +TZ [LEVEL] message
         _logEntryRegex = new Regex(
-            @"^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\] \[(\w+)\] \[([^\]]+)\] (.+?)(?:\s+\{([^}]+)\})?$",
-            RegexOptions.Compiled | RegexOptions.Multiline
+            @"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2}) \[(\w+)\] (.+)$",
+            RegexOptions.Compiled
         );
     }
 
@@ -41,7 +41,7 @@ public class FileLogReaderService : IFileLogReaderService
         {
             var logEntries = new List<LogEntry>();
             var logFiles = GetLogFilesInDateRange(startDate, endDate);
-
+            
             _logger.LogInformation("Reading {Count} log files from {StartDate} to {EndDate}", 
                 logFiles.Count, startDate, endDate);
 
@@ -153,7 +153,7 @@ public class FileLogReaderService : IFileLogReaderService
                 WarningCount = logEntries.Count(e => e.Level == "Warning"),
                 InfoCount = logEntries.Count(e => e.Level == "Information")
             };
-
+            
             return stats;
         }
         catch (Exception ex)
@@ -182,10 +182,26 @@ public class FileLogReaderService : IFileLogReaderService
 
         foreach (var file in files)
         {
-            // Check if file creation date is within range
-            if (file.CreationTime >= startDate && file.CreationTime <= endDate)
+            // Parse date from filename (format: audit-yyyyMMdd.log)
+            var dateMatch = Regex.Match(file.Name, @"(\d{8})\.log$");
+            if (dateMatch.Success)
             {
-                logFiles.Add(file);
+                if (DateTime.TryParseExact(dateMatch.Groups[1].Value, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var fileDate))
+                {
+                    // Check if file date is within range (compare dates only, not time)
+                    if (fileDate.Date >= startDate.Date && fileDate.Date <= endDate.Date)
+                    {
+                        logFiles.Add(file);
+                    }
+                }
+            }
+            else
+            {
+                // If filename doesn't match pattern, check LastWriteTime as fallback
+                if (file.LastWriteTime.Date >= startDate.Date && file.LastWriteTime.Date <= endDate.Date)
+                {
+                    logFiles.Add(file);
+                }
             }
         }
 
@@ -217,13 +233,18 @@ public class FileLogReaderService : IFileLogReaderService
         try
         {
             var logEntries = new List<LogEntry>();
-            var lines = await File.ReadAllLinesAsync(file.FullName);
-
-            foreach (var line in lines)
+            
+            // Use FileStream with FileShare.ReadWrite to allow reading while Serilog is writing
+            using (var fileStream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var reader = new StreamReader(fileStream))
             {
-                if (TryParseLogLine(line, out var logEntry))
+                string? line;
+                while ((line = await reader.ReadLineAsync()) != null)
                 {
-                    logEntries.Add(logEntry);
+                    if (TryParseLogLine(line, out var logEntry))
+                    {
+                        logEntries.Add(logEntry);
+                    }
                 }
             }
 
@@ -245,30 +266,44 @@ public class FileLogReaderService : IFileLogReaderService
 
         try
         {
+            // Skip empty lines
+            if (string.IsNullOrWhiteSpace(line))
+                return false;
+
             var match = _logEntryRegex.Match(line);
             if (!match.Success)
             {
                 return false;
             }
 
-            logEntry.Timestamp = DateTime.Parse(match.Groups[1].Value);
-            logEntry.Level = match.Groups[2].Value;
-            logEntry.Source = match.Groups[3].Value;
-            logEntry.Message = match.Groups[4].Value;
-
-            // Parse properties if they exist
-            if (match.Groups[5].Success)
+            // Parse timestamp (format: 2025-10-28 14:42:19.123 +05:30)
+            var timestampStr = match.Groups[1].Value;
+            if (DateTime.TryParse(timestampStr, out var timestamp))
             {
-                try
-                {
-                    var propertiesJson = "{" + match.Groups[5].Value + "}";
-                    logEntry.Properties = JsonSerializer.Deserialize<Dictionary<string, object>>(propertiesJson);
-                }
-                catch
-                {
-                    // If JSON parsing fails, store as string
-                    logEntry.Properties = new Dictionary<string, object> { { "raw", match.Groups[5].Value } };
-                }
+                logEntry.Timestamp = timestamp;
+            }
+            else
+            {
+                return false;
+            }
+
+            // Parse log level
+            logEntry.Level = match.Groups[2].Value;
+
+            // Parse message (everything after [LEVEL])
+            logEntry.Message = match.Groups[3].Value.Trim();
+
+            // Extract source from message if it contains common patterns
+            // e.g., "SmartTelehealth.Application.Services.SubscriptionService: Message"
+            var sourceMatch = Regex.Match(logEntry.Message, @"^([\w\.]+):\s*(.+)$");
+            if (sourceMatch.Success)
+            {
+                logEntry.Source = sourceMatch.Groups[1].Value;
+                logEntry.Message = sourceMatch.Groups[2].Value;
+            }
+            else
+            {
+                logEntry.Source = "Application"; // Default source
             }
 
             return true;

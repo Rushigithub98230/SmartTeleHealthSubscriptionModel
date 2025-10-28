@@ -8,17 +8,20 @@ namespace SmartTelehealth.Infrastructure.Repositories;
 /// <summary>
 /// Repository implementation for ApplicationLog entity with specialized query methods.
 /// </summary>
-public class ApplicationLogRepository : GenericRepository<ApplicationLog>, IApplicationLogRepository
+public class ApplicationLogRepository : RepositoryBase<ApplicationLog>, IApplicationLogRepository
 {
+    private readonly ApplicationDbContext _context;
+
     public ApplicationLogRepository(ApplicationDbContext context) : base(context)
     {
+        _context = context;
     }
 
     public async Task<(List<ApplicationLog> logs, int totalCount)> GetLogsAsync(
         DateTime? startDate,
         DateTime? endDate,
-        string? logLevel,
-        string? source,
+        List<string>? logLevel,
+        List<string>? source,
         int? userId,
         string? searchText,
         int page,
@@ -33,11 +36,11 @@ public class ApplicationLogRepository : GenericRepository<ApplicationLog>, IAppl
         if (endDate.HasValue)
             query = query.Where(log => log.Timestamp <= endDate.Value);
 
-        if (!string.IsNullOrEmpty(logLevel))
-            query = query.Where(log => log.LogLevel == logLevel);
+        if (logLevel != null && logLevel.Any())
+            query = query.Where(log => logLevel.Contains(log.LogLevel));
 
-        if (!string.IsNullOrEmpty(source))
-            query = query.Where(log => log.Source.Contains(source));
+        if (source != null && source.Any())
+            query = query.Where(log => source.Any(s => log.Source.Contains(s)));
 
         if (userId.HasValue)
             query = query.Where(log => log.UserId == userId.Value);

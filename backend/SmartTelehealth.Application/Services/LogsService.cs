@@ -52,7 +52,7 @@ public class LogsService : ILogsService
 
             var result = new
             {
-                logs = dtos,
+                items = dtos,  // Changed from 'logs' to 'items' to match frontend expectation
                 totalCount,
                 page = filter.Page,
                 pageSize = filter.PageSize,

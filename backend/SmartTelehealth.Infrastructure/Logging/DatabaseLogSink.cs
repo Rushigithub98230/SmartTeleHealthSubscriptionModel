@@ -58,7 +58,7 @@ public class DatabaseLogSink : ILogEventSink
                         var repository = scope.ServiceProvider.GetRequiredService<IApplicationLogRepository>();
                         var realTimeLogsService = scope.ServiceProvider.GetRequiredService<IRealTimeLogsService>();
                         
-                        await repository.AddAsync(applicationLog);
+                        await repository.CreateAsync(applicationLog);
                         await repository.SaveChangesAsync();
 
                         // Broadcast to admin users via SignalR

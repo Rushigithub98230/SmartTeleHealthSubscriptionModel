@@ -1,0 +1,240 @@
+<div class="logs-container">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="breadcrumb-nav">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a routerLink="/webadmin/dashboard">Dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">System Logs</li>
+    </ol>
+  </nav>
+
+  <!-- Header -->
+  <div class="logs-header">
+    <h1 class="logs-title">
+      <mat-icon>description</mat-icon>
+      System Logs
+    </h1>
+    
+    <div class="header-actions">
+      <!-- Connection Status -->
+      <div class="connection-status" [ngClass]="getConnectionStatusClass()">
+        <mat-icon>{{ getConnectionStatusIcon() }}</mat-icon>
+        <span>{{ getConnectionStatusText() }}</span>
+      </div>
+      
+      <!-- Real-time Toggle -->
+      <mat-slide-toggle
+        [(ngModel)]="isRealTimeEnabled"
+        (change)="toggleRealTime()"
+        matTooltip="Enable/disable real-time log updates">
+        Real-time
+      </mat-slide-toggle>
+      
+      <!-- Auto-scroll Toggle -->
+      <mat-slide-toggle
+        [(ngModel)]="autoScroll"
+        (change)="toggleAutoScroll()"
+        matTooltip="Auto-scroll to new logs"
+        [disabled]="!isRealTimeEnabled">
+        Auto-scroll
+      </mat-slide-toggle>
+      
+      <!-- Refresh Button -->
+      <button mat-icon-button (click)="refresh()" matTooltip="Refresh logs">
+        <mat-icon>refresh</mat-icon>
+      </button>
+      
+      <!-- Export Button -->
+      <button mat-raised-button color="primary" (click)="exportLogs()" matTooltip="Export logs to JSON">
+        <mat-icon>download</mat-icon>
+        Export
+      </button>
+    </div>
+  </div>
+
+  <!-- Statistics -->
+  <div class="statistics-section" *ngIf="statistics">
+    <mat-chip-set>
+      <mat-chip class="stat-chip stat-total">
+        <mat-icon>analytics</mat-icon>
+        Total: {{ statistics.totalLogs }}
+      </mat-chip>
+      <mat-chip class="stat-chip stat-error" *ngIf="statistics.logsByLevel['Error'] || statistics.logsByLevel['Critical']">
+        <mat-icon>error</mat-icon>
+        Errors: {{ (statistics.logsByLevel['Error'] || 0) + (statistics.logsByLevel['Critical'] || 0) }}
+      </mat-chip>
+      <mat-chip class="stat-chip stat-warning" *ngIf="statistics.logsByLevel['Warning']">
+        <mat-icon>warning</mat-icon>
+        Warnings: {{ statistics.logsByLevel['Warning'] }}
+      </mat-chip>
+      <mat-chip class="stat-chip stat-info" *ngIf="statistics.logsByLevel['Information']">
+        <mat-icon>info</mat-icon>
+        Info: {{ statistics.logsByLevel['Information'] }}
+      </mat-chip>
+    </mat-chip-set>
+  </div>
+
+  <!-- Filters Panel -->
+  <mat-expansion-panel class="filters-panel">
+    <mat-expansion-panel-header>
+      <mat-panel-title>
+        <mat-icon>filter_list</mat-icon>
+        Filters
+      </mat-panel-title>
+    </mat-expansion-panel-header>
+
+    <form [formGroup]="filterForm" class="filters-form">
+      <div class="filter-row">
+        <!-- Log Level -->
+        <mat-form-field appearance="outline">
+          <mat-label>Log Level</mat-label>
+          <mat-select formControlName="logLevel" multiple>
+            <mat-option *ngFor="let level of logLevels" [value]="level">
+              {{ level }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Source -->
+        <mat-form-field appearance="outline">
+          <mat-label>Source</mat-label>
+          <mat-select formControlName="source" multiple>
+            <mat-option *ngFor="let source of sources" [value]="source">
+              {{ source }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Search -->
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Search</mat-label>
+          <input matInput formControlName="searchTerm" placeholder="Search in messages...">
+          <mat-icon matPrefix>search</mat-icon>
+        </mat-form-field>
+      </div>
+
+      <div class="filter-row">
+        <!-- Start Date -->
+        <mat-form-field appearance="outline">
+          <mat-label>Start Date</mat-label>
+          <input matInput [matDatepicker]="startPicker" formControlName="startDate">
+          <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+          <mat-datepicker #startPicker></mat-datepicker>
+        </mat-form-field>
+
+        <!-- End Date -->
+        <mat-form-field appearance="outline">
+          <mat-label>End Date</mat-label>
+          <input matInput [matDatepicker]="endPicker" formControlName="endDate">
+          <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+          <mat-datepicker #endPicker></mat-datepicker>
+        </mat-form-field>
+
+        <!-- User ID -->
+        <mat-form-field appearance="outline">
+          <mat-label>User ID</mat-label>
+          <input matInput type="number" formControlName="userId" placeholder="Filter by user ID">
+        </mat-form-field>
+
+        <!-- Operation -->
+        <mat-form-field appearance="outline">
+          <mat-label>Operation</mat-label>
+          <input matInput formControlName="operation" placeholder="Operation type">
+        </mat-form-field>
+      </div>
+
+      <div class="filter-actions">
+        <button mat-raised-button color="primary" (click)="applyFilters()">
+          <mat-icon>filter_list</mat-icon>
+          Apply Filters
+        </button>
+        <button mat-stroked-button (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Clear Filters
+        </button>
+      </div>
+    </form>
+  </mat-expansion-panel>
+
+  <!-- Logs Virtual Scroll -->
+  <div class="logs-content">
+    <div *ngIf="isLoading" class="loading-overlay">
+      <mat-spinner></mat-spinner>
+    </div>
+
+    <cdk-virtual-scroll-viewport [itemSize]="itemSize" class="logs-viewport">
+      <div
+        *cdkVirtualFor="let log of displayedLogs"
+        class="log-entry"
+        [ngClass]="getLogLevelClass(log.logLevel)">
+        
+        <div class="log-header" (click)="toggleLogExpansion(log.id)">
+          <div class="log-main-info">
+            <mat-icon class="log-icon">{{ getLogLevelIcon(log.logLevel) }}</mat-icon>
+            <span class="log-level">{{ log.logLevel }}</span>
+            <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
+            <span class="log-source">{{ log.source }}</span>
+          </div>
+          <button mat-icon-button class="expand-button">
+            <mat-icon>{{ expandedLogId === log.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+        </div>
+
+        <div class="log-message">{{ log.message }}</div>
+
+        <div class="log-details" *ngIf="expandedLogId === log.id">
+          <mat-card class="details-card">
+            <mat-card-content>
+              <div class="detail-row" *ngIf="log.userId">
+                <strong>User ID:</strong> {{ log.userId }}
+              </div>
+              <div class="detail-row" *ngIf="log.operation">
+                <strong>Operation:</strong> {{ log.operation }}
+              </div>
+              <div class="detail-row" *ngIf="log.correlationId">
+                <strong>Correlation ID:</strong> {{ log.correlationId }}
+              </div>
+              <div class="detail-row" *ngIf="log.exception">
+                <strong>Exception:</strong>
+                <pre class="exception-text">{{ log.exception }}</pre>
+              </div>
+              <div class="detail-row" *ngIf="log.additionalData">
+                <strong>Additional Data:</strong>
+                <pre class="additional-data">{{ formatAdditionalData(log.additionalData) }}</pre>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+
+      <div *ngIf="!isLoading && displayedLogs.length === 0" class="no-logs">
+        <mat-icon>info</mat-icon>
+        <p>No logs found matching the current filters</p>
+      </div>
+    </cdk-virtual-scroll-viewport>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination-controls">
+    <span class="pagination-info">
+      Showing {{ startIndex }} - {{ endIndex }} of {{ totalLogs }} logs
+      (Page {{ currentPage }} of {{ totalPages }})
+    </span>
+    <div class="pagination-buttons">
+      <button
+        mat-icon-button
+        [disabled]="currentPage === 1"
+        (click)="previousPage()"
+        matTooltip="Previous page">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <button
+        mat-icon-button
+        [disabled]="currentPage >= totalPages"
+        (click)="nextPage()"
+        matTooltip="Next page">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    </div>
+  </div>
+</div>
+

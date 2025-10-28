@@ -133,6 +133,11 @@ export const routes: Routes = [
         path: 'settings',
         canActivate: [adminGuard],
         loadComponent: () => import('./features/admin/settings/settings.component').then(m => m.AdminSettingsComponent)
+      },
+      {
+        path: 'logs',
+        canActivate: [adminGuard],
+        loadChildren: () => import('./features/admin/logs/logs.routes').then(m => m.LOGS_ROUTES)
       }
     ]
   },

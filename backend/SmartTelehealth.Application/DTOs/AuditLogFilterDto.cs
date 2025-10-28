@@ -7,8 +7,8 @@ public class AuditLogFilterDto
 {
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
-    public string? Type { get; set; }
-    public string? TableName { get; set; }
+    public List<string>? Type { get; set; }       // Changed to List<string>
+    public List<string>? TableName { get; set; }  // Changed to List<string>
     public string? EntityId { get; set; }
     public int? UserId { get; set; }
     public string? SearchText { get; set; }

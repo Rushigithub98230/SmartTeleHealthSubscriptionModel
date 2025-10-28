@@ -10,12 +10,12 @@ public class CombinedLogFilterDto
     public DateTime? EndDate { get; set; }
     
     // Application log filters
-    public string? LogLevel { get; set; }
-    public string? Source { get; set; }
+    public List<string>? LogLevel { get; set; }  // Changed to List<string>
+    public List<string>? Source { get; set; }     // Changed to List<string>
     
     // Audit log filters
-    public string? Type { get; set; }
-    public string? TableName { get; set; }
+    public List<string>? Type { get; set; }       // Changed to List<string>
+    public List<string>? TableName { get; set; }  // Changed to List<string>
     public string? EntityId { get; set; }
     
     // Common filters

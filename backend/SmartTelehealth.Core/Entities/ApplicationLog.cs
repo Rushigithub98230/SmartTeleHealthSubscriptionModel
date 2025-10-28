@@ -72,7 +72,7 @@ public class ApplicationLog : BaseEntity
     /// Additional contextual data in JSON format.
     /// May contain IDs, parameters, or other relevant information.
     /// </summary>
-    [MaxLength(2000)]
+    [Column(TypeName = "nvarchar(max)")]
     public string? AdditionalData { get; set; }
     
     /// <summary>

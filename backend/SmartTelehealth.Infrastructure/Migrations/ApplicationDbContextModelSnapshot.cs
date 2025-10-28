@@ -135,7 +135,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
 
                     b.Property<string>("AdditionalData")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(100)
@@ -6200,7 +6200,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("VersionCreatedDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 28, 7, 58, 13, 966, DateTimeKind.Utc).AddTicks(3095));
+                        .HasDefaultValue(new DateTime(2025, 10, 28, 8, 59, 7, 478, DateTimeKind.Utc).AddTicks(4720));
 
                     b.Property<int>("VersionNumber")
                         .ValueGeneratedOnAdd()
@@ -6460,7 +6460,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("LastUpdated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 28, 7, 58, 14, 16, DateTimeKind.Utc).AddTicks(3860));
+                        .HasDefaultValue(new DateTime(2025, 10, 28, 8, 59, 7, 635, DateTimeKind.Utc).AddTicks(3030));
 
                     b.Property<int>("MaxFailedPaymentAttempts")
                         .ValueGeneratedOnAdd()
@@ -6487,12 +6487,12 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            CreatedDate = new DateTime(2025, 10, 28, 7, 58, 14, 16, DateTimeKind.Utc).AddTicks(4133),
+                            CreatedDate = new DateTime(2025, 10, 28, 8, 59, 7, 635, DateTimeKind.Utc).AddTicks(3981),
                             DefaultAdminCommissionPercent = 20m,
                             DefaultPriceChangeNoticeDays = 10,
                             IsActive = true,
                             IsDeleted = false,
-                            LastUpdated = new DateTime(2025, 10, 28, 7, 58, 14, 16, DateTimeKind.Utc).AddTicks(4132),
+                            LastUpdated = new DateTime(2025, 10, 28, 8, 59, 7, 635, DateTimeKind.Utc).AddTicks(3978),
                             MaxFailedPaymentAttempts = 3
                         });
                 });

@@ -171,6 +171,10 @@ export interface UpdateSubscriptionPlanDto {
   adminCommissionPercent?: number;
   priceChangeNoticeDays: number;
   
+  // Promotional Discount
+  discountPercentage?: number;       // Promotional discount (%)
+  discountValidUntil?: Date;
+  
   // Billing Discount
   billingDiscountPercentage?: number; // 0-100, billing cycle discount (%)
 }

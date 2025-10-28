@@ -7,8 +7,8 @@ public class ApplicationLogFilterDto
 {
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
-    public string? LogLevel { get; set; }
-    public string? Source { get; set; }
+    public List<string>? LogLevel { get; set; }  // Changed to List<string>
+    public List<string>? Source { get; set; }     // Changed to List<string>
     public int? UserId { get; set; }
     public string? SearchText { get; set; }
     public int Page { get; set; } = 1;

@@ -5,15 +5,15 @@ namespace SmartTelehealth.Core.Interfaces;
 /// <summary>
 /// Repository interface for ApplicationLog entity with specialized query methods for log management.
 /// </summary>
-public interface IApplicationLogRepository : IGenericRepository<ApplicationLog>
+public interface IApplicationLogRepository : IRepositoryBase<ApplicationLog>
 {
     /// <summary>
     /// Retrieves paginated application logs with filtering options.
     /// </summary>
     /// <param name="startDate">Start date for filtering logs</param>
     /// <param name="endDate">End date for filtering logs</param>
-    /// <param name="logLevel">Filter by log level (Information, Warning, Error, Critical)</param>
-    /// <param name="source">Filter by source (service or controller name)</param>
+    /// <param name="logLevel">Filter by log levels (Information, Warning, Error, Critical) - supports multiple values</param>
+    /// <param name="source">Filter by sources (service or controller names) - supports multiple values</param>
     /// <param name="userId">Filter by user ID</param>
     /// <param name="searchText">Search text to filter by message content</param>
     /// <param name="page">Page number for pagination (1-based)</param>
@@ -22,8 +22,8 @@ public interface IApplicationLogRepository : IGenericRepository<ApplicationLog>
     Task<(List<ApplicationLog> logs, int totalCount)> GetLogsAsync(
         DateTime? startDate,
         DateTime? endDate,
-        string? logLevel,
-        string? source,
+        List<string>? logLevel,
+        List<string>? source,
         int? userId,
         string? searchText,
         int page,

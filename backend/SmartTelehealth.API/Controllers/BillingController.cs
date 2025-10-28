@@ -73,8 +73,7 @@ public class BillingController : BaseController
     /// - Used for billing management and financial reporting
     /// - Returns detailed billing information with audit trails
     /// </remarks>
-    [HttpGet]
-    [HttpGet("records")]
+    [HttpGet("admin/records")]
     public async Task<JsonModel> GetAllBillingRecords(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,

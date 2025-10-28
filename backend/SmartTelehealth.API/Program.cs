@@ -123,6 +123,28 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
+    
+    // Configure SignalR authentication support
+    // SignalR can't send Authorization header, so it uses query string
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            
+            // Allow token from query string for SignalR hubs
+            if (!string.IsNullOrEmpty(accessToken) && 
+                (path.StartsWithSegments("/logsHub") || 
+                 path.StartsWithSegments("/chatHub") || 
+                 path.StartsWithSegments("/videoCallHub")))
+            {
+                context.Token = accessToken;
+            }
+            
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // AutoMapper
@@ -143,14 +165,23 @@ builder.Services.AddSignalR();
 builder.Services.AddMemoryCache();
 
 
-// CORS
+// CORS Configuration
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        // SignalR requires AllowCredentials, which is incompatible with AllowAnyOrigin
+        // Specify allowed origins explicitly
+        policy.WithOrigins(
+                  "http://localhost:4200",     // Angular dev server
+                  "http://localhost:63740",
+                  "http://localhost:61376",     // .NET dev server
+                  "https://localhost:7216",     // .NET HTTPS dev server
+                  "https://pwlkgvc0-61376.inc1.devtunnels.ms" // Dev tunnel
+              )
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials(); // Required for SignalR with authentication
     });
 });
 
@@ -176,6 +207,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 var app = builder.Build();
 
 // Configure database sink for Serilog after services are built
+// Temporarily disabled until AdditionalData column is fixed
 var serviceProvider = app.Services;
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -185,7 +217,7 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.WithThreadId()
     .WriteTo.Console()
     .WriteTo.File("logs/audit-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14, restrictedToMinimumLevel: LogEventLevel.Information)
-    .WriteTo.Sink(new SmartTelehealth.Infrastructure.Logging.DatabaseLogSink(serviceProvider))
+    .WriteTo.Sink(new SmartTelehealth.Infrastructure.Logging.DatabaseLogSink(serviceProvider)) // Disabled until DB column fixed
     .CreateLogger();
 
 // Add global exception handling middleware
