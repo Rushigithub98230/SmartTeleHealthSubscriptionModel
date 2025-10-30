@@ -16,9 +16,22 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Database Configuration (temporarily removed for focused testing)
+        // Database Configuration
+        services.AddHttpContextAccessor();
+        
+        // ✅ Fix: Register DbContext with explicit configuration
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+        {
+            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"));
+        }, ServiceLifetime.Scoped);
+        
+        // ✅ Fix: Temporarily remove DbContextFactory to resolve DI conflicts
+        // services.AddDbContextFactory<ApplicationDbContext>(options =>
+        // {
+        //     options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"));
+        //     // Note: Factory pattern used for manual context creation scenarios
+        //     // No scoped dependencies here to avoid lifetime conflicts
+        // }, ServiceLifetime.Scoped); // ✅ Explicitly set as Scoped to match DbContext
 
         // Register Twilio Configuration
         var twilioSettings = new TwilioSettings();
@@ -52,6 +65,7 @@ public static class DependencyInjection
         services.AddScoped<IPrivilegeUsageHistoryRepository, PrivilegeUsageHistoryRepository>();
         services.AddScoped<IPrivilegeRepository, PrivilegeRepository>();
         services.AddScoped<IProcessedWebhookEventRepository, ProcessedWebhookEventRepository>();
+        services.AddScoped<IUnprocessedWebhookEventRepository, UnprocessedWebhookEventRepository>();
         services.AddScoped<IFailedRefundRepository, FailedRefundRepository>();
         
         // Healthcare-specific subscription management repositories
@@ -146,6 +160,15 @@ public static class DependencyInjection
         
         // Register Failed Refund Retry Background Service for automatic compensating refund retry
         services.AddHostedService<FailedRefundRetryBackgroundService>();
+        
+        // Register Unprocessed Webhook Retry Background Service
+        services.AddHostedService<UnprocessedWebhookRetryService>();
+        
+        // Register Stripe Sync Job for hourly Stripe data reconciliation (Phase 3)
+        services.AddHostedService<StripeSyncJob>();
+        
+        // Register Reconciliation Background Service for nightly data integrity checks
+        services.AddHostedService<ReconciliationBackgroundService>();
 
         // Cloud Storage Services (temporarily removed for focused testing)
         // services.AddScoped<AzureBlobStorageService>();

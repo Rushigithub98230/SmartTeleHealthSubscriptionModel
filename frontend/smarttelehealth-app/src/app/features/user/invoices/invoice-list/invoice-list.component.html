@@ -1,0 +1,295 @@
+<!-- Invoice List Component Template -->
+<div class="invoice-list-container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">
+        <i class="bi bi-file-text me-2"></i>My Invoices
+      </h1>
+      <p class="page-subtitle">View and manage your invoices</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline-secondary" routerLink="/web/billing">
+        <i class="bi bi-receipt me-1"></i>View Billing History
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters Section -->
+  <div class="filters-section card mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <!-- Status Filter -->
+        <div class="col-md-3">
+          <label for="statusFilter" class="form-label small text-muted">Status</label>
+          <select 
+            id="statusFilter"
+            class="form-select"
+            [(ngModel)]="selectedStatus"
+            (change)="applyFilters()">
+            <option *ngFor="let status of statusOptions" [value]="status">
+              {{ status }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Start Date Filter -->
+        <div class="col-md-3">
+          <label for="startDate" class="form-label small text-muted">From Date</label>
+          <input 
+            type="date"
+            id="startDate"
+            class="form-control"
+            [(ngModel)]="startDate"
+            (change)="applyFilters()" />
+        </div>
+
+        <!-- End Date Filter -->
+        <div class="col-md-3">
+          <label for="endDate" class="form-label small text-muted">To Date</label>
+          <input 
+            type="date"
+            id="endDate"
+            class="form-control"
+            [(ngModel)]="endDate"
+            (change)="applyFilters()" />
+        </div>
+
+        <!-- Search Box -->
+        <div class="col-md-3">
+          <label for="searchTerm" class="form-label small text-muted">Search</label>
+          <div class="input-group">
+            <span class="input-group-text">
+              <i class="bi bi-search"></i>
+            </span>
+            <input 
+              type="text"
+              id="searchTerm"
+              class="form-control"
+              placeholder="Invoice number..."
+              [(ngModel)]="searchTerm"
+              (input)="applyFilters()" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Actions -->
+      <div class="row mt-3" *ngIf="hasActiveFilters()">
+        <div class="col-12">
+          <button class="btn btn-sm btn-outline-secondary" (click)="clearFilters()">
+            <i class="bi bi-x-circle me-1"></i>Clear Filters
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-state card">
+    <div class="card-body text-center py-5">
+      <div class="spinner-border text-primary mb-3" role="status">
+        <span class="visually-hidden">Loading invoices...</span>
+      </div>
+      <p class="text-muted">Loading your invoices...</p>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="!loading && error" class="alert alert-danger" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>Error:</strong> {{ error }}
+  </div>
+
+  <!-- Invoices Content -->
+  <div *ngIf="!loading && !error">
+    <!-- Summary Bar -->
+    <div class="summary-bar d-flex justify-content-between align-items-center mb-3">
+      <div class="summary-text text-muted">
+        {{ getSummaryText() }}
+      </div>
+      <div class="page-size-selector">
+        <label for="pageSize" class="form-label small text-muted mb-0 me-2">Per page:</label>
+        <select 
+          id="pageSize"
+          class="form-select form-select-sm"
+          style="width: auto; display: inline-block;"
+          [(ngModel)]="pageSize"
+          (change)="changePageSize()">
+          <option *ngFor="let size of pageSizeOptions" [value]="size">
+            {{ size }}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Invoices Table (Desktop) -->
+    <div class="card d-none d-md-block">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Invoice #</th>
+              <th>Date</th>
+              <th>Due Date</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let invoice of displayedInvoices">
+              <td>
+                <a [routerLink]="['/web/invoices', getInvoiceNumber(invoice)]"
+                   class="text-primary text-decoration-none fw-bold">
+                  {{ getInvoiceNumber(invoice) }}
+                </a>
+              </td>
+              <td>{{ getInvoiceDate(invoice) | date:'MMM d, yyyy' }}</td>
+              <td>{{ getDueDate(invoice) | date:'MMM d, yyyy' }}</td>
+              <td class="fw-bold">${{ getTotalAmount(invoice) | number:'1.2-2' }}</td>
+              <td>
+                <span class="badge" [ngClass]="getStatusBadgeClass(getInvoiceStatus(invoice))">
+                  {{ getInvoiceStatus(invoice) }}
+                </span>
+              </td>
+              <td class="text-end">
+                <div class="btn-group btn-group-sm">
+                  <a [routerLink]="['/web/invoices', getInvoiceNumber(invoice)]"
+                     class="btn btn-outline-primary"
+                     title="View Invoice">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <button 
+                    class="btn btn-outline-primary"
+                    (click)="downloadInvoice(getInvoiceNumber(invoice))"
+                    [disabled]="downloadingInvoice === getInvoiceNumber(invoice)"
+                    title="Download PDF">
+                    <i class="bi bi-download" *ngIf="downloadingInvoice !== getInvoiceNumber(invoice)"></i>
+                    <span class="spinner-border spinner-border-sm" *ngIf="downloadingInvoice === getInvoiceNumber(invoice)"></span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="displayedInvoices.length === 0" class="text-center py-5">
+        <i class="bi bi-file-earmark-text text-muted" style="font-size: 4rem;"></i>
+        <h5 class="mt-3 text-muted">No Invoices Found</h5>
+        <p class="text-muted" *ngIf="hasActiveFilters()">
+          Try adjusting your filters to see more results.
+        </p>
+        <p class="text-muted" *ngIf="!hasActiveFilters()">
+          You don't have any invoices yet.
+        </p>
+      </div>
+    </div>
+
+    <!-- Invoices Cards (Mobile) -->
+    <div class="d-md-none">
+      <div class="card mb-3" *ngFor="let invoice of displayedInvoices">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <h6 class="mb-1">
+                <a [routerLink]="['/web/invoices', getInvoiceNumber(invoice)]"
+                   class="text-primary text-decoration-none">
+                  {{ getInvoiceNumber(invoice) }}
+                </a>
+              </h6>
+              <small class="text-muted">
+                {{ getInvoiceDate(invoice) | date:'MMM d, yyyy' }}
+              </small>
+            </div>
+            <span class="badge" [ngClass]="getStatusBadgeClass(getInvoiceStatus(invoice))">
+              {{ getInvoiceStatus(invoice) }}
+            </span>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <small class="text-muted d-block">Amount</small>
+              <strong class="text-primary">${{ getTotalAmount(invoice) | number:'1.2-2' }}</strong>
+            </div>
+            <div class="col-6">
+              <small class="text-muted d-block">Due Date</small>
+              <strong>{{ getDueDate(invoice) | date:'MMM d, yyyy' }}</strong>
+            </div>
+          </div>
+
+          <div class="d-grid gap-2">
+            <a [routerLink]="['/web/invoices', getInvoiceNumber(invoice)]"
+               class="btn btn-sm btn-primary">
+              <i class="bi bi-eye me-1"></i>View Invoice
+            </a>
+            <button 
+              class="btn btn-sm btn-outline-primary"
+              (click)="downloadInvoice(getInvoiceNumber(invoice))"
+              [disabled]="downloadingInvoice === getInvoiceNumber(invoice)">
+              <i class="bi bi-download me-1" *ngIf="downloadingInvoice !== getInvoiceNumber(invoice)"></i>
+              <span class="spinner-border spinner-border-sm me-1" *ngIf="downloadingInvoice === getInvoiceNumber(invoice)"></span>
+              {{ downloadingInvoice === getInvoiceNumber(invoice) ? 'Downloading...' : 'Download PDF' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State (Mobile) -->
+      <div *ngIf="displayedInvoices.length === 0" class="card">
+        <div class="card-body text-center py-5">
+          <i class="bi bi-file-earmark-text text-muted" style="font-size: 3rem;"></i>
+          <h6 class="mt-3 text-muted">No Invoices Found</h6>
+          <p class="text-muted small" *ngIf="hasActiveFilters()">
+            Try adjusting your filters.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <nav *ngIf="totalPages > 1" class="mt-4" aria-label="Invoice pagination">
+      <ul class="pagination justify-content-center">
+        <!-- First Page -->
+        <li class="page-item" [class.disabled]="currentPage === 1">
+          <a class="page-link" (click)="changePage(1)" tabindex="-1">
+            <i class="bi bi-chevron-double-left"></i>
+          </a>
+        </li>
+
+        <!-- Previous Page -->
+        <li class="page-item" [class.disabled]="currentPage === 1">
+          <a class="page-link" (click)="changePage(currentPage - 1)" tabindex="-1">
+            <i class="bi bi-chevron-left"></i>
+          </a>
+        </li>
+
+        <!-- Page Numbers -->
+        <li class="page-item" 
+            *ngFor="let page of getPageNumbers()"
+            [class.active]="page === currentPage">
+          <a class="page-link" (click)="changePage(page)">{{ page }}</a>
+        </li>
+
+        <!-- Next Page -->
+        <li class="page-item" [class.disabled]="currentPage === totalPages">
+          <a class="page-link" (click)="changePage(currentPage + 1)">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        </li>
+
+        <!-- Last Page -->
+        <li class="page-item" [class.disabled]="currentPage === totalPages">
+          <a class="page-link" (click)="changePage(totalPages)">
+            <i class="bi bi-chevron-double-right"></i>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</div>
+
+
+
+

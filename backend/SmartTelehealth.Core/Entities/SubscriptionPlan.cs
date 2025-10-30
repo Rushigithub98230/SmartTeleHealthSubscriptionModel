@@ -359,6 +359,20 @@ public class SubscriptionPlan : BaseEntity
     /// </summary>
     public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
     
+    /// <summary>
+    /// Default tax percentage to apply to this plan (0-100)
+    /// Admin can set this manually for tax compliance
+    /// </summary>
+    [Column(TypeName = "decimal(5,2)")]
+    [Range(0, 100)]
+    public decimal? DefaultTaxPercentage { get; set; }
+
+    /// <summary>
+    /// Notes about tax applicability for this plan.
+    /// </summary>
+    [MaxLength(500)]
+    public string? TaxNotes { get; set; }
+    
     // Computed Properties
     /// <summary>
     /// Computed property that returns the effective price of the subscription plan.

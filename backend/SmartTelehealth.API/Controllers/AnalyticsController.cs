@@ -467,5 +467,15 @@ public class AnalyticsController : BaseController
             };
         }
     }
+
+    /// <summary>
+    /// Retrieves plan migration analytics for admin dashboard.
+    /// Provides visibility into scheduled migrations, user decisions (Accept/Cancel), and auto-cancellations.
+    /// </summary>
+    [HttpGet("plan-migrations")]
+    public async Task<JsonModel> GetPlanMigrationAnalytics()
+    {
+        return await _analyticsService.GetPlanMigrationAnalyticsAsync(GetToken(HttpContext));
+    }
 } 
     

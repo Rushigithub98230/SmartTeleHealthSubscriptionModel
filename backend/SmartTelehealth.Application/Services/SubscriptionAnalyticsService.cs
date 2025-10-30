@@ -69,7 +69,6 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
                 ChurnMetrics = await CalculateChurnMetricsAsync(subscriptions, start, end),
                 GrowthMetrics = await CalculateGrowthMetricsAsync(subscriptions, start, end),
                 PlanDistribution = await CalculatePlanDistributionAsync(subscriptions),
-                GeographicDistribution = await CalculateGeographicDistributionAsync(subscriptions),
                 UserEngagement = await CalculateUserEngagementAsync(subscriptions, start, end)
             };
 
@@ -369,12 +368,7 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
         return planGroups;
     }
 
-    private async Task<object> CalculateGeographicDistributionAsync(IEnumerable<Subscription> subscriptions)
-    {
-        // This would require user location data
-        // For now, return placeholder
-        return new { Message = "Geographic distribution requires user location data" };
-    }
+    
 
     private async Task<object> CalculateUserEngagementAsync(IEnumerable<Subscription> subscriptions, DateTime start, DateTime end)
     {

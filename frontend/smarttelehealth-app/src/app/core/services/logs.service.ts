@@ -95,6 +95,10 @@ export class LogsService {
       params = params.append('searchTerm', filter.searchTerm);
     }
     
+    if (filter.entityId) {
+      params = params.append('entityId', filter.entityId);
+    }
+    
     if (filter.page) {
       params = params.append('page', filter.page.toString());
     }
@@ -104,6 +108,18 @@ export class LogsService {
     }
     
     return this.http.get(`${this.apiUrl}/audit`, { params }).pipe(
+      map((response: any) => response || { isSuccess: false, data: null })
+    );
+  }
+
+  getAvailableTables(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/audit/tables`).pipe(
+      map((response: any) => response || { isSuccess: false, data: null })
+    );
+  }
+
+  getAvailableTypes(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/audit/types`).pipe(
       map((response: any) => response || { isSuccess: false, data: null })
     );
   }

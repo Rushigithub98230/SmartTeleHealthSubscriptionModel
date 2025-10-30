@@ -356,6 +356,211 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
     }
 
     /// <summary>
+    /// Syncs a subscription created by Stripe Checkout to the local database
+    /// This method is called by the checkout.session.completed webhook
+    /// and does NOT create a new Stripe subscription (it already exists)
+    /// </summary>
+    public async Task<JsonModel> SyncSubscriptionFromCheckoutAsync(
+        int userId,
+        Guid planId,
+        string stripeSubscriptionId,
+        string stripeCustomerId,
+        string stripePriceId,
+        TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Syncing subscription from Stripe Checkout for user {UserId} with plan {PlanId}", userId, planId);
+
+            // Step 1: Validate subscription plan exists
+            var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(planId);
+            if (plan == null)
+            {
+                _logger.LogError("Subscription plan {PlanId} not found for checkout sync", planId);
+                return new JsonModel { data = new object(), Message = "Subscription plan does not exist", StatusCode = 404 };
+            }
+
+            // Step 2: Check if subscription already exists (prevent duplicates from webhook retries)
+            var existingSubscription = await _subscriptionRepository.GetByStripeSubscriptionIdAsync(stripeSubscriptionId, tokenModel);
+            if (existingSubscription != null)
+            {
+                _logger.LogWarning("Subscription with Stripe ID {StripeSubscriptionId} already exists in database", stripeSubscriptionId);
+                var existingDto = _mapper.Map<SubscriptionDto>(existingSubscription);
+                return new JsonModel { data = existingDto, Message = "Subscription already exists", StatusCode = 200 };
+            }
+
+            // Step 3: Create subscription entity with Stripe IDs
+            var subscription = new Subscription
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                SubscriptionPlanId = plan.Id,
+                Status = Subscription.SubscriptionStatuses.Active,
+                CurrentPrice = plan.BasePrice,
+                StartDate = DateTime.UtcNow,
+                NextBillingDate = DateTime.UtcNow.AddMonths(1), // Will be synced from Stripe later
+                AutoRenew = true,
+                StripeSubscriptionId = stripeSubscriptionId,
+                StripeCustomerId = stripeCustomerId,
+                StripePriceId = stripePriceId,
+                CreatedBy = userId,
+                CreatedDate = DateTime.UtcNow,
+                UpdatedBy = userId,
+                UpdatedDate = DateTime.UtcNow
+            };
+
+            // BEGIN TRANSACTION - Ensure subscription and privileges are created atomically
+            _logger.LogInformation("🔄 Beginning transaction for subscription creation");
+            await _unitOfWork.BeginTransactionAsync();
+
+            try
+            {
+                // Step 4: Save subscription to database
+                await _subscriptionRepository.CreateAsync(subscription);
+                _logger.LogInformation("✅ Subscription {SubscriptionId} created in database", subscription.Id);
+
+                // Step 5: Initialize privileges for the subscription (MUST succeed for transaction to commit)
+                _logger.LogInformation("🔄 Initializing privileges for subscription {SubscriptionId}", subscription.Id);
+                
+                var privilegeResult = await _privilegeService.InitializeSubscriptionPrivilegesAsync(
+                    subscription.Id, 
+                    plan.Id, 
+                    tokenModel
+                );
+                
+                if (privilegeResult.StatusCode != 201 && privilegeResult.StatusCode != 200)
+                {
+                    throw new Exception($"Privilege initialization failed: {privilegeResult.Message}");
+                }
+                
+                _logger.LogInformation("✅ Privileges initialized successfully for subscription {SubscriptionId}", 
+                    subscription.Id);
+                
+                // COMMIT TRANSACTION - All or nothing
+                await _unitOfWork.CommitTransactionAsync();
+                
+                _logger.LogInformation("🎉 Successfully created subscription {SubscriptionId} with privileges in transaction", 
+                    subscription.Id);
+            }
+            catch (Exception ex)
+            {
+                // ROLLBACK TRANSACTION on any error
+                await _unitOfWork.RollbackTransactionAsync();
+                
+                _logger.LogError(ex, "❌ Failed to create subscription in transaction, rolling back");
+                throw new Exception($"Failed to create subscription: {ex.Message}", ex);
+            }
+
+            // Step 6: Create initial billing record (CRITICAL FIX)
+            // This is OUTSIDE the transaction because:
+            // 1. Stripe already charged the user (can't rollback payment)
+            // 2. Subscription is already committed to database
+            // 3. Billing record is for audit trail and financial tracking
+            _logger.LogInformation("🔄 Creating initial billing record for subscription {SubscriptionId}", subscription.Id);
+
+            var effectivePrice = BillingCalculationService.GetEffectivePlanPrice(plan, null, _logger);
+            var taxAmount = plan.DefaultTaxPercentage.HasValue && plan.DefaultTaxPercentage.Value > 0 
+                ? effectivePrice * (plan.DefaultTaxPercentage.Value / 100) 
+                : 0m;
+            var totalAmount = effectivePrice + taxAmount;
+
+            _logger.LogInformation(
+                "BILLING_RECORD_CREATION_START: SubscriptionId={SubscriptionId}, PlanId={PlanId}, PlanName={PlanName}, " +
+                "EffectivePrice={EffectivePrice}, TaxPercentage={TaxPercentage}, TaxAmount={TaxAmount}, TotalAmount={TotalAmount}, " +
+                "StripeSubscriptionId={StripeSubscriptionId}, Source={Source}",
+                subscription.Id, plan.Id, plan.Name, effectivePrice, 
+                plan.DefaultTaxPercentage ?? 0, taxAmount, totalAmount, 
+                subscription.StripeSubscriptionId, "StripeCheckout");
+
+            var billingResult = await _billingService.CreateSubscriptionBillingAsync(
+                subscription,
+                effectivePrice,
+                $"Initial billing for {plan.Name} subscription from Stripe Checkout",
+                subscription.NextBillingDate,
+                tokenModel
+            );
+
+            if (billingResult.StatusCode != 200)
+            {
+                _logger.LogError(
+                    "BILLING_RECORD_CREATION_FAILED: SubscriptionId={SubscriptionId}, PlanId={PlanId}, " +
+                    "EffectivePrice={EffectivePrice}, Error={Error}, Source={Source}",
+                    subscription.Id, plan.Id, effectivePrice, billingResult.Message, "StripeCheckout");
+                // Don't fail the entire operation - billing record is important but subscription already created
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "BILLING_RECORD_CREATION_SUCCESS: SubscriptionId={SubscriptionId}, PlanId={PlanId}, " +
+                    "EffectivePrice={EffectivePrice}, TaxAmount={TaxAmount}, TotalAmount={TotalAmount}, " +
+                    "StripeSubscriptionId={StripeSubscriptionId}, Source={Source}",
+                    subscription.Id, plan.Id, effectivePrice, taxAmount, totalAmount, 
+                    subscription.StripeSubscriptionId, "StripeCheckout");
+
+                // Step 6.5: Create SubscriptionPayment entity (CRITICAL FIX)
+                // This links the payment to the subscription and billing record for complete audit trail
+                try
+                {
+                    var billingRecordDto = billingResult.data as BillingRecordDto;
+                    if (billingRecordDto != null && Guid.TryParse(billingRecordDto.Id, out var billingRecordId))
+                    {
+                        await CreateSubscriptionPaymentForCheckoutAsync(
+                            subscription,
+                            billingRecordId,
+                            effectivePrice + taxAmount,
+                            plan.CurrencyId,
+                            stripeSubscriptionId,
+                            tokenModel
+                        );
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Could not extract billing record ID from billing result for SubscriptionPayment creation");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to create SubscriptionPayment for subscription {SubscriptionId} from checkout (non-critical, payment already processed)", 
+                        subscription.Id);
+                    // Don't fail the entire operation - payment was already processed by Stripe
+                }
+            }
+
+            // Step 7: Send welcome notifications (OUTSIDE transaction - failures won't rollback DB)
+            var userResult = await _userService.GetUserByIdAsync(userId, tokenModel);
+            if (userResult.StatusCode == 200 && userResult.data != null)
+            {
+                var user = (UserDto)userResult.data;
+                var subscriptionDto = _mapper.Map<SubscriptionDto>(subscription);
+
+                try
+                {
+                    await _notificationService.SendSubscriptionConfirmationAsync(user.Email, user.FullName, subscriptionDto, tokenModel);
+                    await _notificationService.SendSubscriptionWelcomeEmailAsync(user.Email, user.FullName, subscriptionDto, tokenModel);
+                    await _subscriptionNotificationService.SendSubscriptionCreatedNotificationAsync(subscription.Id.ToString(), tokenModel);
+                    _logger.LogInformation("📧 Sent welcome notifications for subscription {SubscriptionId}", subscription.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "⚠️ Failed to send notifications for subscription {SubscriptionId} (non-critical)", 
+                        subscription.Id);
+                    // Don't fail the entire operation if notifications fail
+                }
+            }
+
+            var dto = _mapper.Map<SubscriptionDto>(subscription);
+            _logger.LogInformation("🎉 Successfully synced subscription {SubscriptionId} from Stripe Checkout for user {UserId}", subscription.Id, userId);
+            
+            return new JsonModel { data = dto, Message = "Subscription synced successfully from checkout", StatusCode = 201 };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error syncing subscription from checkout for user {UserId}: {Message}", userId, ex.Message);
+            return new JsonModel { data = new object(), Message = $"Failed to sync subscription from checkout: {ex.Message}", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
     /// Cancels a subscription with proper validation and Stripe synchronization
     /// </summary>
     public async Task<JsonModel> CancelSubscriptionAsync(string subscriptionId, string? reason, TokenModel tokenModel)
@@ -956,6 +1161,390 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
             return new JsonModel { data = new object(), Message = "Failed to upgrade subscription", StatusCode = 500 };
         }
     }
+
+    #region Scheduled Plan Changes (No Proration)
+
+    /// <summary>
+    /// Schedules a plan upgrade to take effect at the next billing cycle without immediate proration.
+    /// User continues with current plan and privileges until the next billing date.
+    /// </summary>
+    public async Task<JsonModel> ScheduleUpgradeAsync(Guid subscriptionId, Guid newPlanId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("📅 Scheduling upgrade for subscription {SubscriptionId} to plan {PlanId}", 
+                subscriptionId, newPlanId);
+            
+            // 1. Get current subscription
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
+            if (subscription == null)
+            {
+                return new JsonModel { StatusCode = 404, Message = "Subscription not found" };
+            }
+            
+            // 2. Validate subscription is active
+            if (subscription.Status != Subscription.SubscriptionStatuses.Active)
+            {
+                return new JsonModel 
+                { 
+                    StatusCode = 400, 
+                    Message = "Only active subscriptions can be upgraded" 
+                };
+            }
+            
+            // 3. Get new plan
+            var newPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(newPlanId);
+            if (newPlan == null)
+            {
+                return new JsonModel { StatusCode = 404, Message = "Plan not found" };
+            }
+            
+            // 4. Validate it's an upgrade (higher price)
+            if (newPlan.BasePrice <= subscription.CurrentPrice)
+            {
+                return new JsonModel 
+                { 
+                    StatusCode = 400, 
+                    Message = "New plan must be higher priced for an upgrade. Use downgrade instead." 
+                };
+            }
+            
+            // 5. Check if already scheduled
+            if (subscription.PendingPlanChangeId.HasValue)
+            {
+                var existingPending = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(subscription.PendingPlanChangeId.Value);
+                return new JsonModel 
+                { 
+                    StatusCode = 400, 
+                    Message = $"A plan change to '{existingPending?.Name}' is already scheduled for {subscription.PlanChangeEffectiveDate:MMM dd, yyyy}. Please cancel it first." 
+                };
+            }
+            
+            // 6. Schedule in Stripe (using subscription schedule)
+            if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId))
+            {
+                try
+                {
+                    string newStripePriceId = GetStripePriceIdForPlan(newPlan);
+                    
+                    _logger.LogInformation("🔄 Scheduling plan change in Stripe for subscription {StripeSubscriptionId}", 
+                        subscription.StripeSubscriptionId);
+                    
+                    // Use Stripe Subscription Schedules to implement no-proration plan change
+                    var effectiveDate = subscription.NextBillingDate != default(DateTime) 
+                        ? subscription.NextBillingDate 
+                        : DateTime.UtcNow.AddMonths(1);
+                    
+                    var scheduleId = await _stripeService.ScheduleSubscriptionPlanChangeAsync(
+                        subscription.StripeSubscriptionId,
+                        newStripePriceId,
+                        effectiveDate,
+                        tokenModel
+                    );
+                    
+                    _logger.LogInformation("✅ Created Stripe subscription schedule {ScheduleId} for upgrade", scheduleId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Failed to schedule plan change in Stripe");
+                    return new JsonModel 
+                    { 
+                        StatusCode = 500, 
+                        Message = $"Failed to schedule with Stripe: {ex.Message}" 
+                    };
+                }
+            }
+            
+            // 7. Update local subscription
+            subscription.PendingPlanChangeId = newPlanId;
+            subscription.PlanChangeEffectiveDate = subscription.NextBillingDate;
+            subscription.PendingChangeType = "Upgrade";
+            subscription.UpdatedDate = DateTime.UtcNow;
+            subscription.UpdatedBy = tokenModel.UserID;
+            
+            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.SaveChangesAsync();
+            
+            // 8. Send notification (if notification service exists)
+            try
+            {
+                _logger.LogInformation("📧 User {UserId} will be notified about scheduled upgrade", subscription.UserId);
+                // TODO: Implement notification service integration
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send upgrade notification");
+            }
+            
+            _logger.LogInformation("✅ Upgrade scheduled successfully: {CurrentPlan} → {NewPlan} on {Date}", 
+                subscription.SubscriptionPlan?.Name, newPlan.Name, subscription.NextBillingDate);
+            
+            return new JsonModel 
+            { 
+                data = new
+                {
+                    subscriptionId = subscription.Id,
+                    currentPlanName = subscription.SubscriptionPlan?.Name,
+                    newPlanName = newPlan.Name,
+                    changeEffectiveDate = subscription.NextBillingDate,
+                    newPrice = newPlan.BasePrice,
+                    message = $"Your subscription will upgrade to {newPlan.Name} on {subscription.NextBillingDate:MMM dd, yyyy}. You'll keep your current plan privileges until then."
+                },
+                StatusCode = 200, 
+                Message = $"Upgrade to {newPlan.Name} scheduled for {subscription.NextBillingDate:MMM dd, yyyy}" 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error scheduling upgrade for subscription {SubscriptionId}", subscriptionId);
+            return new JsonModel 
+            { 
+                data = new object(), 
+                StatusCode = 500, 
+                Message = $"Error scheduling upgrade: {ex.Message}" 
+            };
+        }
+    }
+
+    /// <summary>
+    /// Schedules a plan downgrade to take effect at the next billing cycle without immediate proration.
+    /// User continues with current plan and privileges until the next billing date.
+    /// </summary>
+    public async Task<JsonModel> ScheduleDowngradeAsync(Guid subscriptionId, Guid newPlanId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("📅 Scheduling downgrade for subscription {SubscriptionId} to plan {PlanId}", 
+                subscriptionId, newPlanId);
+            
+            // 1. Get current subscription
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
+            if (subscription == null)
+            {
+                return new JsonModel { StatusCode = 404, Message = "Subscription not found" };
+            }
+            
+            // 2. Validate subscription is active
+            if (subscription.Status != Subscription.SubscriptionStatuses.Active)
+            {
+                return new JsonModel 
+                { 
+                    StatusCode = 400, 
+                    Message = "Only active subscriptions can be downgraded" 
+                };
+            }
+            
+            // 3. Get new plan
+            var newPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(newPlanId);
+            if (newPlan == null)
+            {
+                return new JsonModel { StatusCode = 404, Message = "Plan not found" };
+            }
+            
+            // 4. Validate it's a downgrade (lower price)
+            if (newPlan.BasePrice >= subscription.CurrentPrice)
+            {
+                return new JsonModel 
+                { 
+                    StatusCode = 400, 
+                    Message = "New plan must be lower priced for a downgrade. Use upgrade instead." 
+                };
+            }
+            
+            // 5. Check if already scheduled
+            if (subscription.PendingPlanChangeId.HasValue)
+            {
+                var existingPending = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(subscription.PendingPlanChangeId.Value);
+                return new JsonModel 
+                { 
+                    StatusCode = 400, 
+                    Message = $"A plan change to '{existingPending?.Name}' is already scheduled for {subscription.PlanChangeEffectiveDate:MMM dd, yyyy}. Please cancel it first." 
+                };
+            }
+            
+            // 6. Schedule in Stripe
+            if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId))
+            {
+                try
+                {
+                    string newStripePriceId = GetStripePriceIdForPlan(newPlan);
+                    
+                    _logger.LogInformation("🔄 Scheduling plan change in Stripe for subscription {StripeSubscriptionId}", 
+                        subscription.StripeSubscriptionId);
+                    
+                    // Use Stripe Subscription Schedules to implement no-proration plan change
+                    var effectiveDate = subscription.NextBillingDate != default(DateTime) 
+                        ? subscription.NextBillingDate 
+                        : DateTime.UtcNow.AddMonths(1);
+                    
+                    var scheduleId = await _stripeService.ScheduleSubscriptionPlanChangeAsync(
+                        subscription.StripeSubscriptionId,
+                        newStripePriceId,
+                        effectiveDate,
+                        tokenModel
+                    );
+                    
+                    _logger.LogInformation("✅ Created Stripe subscription schedule {ScheduleId} for downgrade", scheduleId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Failed to schedule plan change in Stripe");
+                    return new JsonModel 
+                    { 
+                        StatusCode = 500, 
+                        Message = $"Failed to schedule with Stripe: {ex.Message}" 
+                    };
+                }
+            }
+            
+            // 7. Update local subscription
+            subscription.PendingPlanChangeId = newPlanId;
+            subscription.PlanChangeEffectiveDate = subscription.NextBillingDate;
+            subscription.PendingChangeType = "Downgrade";
+            subscription.UpdatedDate = DateTime.UtcNow;
+            subscription.UpdatedBy = tokenModel.UserID;
+            
+            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.SaveChangesAsync();
+            
+            // 8. Send notification
+            try
+            {
+                _logger.LogInformation("📧 User {UserId} will be notified about scheduled downgrade", subscription.UserId);
+                // TODO: Implement notification service integration
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send downgrade notification");
+            }
+            
+            _logger.LogInformation("✅ Downgrade scheduled successfully: {CurrentPlan} → {NewPlan} on {Date}", 
+                subscription.SubscriptionPlan?.Name, newPlan.Name, subscription.NextBillingDate);
+            
+            return new JsonModel 
+            { 
+                data = new
+                {
+                    subscriptionId = subscription.Id,
+                    currentPlanName = subscription.SubscriptionPlan?.Name,
+                    newPlanName = newPlan.Name,
+                    changeEffectiveDate = subscription.NextBillingDate,
+                    newPrice = newPlan.BasePrice,
+                    currentPriceSavings = subscription.CurrentPrice - newPlan.BasePrice,
+                    message = $"Your subscription will downgrade to {newPlan.Name} on {subscription.NextBillingDate:MMM dd, yyyy}. You'll keep your current plan privileges until then, then save ${subscription.CurrentPrice - newPlan.BasePrice}/month."
+                },
+                StatusCode = 200, 
+                Message = $"Downgrade to {newPlan.Name} scheduled for {subscription.NextBillingDate:MMM dd, yyyy}" 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error scheduling downgrade for subscription {SubscriptionId}", subscriptionId);
+            return new JsonModel 
+            { 
+                data = new object(), 
+                StatusCode = 500, 
+                Message = $"Error scheduling downgrade: {ex.Message}" 
+            };
+        }
+    }
+
+    /// <summary>
+    /// Cancels a scheduled plan change (upgrade or downgrade).
+    /// User will stay on current plan indefinitely.
+    /// </summary>
+    public async Task<JsonModel> CancelScheduledPlanChangeAsync(Guid subscriptionId, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("❌ Canceling scheduled plan change for subscription {SubscriptionId}", 
+                subscriptionId);
+            
+            var subscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
+            if (subscription == null)
+            {
+                return new JsonModel { StatusCode = 404, Message = "Subscription not found" };
+            }
+            
+            if (!subscription.PendingPlanChangeId.HasValue)
+            {
+                return new JsonModel 
+                { 
+                    StatusCode = 400, 
+                    Message = "No plan change is scheduled for this subscription" 
+                };
+            }
+            
+            var pendingPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(subscription.PendingPlanChangeId.Value);
+            
+            // Cancel in Stripe (if applicable)
+            if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId))
+            {
+                try
+                {
+                    _logger.LogInformation("🔄 Canceling scheduled plan change in Stripe for subscription {StripeSubscriptionId}", 
+                        subscription.StripeSubscriptionId);
+                    
+                    // Cancel the Stripe subscription schedule
+                    var cancelled = await _stripeService.CancelScheduledPlanChangeAsync(
+                        subscription.StripeSubscriptionId,
+                        tokenModel
+                    );
+                    
+                    if (cancelled)
+                    {
+                        _logger.LogInformation("✅ Canceled Stripe subscription schedule for subscription {StripeSubscriptionId}", 
+                            subscription.StripeSubscriptionId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ No Stripe schedule found to cancel for subscription {StripeSubscriptionId}", 
+                            subscription.StripeSubscriptionId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Failed to cancel scheduled plan change in Stripe");
+                    return new JsonModel 
+                    { 
+                        StatusCode = 500, 
+                        Message = $"Failed to cancel with Stripe: {ex.Message}" 
+                    };
+                }
+            }
+            
+            // Clear pending change
+            subscription.PendingPlanChangeId = null;
+            subscription.PlanChangeEffectiveDate = null;
+            subscription.PendingChangeType = null;
+            subscription.UpdatedDate = DateTime.UtcNow;
+            subscription.UpdatedBy = tokenModel.UserID;
+            
+            await _subscriptionRepository.UpdateAsync(subscription);
+            await _subscriptionRepository.SaveChangesAsync();
+            
+            _logger.LogInformation("✅ Canceled scheduled plan change to {PlanName}", pendingPlan?.Name);
+            
+            return new JsonModel 
+            { 
+                data = new { subscriptionId = subscription.Id },
+                StatusCode = 200, 
+                Message = $"Canceled scheduled change to {pendingPlan?.Name}. You'll stay on your current plan." 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error canceling scheduled plan change");
+            return new JsonModel 
+            { 
+                data = new object(), 
+                StatusCode = 500, 
+                Message = $"Error canceling scheduled change: {ex.Message}" 
+            };
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// Updates a subscription with proper validation
@@ -3279,6 +3868,98 @@ public class SubscriptionLifecycleService : ISubscriptionLifecycleService
         {
             _logger.LogError(ex, "Error updating subscription {SubscriptionId}", subscriptionId);
             return new JsonModel { data = new object(), Message = "Error updating subscription", StatusCode = 500 };
+        }
+    }
+
+    /// <summary>
+    /// Creates a SubscriptionPayment entity for a Stripe Checkout payment
+    /// This links the payment to the subscription and billing record for complete audit trail
+    /// </summary>
+    private async Task CreateSubscriptionPaymentForCheckoutAsync(
+        Subscription subscription,
+        Guid billingRecordId,
+        decimal amount,
+        Guid currencyId,
+        string stripeSubscriptionId,
+        TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Creating SubscriptionPayment for subscription {SubscriptionId}, billing record {BillingRecordId}", 
+                subscription.Id, billingRecordId);
+
+            // Resolve SubscriptionPaymentRepository from service provider
+            var subscriptionPaymentRepository = _serviceProvider.GetRequiredService<ISubscriptionPaymentRepository>();
+            var billingRepository = _serviceProvider.GetRequiredService<IBillingRepository>();
+
+            // Check if SubscriptionPayment already exists (idempotency)
+            var existingPayment = await subscriptionPaymentRepository.GetByBillingRecordIdAsync(billingRecordId);
+            if (existingPayment != null)
+            {
+                _logger.LogInformation("SubscriptionPayment already exists for billing record {BillingRecordId}, skipping creation", 
+                    billingRecordId);
+                return;
+            }
+
+            // Get billing record to retrieve Stripe payment intent ID if available
+            var billingRecord = await billingRepository.GetByIdAsync(billingRecordId);
+            if (billingRecord == null)
+            {
+                _logger.LogWarning("Billing record {BillingRecordId} not found for SubscriptionPayment creation", billingRecordId);
+                return;
+            }
+
+            // Get payment intent ID from billing record (may be set by invoice webhook or during billing creation)
+            string? stripePaymentIntentId = billingRecord.StripePaymentIntentId;
+            
+            if (string.IsNullOrEmpty(stripePaymentIntentId))
+            {
+                _logger.LogInformation("Payment intent ID not available in billing record {BillingRecordId}, will be updated when invoice webhook arrives", 
+                    billingRecordId);
+                // Payment intent will be updated later by invoice webhook handlers
+            }
+            else
+            {
+                _logger.LogInformation("Using payment intent {PaymentIntentId} from billing record {BillingRecordId}", 
+                    stripePaymentIntentId, billingRecordId);
+            }
+
+            // Create SubscriptionPayment entity
+            var subscriptionPayment = new SubscriptionPayment
+            {
+                Id = Guid.NewGuid(),
+                SubscriptionId = subscription.Id,
+                BillingRecordId = billingRecordId,
+                CurrencyId = currencyId,
+                Amount = amount,
+                TaxAmount = billingRecord.TaxAmount,
+                NetAmount = amount, // Total amount (includes tax)
+                Description = $"Initial payment for {subscription.SubscriptionPlan?.Name ?? "subscription"} subscription",
+                Status = SubscriptionPayment.PaymentStatus.Succeeded, // Payment was already processed by Stripe
+                Type = SubscriptionPayment.PaymentType.Subscription,
+                StripePaymentIntentId = stripePaymentIntentId,
+                DueDate = billingRecord.DueDate ?? DateTime.UtcNow.AddDays(7), // Default to 7 days if not set
+                PaidAt = DateTime.UtcNow, // Payment was processed at checkout
+                BillingPeriodStart = subscription.StartDate,
+                BillingPeriodEnd = subscription.EndDate ?? subscription.StartDate.AddDays(30), // Fallback if EndDate not set
+                IsActive = true,
+                CreatedBy = tokenModel.UserID,
+                CreatedDate = DateTime.UtcNow,
+                UpdatedBy = tokenModel.UserID,
+                UpdatedDate = DateTime.UtcNow
+            };
+
+            await subscriptionPaymentRepository.CreateAsync(subscriptionPayment);
+            await _unitOfWork.SaveChangesAsync();
+
+            _logger.LogInformation("✅ Created SubscriptionPayment {PaymentId} for subscription {SubscriptionId}, billing record {BillingRecordId}", 
+                subscriptionPayment.Id, subscription.Id, billingRecordId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating SubscriptionPayment for subscription {SubscriptionId}, billing record {BillingRecordId}", 
+                subscription.Id, billingRecordId);
+            throw;
         }
     }
 }

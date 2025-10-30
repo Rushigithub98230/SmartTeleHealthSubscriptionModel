@@ -27,4 +27,7 @@ public interface IPrivilegeService
     Task<JsonModel> GetUsageSummaryAsync(string? privilegeId, string? userId, string? subscriptionId, DateTime? startDate, DateTime? endDate, TokenModel token);
     Task<JsonModel> ExportUsageDataAsync(string format, string? privilegeId, string? userId, string? subscriptionId, DateTime? startDate, DateTime? endDate, TokenModel token);
     Task<JsonModel> UpdateTimeBasedLimitsAsync(UpdateTimeBasedLimitsDto updateDto, TokenModel token);
+    
+    // Subscription privilege initialization
+    Task<JsonModel> InitializeSubscriptionPrivilegesAsync(Guid subscriptionId, Guid planId, TokenModel tokenModel);
 }

@@ -88,6 +88,47 @@ export interface TrialEnding {
   hasPaymentMethod: boolean;
 }
 
+export interface PlanMigrationAnalytics {
+  summary: {
+    totalMigrations: number;
+    pendingMigrations: number;
+    completedMigrations: number;
+    userOptedOutMigrations: number;
+    failedMigrations: number;
+    dueToday: number;
+    dueInNext7Days: number;
+    noDecisionCount: number;
+  };
+  userDecisions: {
+    acceptCount: number;
+    cancelCount: number;
+    noDecisionCount: number;
+    acceptanceRate: number;
+    totalDecisions: number;
+  };
+  migrationsByPlan: Array<{
+    planId: string;
+    totalMigrations: number;
+    pending: number;
+    completed: number;
+    userOptedOut: number;
+    failed: number;
+  }>;
+  recentMigrations: Array<{
+    id: string;
+    subscriptionId: string;
+    fromPlanId: string;
+    toPlanId: string;
+    status: string;
+    userDecision: string | null;
+    notificationDate: Date;
+    scheduledMigrationDate: Date;
+    userDecisionDate: Date | null;
+    completedDate: Date | null;
+  }>;
+  generatedAt: Date;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -220,5 +261,13 @@ export class AnalyticsService {
    */
   getChurnRate(): Observable<ApiResponse<any>> {
     return this.commonService.get<any>(`${this.baseUrl}/churn-rate`);
+  }
+
+  /**
+   * Get plan migration analytics for admin dashboard
+   * Shows scheduled migrations, user decisions, and auto-cancellations
+   */
+  getPlanMigrationAnalytics(): Observable<ApiResponse<PlanMigrationAnalytics>> {
+    return this.commonService.get<PlanMigrationAnalytics>(`admin/analytics/plan-migrations`);
   }
 }

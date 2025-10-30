@@ -132,6 +132,19 @@ public class CreateSubscriptionPlanDto
     /// </summary>
     [Range(0, 100, ErrorMessage = "Billing discount percentage must be between 0 and 100%")]
     public decimal? BillingDiscountPercentage { get; set; }
+    
+    /// <summary>
+    /// Default tax percentage to apply to this plan (0-100)
+    /// Admin can set this manually for tax compliance
+    /// </summary>
+    [Range(0, 100, ErrorMessage = "Tax percentage must be between 0 and 100%")]
+    public decimal? DefaultTaxPercentage { get; set; }
+
+    /// <summary>
+    /// Notes about tax applicability for this plan.
+    /// </summary>
+    [MaxLength(500)]
+    public string? TaxNotes { get; set; }
 }
 
 /// <summary>

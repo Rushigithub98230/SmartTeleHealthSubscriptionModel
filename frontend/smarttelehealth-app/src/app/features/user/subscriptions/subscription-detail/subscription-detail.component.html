@@ -37,6 +37,78 @@
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
 
+  <!-- Payment Failed Alert Banner -->
+  <div *ngIf="subscription && subscription.status === 'PaymentFailed'" 
+       class="alert alert-danger d-flex align-items-center" role="alert">
+    <div class="flex-grow-1">
+      <h5 class="alert-heading mb-2">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>Payment Failed
+      </h5>
+      <p class="mb-2">
+        Your last payment attempt failed. Please update your payment method and try again.
+        <span *ngIf="subscription.failedPaymentAttempts">
+          (Attempt #{{subscription.failedPaymentAttempts}})
+        </span>
+      </p>
+      <div class="d-flex gap-2">
+        <button class="btn btn-danger btn-sm" (click)="retryPayment()" [disabled]="actionLoading">
+          <i class="bi bi-arrow-clockwise me-1"></i>Retry Payment
+        </button>
+        <a routerLink="/web/payment-methods" class="btn btn-outline-danger btn-sm">
+          <i class="bi bi-credit-card me-1"></i>Update Payment Method
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subscription Suspended Alert Banner -->
+  <div *ngIf="subscription && subscription.status === 'Suspended'" 
+       class="alert alert-danger d-flex align-items-center" role="alert">
+    <div class="flex-grow-1">
+      <h5 class="alert-heading mb-2">
+        <i class="bi bi-exclamation-octagon-fill me-2"></i>Subscription Suspended
+      </h5>
+      <p class="mb-2">
+        Your subscription has been suspended after {{subscription.failedPaymentAttempts || 3}} failed payment attempts.
+        Please update your payment method immediately to restore access.
+      </p>
+      <div class="d-flex gap-2">
+        <button class="btn btn-danger btn-sm" (click)="retryPayment()" [disabled]="actionLoading">
+          <i class="bi bi-arrow-clockwise me-1"></i>Retry Payment Now
+        </button>
+        <a routerLink="/web/payment-methods" class="btn btn-outline-danger btn-sm">
+          <i class="bi bi-credit-card me-1"></i>Update Payment Method
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scheduled Plan Change Banner -->
+  <div *ngIf="subscription && hasPendingPlanChange()" 
+       class="alert alert-info d-flex align-items-center mb-4" role="alert">
+    <div class="flex-grow-1">
+      <h5 class="alert-heading mb-2">
+        <i class="bi bi-calendar-check me-2"></i>
+        Plan Change Scheduled
+      </h5>
+      <p class="mb-2">
+        Your subscription will {{ subscription.pendingChangeType?.toLowerCase() }} to 
+        <strong>{{ subscription.pendingPlanName }}</strong> on 
+        <strong>{{ getPlanChangeEffectiveDate() }}</strong>.
+      </p>
+      <p class="mb-2 text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        You'll keep your current plan ({{ subscription.planName }}) and all its privileges until then.
+        The new plan will take effect automatically at your next billing date.
+      </p>
+      <button class="btn btn-outline-danger btn-sm mt-2" 
+              (click)="cancelScheduledPlanChange()" 
+              [disabled]="actionLoading">
+        <i class="bi bi-x-circle me-1"></i>Cancel Scheduled Change
+      </button>
+    </div>
+  </div>
+
   <!-- Subscription Details -->
   <div *ngIf="!loading && subscription" class="row">
     <div class="col-lg-8">
@@ -82,6 +154,36 @@
                     class="btn btn-danger" 
                     (click)="openPaymentModal()">
               <i class="bi bi-credit-card me-2"></i>Pay Now
+            </button>
+            
+            <!-- Retry Payment Button (for PaymentFailed/Suspended subscriptions) -->
+            <button *ngIf="subscription.status === 'PaymentFailed' || subscription.status === 'Suspended'" 
+                    class="btn btn-danger" 
+                    (click)="retryPayment()" 
+                    [disabled]="actionLoading">
+              <i class="bi bi-arrow-clockwise me-2"></i>
+              <span *ngIf="!actionLoading">Retry Payment</span>
+              <span *ngIf="actionLoading">Processing...</span>
+            </button>
+            
+            <!-- Upgrade Plan Button -->
+            <button *ngIf="canUpgrade()" 
+                    class="btn btn-primary" 
+                    (click)="openUpgradeModal()" 
+                    [disabled]="actionLoading">
+              <i class="bi bi-arrow-up-circle me-2"></i>
+              <span *ngIf="!actionLoading">Upgrade Plan</span>
+              <span *ngIf="actionLoading">Loading...</span>
+            </button>
+            
+            <!-- Downgrade Plan Button -->
+            <button *ngIf="canDowngrade()" 
+                    class="btn btn-outline-primary" 
+                    (click)="openDowngradeModal()" 
+                    [disabled]="actionLoading">
+              <i class="bi bi-arrow-down-circle me-2"></i>
+              <span *ngIf="!actionLoading">Downgrade Plan</span>
+              <span *ngIf="actionLoading">Loading...</span>
             </button>
             
             <!-- Pause (only for Active subscriptions without pending payments) -->

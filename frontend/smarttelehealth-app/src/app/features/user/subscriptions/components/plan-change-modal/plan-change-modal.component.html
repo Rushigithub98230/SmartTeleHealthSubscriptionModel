@@ -1,0 +1,145 @@
+<div class="plan-change-modal">
+  <h2 mat-dialog-title>
+    <mat-icon>{{ data.changeType === 'upgrade' ? 'trending_up' : 'trending_down' }}</mat-icon>
+    {{ getTitle() }}
+  </h2>
+
+  <mat-dialog-content class="modal-content">
+    <!-- Current Plan Info -->
+    <div class="current-plan-section">
+      <h3>Current Plan</h3>
+      <div class="plan-card current">
+        <div class="plan-header">
+          <h4>{{ data.subscription.planName }}</h4>
+          <div class="plan-price">
+            <span class="price">${{ data.subscription.currentPrice.toFixed(2) }}</span>
+            <span class="period">/month</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Available Plans -->
+    <div class="available-plans-section">
+      <h3>
+        {{ data.changeType === 'upgrade' ? 'Available Upgrades' : 'Available Downgrades' }}
+      </h3>
+      
+      <div class="plans-list" *ngIf="filteredPlans.length > 0">
+        <div 
+          class="plan-card selectable"
+          *ngFor="let plan of filteredPlans"
+          [class.selected]="isPlanSelected(plan)"
+          (click)="selectPlan(plan)">
+          
+          <div class="plan-header">
+            <div class="plan-name-section">
+              <h4>{{ plan.name }}</h4>
+              <mat-icon class="check-icon" *ngIf="isPlanSelected(plan)">check_circle</mat-icon>
+            </div>
+            <div class="plan-price">
+              <span class="price">${{ plan.effectivePrice.toFixed(2) }}</span>
+              <span class="period">/month</span>
+            </div>
+          </div>
+
+          <p class="plan-description" *ngIf="plan.description">
+            {{ plan.description }}
+          </p>
+
+          <div class="plan-features" *ngIf="plan.features">
+            <h5>Features:</h5>
+            <ul>
+              <li *ngFor="let feature of parseFeatures(plan.features)">
+                <mat-icon>check</mat-icon>
+                {{ feature }}
+              </li>
+            </ul>
+          </div>
+
+          <div class="price-difference">
+            <span [class.increase]="getPriceDifference() > 0" [class.decrease]="getPriceDifference() < 0">
+              {{ getPriceDifferenceText() }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="no-plans-message" *ngIf="filteredPlans.length === 0">
+        <mat-icon>info</mat-icon>
+        <p>
+          No {{ data.changeType === 'upgrade' ? 'higher-priced' : 'lower-priced' }} plans are currently available.
+        </p>
+      </div>
+    </div>
+
+    <!-- Change Summary -->
+    <div class="change-summary" *ngIf="selectedPlan">
+      <h3>Change Summary</h3>
+      <div class="summary-card">
+        <div class="summary-row">
+          <span class="label">From:</span>
+          <span class="value">{{ data.subscription.planName }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="label">To:</span>
+          <span class="value highlight">{{ selectedPlan.name }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="label">Price Change:</span>
+          <span class="value" [class.increase]="getPriceDifference() > 0" [class.decrease]="getPriceDifference() < 0">
+            {{ getPriceDifferenceText() }}
+          </span>
+        </div>
+        <div class="summary-row">
+          <span class="label">Effective Date:</span>
+          <span class="value">{{ getEffectiveDate() }}</span>
+        </div>
+      </div>
+
+      <div class="important-note">
+        <mat-icon>schedule</mat-icon>
+        <div class="note-content">
+          <strong>Important:</strong>
+          <p>
+            You will continue to use your current plan ({{ data.subscription.planName }}) with all its privileges until 
+            <strong>{{ getEffectiveDate() }}</strong>. On that date, your subscription will automatically switch to the new plan, 
+            and you'll be charged the new price.
+          </p>
+          <p *ngIf="data.changeType === 'downgrade'">
+            After the change, your privileges will be adjusted to match the new plan limits.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Message -->
+    <mat-error *ngIf="errorMessage" class="error-message">
+      <mat-icon>error</mat-icon>
+      {{ errorMessage }}
+    </mat-error>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button (click)="cancel()" [disabled]="isProcessing">
+      Cancel
+    </button>
+    <button 
+      mat-raised-button 
+      color="primary" 
+      (click)="confirmChange()"
+      [disabled]="!selectedPlan || isProcessing">
+      <mat-spinner *ngIf="isProcessing" diameter="20"></mat-spinner>
+      <span *ngIf="!isProcessing">
+        Confirm {{ data.changeType === 'upgrade' ? 'Upgrade' : 'Downgrade' }}
+      </span>
+      <span *ngIf="isProcessing">
+        Processing...
+      </span>
+    </button>
+  </mat-dialog-actions>
+</div>
+
+
+
+

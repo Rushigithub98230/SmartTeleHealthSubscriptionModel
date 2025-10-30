@@ -608,6 +608,64 @@ public class StripeService : IStripeService
         });
     }
 
+    /// <summary>
+    /// Lists all active subscriptions from Stripe with pagination support
+    /// </summary>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>Collection of Stripe Subscription objects</returns>
+    /// <exception cref="InvalidOperationException">Thrown when Stripe API call fails</exception>
+    /// <remarks>
+    /// This method:
+    /// - Retrieves all active subscriptions from Stripe (status: active, trialing, past_due)
+    /// - Uses automatic pagination to fetch all results
+    /// - Used for administrative subscription synchronization and reconciliation
+    /// - Logs successful operations and errors
+    /// - Phase 3: Background sync job support
+    /// </remarks>
+    public async Task<IEnumerable<Stripe.Subscription>> ListAllActiveSubscriptionsAsync(TokenModel tokenModel)
+    {
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                _logger.LogInformation("Listing all active Stripe subscriptions for sync by user {UserId}", tokenModel.UserID);
+                
+                var subscriptionService = new SubscriptionService();
+                var allSubscriptions = new List<Stripe.Subscription>();
+                
+                // List subscriptions with automatic pagination
+                var options = new SubscriptionListOptions
+                {
+                    Status = "all", // Get active, trialing, past_due
+                    Limit = 100 // Max per page
+                };
+                
+                var subscriptions = subscriptionService.ListAutoPagingAsync(options);
+                
+                await foreach (var subscription in subscriptions)
+                {
+                    // Only include active statuses for sync
+                    if (subscription.Status == "active" || 
+                        subscription.Status == "trialing" || 
+                        subscription.Status == "past_due" ||
+                        subscription.Status == "canceled") // Include canceled for proper status sync
+                    {
+                        allSubscriptions.Add(subscription);
+                    }
+                }
+                
+                _logger.LogInformation("Retrieved {Count} subscriptions from Stripe for sync", allSubscriptions.Count);
+                
+                return allSubscriptions;
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "Stripe error listing subscriptions: {Message}", ex.Message);
+                throw new InvalidOperationException($"Failed to list Stripe subscriptions: {ex.Message}", ex);
+            }
+        });
+    }
+
     public async Task<bool> CancelSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
     {
         if (string.IsNullOrEmpty(subscriptionId))
@@ -1203,6 +1261,211 @@ public class StripeService : IStripeService
         });
     }
 
+    #region Scheduled Plan Changes (Using Stripe Subscription Schedules)
+
+    /// <summary>
+    /// Schedules a subscription plan change to take effect at a specific date using Stripe Subscription Schedules.
+    /// This allows plan upgrades or downgrades without immediate proration - the change takes effect at the next billing cycle.
+    /// </summary>
+    /// <param name="stripeSubscriptionId">The Stripe subscription ID to modify</param>
+    /// <param name="newStripePriceId">The new Stripe price ID to switch to</param>
+    /// <param name="effectiveDate">The date when the plan change should take effect (typically NextBillingDate)</param>
+    /// <param name="tokenModel">Token containing user context for audit logging</param>
+    /// <returns>The Stripe Subscription Schedule ID if successful</returns>
+    /// <remarks>
+    /// This method uses Stripe's Subscription Schedule API to schedule a plan change.
+    /// The subscription schedule will:
+    /// 1. Keep the current plan active until the effectiveDate
+    /// 2. Automatically switch to the new plan at the effectiveDate
+    /// 3. Bill the user at the new price starting from the effectiveDate
+    /// 4. Preserve the existing billing cycle
+    /// 
+    /// Reference: https://stripe.com/docs/billing/subscriptions/subscription-schedules
+    /// </remarks>
+    public async Task<string> ScheduleSubscriptionPlanChangeAsync(
+        string stripeSubscriptionId, 
+        string newStripePriceId, 
+        DateTime effectiveDate, 
+        TokenModel tokenModel)
+    {
+        if (string.IsNullOrEmpty(stripeSubscriptionId))
+            throw new ArgumentException("Stripe subscription ID is required", nameof(stripeSubscriptionId));
+        
+        if (string.IsNullOrEmpty(newStripePriceId))
+            throw new ArgumentException("New Stripe price ID is required", nameof(newStripePriceId));
+
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                _logger.LogInformation("📅 Scheduling plan change in Stripe for subscription {StripeSubscriptionId} to price {PriceId} effective {Date}", 
+                    stripeSubscriptionId, newStripePriceId, effectiveDate);
+
+                var subscriptionScheduleService = new Stripe.SubscriptionScheduleService();
+                var subscriptionService = new SubscriptionService();
+                
+                // 1. First, get the current subscription to access its details
+                var currentSubscription = await subscriptionService.GetAsync(stripeSubscriptionId);
+                if (currentSubscription == null)
+                {
+                    throw new InvalidOperationException($"Stripe subscription {stripeSubscriptionId} not found");
+                }
+
+                _logger.LogInformation("✅ Retrieved current subscription: Customer {CustomerId}, Status {Status}", 
+                    currentSubscription.CustomerId, currentSubscription.Status);
+
+                // 2. Check if subscription already has a schedule
+                string? existingScheduleId = currentSubscription.ScheduleId;
+                
+                if (!string.IsNullOrEmpty(existingScheduleId))
+                {
+                    _logger.LogWarning("⚠️ Subscription {StripeSubscriptionId} already has schedule {ScheduleId}, canceling it first", 
+                        stripeSubscriptionId, existingScheduleId);
+                    
+                    // Cancel existing schedule to replace it with new one
+                    await subscriptionScheduleService.CancelAsync(existingScheduleId, new Stripe.SubscriptionScheduleCancelOptions
+                    {
+                        InvoiceNow = false,
+                        Prorate = false
+                    });
+                    
+                    _logger.LogInformation("✅ Canceled existing schedule {ScheduleId}", existingScheduleId);
+                }
+
+                // 3. Create a subscription schedule with two phases:
+                //    - Phase 1: Current plan until effectiveDate
+                //    - Phase 2: New plan starting from effectiveDate
+                var scheduleCreateOptions = new Stripe.SubscriptionScheduleCreateOptions
+                {
+                    FromSubscription = stripeSubscriptionId, // Link to existing subscription
+                    Phases = new List<Stripe.SubscriptionSchedulePhaseOptions>
+                    {
+                        // Phase 1: Keep current plan until effective date
+                        new Stripe.SubscriptionSchedulePhaseOptions
+                        {
+                            Items = new List<Stripe.SubscriptionSchedulePhaseItemOptions>
+                            {
+                                new Stripe.SubscriptionSchedulePhaseItemOptions
+                                {
+                                    Price = currentSubscription.Items.Data[0].Price.Id,
+                                    Quantity = 1
+                                }
+                            },
+                            StartDate = DateTime.UtcNow, // Start immediately
+                            EndDate = effectiveDate // End at scheduled change date
+                        },
+                        // Phase 2: Switch to new plan at effective date
+                        new Stripe.SubscriptionSchedulePhaseOptions
+                        {
+                            Items = new List<Stripe.SubscriptionSchedulePhaseItemOptions>
+                            {
+                                new Stripe.SubscriptionSchedulePhaseItemOptions
+                                {
+                                    Price = newStripePriceId,
+                                    Quantity = 1
+                                }
+                            },
+                            StartDate = effectiveDate // Start at scheduled change date
+                        }
+                    },
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "scheduled_by_user_id", tokenModel.UserID.ToString() },
+                        { "scheduled_by_role_id", tokenModel.RoleID.ToString() },
+                        { "scheduled_at", DateTime.UtcNow.ToString("O") },
+                        { "effective_date", effectiveDate.ToString("O") },
+                        { "old_price_id", currentSubscription.Items.Data[0].Price.Id },
+                        { "new_price_id", newStripePriceId }
+                    }
+                };
+
+                var schedule = await subscriptionScheduleService.CreateAsync(scheduleCreateOptions);
+
+                _logger.LogInformation("🎉 Successfully created subscription schedule {ScheduleId} for subscription {StripeSubscriptionId}. " +
+                    "Plan change from {OldPriceId} to {NewPriceId} will take effect on {EffectiveDate}", 
+                    schedule.Id, stripeSubscriptionId, 
+                    currentSubscription.Items.Data[0].Price.Id, 
+                    newStripePriceId, 
+                    effectiveDate);
+
+                return schedule.Id;
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "❌ Stripe error scheduling plan change for subscription {StripeSubscriptionId}: {Message}", 
+                    stripeSubscriptionId, ex.Message);
+                throw new InvalidOperationException($"Failed to schedule plan change in Stripe: {ex.Message}", ex);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Cancels a scheduled plan change by removing the subscription schedule.
+    /// The subscription will continue with its current plan indefinitely.
+    /// </summary>
+    /// <param name="stripeSubscriptionId">The Stripe subscription ID</param>
+    /// <param name="tokenModel">Token containing user context for audit logging</param>
+    /// <returns>True if cancellation was successful, throws exception otherwise</returns>
+    /// <remarks>
+    /// This method will:
+    /// 1. Retrieve the current subscription
+    /// 2. Cancel any active subscription schedule attached to it
+    /// 3. The subscription will continue on its current plan without scheduled changes
+    /// </remarks>
+    public async Task<bool> CancelScheduledPlanChangeAsync(string stripeSubscriptionId, TokenModel tokenModel)
+    {
+        if (string.IsNullOrEmpty(stripeSubscriptionId))
+            throw new ArgumentException("Stripe subscription ID is required", nameof(stripeSubscriptionId));
+
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            try
+            {
+                _logger.LogInformation("🔄 Canceling scheduled plan change for Stripe subscription {StripeSubscriptionId}", 
+                    stripeSubscriptionId);
+
+                var subscriptionService = new SubscriptionService();
+                var subscriptionScheduleService = new Stripe.SubscriptionScheduleService();
+                
+                // Get the subscription to find its schedule
+                var subscription = await subscriptionService.GetAsync(stripeSubscriptionId);
+                if (subscription == null)
+                {
+                    throw new InvalidOperationException($"Stripe subscription {stripeSubscriptionId} not found");
+                }
+
+                // Check if subscription has a schedule
+                string? scheduleId = subscription.ScheduleId;
+                
+                if (string.IsNullOrEmpty(scheduleId))
+                {
+                    _logger.LogWarning("⚠️ Subscription {StripeSubscriptionId} has no schedule to cancel", stripeSubscriptionId);
+                    return false; // No schedule to cancel
+                }
+
+                // Cancel the schedule, releasing the subscription
+                await subscriptionScheduleService.CancelAsync(scheduleId, new Stripe.SubscriptionScheduleCancelOptions
+                {
+                    InvoiceNow = false, // Don't create invoice immediately
+                    Prorate = false // Don't prorate charges
+                });
+
+                _logger.LogInformation("✅ Successfully canceled subscription schedule {ScheduleId} for subscription {StripeSubscriptionId}", 
+                    scheduleId, stripeSubscriptionId);
+
+                return true;
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "❌ Stripe error canceling scheduled plan change for subscription {StripeSubscriptionId}: {Message}", 
+                    stripeSubscriptionId, ex.Message);
+                throw new InvalidOperationException($"Failed to cancel scheduled plan change in Stripe: {ex.Message}", ex);
+            }
+        });
+    }
+
+    #endregion
+
     public async Task<bool> ReactivateSubscriptionAsync(string subscriptionId, TokenModel tokenModel)
     {
         // This method is a duplicate of ResumeSubscriptionAsync, redirecting to it
@@ -1686,61 +1949,78 @@ public class StripeService : IStripeService
         string? existingStripeCustomerId,
         TokenModel tokenModel)
     {
-        try
+        return await ExecuteWithRetryAsync(async () =>
         {
-            // If user already has Stripe customer ID, return it
-            if (!string.IsNullOrEmpty(existingStripeCustomerId))
-            {
-                _logger.LogInformation("User {UserId} already has Stripe customer ID: {StripeCustomerId}", 
-                    userId, existingStripeCustomerId);
-                return existingStripeCustomerId;
-            }
-            
-            // Create new Stripe customer
-            _logger.LogInformation("Creating new Stripe customer for user {UserId} with email {Email}", 
-                userId, email);
-            
-            var stripeCustomerId = await CreateCustomerAsync(email, fullName, tokenModel);
-            
-            // Update user with Stripe customer ID
             try
             {
-                var user = await _userRepository.GetByIdAsync(userId);
-                if (user != null)
+                // 1. If user has customer ID, verify it exists in Stripe
+                if (!string.IsNullOrEmpty(existingStripeCustomerId))
                 {
-                    user.StripeCustomerId = stripeCustomerId;
-                    user.UpdatedDate = DateTime.UtcNow;
-                    user.UpdatedBy = tokenModel?.UserID;
-                    
-                    await _userRepository.UpdateAsync(user);
-                    
-                    _logger.LogInformation(
-                        "Successfully updated user {UserId} with Stripe customer ID: {StripeCustomerId}", 
-                        userId, stripeCustomerId);
+                    try
+                    {
+                        var customerService = new CustomerService();
+                        var existingCustomer = await customerService.GetAsync(existingStripeCustomerId);
+                        _logger.LogInformation("✅ Using existing Stripe customer {CustomerId} for user {UserId}", 
+                            existingCustomer.Id, userId);
+                        return existingCustomer.Id;
+                    }
+                    catch (StripeException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        _logger.LogWarning("⚠️ Stripe customer {CustomerId} not found in Stripe, will create new one", 
+                            existingStripeCustomerId);
+                    }
                 }
-                else
+                
+                // 2. Search for existing customer by email (prevent duplicates)
+                var customerSearchOptions = new CustomerSearchOptions
                 {
-                    _logger.LogWarning(
-                        "User {UserId} not found for Stripe customer ID update. Customer {StripeCustomerId} created but user not updated.",
-                        userId, stripeCustomerId);
+                    Query = $"email:'{email}'",
+                    Limit = 1
+                };
+                
+                var searchService = new CustomerService();
+                var existingCustomers = await searchService.SearchAsync(customerSearchOptions);
+                if (existingCustomers.Data.Any())
+                {
+                    var customer = existingCustomers.Data.First();
+                    _logger.LogInformation("🔍 Found existing Stripe customer {CustomerId} by email {Email} for user {UserId}", 
+                        customer.Id, email, userId);
+                    
+                    // Sync customer ID to user table
+                    await _userRepository.UpdateStripeCustomerIdAsync(userId, customer.Id);
+                    
+                    return customer.Id;
                 }
+                
+                // 3. Create new customer
+                var createService = new CustomerService();
+                var newCustomer = await createService.CreateAsync(new CustomerCreateOptions
+                {
+                    Email = email,
+                    Name = fullName,
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "user_id", userId.ToString() },
+                        { "created_at", DateTime.UtcNow.ToString("O") },
+                        { "source", "telehealth_portal" }
+                    }
+                });
+                
+                _logger.LogInformation("🆕 Created new Stripe customer {CustomerId} for user {UserId}", 
+                    newCustomer.Id, userId);
+                
+                // 4. CRITICAL: Sync customer ID to user table
+                await _userRepository.UpdateStripeCustomerIdAsync(userId, newCustomer.Id);
+                
+                return newCustomer.Id;
             }
-            catch (Exception ex)
+            catch (StripeException ex)
             {
-                _logger.LogError(ex, 
-                    "Error updating user {UserId} with Stripe customer ID {StripeCustomerId}. Customer created but user update failed.",
-                    userId, stripeCustomerId);
-                // Don't throw - customer was created successfully in Stripe
-                // Return the customer ID even if user update failed
+                _logger.LogError(ex, "❌ Stripe error ensuring customer exists for user {UserId}: {Message}", 
+                    userId, ex.Message);
+                throw new InvalidOperationException($"Failed to ensure customer exists: {ex.Message}", ex);
             }
-            
-            return stripeCustomerId;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error ensuring Stripe customer for user {UserId}", userId);
-            throw;
-        }
+        });
     }
 
     #endregion

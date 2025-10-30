@@ -277,6 +277,35 @@ public class Subscription : BaseEntity
     public string? PendingCancellationReason { get; set; }
     
     /// <summary>
+    /// Foreign key reference to the new SubscriptionPlan that will take effect at the next billing cycle.
+    /// Used for scheduled plan changes (upgrades or downgrades) without immediate proration.
+    /// Null if no plan change is scheduled.
+    /// </summary>
+    public Guid? PendingPlanChangeId { get; set; }
+    
+    /// <summary>
+    /// Navigation property to the pending SubscriptionPlan for scheduled plan changes.
+    /// Provides access to the new plan's details before the change takes effect.
+    /// </summary>
+    [ForeignKey("PendingPlanChangeId")]
+    public virtual SubscriptionPlan? PendingPlan { get; set; }
+    
+    /// <summary>
+    /// Date when the scheduled plan change will take effect (typically the NextBillingDate).
+    /// Used to track when the pending plan change should be applied.
+    /// Null if no plan change is scheduled.
+    /// </summary>
+    public DateTime? PlanChangeEffectiveDate { get; set; }
+    
+    /// <summary>
+    /// Type of scheduled plan change: "Upgrade" or "Downgrade".
+    /// Used for logging, analytics, and user communication about the pending change.
+    /// Null if no plan change is scheduled.
+    /// </summary>
+    [MaxLength(50)]
+    public string? PendingChangeType { get; set; }
+    
+    /// <summary>
     /// Date when the subscription expires.
     /// Used for expiration tracking and access control.
     /// Set when subscription reaches its natural end or is set to expire.

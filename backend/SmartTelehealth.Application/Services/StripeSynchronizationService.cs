@@ -449,6 +449,265 @@ public class StripeSynchronizationService : IStripeSynchronizationService
         }
     }
 
+    #region Phase 3: Background Sync & Reconciliation
+
+    /// <summary>
+    /// Synchronizes all subscriptions from Stripe to local database
+    /// Compares Stripe subscription data with local records and updates statuses, billing dates
+    /// </summary>
+    public async Task<JsonModel> SyncAllSubscriptionsFromStripeAsync(TokenModel tokenModel)
+    {
+        _logger.LogInformation("🔄 Starting full sync of subscriptions from Stripe by user {UserId}", tokenModel.UserID);
+        
+        var synced = 0;
+        var errors = 0;
+        var orphaned = 0;
+        var issues = new List<string>();
+        
+        try
+        {
+            // Get all active Stripe subscriptions
+            var stripeSubscriptions = await _stripeService.ListAllActiveSubscriptionsAsync(tokenModel);
+            
+            _logger.LogInformation("📦 Retrieved {Count} subscriptions from Stripe", stripeSubscriptions.Count());
+            
+            foreach (var stripeSub in stripeSubscriptions)
+            {
+                try
+                {
+                    // Find local subscription
+                    var localSub = await _subscriptionRepository
+                        .GetByStripeSubscriptionIdAsync(stripeSub.Id, tokenModel);
+                    
+                    if (localSub == null)
+                    {
+                        _logger.LogWarning("⚠️ Orphaned Stripe subscription {StripeSubscriptionId} - no local record", 
+                            stripeSub.Id);
+                        issues.Add($"Stripe subscription {stripeSub.Id} has no local record (customer: {stripeSub.CustomerId})");
+                        orphaned++;
+                        continue;
+                    }
+                    
+                    // Sync fields from Stripe to local
+                    var statusUpdated = false;
+                    var datesUpdated = false;
+                    
+                    var mappedStatus = MapStripeStatusToLocal(stripeSub.Status);
+                    if (localSub.Status != mappedStatus)
+                    {
+                        localSub.Status = mappedStatus;
+                        statusUpdated = true;
+                    }
+                    
+                    // Sync billing dates from Stripe
+                    if (stripeSub.CurrentPeriodEnd != null)
+                    {
+                        var periodEnd = stripeSub.CurrentPeriodEnd.ToUniversalTime();
+                        
+                        if (localSub.NextBillingDate != periodEnd)
+                        {
+                            localSub.NextBillingDate = periodEnd;
+                            datesUpdated = true;
+                        }
+                    }
+                    
+                    // Sync cancellation at period end flag
+                    if (stripeSub.CancelAtPeriodEnd != localSub.PendingCancellationAtRenewal)
+                    {
+                        localSub.PendingCancellationAtRenewal = stripeSub.CancelAtPeriodEnd;
+                        statusUpdated = true;
+                    }
+                    
+                    if (stripeSub.CanceledAt != null && localSub.CancelledDate == null)
+                    {
+                        localSub.CancelledDate = stripeSub.CanceledAt.Value.ToUniversalTime();
+                        statusUpdated = true;
+                    }
+                    
+                    if (statusUpdated || datesUpdated)
+                    {
+                        localSub.UpdatedDate = DateTime.UtcNow;
+                        localSub.UpdatedBy = tokenModel.UserID;
+                        
+                        await _subscriptionRepository.UpdateAsync(localSub);
+                        synced++;
+                        
+                        _logger.LogInformation("✅ Synced subscription {SubscriptionId}: Status={Status}, Dates={DatesUpdated}", 
+                            localSub.Id, statusUpdated ? "Updated" : "Same", datesUpdated);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Error syncing subscription {StripeSubscriptionId}", stripeSub.Id);
+                    errors++;
+                }
+            }
+            
+            await _subscriptionRepository.SaveChangesAsync();
+            
+            _logger.LogInformation("🎉 Sync complete: {Synced} synced, {Errors} errors, {Orphaned} orphaned", 
+                synced, errors, orphaned);
+            
+            return new JsonModel 
+            { 
+                data = new { synced, errors, orphaned, issues, timestamp = DateTime.UtcNow },
+                StatusCode = 200,
+                Message = $"Synced {synced} subscriptions with {errors} errors and {orphaned} orphaned"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Critical error during Stripe subscription sync");
+            return new JsonModel 
+            { 
+                data = new { synced, errors, orphaned },
+                StatusCode = 500,
+                Message = $"Sync failed: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Checks consistency of Stripe customer IDs across all users
+    /// Validates that each user's Stripe customer ID exists in Stripe and emails match
+    /// </summary>
+    public async Task<JsonModel> CheckCustomerIdConsistencyAsync(TokenModel tokenModel)
+    {
+        _logger.LogInformation("🔍 Checking customer ID consistency by user {UserId}", tokenModel.UserID);
+        
+        var inconsistencies = new List<object>();
+        var totalChecked = 0;
+        
+        try
+        {
+            // Get all users with Stripe customer IDs
+            var allUsers = await _userRepository.GetAllAsync();
+            var usersWithStripe = allUsers.Where(u => !string.IsNullOrEmpty(u.StripeCustomerId)).ToList();
+            
+            _logger.LogInformation("📊 Checking {Count} users with Stripe customer IDs", usersWithStripe.Count);
+            
+            foreach (var user in usersWithStripe)
+            {
+                totalChecked++;
+                
+                try
+                {
+                    // Verify customer exists in Stripe
+                    var stripeCustomer = await _stripeService.GetCustomerAsync(user.StripeCustomerId, tokenModel);
+                    
+                    if (stripeCustomer == null)
+                    {
+                        inconsistencies.Add(new 
+                        {
+                            userId = user.Id,
+                            email = user.Email,
+                            fullName = user.FullName,
+                            stripeCustomerId = user.StripeCustomerId,
+                            issue = "Customer not found in Stripe",
+                            severity = "Critical"
+                        });
+                        
+                        _logger.LogWarning("❌ User {UserId} has invalid Stripe customer ID: {CustomerId}", 
+                            user.Id, user.StripeCustomerId);
+                    }
+                    else if (!string.Equals(stripeCustomer.Email, user.Email, StringComparison.OrdinalIgnoreCase))
+                    {
+                        inconsistencies.Add(new 
+                        {
+                            userId = user.Id,
+                            localEmail = user.Email,
+                            stripeEmail = stripeCustomer.Email,
+                            fullName = user.FullName,
+                            stripeCustomerId = user.StripeCustomerId,
+                            issue = "Email mismatch between local and Stripe",
+                            severity = "Warning"
+                        });
+                        
+                        _logger.LogWarning("⚠️ Email mismatch for user {UserId}: Local={LocalEmail}, Stripe={StripeEmail}", 
+                            user.Id, user.Email, stripeCustomer.Email);
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // Customer not found in Stripe
+                    inconsistencies.Add(new 
+                    {
+                        userId = user.Id,
+                        email = user.Email,
+                        fullName = user.FullName,
+                        stripeCustomerId = user.StripeCustomerId,
+                        issue = "Customer not found in Stripe (deleted or invalid ID)",
+                        severity = "Critical"
+                    });
+                    
+                    _logger.LogError("❌ Stripe customer {CustomerId} not found for user {UserId}", 
+                        user.StripeCustomerId, user.Id);
+                }
+                catch (Exception ex)
+                {
+                    inconsistencies.Add(new 
+                    {
+                        userId = user.Id,
+                        email = user.Email,
+                        fullName = user.FullName,
+                        stripeCustomerId = user.StripeCustomerId,
+                        issue = $"Error checking: {ex.Message}",
+                        severity = "Error"
+                    });
+                    
+                    _logger.LogError(ex, "❌ Error checking customer {CustomerId} for user {UserId}", 
+                        user.StripeCustomerId, user.Id);
+                }
+            }
+            
+            var summary = new
+            {
+                totalChecked,
+                inconsistenciesFound = inconsistencies.Count,
+                criticalIssues = inconsistencies.Count(i => ((dynamic)i).severity == "Critical"),
+                warnings = inconsistencies.Count(i => ((dynamic)i).severity == "Warning"),
+                inconsistencies,
+                timestamp = DateTime.UtcNow
+            };
+            
+            _logger.LogInformation("✅ Customer ID consistency check complete: {Total} checked, {Issues} issues found", 
+                totalChecked, inconsistencies.Count);
+            
+            return new JsonModel 
+            { 
+                data = summary,
+                StatusCode = 200,
+                Message = $"Found {inconsistencies.Count} inconsistencies out of {totalChecked} users checked"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error checking customer ID consistency");
+            return new JsonModel 
+            { 
+                data = new { totalChecked, inconsistenciesFound = inconsistencies.Count, inconsistencies },
+                StatusCode = 500,
+                Message = $"Consistency check failed: {ex.Message}"
+            };
+        }
+    }
+
+    private string MapStripeStatusToLocal(string stripeStatus)
+    {
+        return stripeStatus?.ToLower() switch
+        {
+            "active" => Subscription.SubscriptionStatuses.Active,
+            "canceled" => Subscription.SubscriptionStatuses.Cancelled,
+            "past_due" => Subscription.SubscriptionStatuses.PaymentFailed,
+            "unpaid" => Subscription.SubscriptionStatuses.PaymentFailed,
+            "trialing" => Subscription.SubscriptionStatuses.TrialActive,
+            "paused" => Subscription.SubscriptionStatuses.Paused,
+            _ => Subscription.SubscriptionStatuses.Active
+        };
+    }
+
+    #endregion
+
     #region Phase 5: Stripe Sync Dashboard Enhancements
 
     public async Task<JsonModel> GetAllDiscrepanciesAsync(TokenModel tokenModel)

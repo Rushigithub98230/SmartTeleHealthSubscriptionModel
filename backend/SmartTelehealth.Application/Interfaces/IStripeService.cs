@@ -36,9 +36,14 @@ public interface IStripeService
     Task<string> CreateSubscriptionAsync(string customerId, string priceId, string paymentMethodId, TokenModel tokenModel);
     Task<bool> CancelSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
     Task<SubscriptionDto> GetSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
+    Task<IEnumerable<Stripe.Subscription>> ListAllActiveSubscriptionsAsync(TokenModel tokenModel);
     Task<bool> UpdateSubscriptionAsync(string subscriptionId, string priceId, TokenModel tokenModel);
     Task<bool> PauseSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
     Task<bool> ResumeSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
+    
+    // Scheduled Plan Changes (Using Stripe Subscription Schedules)
+    Task<string> ScheduleSubscriptionPlanChangeAsync(string stripeSubscriptionId, string newStripePriceId, DateTime effectiveDate, TokenModel tokenModel);
+    Task<bool> CancelScheduledPlanChangeAsync(string stripeSubscriptionId, TokenModel tokenModel);
     
     // Payment Processing
     Task<PaymentResultDto> ProcessPaymentAsync(string paymentMethodId, decimal amount, string currency, TokenModel tokenModel);

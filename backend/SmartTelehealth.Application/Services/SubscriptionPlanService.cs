@@ -569,6 +569,71 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             plan.UpdatedBy = tokenModel.UserID;
             plan.UpdatedDate = DateTime.UtcNow;
             await _subscriptionPlanRepository.UpdateAsync(plan);
+            
+            // TASK 3.2: Notify users when plan is reactivated
+            // Note: Plan activation allows new purchases, but doesn't automatically activate existing subscriptions
+            // Only notify if there are subscriptions waiting for this plan to become available
+            try
+            {
+                var subscriptionsOnPlan = await _subscriptionRepository.GetByPlanIdAsync(plan.Id);
+                var affectedSubscriptions = subscriptionsOnPlan
+                    .Where(s => s.Status == Subscription.SubscriptionStatuses.Paused || 
+                               s.Status == Subscription.SubscriptionStatuses.PaymentFailed)
+                    .ToList();
+                
+                if (affectedSubscriptions.Any())
+                {
+                    _logger.LogInformation(
+                        "Plan {PlanName} activated - notifying {Count} affected subscriptions",
+                        plan.Name, affectedSubscriptions.Count);
+                    
+                    foreach (var subscription in affectedSubscriptions)
+                    {
+                        try
+                        {
+                            var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
+                            if (userResult.StatusCode == 200 && userResult.data != null)
+                            {
+                                var userDto = userResult.data as UserDto;
+                                if (userDto != null)
+                                {
+                                    var notificationMessage = $@"Your subscription plan '{plan.Name}' has been reactivated.
+
+You can now resume your subscription if it was previously paused, or update your payment method if there were payment issues.
+
+Visit your subscription dashboard to take action.
+
+Best regards,
+SmartTelehealth Team";
+                                    
+                                    await _notificationService.SendNotificationAsync(
+                                        subscription.UserId,
+                                        $"Plan '{plan.Name}' Reactivated",
+                                        notificationMessage,
+                                        tokenModel);
+                                    
+                                    _logger.LogInformation(
+                                        "Sent plan reactivation notification to user {UserId} for subscription {SubscriptionId}",
+                                        subscription.UserId, subscription.Id);
+                                }
+                            }
+                        }
+                        catch (Exception notifEx)
+                        {
+                            _logger.LogWarning(notifEx,
+                                "Failed to send plan activation notification for subscription {SubscriptionId}",
+                                subscription.Id);
+                            // Don't fail the entire operation if notification fails
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error notifying users about plan {PlanName} activation", plan.Name);
+                // Don't fail the entire operation if notification fails
+            }
+            
             return new JsonModel { data = true, Message = "Plan activated", StatusCode = 200 };
         }
         catch (Exception ex)
@@ -1305,6 +1370,71 @@ public class SubscriptionPlanService : ISubscriptionPlanService
                 await _unitOfWork.CommitTransactionAsync();
                 
                 _logger.LogInformation("Successfully deactivated subscription plan {PlanName} by user {UserId}", existingPlan.Name, tokenModel?.UserID ?? 0);
+                
+                // TASK 3.2: Notify all affected users when plan is deactivated mid-cycle
+                // Notify users with paused, cancelled, or expired subscriptions that the plan is no longer available
+                var allPlanSubscriptions = await _subscriptionRepository.GetByPlanIdAsync(existingPlan.Id);
+                var affectedSubscriptions = allPlanSubscriptions
+                    .Where(s => s.Status != Subscription.SubscriptionStatuses.Cancelled || 
+                               s.EndDate > DateTime.UtcNow) // Notify if subscription hasn't fully ended yet
+                    .ToList();
+                
+                if (affectedSubscriptions.Any())
+                {
+                    _logger.LogInformation(
+                        "Plan {PlanName} deactivated - notifying {Count} affected users",
+                        existingPlan.Name, affectedSubscriptions.Count);
+                    
+                    foreach (var subscription in affectedSubscriptions)
+                    {
+                        try
+                        {
+                            var userResult = await _userService.GetUserByIdAsync(subscription.UserId, tokenModel);
+                            if (userResult.StatusCode == 200 && userResult.data != null)
+                            {
+                                var userDto = userResult.data as UserDto;
+                                if (userDto != null)
+                                {
+                                    var subscriptionEndDate = subscription.EndDate?.ToString("MMMM dd, yyyy") ?? "the end of your current billing period";
+                                    var notificationMessage = $@"Important: Your subscription plan '{existingPlan.Name}' has been deactivated.
+
+This means the plan is no longer available for new purchases. Your existing subscription will continue until {subscriptionEndDate}.
+
+What this means for you:
+• Your current subscription will remain active until it expires
+• You will not be automatically renewed to this plan after it expires
+• You can switch to a different active plan at any time
+
+We recommend choosing a new plan before your current subscription expires to avoid service interruption.
+
+Visit your subscription dashboard to explore available plans and make changes.
+
+If you have any questions, please contact our support team.
+
+Best regards,
+SmartTelehealth Team";
+                                    
+                                    await _notificationService.SendNotificationAsync(
+                                        subscription.UserId,
+                                        $"Important: Plan '{existingPlan.Name}' Deactivated",
+                                        notificationMessage,
+                                        tokenModel);
+                                    
+                                    _logger.LogInformation(
+                                        "Sent plan deactivation notification to user {UserId} for subscription {SubscriptionId}",
+                                        subscription.UserId, subscription.Id);
+                                }
+                            }
+                        }
+                        catch (Exception notifEx)
+                        {
+                            _logger.LogWarning(notifEx,
+                                "Failed to send plan deactivation notification for subscription {SubscriptionId}",
+                                subscription.Id);
+                            // Don't fail the entire operation if notification fails
+                        }
+                    }
+                }
                 
                 return new JsonModel 
                 { 

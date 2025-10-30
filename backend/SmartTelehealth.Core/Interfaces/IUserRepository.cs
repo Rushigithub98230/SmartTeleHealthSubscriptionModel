@@ -20,6 +20,7 @@ public interface IUserRepository : IRepositoryBase<User>
     Task<User?> GetByUserNameAsync(string userName);
     Task<User?> GetByRefreshTokenAsync(string refreshToken);
     Task<User?> GetUserByStripeCustomerIdAsync(string stripeCustomerId);
+    Task<bool> UpdateStripeCustomerIdAsync(int userId, string stripeCustomerId);
     Task<IEnumerable<User>> GetActiveUsersAsync();
     Task<bool> ExistsByEmailAsync(string email);
     Task<int> GetActiveUserCountAsync();

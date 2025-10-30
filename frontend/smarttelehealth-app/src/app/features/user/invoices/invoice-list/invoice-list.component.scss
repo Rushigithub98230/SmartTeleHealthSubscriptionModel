@@ -1,0 +1,356 @@
+// Invoice List Component Styles
+// Clean, professional list view with filtering
+
+.invoice-list-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+
+  // Page Header
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+
+    .header-content {
+      .page-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+
+        i {
+          color: #007bff;
+        }
+      }
+
+      .page-subtitle {
+        color: #7f8c8d;
+        margin-bottom: 0;
+        font-size: 1rem;
+      }
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+  }
+
+  // Filters Section
+  .filters-section {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    .form-label {
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+    }
+
+    .form-select,
+    .form-control {
+      border-radius: 6px;
+
+      &:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+      }
+    }
+
+    .input-group-text {
+      background-color: #f8f9fa;
+      border-right: none;
+    }
+
+    .input-group .form-control {
+      border-left: none;
+
+      &:focus {
+        border-left: none;
+      }
+    }
+  }
+
+  // Loading State
+  .loading-state {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    .spinner-border {
+      width: 3rem;
+      height: 3rem;
+    }
+  }
+
+  // Summary Bar
+  .summary-bar {
+    padding: 0.75rem 0;
+
+    .summary-text {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .page-size-selector {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      .form-label {
+        margin-bottom: 0;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  // Table Styling
+  .card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+
+    .table {
+      margin-bottom: 0;
+
+      thead {
+        background-color: #f8f9fa;
+
+        th {
+          font-weight: 600;
+          text-transform: uppercase;
+          font-size: 0.875rem;
+          letter-spacing: 0.5px;
+          border-bottom: 2px solid #dee2e6;
+          padding: 1rem;
+          color: #495057;
+        }
+      }
+
+      tbody {
+        tr {
+          transition: background-color 0.2s ease;
+
+          &:hover {
+            background-color: #f8f9fa;
+          }
+
+          td {
+            padding: 1rem;
+            vertical-align: middle;
+
+            a {
+              font-weight: 600;
+              
+              &:hover {
+                text-decoration: underline !important;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Empty State
+    .text-center {
+      i {
+        opacity: 0.5;
+      }
+    }
+  }
+
+  // Mobile Cards
+  @media (max-width: 768px) {
+    .card {
+      .card-body {
+        h6 {
+          font-size: 1rem;
+          margin-bottom: 0.25rem;
+        }
+
+        small {
+          font-size: 0.8rem;
+        }
+      }
+    }
+  }
+
+  // Status Badges
+  .badge {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  // Button Groups
+  .btn-group {
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+
+      i {
+        font-size: 1rem;
+      }
+    }
+  }
+
+  // Pagination
+  .pagination {
+    margin-bottom: 0;
+
+    .page-item {
+      .page-link {
+        cursor: pointer;
+        user-select: none;
+        padding: 0.5rem 0.75rem;
+        color: #007bff;
+        border-color: #dee2e6;
+
+        &:hover {
+          background-color: #e9ecef;
+          border-color: #dee2e6;
+        }
+
+        i {
+          font-size: 0.875rem;
+        }
+      }
+
+      &.active .page-link {
+        background-color: #007bff;
+        border-color: #007bff;
+        color: white;
+        font-weight: 600;
+      }
+
+      &.disabled .page-link {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 991px) {
+  .invoice-list-container {
+    .page-header {
+      .page-title {
+        font-size: 1.5rem;
+      }
+
+      .header-actions {
+        width: 100%;
+
+        .btn {
+          flex: 1;
+        }
+      }
+    }
+
+    .summary-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+
+      .page-size-selector {
+        width: 100%;
+        justify-content: space-between;
+      }
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .invoice-list-container {
+    padding: 1rem 0.5rem;
+
+    .page-header {
+      margin-bottom: 1rem;
+
+      .page-title {
+        font-size: 1.25rem;
+
+        i {
+          font-size: 1.5rem;
+        }
+      }
+
+      .page-subtitle {
+        font-size: 0.875rem;
+      }
+    }
+
+    .filters-section {
+      .form-label {
+        font-size: 0.75rem;
+      }
+
+      .form-select,
+      .form-control {
+        font-size: 0.875rem;
+      }
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+    }
+
+    .pagination {
+      .page-item {
+        .page-link {
+          padding: 0.375rem 0.5rem;
+          font-size: 0.875rem;
+        }
+      }
+    }
+  }
+}
+
+// Print Styles
+@media print {
+  .invoice-list-container {
+    .filters-section,
+    .header-actions,
+    .btn,
+    button,
+    .pagination {
+      display: none !important;
+    }
+
+    .page-header {
+      .page-title {
+        color: #000;
+      }
+    }
+
+    .card {
+      box-shadow: none !important;
+      border: 1px solid #dee2e6 !important;
+      page-break-inside: avoid;
+    }
+
+    .table {
+      thead {
+        background-color: #f8f9fa !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  }
+}
+
+
+
+

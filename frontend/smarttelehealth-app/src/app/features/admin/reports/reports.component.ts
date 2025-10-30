@@ -36,8 +36,14 @@ export class ReportsComponent implements OnInit {
     { id: 'revenue', name: 'Revenue Report' },
     { id: 'subscriptions', name: 'Subscription Report' },
     { id: 'billing', name: 'Billing Report' },
+    { id: 'tax', name: 'Tax Collection Report' },
+    { id: 'reconciliation', name: 'Billing Reconciliation' },
     { id: 'usage', name: 'Usage Report' }
   ];
+
+  // Report data
+  reportData: any = null;
+  error: string | null = null;
 
   constructor(
     private analyticsService: AnalyticsService,
@@ -65,6 +71,8 @@ export class ReportsComponent implements OnInit {
    */
   generateReport(): void {
     this.loading = true;
+    this.error = null;
+    this.reportData = null;
 
     const startDateObj = this.startDate ? new Date(this.startDate) : undefined;
     const endDateObj = this.endDate ? new Date(this.endDate) : undefined;
@@ -73,26 +81,78 @@ export class ReportsComponent implements OnInit {
       case 'revenue':
         this.analyticsService.getRevenueAnalytics(startDateObj, endDateObj).subscribe({
           next: (response) => {
-            console.log('Revenue report:', response.data);
+            this.reportData = response.data;
             this.loading = false;
           },
-          error: () => this.loading = false
+          error: (error) => {
+            this.error = 'Failed to load revenue report';
+            this.loading = false;
+          }
         });
         break;
 
       case 'billing':
         this.billingService.getBillingStatistics(startDateObj, endDateObj).subscribe({
           next: (response) => {
-            console.log('Billing report:', response.data);
+            this.reportData = response.data;
             this.loading = false;
           },
-          error: () => this.loading = false
+          error: (error) => {
+            this.error = 'Failed to load billing report';
+            this.loading = false;
+          }
         });
+        break;
+
+      case 'tax':
+        this.generateTaxReport(startDateObj, endDateObj);
+        break;
+
+      case 'reconciliation':
+        this.generateReconciliationReport(startDateObj, endDateObj);
         break;
 
       default:
         this.loading = false;
     }
+  }
+
+  /**
+   * Generate tax collection report
+   */
+  private generateTaxReport(startDate?: Date, endDate?: Date): void {
+    // This would call a new API endpoint for tax collection statistics
+    // For now, we'll simulate the data structure
+    this.reportData = {
+      totalTaxCollected: 0,
+      taxByPlan: [],
+      taxByMonth: [],
+      summary: {
+        totalPlansWithTax: 0,
+        averageTaxRate: 0,
+        totalTaxableAmount: 0
+      }
+    };
+    this.loading = false;
+  }
+
+  /**
+   * Generate billing reconciliation report
+   */
+  private generateReconciliationReport(startDate?: Date, endDate?: Date): void {
+    // This would call a new API endpoint for billing reconciliation
+    // For now, we'll simulate the data structure
+    this.reportData = {
+      subscriptionsWithoutBilling: [],
+      billingWithoutSubscriptions: [],
+      mismatchedAmounts: [],
+      summary: {
+        totalSubscriptions: 0,
+        totalBillingRecords: 0,
+        discrepancies: 0
+      }
+    };
+    this.loading = false;
   }
 
   /**

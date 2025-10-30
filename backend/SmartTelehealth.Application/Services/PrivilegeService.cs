@@ -1148,4 +1148,100 @@ public class PrivilegeService : IPrivilegeService
     }
     
     #endregion
+
+    #region Privilege Initialization
+
+    /// <summary>
+    /// Initializes privileges for a new subscription by creating privilege usage records
+    /// for all privileges in the subscription plan
+    /// </summary>
+    public async Task<JsonModel> InitializeSubscriptionPrivilegesAsync(
+        Guid subscriptionId, 
+        Guid planId, 
+        TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("🎁 Initializing privileges for subscription {SubscriptionId}", subscriptionId);
+            
+            // 1. Get plan with privileges
+            var plan = await _planPrivilegeRepo.GetByPlanIdAsync(planId);
+            if (plan == null || !plan.Any())
+            {
+                _logger.LogWarning("⚠️ No privileges found for plan {PlanId}", planId);
+                return new JsonModel { StatusCode = 200, Message = "No privileges to initialize" };
+            }
+            
+            _logger.LogInformation("📦 Found {Count} privileges for plan {PlanId}", 
+                plan.Count(), planId);
+            
+            // 2. Check if already initialized (idempotency)
+            var existing = await _usageRepo.GetBySubscriptionIdAsync(subscriptionId);
+            if (existing != null && existing.Any())
+            {
+                _logger.LogInformation("ℹ️ Privileges already initialized for subscription {SubscriptionId} (count: {Count})", 
+                    subscriptionId, existing.Count());
+                return new JsonModel { StatusCode = 200, Message = "Privileges already initialized" };
+            }
+            
+            // 3. Create privilege usage records
+            var usageRecords = new List<UserSubscriptionPrivilegeUsage>();
+            
+            foreach (var pp in plan)
+            {
+                var privilege = await _privilegeRepo.GetByIdAsync(pp.PrivilegeId);
+                if (privilege == null)
+                {
+                    _logger.LogWarning("⚠️ Privilege {PrivilegeId} not found, skipping", pp.PrivilegeId);
+                    continue;
+                }
+                
+                var usageRecord = new UserSubscriptionPrivilegeUsage
+                {
+                    Id = Guid.NewGuid(),
+                    SubscriptionId = subscriptionId,
+                    SubscriptionPlanPrivilegeId = pp.Id,
+                    PrivilegeId = pp.PrivilegeId,
+                    UsedValue = 0,
+                    AllowedValue = pp.Value, // Value from SubscriptionPlanPrivilege
+                    UsagePeriodStart = DateTime.UtcNow,
+                    UsagePeriodEnd = DateTime.UtcNow.AddMonths(1), // Will be updated based on billing cycle
+                    ResetAt = null,
+                    CreatedBy = tokenModel.UserID,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedBy = tokenModel.UserID,
+                    UpdatedDate = DateTime.UtcNow
+                };
+                
+                usageRecords.Add(usageRecord);
+                
+                _logger.LogInformation("  ✅ Prepared privilege: {PrivilegeName} (Limit: {Limit})", 
+                    privilege.Name, pp.Value);
+            }
+            
+            // 4. Save all records
+            foreach (var record in usageRecords)
+            {
+                await _usageRepo.CreateAsync(record);
+            }
+            await _usageRepo.SaveChangesAsync();
+            
+            _logger.LogInformation("🎉 Successfully initialized {Count} privileges for subscription {SubscriptionId}", 
+                usageRecords.Count, subscriptionId);
+            
+            return new JsonModel 
+            { 
+                data = usageRecords.Count, 
+                StatusCode = 201, 
+                Message = $"Initialized {usageRecords.Count} privileges successfully" 
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error initializing privileges for subscription {SubscriptionId}", subscriptionId);
+            return new JsonModel { StatusCode = 500, Message = $"Failed to initialize privileges: {ex.Message}" };
+        }
+    }
+
+    #endregion
 } 

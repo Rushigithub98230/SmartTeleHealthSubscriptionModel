@@ -68,6 +68,78 @@ namespace SmartTelehealth.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<(List<AuditLog> logs, int totalCount)> GetAuditLogsAsync(
+            DateTime? startDate,
+            DateTime? endDate,
+            List<string>? types,
+            List<string>? tableNames,
+            int? userId,
+            string? searchText,
+            int page,
+            int pageSize)
+        {
+            var query = _context.AuditLogs.AsQueryable();
+
+            // Apply date range filter
+            if (startDate.HasValue)
+                query = query.Where(log => log.DateTime >= startDate.Value);
+
+            if (endDate.HasValue)
+                query = query.Where(log => log.DateTime <= endDate.Value);
+
+            // Apply type filter
+            if (types != null && types.Any())
+                query = query.Where(log => types.Contains(log.Type));
+
+            // Apply table name filter
+            if (tableNames != null && tableNames.Any())
+                query = query.Where(log => tableNames.Contains(log.TableName));
+
+            // Apply user filter
+            if (userId.HasValue)
+                query = query.Where(log => log.UserId == userId.Value);
+
+            // Apply search text filter (searches in OldValues, NewValues, TableName, and PrimaryKey)
+            if (!string.IsNullOrEmpty(searchText))
+            {
+                query = query.Where(log =>
+                    (log.OldValues != null && log.OldValues.Contains(searchText)) ||
+                    (log.NewValues != null && log.NewValues.Contains(searchText)) ||
+                    (log.TableName != null && log.TableName.Contains(searchText)) ||
+                    (log.PrimaryKey != null && log.PrimaryKey.Contains(searchText)));
+            }
+
+            // Get total count before pagination
+            var totalCount = await query.CountAsync();
+
+            // Apply pagination and ordering
+            var logs = await query
+                .OrderByDescending(log => log.DateTime)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return (logs, totalCount);
+        }
+
+        public async Task<List<string>> GetAvailableTablesAsync()
+        {
+            return await _context.AuditLogs
+                .Select(a => a.TableName)
+                .Distinct()
+                .OrderBy(t => t)
+                .ToListAsync();
+        }
+
+        public async Task<List<string>> GetAvailableTypesAsync()
+        {
+            return await _context.AuditLogs
+                .Select(a => a.Type)
+                .Distinct()
+                .OrderBy(t => t)
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<AuditLog>> GetDatabaseAuditTrailAsync(string tableName, string? entityId = null)
         {
             var query = _context.AuditLogs

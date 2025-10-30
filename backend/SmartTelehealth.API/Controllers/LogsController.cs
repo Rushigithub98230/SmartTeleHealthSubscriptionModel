@@ -96,5 +96,25 @@ public class LogsController : BaseController
         var tokenModel = GetToken(HttpContext);
         return await _logsService.GetLogStatisticsAsync(startDate, endDate, tokenModel);
     }
+
+    /// <summary>
+    /// Retrieves available table names for audit log filtering.
+    /// </summary>
+    [HttpGet("audit/tables")]
+    public async Task<JsonModel> GetAvailableTables()
+    {
+        var tokenModel = GetToken(HttpContext);
+        return await _logsService.GetAvailableTablesAsync(tokenModel);
+    }
+
+    /// <summary>
+    /// Retrieves available audit types for filtering.
+    /// </summary>
+    [HttpGet("audit/types")]
+    public async Task<JsonModel> GetAvailableTypes()
+    {
+        var tokenModel = GetToken(HttpContext);
+        return await _logsService.GetAvailableTypesAsync(tokenModel);
+    }
 }
 

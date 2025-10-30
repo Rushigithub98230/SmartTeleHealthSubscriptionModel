@@ -184,6 +184,234 @@
       </div>
     </div>
 
+    <!-- Plan Migration Analytics Widget -->
+    <div class="row g-3 mb-4">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-bottom">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                <i class="bi bi-arrow-repeat me-2 text-primary"></i>
+                Plan Migration Analytics
+              </h5>
+              <button 
+                class="btn btn-sm btn-outline-primary" 
+                (click)="loadMigrationAnalytics()" 
+                [disabled]="loadingMigration">
+                <i class="bi bi-arrow-clockwise me-1" [class.spin]="loadingMigration"></i>
+                Refresh
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- Loading State -->
+            <div *ngIf="loadingMigration" class="text-center py-4">
+              <div class="spinner-border text-primary"></div>
+              <p class="text-muted mt-2">Loading migration analytics...</p>
+            </div>
+
+            <!-- Error State -->
+            <div *ngIf="migrationError && !loadingMigration" class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>{{ migrationError }}
+            </div>
+
+            <!-- Migration Analytics Content -->
+            <div *ngIf="migrationAnalytics && !loadingMigration" class="row g-3">
+              <!-- Summary Cards -->
+              <div class="col-md-3">
+                <div class="card bg-light h-100">
+                  <div class="card-body text-center">
+                    <i class="bi bi-list-check text-primary fs-1 mb-2"></i>
+                    <h4 class="mb-1">{{ migrationAnalytics.summary.totalMigrations }}</h4>
+                    <p class="text-muted mb-0 small">Total Migrations</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-3">
+                <div class="card bg-warning-subtle h-100">
+                  <div class="card-body text-center">
+                    <i class="bi bi-clock-history text-warning fs-1 mb-2"></i>
+                    <h4 class="mb-1">{{ migrationAnalytics.summary.pendingMigrations }}</h4>
+                    <p class="text-muted mb-0 small">Pending</p>
+                    <small class="text-muted">
+                      {{ migrationAnalytics.summary.dueToday }} due today
+                    </small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-3">
+                <div class="card bg-success-subtle h-100">
+                  <div class="card-body text-center">
+                    <i class="bi bi-check-circle text-success fs-1 mb-2"></i>
+                    <h4 class="mb-1">{{ migrationAnalytics.summary.completedMigrations }}</h4>
+                    <p class="text-muted mb-0 small">Completed</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-3">
+                <div class="card bg-danger-subtle h-100">
+                  <div class="card-body text-center">
+                    <i class="bi bi-x-circle text-danger fs-1 mb-2"></i>
+                    <h4 class="mb-1">{{ migrationAnalytics.summary.userOptedOutMigrations }}</h4>
+                    <p class="text-muted mb-0 small">User Opted Out</p>
+                    <small class="text-muted">Auto-cancelled</small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- User Decisions Section -->
+              <div class="col-md-6">
+                <div class="card h-100">
+                  <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0">
+                      <i class="bi bi-people me-2"></i>User Decisions
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="row text-center mb-3">
+                      <div class="col-4">
+                        <div class="border-end">
+                          <h5 class="text-success mb-1">{{ migrationAnalytics.userDecisions.acceptCount }}</h5>
+                          <small class="text-muted">Accepted</small>
+                        </div>
+                      </div>
+                      <div class="col-4">
+                        <div class="border-end">
+                          <h5 class="text-danger mb-1">{{ migrationAnalytics.userDecisions.cancelCount }}</h5>
+                          <small class="text-muted">Cancelled</small>
+                        </div>
+                      </div>
+                      <div class="col-4">
+                        <h5 class="text-secondary mb-1">{{ migrationAnalytics.userDecisions.noDecisionCount }}</h5>
+                        <small class="text-muted">No Decision</small>
+                      </div>
+                    </div>
+                    <div class="mt-3">
+                      <div class="d-flex justify-content-between mb-2">
+                        <span class="small">Acceptance Rate</span>
+                        <strong>{{ formatPercentage(migrationAnalytics.userDecisions.acceptanceRate) }}</strong>
+                      </div>
+                      <div class="progress" style="height: 20px;">
+                        <div 
+                          class="progress-bar bg-success" 
+                          role="progressbar" 
+                          [style.width.%]="migrationAnalytics.userDecisions.acceptanceRate">
+                          {{ formatPercentage(migrationAnalytics.userDecisions.acceptanceRate) }}
+                        </div>
+                      </div>
+                      <small class="text-muted mt-1 d-block">
+                        Based on {{ migrationAnalytics.userDecisions.totalDecisions }} user decisions
+                      </small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Due Soon Section -->
+              <div class="col-md-6">
+                <div class="card h-100">
+                  <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0">
+                      <i class="bi bi-calendar-event me-2"></i>Upcoming Migrations
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="row text-center mb-3">
+                      <div class="col-6">
+                        <div class="border-end">
+                          <h5 class="text-warning mb-1">{{ migrationAnalytics.summary.dueToday }}</h5>
+                          <small class="text-muted">Due Today</small>
+                        </div>
+                      </div>
+                      <div class="col-6">
+                        <h5 class="text-info mb-1">{{ migrationAnalytics.summary.dueInNext7Days }}</h5>
+                        <small class="text-muted">Due in 7 Days</small>
+                      </div>
+                    </div>
+                    <div class="alert alert-info mb-0" *ngIf="migrationAnalytics.summary.dueToday > 0">
+                      <i class="bi bi-info-circle me-2"></i>
+                      <strong>{{ migrationAnalytics.summary.dueToday }}</strong> migration(s) scheduled for today
+                    </div>
+                    <div class="alert alert-secondary mb-0 mt-2" *ngIf="migrationAnalytics.summary.dueToday === 0">
+                      <i class="bi bi-check-circle me-2"></i>
+                      No migrations due today
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Migrations Table -->
+              <div class="col-12">
+                <div class="card">
+                  <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0">
+                      <i class="bi bi-clock-history me-2"></i>Recent Migrations (Last 30 Days)
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    <div *ngIf="migrationAnalytics.recentMigrations && migrationAnalytics.recentMigrations.length > 0">
+                      <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                          <thead>
+                            <tr>
+                              <th>Status</th>
+                              <th>User Decision</th>
+                              <th>Notification Date</th>
+                              <th>Scheduled Date</th>
+                              <th>Decision Date</th>
+                              <th>Completed Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let migration of migrationAnalytics.recentMigrations">
+                              <td>
+                                <span class="badge" [ngClass]="getMigrationStatusClass(migration.status)">
+                                  {{ migration.status }}
+                                </span>
+                              </td>
+                              <td>
+                                <span 
+                                  *ngIf="migration.userDecision" 
+                                  class="badge" 
+                                  [ngClass]="getUserDecisionClass(migration.userDecision)">
+                                  {{ migration.userDecision }}
+                                </span>
+                                <span *ngIf="!migration.userDecision" class="badge bg-secondary">
+                                  Pending
+                                </span>
+                              </td>
+                              <td>{{ formatDate(migration.notificationDate) }}</td>
+                              <td>{{ formatDate(migration.scheduledMigrationDate) }}</td>
+                              <td>
+                                <span *ngIf="migration.userDecisionDate">{{ formatDate(migration.userDecisionDate) }}</span>
+                                <span *ngIf="!migration.userDecisionDate" class="text-muted">-</span>
+                              </td>
+                              <td>
+                                <span *ngIf="migration.completedDate">{{ formatDate(migration.completedDate) }}</span>
+                                <span *ngIf="!migration.completedDate" class="text-muted">-</span>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div *ngIf="!migrationAnalytics.recentMigrations || migrationAnalytics.recentMigrations.length === 0" 
+                         class="text-center py-4 text-muted">
+                      <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                      No recent migrations
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Action Items & Recent Activity -->
     <div class="row g-3">
       <!-- Action Items -->

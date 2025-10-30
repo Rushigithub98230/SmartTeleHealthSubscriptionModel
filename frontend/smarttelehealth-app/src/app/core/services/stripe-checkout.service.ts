@@ -2,12 +2,6 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { CommonService, ApiResponse } from './common.service';
 
-export interface CheckoutSessionRequest {
-  planId: string;
-  successUrl: string;
-  cancelUrl: string;
-}
-
 export interface CheckoutSessionResponse {
   url: string;
   sessionId: string;
@@ -21,15 +15,26 @@ export class StripeCheckoutService {
   constructor(private commonService: CommonService) { }
 
   /**
-   * Create Stripe checkout session
-   * API: POST /api/stripe/create-checkout-session
+   * Create Stripe checkout session using the production-ready endpoint
+   * 
+   * This endpoint automatically:
+   * - Validates user eligibility (no active subscriptions)
+   * - Prevents customer ID duplication (searches Stripe by email)
+   * - Syncs customer ID to User table
+   * - Constructs success/cancel URLs securely on backend
+   * 
+   * API: POST /api/stripe/create-checkout-session/{planId}
+   * 
+   * @param planId - The subscription plan ID to purchase
+   * @returns Observable with checkout session URL
    */
-  createCheckoutSession(request: CheckoutSessionRequest): Observable<ApiResponse<CheckoutSessionResponse>> {
-    return this.commonService.post<CheckoutSessionResponse>('stripe/create-checkout-session', request);
+  createCheckoutSession(planId: string): Observable<ApiResponse<CheckoutSessionResponse>> {
+    return this.commonService.post<CheckoutSessionResponse>(`stripe/create-checkout-session/${planId}`, {});
   }
 
   /**
    * Redirect to Stripe checkout
+   * @param url - The Stripe checkout session URL
    */
   redirectToCheckout(url: string): void {
     if (url) {

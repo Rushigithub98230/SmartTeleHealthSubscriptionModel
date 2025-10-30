@@ -65,7 +65,7 @@
 
     <!-- Quick Report Cards -->
     <div class="row g-4">
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card quick-report-card">
           <div class="card-body text-center">
             <i class="bi bi-cash-stack text-success fs-1 mb-3"></i>
@@ -77,7 +77,7 @@
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card quick-report-card">
           <div class="card-body text-center">
             <i class="bi bi-receipt text-primary fs-1 mb-3"></i>
@@ -89,17 +89,110 @@
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card quick-report-card">
           <div class="card-body text-center">
-            <i class="bi bi-activity text-warning fs-1 mb-3"></i>
-            <h6>Usage Report</h6>
-            <p class="text-muted small mb-3">Privilege usage statistics</p>
-            <button class="btn btn-sm btn-outline-warning" (click)="reportType='usage'; generateReport()">
+            <i class="bi bi-percent text-info fs-1 mb-3"></i>
+            <h6>Tax Collection</h6>
+            <p class="text-muted small mb-3">Tax collection and compliance</p>
+            <button class="btn btn-sm btn-outline-info" (click)="reportType='tax'; generateReport()">
               Generate
             </button>
           </div>
         </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card quick-report-card">
+          <div class="card-body text-center">
+            <i class="bi bi-check2-square text-warning fs-1 mb-3"></i>
+            <h6>Reconciliation</h6>
+            <p class="text-muted small mb-3">Billing data consistency check</p>
+            <button class="btn btn-sm btn-outline-warning" (click)="reportType='reconciliation'; generateReport()">
+              Generate
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Results -->
+    <div *ngIf="reportData" class="mt-4">
+      <div class="card">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Report Results</h5>
+        </div>
+        <div class="card-body">
+          <!-- Tax Report Display -->
+          <div *ngIf="reportType === 'tax' && reportData">
+            <h6>Tax Collection Summary</h6>
+            <div class="row">
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded">
+                  <h4 class="text-info">${{reportData.totalTaxCollected | number:'1.2-2'}}</h4>
+                  <small class="text-muted">Total Tax Collected</small>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded">
+                  <h4 class="text-success">{{reportData.summary.totalPlansWithTax}}</h4>
+                  <small class="text-muted">Plans with Tax</small>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded">
+                  <h4 class="text-primary">{{reportData.summary.averageTaxRate | number:'1.1-1'}}%</h4>
+                  <small class="text-muted">Average Tax Rate</small>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded">
+                  <h4 class="text-warning">${{reportData.summary.totalTaxableAmount | number:'1.2-2'}}</h4>
+                  <small class="text-muted">Taxable Amount</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reconciliation Report Display -->
+          <div *ngIf="reportType === 'reconciliation' && reportData">
+            <h6>Billing Reconciliation Summary</h6>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="text-center p-3 bg-light rounded">
+                  <h4 class="text-primary">{{reportData.summary.totalSubscriptions}}</h4>
+                  <small class="text-muted">Total Subscriptions</small>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="text-center p-3 bg-light rounded">
+                  <h4 class="text-info">{{reportData.summary.totalBillingRecords}}</h4>
+                  <small class="text-muted">Total Billing Records</small>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="text-center p-3 bg-light rounded">
+                  <h4 class="text-danger">{{reportData.summary.discrepancies}}</h4>
+                  <small class="text-muted">Discrepancies Found</small>
+                </div>
+              </div>
+            </div>
+            
+            <div *ngIf="reportData.subscriptionsWithoutBilling.length > 0" class="mt-3">
+              <h6 class="text-danger">⚠️ Subscriptions Without Billing Records</h6>
+              <div class="alert alert-warning">
+                <p class="mb-0">{{reportData.subscriptionsWithoutBilling.length}} subscriptions found without corresponding billing records.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Display -->
+    <div *ngIf="error" class="mt-4">
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {{error}}
       </div>
     </div>
   </div>

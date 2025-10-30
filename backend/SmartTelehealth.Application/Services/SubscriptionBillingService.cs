@@ -35,6 +35,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
     private readonly IStripeService _stripeService;
     private readonly INotificationService _notificationService;
     private readonly IPlanPricingService _pricingService;
+    private readonly IRealTimeLogsService _realTimeLogsService;
     
     // Utilities
     private readonly IMapper _mapper;
@@ -57,6 +58,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         IStripeService stripeService,
         INotificationService notificationService,
         IPlanPricingService pricingService,
+        IRealTimeLogsService realTimeLogsService,
         IMapper mapper,
         ILogger<SubscriptionBillingService> logger)
     {
@@ -72,6 +74,7 @@ public class SubscriptionBillingService : ISubscriptionBillingService
         _stripeService = stripeService ?? throw new ArgumentNullException(nameof(stripeService));
         _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _pricingService = pricingService ?? throw new ArgumentNullException(nameof(pricingService));
+        _realTimeLogsService = realTimeLogsService ?? throw new ArgumentNullException(nameof(realTimeLogsService));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -411,42 +414,51 @@ public class SubscriptionBillingService : ISubscriptionBillingService
                 // ═══════════════════════════════════════════════════════════
                 // STEP 5: CREATE BILLING RECORD (With Compensation)
                 // ═══════════════════════════════════════════════════════════
-                var billingRecord = new BillingRecord
+                // CRITICAL FIX: Use CreateSubscriptionBillingAsync to ensure tax is applied
+                // This ensures renewal billing applies the same tax logic as initial billing
+                var billingResult = await CreateSubscriptionBillingAsync(
+                    subscription,
+                    totalRenewalAmount,
+                    $"Subscription renewal for {plan.Name} - {plan.BillingCycle?.Name ?? "monthly"} billing",
+                    subscription.NextBillingDate,
+                    tokenModel
+                );
+
+                if (billingResult.StatusCode != 200)
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = subscription.UserId,
-                    SubscriptionId = subscription.Id,
-                    Type = BillingRecord.BillingType.Subscription,
-                    Status = BillingRecord.BillingStatus.Pending,
-                    Amount = totalRenewalAmount,
-                    TaxAmount = 0,
-                    ShippingAmount = 0,
-                    TotalAmount = totalRenewalAmount,
-                    BillingDate = DateTime.UtcNow,
-                    DueDate = subscription.NextBillingDate,
-                    Description = $"Subscription renewal for {plan.Name} - {plan.BillingCycle?.Name ?? "monthly"} billing",
-                    CurrencyId = plan.CurrencyId,
-                    IsRecurring = true,
-                    NextBillingDate = subscription.NextBillingDate,
-                    CreatedBy = tokenModel.UserID,
-                    CreatedDate = DateTime.UtcNow,
-                    IsActive = true
-                };
+                    throw new InvalidOperationException($"Failed to create renewal billing record: {billingResult.Message}");
+                }
 
-                await _billingRepository.CreateAsync(billingRecord);
-                createdBillingRecordId = billingRecord.Id;
+                // Extract billing record ID from result for compensation tracking
+                var billingRecordDto = billingResult.data as BillingRecordDto;
+                if (billingRecordDto == null)
+                {
+                    throw new InvalidOperationException("Billing record creation succeeded but no record data returned");
+                }
+                
+                if (!Guid.TryParse(billingRecordDto.Id, out var parsedBillingRecordId))
+                {
+                    throw new InvalidOperationException($"Invalid billing record ID format: {billingRecordDto.Id}");
+                }
+                
+                createdBillingRecordId = parsedBillingRecordId;
 
-                _logger.LogInformation("[Step 5/7] Billing record created: {BillingRecordId}, Amount=${Amount}",
-                    createdBillingRecordId, totalRenewalAmount);
+                var totalAmount = billingRecordDto.Amount + billingRecordDto.TaxAmount;
+                _logger.LogInformation("[Step 5/7] Billing record created: {BillingRecordId}, Amount=${Amount}, Tax=${Tax}, Total=${Total}",
+                    createdBillingRecordId, billingRecordDto.Amount, billingRecordDto.TaxAmount, totalAmount);
 
                 // Register compensation: Delete billing record
                 saga.AddCompensation(async () =>
                 {
                     _logger.LogWarning("[COMPENSATION] Deleting billing record {BillingRecordId}...", createdBillingRecordId);
-                    billingRecord.IsDeleted = true;
-                    billingRecord.DeletedBy = tokenModel.UserID;
-                    billingRecord.DeletedDate = DateTime.UtcNow;
-                    await _billingRepository.UpdateAsync(billingRecord);
+                    var billingRecord = await _billingRepository.GetByIdAsync(createdBillingRecordId);
+                    if (billingRecord != null)
+                    {
+                        billingRecord.IsDeleted = true;
+                        billingRecord.DeletedBy = tokenModel.UserID;
+                        billingRecord.DeletedDate = DateTime.UtcNow;
+                        await _billingRepository.UpdateAsync(billingRecord);
+                    }
                 });
 
                 // ═══════════════════════════════════════════════════════════
@@ -457,15 +469,56 @@ public class SubscriptionBillingService : ISubscriptionBillingService
 
                 // Use centralized helper for consistent privilege reset logic
                 // This ensures all privilege resets use the same logic across all services
-                await PrivilegeResetHelper.ResetPrivilegesForBillingPeriodAsync(
-                    subscription,
-                    subscriptionPrivileges,
-                    async (usage) => await _privilegeUsageRepository.UpdatePrivilegeUsageAsync(usage),
-                    tokenModel.UserID,
-                    _logger
-                );
+                try
+                {
+                    await PrivilegeResetHelper.ResetPrivilegesForBillingPeriodAsync(
+                        subscription,
+                        subscriptionPrivileges,
+                        async (usage) => await _privilegeUsageRepository.UpdatePrivilegeUsageAsync(usage),
+                        tokenModel.UserID,
+                        _logger
+                    );
 
-                _logger.LogInformation("[Step 6/7] Privilege usage reset complete: {Count} privileges reset", subscriptionPrivileges.Count);
+                    _logger.LogInformation("[Step 6/7] Privilege usage reset complete: {Count} privileges reset", subscriptionPrivileges.Count);
+                }
+                catch (Exception privilegeResetEx)
+                {
+                    // TASK 3.3: Send admin alert when privilege reset fails during renewal
+                    _logger.LogError(privilegeResetEx, 
+                        "CRITICAL: Privilege reset failed during renewal for subscription {SubscriptionId}", 
+                        subscription.Id);
+                    
+                    try
+                    {
+                        var user = await _userRepository.GetByIdAsync(subscription.UserId);
+                        var subscriptionPlan = await _subscriptionPlanRepository.GetByIdAsync(subscription.SubscriptionPlanId);
+                        
+                        var alertMessage = $"Privilege reset failed during subscription renewal for subscription {subscription.Id}. " +
+                                         $"User: {user?.Email ?? subscription.UserId.ToString()}, " +
+                                         $"Plan: {subscriptionPlan?.Name ?? "Unknown"}, " +
+                                         $"Error: {privilegeResetEx.Message}. " +
+                                         $"Renewal billing was successful, but privileges were NOT reset for the new billing period. " +
+                                         $"Manual intervention required to reset privileges.";
+                        
+                        _logger.LogCritical(
+                            "CRITICAL ALERT: Privilege reset failed for subscription {SubscriptionId} during renewal",
+                            subscription.Id);
+                        
+                        // Broadcast to all connected admin users
+                        await _realTimeLogsService.BroadcastNotificationAsync(
+                            "Privilege Reset Failure During Renewal",
+                            alertMessage,
+                            "error");
+                    }
+                    catch (Exception alertEx)
+                    {
+                        _logger.LogError(alertEx, "Failed to send admin alert for privilege reset failure during renewal");
+                        // Continue - don't fail the renewal if alert fails
+                    }
+                    
+                    // Don't throw - renewal should complete even if privilege reset fails
+                    // Admin will be notified and can manually reset privileges
+                }
 
                 // Register compensation: Restore original privilege usage
                 saga.AddCompensation(async () =>
@@ -1066,11 +1119,36 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             _logger.LogInformation("Creating subscription billing for subscription {SubscriptionId}, amount: ${Amount}",
                 subscription.Id, amount);
 
+            // Calculate tax amount from plan's default tax percentage
+            var taxAmount = 0m;
+            var taxPercentage = 0m;
+            if (subscription.SubscriptionPlan?.DefaultTaxPercentage.HasValue == true && 
+                subscription.SubscriptionPlan.DefaultTaxPercentage.Value > 0)
+            {
+                taxPercentage = subscription.SubscriptionPlan.DefaultTaxPercentage.Value;
+                taxAmount = amount * (taxPercentage / 100);
+                _logger.LogInformation("Applying {TaxPercent}% tax to billing: ${TaxAmount}", 
+                    taxPercentage, taxAmount);
+            }
+
+            var totalAmount = amount + taxAmount;
+
+            _logger.LogInformation(
+                "BILLING_RECORD_DTO_CREATION: SubscriptionId={SubscriptionId}, UserId={UserId}, " +
+                "PlanId={PlanId}, PlanName={PlanName}, BaseAmount={BaseAmount}, TaxPercentage={TaxPercentage}, " +
+                "TaxAmount={TaxAmount}, TotalAmount={TotalAmount}, CurrencyId={CurrencyId}, " +
+                "Description={Description}, DueDate={DueDate}",
+                subscription.Id, subscription.UserId, subscription.SubscriptionPlan?.Id, 
+                subscription.SubscriptionPlan?.Name, amount, taxPercentage, taxAmount, totalAmount,
+                subscription.SubscriptionPlan?.CurrencyId, description, dueDate);
+
             var dto = new CreateBillingRecordDto
             {
                 UserId = subscription.UserId,
                 SubscriptionId = subscription.Id.ToString(),
                 Amount = amount,
+                TaxAmount = taxAmount,
+                TotalAmount = totalAmount,
                 CurrencyId = subscription.SubscriptionPlan?.CurrencyId,
                 PaymentMethod = "stripe",
                 Status = BillingRecord.BillingStatus.Pending.ToString(),
@@ -1317,8 +1395,15 @@ public class SubscriptionBillingService : ISubscriptionBillingService
             var createdRecord = await _billingRepository.CreateBillingRecordAsync(billingRecord);
             var billingRecordDto = _mapper.Map<BillingRecordDto>(createdRecord);
             
-            _logger.LogInformation("Created billing record {BillingRecordId} for user {UserId}: Amount=${Amount}, TotalAmount=${TotalAmount}",
-                createdRecord.Id, createdRecord.UserId, createdRecord.Amount, createdRecord.TotalAmount);
+            _logger.LogInformation(
+                "BILLING_RECORD_CREATED: BillingRecordId={BillingRecordId}, UserId={UserId}, SubscriptionId={SubscriptionId}, " +
+                "Amount={Amount}, TaxAmount={TaxAmount}, ShippingAmount={ShippingAmount}, TotalAmount={TotalAmount}, " +
+                "CurrencyId={CurrencyId}, Status={Status}, Type={Type}, Description={Description}, " +
+                "BillingDate={BillingDate}, DueDate={DueDate}, CreatedBy={CreatedBy}",
+                createdRecord.Id, createdRecord.UserId, createdRecord.SubscriptionId, createdRecord.Amount, 
+                createdRecord.TaxAmount, createdRecord.ShippingAmount, createdRecord.TotalAmount,
+                createdRecord.CurrencyId, createdRecord.Status, createdRecord.Type, createdRecord.Description,
+                createdRecord.BillingDate, createdRecord.DueDate, createdRecord.CreatedBy);
             
             return new JsonModel { data = billingRecordDto, Message = "Billing record created successfully", StatusCode = 200 };
         }

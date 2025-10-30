@@ -51,6 +51,24 @@
     </div>
   </div>
 
+  <!-- Log Type Selector -->
+  <div class="log-type-selector">
+    <button 
+      mat-raised-button 
+      [color]="currentLogType === 'application' ? 'primary' : ''"
+      (click)="switchLogType('application')">
+      <mat-icon>description</mat-icon>
+      Application Logs
+    </button>
+    <button 
+      mat-raised-button 
+      [color]="currentLogType === 'audit' ? 'primary' : ''"
+      (click)="switchLogType('audit')">
+      <mat-icon>history</mat-icon>
+      Audit Logs
+    </button>
+  </div>
+
   <!-- Statistics -->
   <div class="statistics-section" *ngIf="statistics">
     <mat-chip-set>
@@ -83,7 +101,8 @@
     </mat-expansion-panel-header>
 
     <form [formGroup]="filterForm" class="filters-form">
-      <div class="filter-row">
+      <!-- Application Log Filters -->
+      <div class="filter-row" *ngIf="currentLogType === 'application'">
         <!-- Log Level -->
         <mat-form-field appearance="outline">
           <mat-label>Log Level</mat-label>
@@ -112,6 +131,43 @@
         </mat-form-field>
       </div>
 
+      <!-- Audit Log Filters -->
+      <div class="filter-row" *ngIf="currentLogType === 'audit'">
+        <!-- Type -->
+        <mat-form-field appearance="outline">
+          <mat-label>Type</mat-label>
+          <mat-select formControlName="type" multiple>
+            <mat-option *ngFor="let type of auditTypes" [value]="type">
+              {{ type }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Table Name -->
+        <mat-form-field appearance="outline">
+          <mat-label>Table Name</mat-label>
+          <mat-select formControlName="tableName" multiple>
+            <mat-option *ngFor="let table of availableTables" [value]="table">
+              {{ table }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Entity ID -->
+        <mat-form-field appearance="outline">
+          <mat-label>Entity ID</mat-label>
+          <input matInput formControlName="entityId" placeholder="Filter by entity ID">
+        </mat-form-field>
+
+        <!-- Search -->
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Search</mat-label>
+          <input matInput formControlName="searchTerm" placeholder="Search in values...">
+          <mat-icon matPrefix>search</mat-icon>
+        </mat-form-field>
+      </div>
+
+      <!-- Common Filters -->
       <div class="filter-row">
         <!-- Start Date -->
         <mat-form-field appearance="outline">
@@ -135,10 +191,16 @@
           <input matInput type="number" formControlName="userId" placeholder="Filter by user ID">
         </mat-form-field>
 
-        <!-- Operation -->
-        <mat-form-field appearance="outline">
+        <!-- Operation (Application Logs Only) -->
+        <mat-form-field appearance="outline" *ngIf="currentLogType === 'application'">
           <mat-label>Operation</mat-label>
           <input matInput formControlName="operation" placeholder="Operation type">
+        </mat-form-field>
+
+        <!-- Correlation ID (Application Logs Only) -->
+        <mat-form-field appearance="outline" *ngIf="currentLogType === 'application'">
+          <mat-label>Correlation ID</mat-label>
+          <input matInput formControlName="correlationId" placeholder="Correlation ID">
         </mat-form-field>
       </div>
 
@@ -162,53 +224,104 @@
     </div>
 
     <cdk-virtual-scroll-viewport [itemSize]="itemSize" class="logs-viewport">
+      <!-- Application Log Entry -->
       <div
         *cdkVirtualFor="let log of displayedLogs"
         class="log-entry"
-        [ngClass]="getLogLevelClass(log.logLevel)">
+        [ngClass]="isApplicationLog(log) ? getLogLevelClass(log.logLevel) : getAuditTypeClass(log.type)">
         
-        <div class="log-header" (click)="toggleLogExpansion(log.id)">
-          <div class="log-main-info">
-            <mat-icon class="log-icon">{{ getLogLevelIcon(log.logLevel) }}</mat-icon>
-            <span class="log-level">{{ log.logLevel }}</span>
-            <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
-            <span class="log-source">{{ log.source }}</span>
+        <!-- Application Log Display -->
+        <ng-container *ngIf="isApplicationLog(log)">
+          <div class="log-header" (click)="toggleLogExpansion(log.id)">
+            <div class="log-main-info">
+              <mat-icon class="log-icon">{{ getLogLevelIcon(log.logLevel) }}</mat-icon>
+              <span class="log-level">{{ log.logLevel }}</span>
+              <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
+              <span class="log-source">{{ log.source }}</span>
+            </div>
+            <button mat-icon-button class="expand-button">
+              <mat-icon>{{ expandedLogId === log.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
           </div>
-          <button mat-icon-button class="expand-button">
-            <mat-icon>{{ expandedLogId === log.id ? 'expand_less' : 'expand_more' }}</mat-icon>
-          </button>
-        </div>
 
-        <div class="log-message">{{ log.message }}</div>
+          <div class="log-message">{{ log.message }}</div>
 
-        <div class="log-details" *ngIf="expandedLogId === log.id">
-          <mat-card class="details-card">
-            <mat-card-content>
-              <div class="detail-row" *ngIf="log.userId">
-                <strong>User ID:</strong> {{ log.userId }}
-              </div>
-              <div class="detail-row" *ngIf="log.operation">
-                <strong>Operation:</strong> {{ log.operation }}
-              </div>
-              <div class="detail-row" *ngIf="log.correlationId">
-                <strong>Correlation ID:</strong> {{ log.correlationId }}
-              </div>
-              <div class="detail-row" *ngIf="log.exception">
-                <strong>Exception:</strong>
-                <pre class="exception-text">{{ log.exception }}</pre>
-              </div>
-              <div class="detail-row" *ngIf="log.additionalData">
-                <strong>Additional Data:</strong>
-                <pre class="additional-data">{{ formatAdditionalData(log.additionalData) }}</pre>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </div>
+          <div class="log-details" *ngIf="expandedLogId === log.id">
+            <mat-card class="details-card">
+              <mat-card-content>
+                <div class="detail-row" *ngIf="log.userId">
+                  <strong>User ID:</strong> {{ log.userId }}
+                </div>
+                <div class="detail-row" *ngIf="log.operation">
+                  <strong>Operation:</strong> {{ log.operation }}
+                </div>
+                <div class="detail-row" *ngIf="log.correlationId">
+                  <strong>Correlation ID:</strong> {{ log.correlationId }}
+                </div>
+                <div class="detail-row" *ngIf="log.exception">
+                  <strong>Exception:</strong>
+                  <pre class="exception-text">{{ log.exception }}</pre>
+                </div>
+                <div class="detail-row" *ngIf="log.additionalData">
+                  <strong>Additional Data:</strong>
+                  <pre class="additional-data">{{ formatAdditionalData(log.additionalData) }}</pre>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </ng-container>
+
+        <!-- Audit Log Display -->
+        <ng-container *ngIf="isAuditLog(log)">
+          <div class="log-header" (click)="toggleLogExpansion(log.id)">
+            <div class="log-main-info">
+              <mat-icon class="log-icon">{{ log.type === 'Create' ? 'add_circle' : log.type === 'Update' ? 'edit' : 'delete' }}</mat-icon>
+              <span class="log-level" [ngClass]="getAuditTypeClass(log.type)">{{ log.type }}</span>
+              <span class="log-timestamp">{{ formatTimestamp(log.dateTime) }}</span>
+              <span class="log-source">{{ log.tableName }}</span>
+            </div>
+            <button mat-icon-button class="expand-button">
+              <mat-icon>{{ expandedLogId === log.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
+          </div>
+
+          <div class="log-message">
+            <strong>{{ log.type }}</strong> operation on <strong>{{ log.tableName }}</strong>
+            <span *ngIf="log.primaryKey"> (ID: {{ log.primaryKey }})</span>
+          </div>
+
+          <div class="log-details" *ngIf="expandedLogId === log.id">
+            <mat-card class="details-card">
+              <mat-card-content>
+                <div class="detail-row" *ngIf="log.userId">
+                  <strong>User ID:</strong> {{ log.userId }}
+                </div>
+                <div class="detail-row">
+                  <strong>Table:</strong> {{ log.tableName }}
+                </div>
+                <div class="detail-row" *ngIf="log.primaryKey">
+                  <strong>Primary Key:</strong> {{ log.primaryKey }}
+                </div>
+                <div class="detail-row" *ngIf="log.affectedColumns">
+                  <strong>Affected Columns:</strong> {{ log.affectedColumns }}
+                </div>
+                <div class="detail-row" *ngIf="log.oldValues">
+                  <strong>Old Values:</strong>
+                  <pre class="exception-text">{{ formatAdditionalData(log.oldValues) }}</pre>
+                </div>
+                <div class="detail-row" *ngIf="log.newValues">
+                  <strong>New Values:</strong>
+                  <pre class="additional-data">{{ formatAdditionalData(log.newValues) }}</pre>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </ng-container>
       </div>
 
       <div *ngIf="!isLoading && displayedLogs.length === 0" class="no-logs">
         <mat-icon>info</mat-icon>
-        <p>No logs found matching the current filters</p>
+        <p>No {{ currentLogType }} logs found matching the current filters</p>
       </div>
     </cdk-virtual-scroll-viewport>
   </div>

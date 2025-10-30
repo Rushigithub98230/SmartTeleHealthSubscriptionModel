@@ -1,20 +1,35 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using SmartTelehealth.Core.Entities;
 using SmartTelehealth.Core.Enums;
+using SmartTelehealth.Application.Interfaces;
 using SmartTelehealth.Infrastructure.Entities;
 
 namespace SmartTelehealth.Infrastructure.Data;
 
 public class ApplicationDbContext : IdentityDbContext<User, Role, int>
 {
+    private bool _isSavingAuditLogs = false;
+    private static IServiceProvider? _serviceProvider;
+
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
     }
     
     // Current User ID for audit tracking
     public int? CurrentUserId { get; set; }
+    
+    /// <summary>
+    /// Sets the service provider for accessing services when HttpContext is not available.
+    /// This should be called during application startup.
+    /// </summary>
+    public static void SetServiceProvider(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+    }
     
     // Master Tables DbSets
     public DbSet<MasterBillingCycle> MasterBillingCycles { get; set; }
@@ -40,6 +55,7 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
     public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
     public DbSet<Subscription> Subscriptions { get; set; }
     public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents { get; set; }
+    public DbSet<UnprocessedWebhookEvent> UnprocessedWebhookEvents { get; set; }
     public DbSet<FailedRefund> FailedRefunds { get; set; }
     public DbSet<HealthAssessment> HealthAssessments { get; set; }
     public DbSet<Consultation> Consultations { get; set; }
@@ -2534,6 +2550,10 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
 
     public override int SaveChanges()
     {
+        // Prevent infinite recursion when saving audit logs
+        if (_isSavingAuditLogs)
+            return base.SaveChanges();
+
         var auditEntries = new List<AuditEntry>();
 
         foreach (var entry in ChangeTracker.Entries())
@@ -2590,11 +2610,62 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         // Save changes to the main entities
         int result = base.SaveChanges();
 
-        // Save audit logs
+        // Save audit logs without triggering audit again
         if (auditEntries.Count > 0)
         {
-            AuditLogs.AddRange(auditEntries.Select(ae => ae.ToAudit()));
-            base.SaveChanges();
+            _isSavingAuditLogs = true;
+            try
+            {
+                var auditLogs = auditEntries.Select(ae => ae.ToAudit()).ToList();
+                AuditLogs.AddRange(auditLogs);
+                base.SaveChanges();
+
+                // Broadcast audit logs in real-time (fire-and-forget)
+                // Capture HttpContext before Task.Run since HttpContext is not available in background tasks
+                var httpContext = new HttpContextAccessor().HttpContext;
+                var serviceProviderForBroadcast = httpContext?.RequestServices ?? _serviceProvider;
+                
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (serviceProviderForBroadcast != null)
+                        {
+                            IRealTimeLogsService? realTimeService = null;
+                            
+                            // If HttpContext is available, use RequestServices directly
+                            if (httpContext != null)
+                            {
+                                realTimeService = httpContext.RequestServices.GetService<IRealTimeLogsService>();
+                            }
+                            // Otherwise, create a scope from static service provider
+                            else if (_serviceProvider != null)
+                            {
+                                using var scope = _serviceProvider.CreateScope();
+                                realTimeService = scope.ServiceProvider.GetService<IRealTimeLogsService>();
+                            }
+                            
+                            // Broadcast if service is available
+                            if (realTimeService != null)
+                            {
+                                foreach (var auditLog in auditLogs)
+                                {
+                                    await realTimeService.BroadcastAuditLogAsync(auditLog);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but don't throw - audit logs are already saved
+                        Console.WriteLine($"Error broadcasting audit logs: {ex.Message}");
+                    }
+                });
+            }
+            finally
+            {
+                _isSavingAuditLogs = false;
+            }
         }
 
         return result;
@@ -2602,6 +2673,10 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        // Prevent infinite recursion when saving audit logs
+        if (_isSavingAuditLogs)
+            return await base.SaveChangesAsync(cancellationToken);
+
         var auditEntries = new List<AuditEntry>();
 
         foreach (var entry in ChangeTracker.Entries())
@@ -2658,11 +2733,62 @@ public class ApplicationDbContext : IdentityDbContext<User, Role, int>
         // Save changes to the main entities
         int result = await base.SaveChangesAsync(cancellationToken);
 
-        // Save audit logs
+        // Save audit logs without triggering audit again
         if (auditEntries.Count > 0)
         {
-            AuditLogs.AddRange(auditEntries.Select(ae => ae.ToAudit()));
-            await base.SaveChangesAsync(cancellationToken);
+            _isSavingAuditLogs = true;
+            try
+            {
+                var auditLogs = auditEntries.Select(ae => ae.ToAudit()).ToList();
+                AuditLogs.AddRange(auditLogs);
+                await base.SaveChangesAsync(cancellationToken);
+
+                // Broadcast audit logs in real-time (fire-and-forget)
+                // Capture HttpContext before Task.Run since HttpContext is not available in background tasks
+                var httpContext = new HttpContextAccessor().HttpContext;
+                var serviceProviderForBroadcast = httpContext?.RequestServices ?? _serviceProvider;
+                
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (serviceProviderForBroadcast != null)
+                        {
+                            IRealTimeLogsService? realTimeService = null;
+                            
+                            // If HttpContext is available, use RequestServices directly
+                            if (httpContext != null)
+                            {
+                                realTimeService = httpContext.RequestServices.GetService<IRealTimeLogsService>();
+                            }
+                            // Otherwise, create a scope from static service provider
+                            else if (_serviceProvider != null)
+                            {
+                                using var scope = _serviceProvider.CreateScope();
+                                realTimeService = scope.ServiceProvider.GetService<IRealTimeLogsService>();
+                            }
+                            
+                            // Broadcast if service is available
+                            if (realTimeService != null)
+                            {
+                                foreach (var auditLog in auditLogs)
+                                {
+                                    await realTimeService.BroadcastAuditLogAsync(auditLog);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but don't throw - audit logs are already saved
+                        Console.WriteLine($"Error broadcasting audit logs: {ex.Message}");
+                    }
+                });
+            }
+            finally
+            {
+                _isSavingAuditLogs = false;
+            }
         }
 
         return result;

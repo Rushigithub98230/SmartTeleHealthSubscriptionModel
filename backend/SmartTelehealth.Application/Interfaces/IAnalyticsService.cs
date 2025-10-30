@@ -39,6 +39,9 @@ public interface IAnalyticsService
     // Enhanced Billing Analytics
     Task<EnhancedBillingAnalyticsDto> GetEnhancedBillingAnalyticsAsync(DateTime? startDate = null, DateTime? endDate = null);
     
+    // Plan Migration Analytics
+    Task<JsonModel> GetPlanMigrationAnalyticsAsync(TokenModel tokenModel);
+    
     // Core Analytics Methods (for internal use)
     Task<decimal> GetTotalRevenueAsync(DateTime? startDate, DateTime? endDate, TokenModel tokenModel);
     Task<decimal> CalculateAverageRevenuePerUserAsync(TokenModel tokenModel);

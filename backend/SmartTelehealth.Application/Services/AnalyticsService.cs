@@ -38,6 +38,7 @@ public class AnalyticsService : IAnalyticsService
     private readonly ISubscriptionService _subscriptionService;
     private readonly ISubscriptionBillingService _billingService;
     private readonly ISubscriptionPlanService _planService;
+    private readonly IScheduledPlanMigrationRepository _migrationRepository;
     private readonly ILogger<AnalyticsService> _logger;
 
     public AnalyticsService(
@@ -50,6 +51,7 @@ public class AnalyticsService : IAnalyticsService
         ISubscriptionService subscriptionService,
         ISubscriptionBillingService billingService,
         ISubscriptionPlanService planService,
+        IScheduledPlanMigrationRepository migrationRepository,
         ILogger<AnalyticsService> logger)
     {
         _subscriptionRepository = subscriptionRepository;
@@ -61,6 +63,7 @@ public class AnalyticsService : IAnalyticsService
         _subscriptionService = subscriptionService;
         _billingService = billingService;
         _planService = planService;
+        _migrationRepository = migrationRepository;
         _logger = logger;
     }
 
@@ -1553,6 +1556,135 @@ public class AnalyticsService : IAnalyticsService
         {
             _logger.LogError(ex, "Error getting system analytics");
             return new JsonModel { data = new object(), Message = "Error retrieving system analytics", StatusCode = 500 };
+        }
+    }
+
+    #endregion
+
+    #region Plan Migration Analytics
+
+    /// <summary>
+    /// Gets comprehensive plan migration analytics for admin dashboard
+    /// Provides visibility into scheduled migrations, user decisions, and auto-cancellations
+    /// </summary>
+    public async Task<JsonModel> GetPlanMigrationAnalyticsAsync(TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("Getting plan migration analytics for admin dashboard");
+
+            // Get all migrations
+            var allMigrations = await _migrationRepository.GetAllAsync();
+            var migrationsList = allMigrations.ToList();
+
+            // Count migrations by status
+            var pendingCount = migrationsList.Count(m => m.Status == "Pending");
+            var completedCount = migrationsList.Count(m => m.Status == "Completed");
+            var userOptedOutCount = migrationsList.Count(m => m.Status == "UserOptedOut");
+            var failedCount = migrationsList.Count(m => m.Status == "Failed");
+
+            // Count user decisions
+            var acceptCount = migrationsList.Count(m => m.UserDecision == "Accept");
+            var cancelCount = migrationsList.Count(m => m.UserDecision == "Cancel");
+            var noDecisionCount = migrationsList.Count(m => string.IsNullOrEmpty(m.UserDecision));
+
+            // Get migrations due in next 7 days
+            var nextWeek = DateTime.UtcNow.AddDays(7);
+            var migrationsDue = await _migrationRepository.GetMigrationsDueByDateAsync(nextWeek);
+            var migrationsDueList = migrationsDue.ToList();
+            var dueSoonCount = migrationsDueList.Count;
+
+            // Get migrations due today
+            var today = DateTime.UtcNow.Date;
+            var migrationsDueToday = migrationsDueList.Where(m => m.ScheduledMigrationDate.Date == today).ToList();
+            var dueTodayCount = migrationsDueToday.Count;
+
+            // Calculate acceptance rate
+            var totalDecisions = acceptCount + cancelCount;
+            var acceptanceRate = totalDecisions > 0 ? (decimal)acceptCount / totalDecisions * 100 : 0;
+
+            // Group by plan (from plan)
+            var migrationsByPlan = migrationsList
+                .GroupBy(m => m.FromPlanId)
+                .Select(g => new
+                {
+                    planId = g.Key,
+                    totalMigrations = g.Count(),
+                    pending = g.Count(m => m.Status == "Pending"),
+                    completed = g.Count(m => m.Status == "Completed"),
+                    userOptedOut = g.Count(m => m.Status == "UserOptedOut"),
+                    failed = g.Count(m => m.Status == "Failed")
+                })
+                .ToList();
+
+            // Get recent migrations (last 30 days)
+            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+            var recentMigrations = migrationsList
+                .Where(m => m.NotificationDate >= thirtyDaysAgo)
+                .OrderByDescending(m => m.NotificationDate)
+                .Take(10)
+                .Select(m => new
+                {
+                    id = m.Id,
+                    subscriptionId = m.SubscriptionId,
+                    fromPlanId = m.FromPlanId,
+                    toPlanId = m.ToPlanId,
+                    status = m.Status,
+                    userDecision = m.UserDecision,
+                    notificationDate = m.NotificationDate,
+                    scheduledMigrationDate = m.ScheduledMigrationDate,
+                    userDecisionDate = m.UserDecisionDate,
+                    completedDate = m.CompletedDate
+                })
+                .ToList();
+
+            var analytics = new
+            {
+                summary = new
+                {
+                    totalMigrations = migrationsList.Count,
+                    pendingMigrations = pendingCount,
+                    completedMigrations = completedCount,
+                    userOptedOutMigrations = userOptedOutCount,
+                    failedMigrations = failedCount,
+                    dueToday = dueTodayCount,
+                    dueInNext7Days = dueSoonCount,
+                    noDecisionCount = noDecisionCount
+                },
+                userDecisions = new
+                {
+                    acceptCount = acceptCount,
+                    cancelCount = cancelCount,
+                    noDecisionCount = noDecisionCount,
+                    acceptanceRate = Math.Round(acceptanceRate, 2),
+                    totalDecisions = totalDecisions
+                },
+                migrationsByPlan = migrationsByPlan,
+                recentMigrations = recentMigrations,
+                generatedAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation(
+                "Plan migration analytics retrieved successfully. Total: {Total}, Pending: {Pending}, " +
+                "Completed: {Completed}, UserOptedOut: {OptedOut}, Acceptance Rate: {Rate}%",
+                migrationsList.Count, pendingCount, completedCount, userOptedOutCount, acceptanceRate);
+
+            return new JsonModel
+            {
+                data = analytics,
+                Message = "Plan migration analytics retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting plan migration analytics");
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"Error retrieving plan migration analytics: {ex.Message}", 
+                StatusCode = 500 
+            };
         }
     }
 

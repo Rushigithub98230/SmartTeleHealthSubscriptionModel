@@ -48,6 +48,22 @@ public interface IStripeSynchronizationService
     /// </summary>
     Task<bool> RepairSubscriptionSynchronizationAsync(Guid subscriptionId, TokenModel tokenModel);
     
+    // ===== PHASE 3: BACKGROUND SYNC & RECONCILIATION =====
+    
+    /// <summary>
+    /// Synchronizes all subscriptions from Stripe to local database
+    /// Compares Stripe subscription data with local records and updates statuses, billing dates
+    /// Phase 3: Background sync job support
+    /// </summary>
+    Task<JsonModel> SyncAllSubscriptionsFromStripeAsync(TokenModel tokenModel);
+    
+    /// <summary>
+    /// Checks consistency of Stripe customer IDs across all users
+    /// Validates that each user's Stripe customer ID exists in Stripe and emails match
+    /// Phase 3: Customer ID integrity validation
+    /// </summary>
+    Task<JsonModel> CheckCustomerIdConsistencyAsync(TokenModel tokenModel);
+    
     // ===== PHASE 5: STRIPE SYNC DASHBOARD ENHANCEMENTS =====
     
     /// <summary>

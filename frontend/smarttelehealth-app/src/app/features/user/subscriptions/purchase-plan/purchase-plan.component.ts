@@ -385,7 +385,7 @@ export class PurchasePlanComponent implements OnInit {
 
   /**
    * Submit purchase using Stripe Checkout (Recommended)
-   * More secure and PCI compliant
+   * More secure and PCI compliant - now using production-ready endpoint
    */
   submitPurchaseWithStripeCheckout(): void {
     console.log('🛒 [PURCHASE-PLAN] Stripe checkout initiated');
@@ -411,15 +411,10 @@ export class PurchasePlanComponent implements OnInit {
     this.purchasing = true;
     this.error = null;
 
-    const request = {
-      planId: this.planId,
-      successUrl: `${window.location.origin}/web/subscriptions/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${window.location.origin}/web/subscriptions/purchase/${this.planId}?cancelled=true`
-    };
+    console.log('🔗 [PURCHASE-PLAN] Creating checkout session for plan:', this.planId);
 
-    console.log('🔗 [PURCHASE-PLAN] Creating checkout session with request:', request);
-
-    this.stripeCheckoutService.createCheckoutSession(request).subscribe({
+    // ✅ NEW: Simplified API call - just pass planId, backend handles everything!
+    this.stripeCheckoutService.createCheckoutSession(this.planId).subscribe({
       next: (response) => {
         console.log('✅ [PURCHASE-PLAN] Checkout session created:', {
           statusCode: response.statusCode,
@@ -432,6 +427,10 @@ export class PurchasePlanComponent implements OnInit {
           console.log('🚀 [PURCHASE-PLAN] Redirecting to Stripe checkout');
           // Redirect to Stripe checkout
           this.stripeCheckoutService.redirectToCheckout(response.data.url);
+        } else if (response.statusCode === 400) {
+          // Handle validation errors (e.g., "You already have an active subscription")
+          this.error = response.message || 'Unable to create checkout session';
+          console.warn('⚠️ [PURCHASE-PLAN] Validation error:', response.message);
         } else {
           this.error = response.message || 'Failed to create checkout session';
           console.error('❌ [PURCHASE-PLAN] Checkout session creation failed:', response.message);
@@ -440,96 +439,79 @@ export class PurchasePlanComponent implements OnInit {
       error: (error) => {
         console.error('❌ [PURCHASE-PLAN] Checkout session error:', error);
         this.purchasing = false;
-        this.error = error.message || 'Failed to create checkout session';
+        
+        // Handle specific error cases
+        if (error.error?.message) {
+          this.error = error.error.message;
+        } else if (error.status === 400) {
+          this.error = 'You already have an active subscription or are not eligible for this plan';
+        } else if (error.status === 404) {
+          this.error = 'Plan not found or no longer available';
+        } else {
+          this.error = 'Failed to create checkout session. Please try again.';
+        }
       }
     });
   }
 
   /**
-   * Submit purchase - creates subscription (Direct API method)
-   * API: POST /api/Subscriptions
-   * Note: This method is less secure than Stripe Checkout
+   * Submit purchase - redirects to Stripe Checkout (Secure Payment Flow)
+   * API: POST /api/stripe/create-checkout-session/{planId}
+   * This is the correct, PCI-compliant way to handle payments
    */
   submitPurchase(): void {
-    if (this.billingForm.invalid || !this.currentUser || !this.plan) {
-      this.error = 'Please complete all required fields';
-      return;
-    }
-
-    // Validate payment method before submission
-    const paymentMethodId = this.billingForm.value.paymentMethodId;
-    if (!paymentMethodId) {
-      this.error = 'Please select a payment method';
-      return;
-    }
-
-    // Check if payment method exists in user's payment methods
-    const selectedPaymentMethod = this.paymentMethods.find(pm => pm.id === paymentMethodId);
-    if (!selectedPaymentMethod) {
-      this.error = 'Selected payment method is not valid';
+    if (!this.plan) {
+      this.error = 'Plan information is missing';
       return;
     }
 
     this.purchasing = true;
     this.error = null;
 
-    const dto: CreateSubscriptionDto = {
-      userId: this.currentUser.id,
-      planId: this.planId,
-      price: this.plan.basePrice || this.plan.price || 0,
-      // REMOVED: billingCycleId - comes from plan (fixed billing cycle)
-      currencyId: this.plan.currencyId,  // ✅ From plan
-      paymentMethodId: this.billingForm.value.paymentMethodId,
-      autoRenew: this.billingForm.value.autoRenew,
-      startImmediately: true,
-      isActive: true
-    };
+    console.log('🛒 [PURCHASE-PLAN] Initiating Stripe Checkout for plan:', this.plan.id);
 
-    console.log('📤 Submitting subscription:', dto);
-    console.log('✅ Using plan\'s fixed billing cycle:', this.plan.billingCycleId);
+    // Call existing Stripe checkout endpoint using StripeCheckoutService
+    this.stripeCheckoutService.createCheckoutSession(this.plan.id).subscribe({
+      next: (response: any) => {
+        console.log('📄 [PURCHASE-PLAN] Checkout session response:', {
+          statusCode: response.statusCode,
+          hasUrl: !!response.data?.url
+        });
 
-    this.subscriptionService.createSubscription(dto).subscribe({
-      next: (response) => {
-        this.purchasing = false;
-        
-        if (response.statusCode === 200 || response.statusCode === 201) {
-          console.log('✅ Subscription created successfully:', response.data);
-          // Success - redirect to subscriptions page
-          this.router.navigate(['/web/subscriptions'], {
-            queryParams: { success: 'true', newSubscription: 'true' }
-          });
+        if (response.statusCode === 200 && response.data?.url) {
+          console.log('🔗 [PURCHASE-PLAN] Redirecting to Stripe Checkout:', response.data.url);
+          
+          // Redirect to Stripe Checkout (PCI-compliant, secure payment page)
+          this.stripeCheckoutService.redirectToCheckout(response.data.url);
         } else {
-          // Handle specific error cases
-          if (response.statusCode === 400) {
-            this.error = response.message || 'Invalid request. Please check your information and try again.';
-          } else if (response.statusCode === 404) {
-            this.error = 'The selected plan is no longer available. Please choose a different plan.';
-          } else if (response.statusCode === 500) {
-            this.error = 'A server error occurred. Please try again later or contact support.';
-          } else {
-            this.error = response.message || 'Purchase failed. Please try again.';
-          }
+          this.error = response.message || 'Failed to create checkout session';
+          console.error('❌ [PURCHASE-PLAN] Checkout session creation failed:', this.error);
+          this.purchasing = false;
         }
       },
-      error: (error) => {
+      error: (error: any) => {
         this.purchasing = false;
-        
-        // Handle network and other errors
+
+        console.error('❌ [PURCHASE-PLAN] Error creating checkout session:', error);
+
+        // Handle specific error cases
         if (error.status === 0) {
           this.error = 'Network error. Please check your connection and try again.';
+        } else if (error.status === 400) {
+          // User already has active subscription or other validation error
+          this.error = error.error?.message || 'You may already have an active subscription. Please check your subscriptions page.';
         } else if (error.status === 401) {
           this.error = 'Your session has expired. Please log in again.';
-          // Redirect to login
           this.router.navigate(['/auth/login']);
         } else if (error.status === 403) {
           this.error = 'You do not have permission to perform this action.';
+        } else if (error.status === 404) {
+          this.error = 'The selected plan is no longer available. Please choose a different plan.';
         } else if (error.status >= 500) {
           this.error = 'Server error. Please try again later or contact support.';
         } else {
-          this.error = error.message || 'An unexpected error occurred during purchase.';
+          this.error = error.error?.message || 'An error occurred during checkout. Please try again.';
         }
-        
-        console.error('❌ Purchase error:', error);
       }
     });
   }

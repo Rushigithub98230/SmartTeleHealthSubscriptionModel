@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { interval, Subscription } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
-import { AnalyticsService, DashboardMetrics, RealTimeMetrics } from '../../../../core/services/analytics.service';
+import { AnalyticsService, DashboardMetrics, RealTimeMetrics, PlanMigrationAnalytics } from '../../../../core/services/analytics.service';
 
 @Component({
   selector: 'app-subscription-dashboard',
@@ -14,8 +14,11 @@ import { AnalyticsService, DashboardMetrics, RealTimeMetrics } from '../../../..
 export class SubscriptionDashboardComponent implements OnInit, OnDestroy {
   dashboardMetrics: DashboardMetrics | null = null;
   realTimeMetrics: RealTimeMetrics | null = null;
+  migrationAnalytics: PlanMigrationAnalytics | null = null;
   loading = true;
+  loadingMigration = false;
   error: string | null = null;
+  migrationError: string | null = null;
 
   private refreshSubscription?: Subscription;
 
@@ -23,6 +26,7 @@ export class SubscriptionDashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadDashboardData();
+    this.loadMigrationAnalytics();
     this.startRealTimeUpdates();
   }
 
@@ -45,6 +49,30 @@ export class SubscriptionDashboardComponent implements OnInit, OnDestroy {
         this.error = 'Failed to load dashboard data';
         this.loading = false;
         console.error('Dashboard error:', err);
+      }
+    });
+  }
+
+  /**
+   * Load plan migration analytics
+   */
+  loadMigrationAnalytics(): void {
+    this.loadingMigration = true;
+    this.migrationError = null;
+
+    this.analyticsService.getPlanMigrationAnalytics().subscribe({
+      next: (response) => {
+        if (response.statusCode === 200 && response.data) {
+          this.migrationAnalytics = response.data;
+        } else {
+          this.migrationError = response.message || 'Failed to load migration analytics';
+        }
+        this.loadingMigration = false;
+      },
+      error: (err) => {
+        this.migrationError = 'Failed to load migration analytics';
+        this.loadingMigration = false;
+        console.error('Migration analytics error:', err);
       }
     });
   }
@@ -79,6 +107,7 @@ export class SubscriptionDashboardComponent implements OnInit, OnDestroy {
 
   refresh(): void {
     this.loadDashboardData();
+    this.loadMigrationAnalytics();
     this.analyticsService.getRealTimeMetrics().subscribe({
       next: (response) => {
         if (response.statusCode === 200 && response.data) {
@@ -131,6 +160,38 @@ export class SubscriptionDashboardComponent implements OnInit, OnDestroy {
         return 'text-danger';
       default:
         return 'text-secondary';
+    }
+  }
+
+  /**
+   * Get migration status badge class
+   */
+  getMigrationStatusClass(status: string): string {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return 'bg-warning';
+      case 'completed':
+        return 'bg-success';
+      case 'useroptedout':
+        return 'bg-danger';
+      case 'failed':
+        return 'bg-danger';
+      default:
+        return 'bg-secondary';
+    }
+  }
+
+  /**
+   * Get user decision badge class
+   */
+  getUserDecisionClass(decision: string | null): string {
+    switch (decision?.toLowerCase()) {
+      case 'accept':
+        return 'bg-success';
+      case 'cancel':
+        return 'bg-danger';
+      default:
+        return 'bg-secondary';
     }
   }
 }

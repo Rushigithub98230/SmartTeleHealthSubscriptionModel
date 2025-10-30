@@ -16,6 +16,7 @@ public interface ISubscriptionLifecycleService
 {
     // Core Lifecycle Methods
     Task<JsonModel> CreateSubscriptionAsync(CreateSubscriptionDto createDto, TokenModel tokenModel);
+    Task<JsonModel> SyncSubscriptionFromCheckoutAsync(int userId, Guid planId, string stripeSubscriptionId, string stripeCustomerId, string stripePriceId, TokenModel tokenModel);
     Task<JsonModel> CancelSubscriptionAsync(string subscriptionId, string? reason, TokenModel tokenModel);
     Task<JsonModel> PauseSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
     Task<JsonModel> ResumeSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
@@ -24,6 +25,11 @@ public interface ISubscriptionLifecycleService
     Task<JsonModel> AutoRenewSubscriptionAsync(string subscriptionId, TokenModel tokenModel);
     Task<JsonModel> ProrateUpgradeAsync(string subscriptionId, string newPlanId, TokenModel tokenModel);
     Task<JsonModel> ChangeBillingCycleAsync(string subscriptionId, string newBillingCycleId, TokenModel tokenModel);
+    
+    // Scheduled Plan Changes (No Proration)
+    Task<JsonModel> ScheduleUpgradeAsync(Guid subscriptionId, Guid newPlanId, TokenModel tokenModel);
+    Task<JsonModel> ScheduleDowngradeAsync(Guid subscriptionId, Guid newPlanId, TokenModel tokenModel);
+    Task<JsonModel> CancelScheduledPlanChangeAsync(Guid subscriptionId, TokenModel tokenModel);
     Task<JsonModel> ExtendUserSubscriptionAsync(string subscriptionId, int additionalDays, TokenModel tokenModel);
     Task<JsonModel> UpdateSubscriptionAsync(string subscriptionId, UpdateSubscriptionDto updateDto, TokenModel tokenModel);
 

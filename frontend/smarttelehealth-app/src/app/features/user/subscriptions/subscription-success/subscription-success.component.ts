@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonService } from '../../../../core/services/common.service';
@@ -26,13 +26,25 @@ import { CommonService } from '../../../../core/services/common.service';
               </div>
               
               <!-- Success Message -->
-              <h2 class="text-success mb-3">Subscription Created Successfully!</h2>
-              <p class="text-muted mb-4">
+              <h2 class="text-success mb-3" *ngIf="verified">Subscription Created Successfully!</h2>
+              <h2 class="text-primary mb-3" *ngIf="!verified && !error">Verifying Your Subscription...</h2>
+              <p class="text-muted mb-4" *ngIf="verified">
                 Your subscription has been activated and your payment method has been saved for future use.
               </p>
+              <p class="text-muted mb-4" *ngIf="!verified && !error">
+                Please wait while we verify your subscription and billing information...
+              </p>
+              
+              <!-- Verification Status -->
+              <div *ngIf="verified && subscriptionId" class="alert alert-success mb-4">
+                <i class="bi bi-check-circle me-2"></i>
+                <strong>Verification Complete:</strong> Subscription {{subscriptionId}} is active
+                <br>
+                <small *ngIf="billingRecordCount > 0">{{billingRecordCount}} billing record(s) created successfully</small>
+              </div>
               
               <!-- Payment Method Info -->
-              <div class="alert alert-success mb-4">
+              <div *ngIf="verified" class="alert alert-success mb-4">
                 <i class="bi bi-credit-card me-2"></i>
                 <strong>Payment Method Saved:</strong> Your card details have been securely saved to your account.
                 <br>
@@ -96,10 +108,17 @@ import { CommonService } from '../../../../core/services/common.service';
     }
   `]
 })
-export class SubscriptionSuccessComponent implements OnInit {
+export class SubscriptionSuccessComponent implements OnInit, OnDestroy {
   sessionId: string | null = null;
   loading = true;
   error: string | null = null;
+  verified = false;
+  verificationStatus: string = 'pending';
+  subscriptionId: string | null = null;
+  billingRecordCount: number = 0;
+  private maxRetries = 30; // Maximum number of polling attempts (30 * 2s = 60s max wait)
+  private retryCount = 0;
+  private pollInterval: any = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -147,29 +166,119 @@ export class SubscriptionSuccessComponent implements OnInit {
 
   /**
    * Verify subscription was created successfully
+   * Polls the verification endpoint until subscription and billing record are confirmed
    */
   private verifySubscriptionCreation(): void {
     console.log('📋 [SUBSCRIPTION-SUCCESS] Verifying subscription creation for session:', this.sessionId);
-    // TODO: Implement actual subscription verification API call
-    // For now, we'll simulate the verification
-    console.log('✅ [SUBSCRIPTION-SUCCESS] Subscription creation verification completed (simulated)');
+    
+    if (!this.sessionId) {
+      console.error('❌ [SUBSCRIPTION-SUCCESS] No session ID provided');
+      this.loading = false;
+      this.error = 'No session ID provided. Please contact support if you believe this is an error.';
+      return;
+    }
+
+    // Start polling the verification endpoint
+    this.pollVerification();
+  }
+
+  /**
+   * Polls the verification endpoint until subscription and billing record are confirmed
+   */
+  private pollVerification(): void {
+    if (this.retryCount >= this.maxRetries) {
+      console.error('❌ [SUBSCRIPTION-SUCCESS] Max retries reached - verification failed');
+      this.loading = false;
+      this.error = 'Subscription verification timed out. Please check your subscriptions or contact support.';
+      return;
+    }
+
+    this.retryCount++;
+    console.log(`🔍 [SUBSCRIPTION-SUCCESS] Polling verification attempt ${this.retryCount}/${this.maxRetries}`);
+
+    this.commonService.get<any>(`Stripe/verify-session/${this.sessionId}`).subscribe({
+      next: (response) => {
+        console.log('📥 [SUBSCRIPTION-SUCCESS] Verification response:', response);
+        
+        if (response.statusCode === 200 && response.data?.verified === true) {
+          // Verification successful!
+          console.log('✅ [SUBSCRIPTION-SUCCESS] Verification successful!');
+          this.verified = true;
+          this.verificationStatus = 'verified';
+          this.subscriptionId = response.data.subscriptionId;
+          this.billingRecordCount = response.data.billingRecordCount || 0;
+          this.loading = false;
+          
+          // Clear any polling interval
+          if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+          }
+        } else if (response.statusCode === 202) {
+          // Still processing - continue polling
+          console.log(`⏳ [SUBSCRIPTION-SUCCESS] Verification pending (${response.data?.reason || 'processing'})`);
+          this.verificationStatus = 'pending';
+          
+          // Continue polling after 2 seconds
+          setTimeout(() => {
+            this.pollVerification();
+          }, 2000);
+        } else {
+          // Error occurred
+          console.error('❌ [SUBSCRIPTION-SUCCESS] Verification error:', response.message);
+          this.loading = false;
+          this.error = response.message || 'Failed to verify subscription. Please check your subscriptions or contact support.';
+          
+          // Clear polling interval
+          if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+          }
+        }
+      },
+      error: (err) => {
+        console.error('❌ [SUBSCRIPTION-SUCCESS] Verification API error:', err);
+        
+        // If it's a 404 or server error, continue polling (might be temporary)
+        if (this.retryCount < this.maxRetries && (err.status === 404 || err.status >= 500)) {
+          console.log(`⏳ [SUBSCRIPTION-SUCCESS] Retrying after error (attempt ${this.retryCount}/${this.maxRetries})`);
+          setTimeout(() => {
+            this.pollVerification();
+          }, 2000);
+        } else {
+          // Max retries or client error - stop polling
+          this.loading = false;
+          this.error = err.error?.message || 'Failed to verify subscription. Please check your subscriptions or contact support.';
+          
+          // Clear polling interval
+          if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Cleanup polling on component destroy
+   */
+  ngOnDestroy(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   }
 
   /**
    * Verify payment method was saved to user's profile
+   * Note: Payment method is automatically saved by Stripe during checkout
+   * This is just for logging - actual verification is handled by verifySubscriptionCreation
    */
   private verifyPaymentMethodSaved(): void {
-    console.log('💳 [SUBSCRIPTION-SUCCESS] Verifying payment method was saved for session:', this.sessionId);
-    
-    // TODO: Implement payment method verification API call
-    // This would check if the user now has payment methods saved
-    console.log('✅ [SUBSCRIPTION-SUCCESS] Verifying payment method was saved for session:', this.sessionId);
-    
-    // Simulate verification completion
-    setTimeout(() => {
-      this.loading = false;
-      console.log('✅ [SUBSCRIPTION-SUCCESS] Subscription and payment method verification completed');
-    }, 2000);
+    console.log('💳 [SUBSCRIPTION-SUCCESS] Payment method is automatically saved by Stripe during checkout');
+    // Payment method verification is handled as part of subscription verification
+    // No separate API call needed
   }
 
   goToSubscriptions(): void {

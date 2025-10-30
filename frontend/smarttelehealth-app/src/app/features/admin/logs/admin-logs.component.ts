@@ -21,7 +21,7 @@ import { HubConnectionState } from '@microsoft/signalr';
 import { Subject, takeUntil, debounceTime } from 'rxjs';
 import { LogsService } from '../../../core/services/logs.service';
 import { SignalRLogsService } from '../../../core/services/signalr-logs.service';
-import { ApplicationLog, ApplicationLogFilterDto, LogStatistics } from '../../../core/models/logs.model';
+import { ApplicationLog, ApplicationLogFilterDto, AuditLogFilterDto, AuditLog, LogStatistics } from '../../../core/models/logs.model';
 
 @Component({
   selector: 'app-admin-logs',
@@ -54,8 +54,9 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
   @ViewChild(CdkVirtualScrollViewport) viewport!: CdkVirtualScrollViewport;
 
   // Log data
-  logs: ApplicationLog[] = [];
-  displayedLogs: ApplicationLog[] = [];
+  logs: (ApplicationLog | AuditLog)[] = [];
+  displayedLogs: (ApplicationLog | AuditLog)[] = [];
+  currentLogType: 'application' | 'audit' = 'application';
   
   // Virtual scroll
   itemSize = 80;
@@ -64,6 +65,8 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
   filterForm!: FormGroup;
   logLevels = ['Information', 'Warning', 'Error', 'Critical', 'Debug'];
   sources: string[] = [];
+  auditTypes: string[] = ['Create', 'Update', 'Delete'];
+  availableTables: string[] = [];
   
   // Real-time
   isRealTimeEnabled = true;
@@ -97,6 +100,7 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
     console.log('[AdminLogsComponent] ngOnInit - Component initialized');
     this.initializeFilters();
     console.log('[AdminLogsComponent] Filters initialized:', this.filterForm.value);
+    this.loadFilterOptions();
     this.loadLogs();
     console.log('[AdminLogsComponent] Loading logs...');
     this.connectToSignalR();
@@ -121,14 +125,46 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
     endOfToday.setHours(23, 59, 59, 999);  // End of today
     
     this.filterForm = this.fb.group({
+      // Application log filters
       logLevel: [[]],
       source: [[]],
+      operation: [''],
+      correlationId: [''],
+      // Audit log filters
+      type: [[]],
+      tableName: [[]],
+      entityId: [''],
+      // Common filters
       startDate: [yesterday],
       endDate: [endOfToday],
       searchTerm: [''],
-      userId: [null],
-      operation: [''],
-      correlationId: ['']
+      userId: [null]
+    });
+  }
+
+  private loadFilterOptions(): void {
+    // Load available tables for audit logs
+    this.logsService.getAvailableTables().subscribe({
+      next: (response) => {
+        if (response && response.statusCode === 200 && response.data) {
+          this.availableTables = response.data;
+        }
+      },
+      error: (error) => {
+        console.error('Error loading available tables:', error);
+      }
+    });
+
+    // Load available types for audit logs
+    this.logsService.getAvailableTypes().subscribe({
+      next: (response) => {
+        if (response && response.statusCode === 200 && response.data) {
+          this.auditTypes = response.data;
+        }
+      },
+      error: (error) => {
+        console.error('Error loading available types:', error);
+      }
     });
   }
 
@@ -161,12 +197,24 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
       this.signalRService.getApplicationLogs()
         .pipe(takeUntil(this.destroy$))
         .subscribe(log => {
-          console.log('[AdminLogsComponent] Received real-time log:', log);
-          if (log && this.isRealTimeEnabled) {
+          console.log('[AdminLogsComponent] Received real-time application log:', log);
+          if (log && this.isRealTimeEnabled && this.currentLogType === 'application') {
             console.log('[AdminLogsComponent] Adding real-time log to display');
             this.addRealTimeLog(log);
           } else {
-            console.log('[AdminLogsComponent] Real-time disabled, ignoring log');
+            console.log('[AdminLogsComponent] Real-time disabled or wrong log type, ignoring log');
+          }
+        });
+
+      this.signalRService.getAuditLogs()
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(log => {
+          console.log('[AdminLogsComponent] Received real-time audit log:', log);
+          if (log && this.isRealTimeEnabled && this.currentLogType === 'audit') {
+            console.log('[AdminLogsComponent] Adding real-time audit log to display');
+            this.addRealTimeLog(log);
+          } else {
+            console.log('[AdminLogsComponent] Real-time disabled or wrong log type, ignoring audit log');
           }
         });
     } catch (error) {
@@ -174,7 +222,7 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
     }
   }
 
-  private addRealTimeLog(log: ApplicationLog): void {
+  private addRealTimeLog(log: ApplicationLog | AuditLog): void {
     // Add to beginning of array
     this.logs.unshift(log);
     this.displayedLogs.unshift(log);
@@ -196,10 +244,25 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
   }
 
   loadLogs(): void {
-    console.log('[AdminLogsComponent] loadLogs - Starting to load logs');
+    if (this.currentLogType === 'application') {
+      this.loadApplicationLogs();
+    } else {
+      this.loadAuditLogs();
+    }
+  }
+
+  loadApplicationLogs(): void {
+    console.log('[AdminLogsComponent] loadApplicationLogs - Starting to load logs');
     this.isLoading = true;
     const filter: ApplicationLogFilterDto = {
-      ...this.filterForm.value,
+      logLevel: this.filterForm.get('logLevel')?.value,
+      source: this.filterForm.get('source')?.value,
+      startDate: this.filterForm.get('startDate')?.value,
+      endDate: this.filterForm.get('endDate')?.value,
+      userId: this.filterForm.get('userId')?.value,
+      operation: this.filterForm.get('operation')?.value,
+      correlationId: this.filterForm.get('correlationId')?.value,
+      searchTerm: this.filterForm.get('searchTerm')?.value,
       page: this.currentPage,
       pageSize: this.pageSize
     };
@@ -210,9 +273,6 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           console.log('[AdminLogsComponent] Received logs response:', response);
-          console.log('[AdminLogsComponent] Response type:', typeof response);
-          console.log('[AdminLogsComponent] Response.statusCode:', response?.statusCode);
-          console.log('[AdminLogsComponent] Response.data:', response?.data);
           
           if (response && response.statusCode === 200 && response.data) {
             this.logs = response.data.items || response.data;
@@ -220,11 +280,9 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
             this.totalLogs = response.data.totalCount || this.logs.length;
             console.log('[AdminLogsComponent] ✅ Loaded logs count:', this.logs.length);
             console.log('[AdminLogsComponent] ✅ Total logs:', this.totalLogs);
-            console.log('[AdminLogsComponent] First 3 logs:', this.logs.slice(0, 3));
             this.extractSources();
           } else {
             console.warn('[AdminLogsComponent] ⚠️ No data in response or response not successful');
-            console.log('[AdminLogsComponent] Response statusCode:', response?.statusCode);
             this.logs = [];
             this.displayedLogs = [];
             this.totalLogs = 0;
@@ -238,8 +296,56 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
       });
   }
 
+  loadAuditLogs(): void {
+    console.log('[AdminLogsComponent] loadAuditLogs - Starting to load audit logs');
+    this.isLoading = true;
+    const filter: AuditLogFilterDto = {
+      type: this.filterForm.get('type')?.value,
+      tableName: this.filterForm.get('tableName')?.value,
+      startDate: this.filterForm.get('startDate')?.value,
+      endDate: this.filterForm.get('endDate')?.value,
+      userId: this.filterForm.get('userId')?.value,
+      entityId: this.filterForm.get('entityId')?.value,
+      searchTerm: this.filterForm.get('searchTerm')?.value,
+      page: this.currentPage,
+      pageSize: this.pageSize
+    };
+    console.log('[AdminLogsComponent] Audit filter applied:', filter);
+
+    this.logsService.getAuditLogs(filter)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('[AdminLogsComponent] Received audit logs response:', response);
+          
+          if (response && response.statusCode === 200 && response.data) {
+            this.logs = response.data.items || response.data;
+            this.displayedLogs = [...this.logs];
+            this.totalLogs = response.data.totalCount || this.logs.length;
+            console.log('[AdminLogsComponent] ✅ Loaded audit logs count:', this.logs.length);
+            console.log('[AdminLogsComponent] ✅ Total audit logs:', this.totalLogs);
+          } else {
+            console.warn('[AdminLogsComponent] ⚠️ No data in response or response not successful');
+            this.logs = [];
+            this.displayedLogs = [];
+            this.totalLogs = 0;
+          }
+          this.isLoading = false;
+        },
+        error: (error) => {
+          console.error('[AdminLogsComponent] ❌ Error loading audit logs:', error);
+          this.isLoading = false;
+        }
+      });
+  }
+
   private extractSources(): void {
-    const sourceSet = new Set(this.logs.map(log => log.source).filter(s => s));
+    const sourceSet = new Set(
+      this.logs
+        .filter(log => this.isApplicationLog(log))
+        .map(log => (log as ApplicationLog).source)
+        .filter(s => s)
+    );
     this.sources = Array.from(sourceSet).sort();
   }
 
@@ -268,17 +374,35 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
   }
 
   clearFilters(): void {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    
     this.filterForm.reset({
       logLevel: [],
       source: [],
-      startDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      endDate: new Date(),
+      type: [],
+      tableName: [],
+      startDate: yesterday,
+      endDate: endOfToday,
       searchTerm: '',
       userId: null,
       operation: '',
-      correlationId: ''
+      correlationId: '',
+      entityId: ''
     });
     this.applyFilters();
+  }
+
+  switchLogType(logType: 'application' | 'audit'): void {
+    if (this.currentLogType !== logType) {
+      this.currentLogType = logType;
+      this.currentPage = 1;
+      this.loadLogs();
+    }
   }
 
   toggleRealTime(): void {
@@ -341,6 +465,25 @@ export class AdminLogsComponent implements OnInit, OnDestroy {
       return 'bug_report';
     }
     return 'info';
+  }
+
+  isApplicationLog(log: ApplicationLog | AuditLog): log is ApplicationLog {
+    return 'logLevel' in log && 'source' in log;
+  }
+
+  isAuditLog(log: ApplicationLog | AuditLog): log is AuditLog {
+    return 'type' in log && 'tableName' in log;
+  }
+
+  getAuditTypeClass(type: string): string {
+    const typeLower = type.toLowerCase();
+    if (typeLower === 'delete') {
+      return 'audit-delete';
+    }
+    if (typeLower === 'create') {
+      return 'audit-create';
+    }
+    return 'audit-update';
   }
 
   formatTimestamp(timestamp: Date | string): string {

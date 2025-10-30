@@ -38,6 +38,8 @@ public class PaymentService : IPaymentService
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFailedRefundRepository _failedRefundRepository;
+    private readonly IBillingAdjustmentRepository _billingAdjustmentRepository;
+    private readonly IRealTimeLogsService _realTimeLogsService;
 
     /// <summary>
     /// Initializes a new instance of the PaymentService with all required dependencies
@@ -51,6 +53,8 @@ public class PaymentService : IPaymentService
     /// <param name="subscriptionRepository">Repository for subscription data access operations</param>
     /// <param name="unitOfWork">Unit of work for transaction management</param>
     /// <param name="failedRefundRepository">Repository for tracking failed compensating refunds</param>
+    /// <param name="billingAdjustmentRepository">Repository for billing adjustments</param>
+    /// <param name="realTimeLogsService">Service for broadcasting admin alerts in real-time</param>
     public PaymentService(
         IStripeBillingService stripeBillingService,
         IBillingRepository billingRepository,
@@ -60,7 +64,9 @@ public class PaymentService : IPaymentService
         ISubscriptionPaymentRepository subscriptionPaymentRepository,
         ISubscriptionRepository subscriptionRepository,
         IUnitOfWork unitOfWork,
-        IFailedRefundRepository failedRefundRepository)
+        IFailedRefundRepository failedRefundRepository,
+        IBillingAdjustmentRepository billingAdjustmentRepository,
+        IRealTimeLogsService realTimeLogsService)
     {
         _stripeBillingService = stripeBillingService ?? throw new ArgumentNullException(nameof(stripeBillingService));
         _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
@@ -71,6 +77,8 @@ public class PaymentService : IPaymentService
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _failedRefundRepository = failedRefundRepository ?? throw new ArgumentNullException(nameof(failedRefundRepository));
+        _billingAdjustmentRepository = billingAdjustmentRepository ?? throw new ArgumentNullException(nameof(billingAdjustmentRepository));
+        _realTimeLogsService = realTimeLogsService ?? throw new ArgumentNullException(nameof(realTimeLogsService));
     }
 
     #region Core Payment Processing
@@ -314,81 +322,8 @@ public class PaymentService : IPaymentService
 
     #endregion
 
-    #region Refund Operations
-
-    /// <summary>
-    /// Processes a refund for a specific billing record
-    /// </summary>
-    /// <param name="billingRecordId">The unique identifier of the billing record to process refund for</param>
-    /// <param name="amount">The amount to refund</param>
-    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
-    /// <returns>JsonModel containing refund processing results and status</returns>
-    public async Task<JsonModel> ProcessRefundAsync(Guid billingRecordId, decimal amount, TokenModel tokenModel)
-    {
-        try
-        {
-            _logger.LogInformation("Processing refund for billing record {BillingRecordId}, amount: {Amount}", billingRecordId, amount);
-            
-            // Delegate to StripeBillingService for Stripe-specific refund processing
-            var refundResult = await _stripeBillingService.ProcessStripeRefundAsync(billingRecordId, amount, tokenModel);
-            
-            if (refundResult.StatusCode == 200)
-            {
-                _logger.LogInformation("Refund processed successfully for billing record {BillingRecordId}", billingRecordId);
-            }
-            else
-            {
-                _logger.LogWarning("Failed to process refund for billing record {BillingRecordId}: {Message}", 
-                    billingRecordId, refundResult.Message);
-            }
-            
-            return refundResult;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing refund for billing record {BillingRecordId}", billingRecordId);
-            return new JsonModel { data = new object(), Message = "Error processing refund", StatusCode = 500 };
-        }
-    }
-
-    /// <summary>
-    /// Processes a refund for a specific billing record with reason
-    /// </summary>
-    /// <param name="billingRecordId">The unique identifier of the billing record to process refund for</param>
-    /// <param name="amount">The amount to refund</param>
-    /// <param name="reason">The reason for the refund</param>
-    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
-    /// <returns>JsonModel containing refund processing results and status</returns>
-    public async Task<JsonModel> ProcessRefundAsync(Guid billingRecordId, decimal amount, string reason, TokenModel tokenModel)
-    {
-        try
-        {
-            _logger.LogInformation("Processing refund for billing record {BillingRecordId}, amount: {Amount}, reason: {Reason}", 
-                billingRecordId, amount, reason);
-            
-            // Delegate to StripeBillingService for Stripe-specific refund processing
-            var refundResult = await _stripeBillingService.ProcessStripeRefundAsync(billingRecordId, amount, tokenModel);
-            
-            if (refundResult.StatusCode == 200)
-            {
-                _logger.LogInformation("Refund processed successfully for billing record {BillingRecordId}", billingRecordId);
-            }
-            else
-            {
-                _logger.LogWarning("Failed to process refund for billing record {BillingRecordId}: {Message}", 
-                    billingRecordId, refundResult.Message);
-            }
-            
-            return refundResult;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing refund for billing record {BillingRecordId}", billingRecordId);
-            return new JsonModel { data = new object(), Message = "Error processing refund", StatusCode = 500 };
-        }
-    }
-
-    #endregion
+    // NOTE: ProcessRefundAsync methods moved to "Refund Operations" region below (lines ~1989+)
+    // with complete audit trail including BillingAdjustment creation
 
     #region Payment Method Management
 
@@ -1902,6 +1837,36 @@ public class PaymentService : IPaymentService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error resetting privileges for subscription {SubscriptionId}", subscription.Id);
+            
+            // TASK 3.3: Send admin alert when privilege reset fails
+            try
+            {
+                // Get plan info for admin alert
+                var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(subscription.SubscriptionPlanId);
+                
+                var alertMessage = $"Privilege reset failed during payment processing for subscription {subscription.Id}. " +
+                                 $"User ID: {subscription.UserId}, " +
+                                 $"Plan: {plan?.Name ?? "Unknown"}, " +
+                                 $"Error: {ex.Message}. " +
+                                 $"Payment was successful, but privileges were NOT reset for the new billing period. " +
+                                 $"Manual intervention may be required.";
+                
+                _logger.LogCritical(
+                    "CRITICAL: Privilege reset failed for subscription {SubscriptionId} - {Message}",
+                    subscription.Id, alertMessage);
+                
+                // Broadcast to all connected admin users
+                await _realTimeLogsService.BroadcastNotificationAsync(
+                    "Privilege Reset Failure",
+                    alertMessage,
+                    "error");
+            }
+            catch (Exception alertEx)
+            {
+                _logger.LogError(alertEx, "Failed to send admin alert for privilege reset failure");
+                // Don't fail the payment operation if alert fails
+            }
+            
             // Don't throw - privilege reset failure shouldn't fail the payment
         }
     }
@@ -1944,6 +1909,228 @@ public class PaymentService : IPaymentService
             BillingRecord.BillingType.Refund => SubscriptionPayment.PaymentType.Refund,
             _ => SubscriptionPayment.PaymentType.Subscription // Default to Subscription for unknown types
         };
+    }
+
+    #endregion
+
+    #region Refund Operations
+
+    /// <summary>
+    /// Processes a refund for a specific billing record
+    /// Creates complete audit trail: Stripe refund, BillingAdjustment record, links to SubscriptionPayment
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record to refund</param>
+    /// <param name="amount">The amount to refund (must be <= billing record total)</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing refund processing results and status</returns>
+    public async Task<JsonModel> ProcessRefundAsync(Guid billingRecordId, decimal amount, TokenModel tokenModel)
+    {
+        return await ProcessRefundAsync(billingRecordId, amount, null, tokenModel);
+    }
+
+    /// <summary>
+    /// Processes a refund for a specific billing record with reason
+    /// Creates complete audit trail: Stripe refund, BillingAdjustment record, links to SubscriptionPayment
+    /// </summary>
+    /// <param name="billingRecordId">The unique identifier of the billing record to refund</param>
+    /// <param name="amount">The amount to refund (must be <= billing record total)</param>
+    /// <param name="reason">Reason for the refund</param>
+    /// <param name="tokenModel">Token containing user authentication information for audit purposes</param>
+    /// <returns>JsonModel containing refund processing results and status</returns>
+    public async Task<JsonModel> ProcessRefundAsync(Guid billingRecordId, decimal amount, string reason, TokenModel tokenModel)
+    {
+        try
+        {
+            _logger.LogInformation("🔄 Processing refund for billing record {BillingRecordId}, amount: ${Amount}", 
+                billingRecordId, amount);
+
+            // 1. Validate billing record exists and is eligible for refund
+            var billingRecord = await _billingRepository.GetByIdAsync(billingRecordId);
+            if (billingRecord == null)
+            {
+                _logger.LogWarning("❌ Billing record {BillingRecordId} not found for refund", billingRecordId);
+                return new JsonModel { data = new object(), Message = "Billing record not found", StatusCode = 404 };
+            }
+
+            if (billingRecord.Status != BillingRecord.BillingStatus.Paid)
+            {
+                _logger.LogWarning("❌ Billing record {BillingRecordId} status is {Status}, cannot refund", 
+                    billingRecordId, billingRecord.Status);
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Cannot refund billing record with status {billingRecord.Status}", 
+                    StatusCode = 400 
+                };
+            }
+
+            if (amount <= 0 || amount > billingRecord.TotalAmount)
+            {
+                _logger.LogWarning("❌ Invalid refund amount ${Amount} for billing record {BillingRecordId} with total ${Total}", 
+                    amount, billingRecordId, billingRecord.TotalAmount);
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Refund amount must be between 0 and {billingRecord.TotalAmount}", 
+                    StatusCode = 400 
+                };
+            }
+
+            // 2. Find associated SubscriptionPayment for audit trail linking
+            SubscriptionPayment? subscriptionPayment = null;
+            if (billingRecord.SubscriptionId.HasValue)
+            {
+                subscriptionPayment = await _subscriptionPaymentRepository.GetByBillingRecordIdAsync(billingRecordId);
+                if (subscriptionPayment == null)
+                {
+                    _logger.LogWarning("⚠️ No SubscriptionPayment found for billing record {BillingRecordId}, refund will proceed without payment link", 
+                        billingRecordId);
+                }
+            }
+
+            // 3. Process refund via Stripe
+            string? stripeRefundId = null;
+            if (!string.IsNullOrEmpty(billingRecord.StripePaymentIntentId))
+            {
+                try
+                {
+                    _logger.LogInformation("💳 Processing Stripe refund for payment intent {PaymentIntentId}", 
+                        billingRecord.StripePaymentIntentId);
+                    
+                    var refundSuccess = await _stripeService.ProcessRefundAsync(
+                        billingRecord.StripePaymentIntentId, 
+                        amount, 
+                        tokenModel);
+                    
+                    if (!refundSuccess)
+                    {
+                        _logger.LogError("❌ Stripe refund failed for payment intent {PaymentIntentId}", 
+                            billingRecord.StripePaymentIntentId);
+                        return new JsonModel 
+                        { 
+                            data = new object(), 
+                            Message = "Stripe refund processing failed", 
+                            StatusCode = 500 
+                        };
+                    }
+
+                    // Note: Stripe refund ID would be available from Stripe API response
+                    // For now, we'll mark it as processed - could enhance to store actual refund ID
+                    _logger.LogInformation("✅ Stripe refund processed successfully for payment intent {PaymentIntentId}", 
+                        billingRecord.StripePaymentIntentId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Error processing Stripe refund for payment intent {PaymentIntentId}", 
+                        billingRecord.StripePaymentIntentId);
+                    return new JsonModel 
+                    { 
+                        data = new object(), 
+                        Message = $"Stripe refund error: {ex.Message}", 
+                        StatusCode = 500 
+                    };
+                }
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ Billing record {BillingRecordId} has no Stripe payment intent ID, skipping Stripe refund", 
+                    billingRecordId);
+                // Continue with local refund processing even if no Stripe payment intent
+            }
+
+            // 4. Create BillingAdjustment record for audit trail
+            var adjustment = new BillingAdjustment
+            {
+                Id = Guid.NewGuid(),
+                BillingRecordId = billingRecordId,
+                Type = BillingAdjustment.AdjustmentType.Refund,
+                Amount = amount,
+                Description = $"Refund of ${amount} for billing record {billingRecordId}",
+                Reason = reason ?? "Refund processed",
+                IsPercentage = false,
+                AppliedAt = DateTime.UtcNow,
+                AppliedBy = tokenModel.UserID,
+                IsApproved = true,
+                ApprovalNotes = $"Refund processed via PaymentService. Stripe refund ID: {stripeRefundId ?? "N/A"}",
+                IsActive = true,
+                CreatedBy = tokenModel.UserID,
+                CreatedDate = DateTime.UtcNow,
+                UpdatedBy = tokenModel.UserID,
+                UpdatedDate = DateTime.UtcNow
+            };
+
+            await _billingAdjustmentRepository.CreateAsync(adjustment);
+            _logger.LogInformation("✅ Created BillingAdjustment {AdjustmentId} for refund", adjustment.Id);
+
+            // 5. Update BillingRecord status
+            if (amount >= billingRecord.TotalAmount)
+            {
+                billingRecord.Status = BillingRecord.BillingStatus.Refunded;
+                _logger.LogInformation("📋 Billing record {BillingRecordId} marked as fully refunded", billingRecordId);
+            }
+            else
+            {
+                // Partial refund - status remains Paid but we track the adjustment
+                _logger.LogInformation("📋 Billing record {BillingRecordId} has partial refund of ${Amount}", 
+                    billingRecordId, amount);
+            }
+
+            billingRecord.UpdatedBy = tokenModel.UserID;
+            billingRecord.UpdatedDate = DateTime.UtcNow;
+            await _billingRepository.UpdateBillingRecordAsync(billingRecord);
+
+            // 6. Update SubscriptionPayment status if exists
+            if (subscriptionPayment != null)
+            {
+                if (amount >= billingRecord.TotalAmount)
+                {
+                    subscriptionPayment.Status = SubscriptionPayment.PaymentStatus.Refunded;
+                }
+                else
+                {
+                    subscriptionPayment.Status = SubscriptionPayment.PaymentStatus.PartiallyRefunded;
+                }
+                
+                subscriptionPayment.UpdatedBy = tokenModel.UserID;
+                subscriptionPayment.UpdatedDate = DateTime.UtcNow;
+                await _subscriptionPaymentRepository.UpdateAsync(subscriptionPayment);
+                _logger.LogInformation("✅ Updated SubscriptionPayment {PaymentId} status to {Status}", 
+                    subscriptionPayment.Id, subscriptionPayment.Status);
+            }
+
+            // 7. Save all changes
+            await _unitOfWork.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "✅ REFUND COMPLETE: BillingRecord={BillingRecordId}, Amount=${Amount}, " +
+                "Adjustment={AdjustmentId}, SubscriptionPayment={PaymentId}, StripeRefundId={StripeRefundId}",
+                billingRecordId, amount, adjustment.Id, subscriptionPayment?.Id, stripeRefundId ?? "N/A");
+
+            return new JsonModel
+            {
+                data = new
+                {
+                    billingRecordId = billingRecordId,
+                    refundAmount = amount,
+                    adjustmentId = adjustment.Id,
+                    subscriptionPaymentId = subscriptionPayment?.Id,
+                    stripeRefundId = stripeRefundId,
+                    isFullRefund = amount >= billingRecord.TotalAmount
+                },
+                Message = $"Refund of ${amount} processed successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error processing refund for billing record {BillingRecordId}", billingRecordId);
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"Error processing refund: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
     }
 
     #endregion

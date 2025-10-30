@@ -6,7 +6,8 @@ import {
   SubscriptionPlanService,
   CategoryService,
   PrivilegeService,
-  MasterDataService
+  MasterDataService,
+  SystemSettingsService
 } from '../../../../core/services';
 import {
   SubscriptionPlanDto,
@@ -16,6 +17,7 @@ import {
   PrivilegeDto
 } from '../../../../core/models';
 import { BillingCycleDto, CurrencyDto } from '../../../../core/models/master-data.model';
+import { SystemSettingsDto } from '../../../../core/services/system-settings.service';
 
 /**
  * Admin Edit Plan Component - 4-Step Stepper Form
@@ -51,6 +53,7 @@ export class PlanEditComponent implements OnInit {
   selectedPrivileges: any[] = [];
   billingCycles: BillingCycleDto[] = []; // ✅ Added missing property with proper type
   currencies: CurrencyDto[] = [];         // ✅ Added missing property with proper type
+  systemSettings: SystemSettingsDto | null = null;
 
   loading = false;
   updating = false;
@@ -63,7 +66,8 @@ export class PlanEditComponent implements OnInit {
     private planService: SubscriptionPlanService,
     private categoryService: CategoryService,
     private privilegeService: PrivilegeService,
-    private masterDataService: MasterDataService
+    private masterDataService: MasterDataService,
+    private systemSettingsService: SystemSettingsService
   ) {}
 
   ngOnInit(): void {

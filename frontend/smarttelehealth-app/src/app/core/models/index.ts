@@ -19,6 +19,9 @@ export * from './privilege.model';
 // Billing Models
 export * from './billing.model';
 
+// Invoice Models
+export * from './invoice.model';
+
 // Payment Models
 export * from './payment.model';
 

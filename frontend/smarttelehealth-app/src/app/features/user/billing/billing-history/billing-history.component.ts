@@ -44,6 +44,10 @@ export class BillingHistoryComponent implements OnInit {
   statusOptions = ['All', 'Paid', 'Pending', 'Failed', 'Overdue', 'Refunded'];
   typeOptions = ['All', 'Subscription', 'Overage', 'Consultation', 'Medication'];
 
+  // Invoice filter
+  showOnlyInvoices = false;
+  generatingInvoice: string | null = null;
+
   constructor(
     private authService: AuthService,
     private billingService: BillingService,
@@ -108,6 +112,57 @@ export class BillingHistoryComponent implements OnInit {
   applyFilters(): void {
     this.currentPage = 1;
     this.loadBillingRecords();
+  }
+
+  /**
+   * Toggle invoice-only view
+   */
+  toggleInvoiceView(): void {
+    this.showOnlyInvoices = !this.showOnlyInvoices;
+    this.applyFilters();
+  }
+
+  /**
+   * Check if billing record has invoice
+   */
+  hasInvoice(record: BillingRecordDto): boolean {
+    return !!record.invoiceNumber || !!record.stripeInvoiceId;
+  }
+
+  /**
+   * Open Stripe hosted invoice in new tab
+   */
+  openStripeInvoice(record: BillingRecordDto): void {
+    if (!record.stripeInvoiceId) return;
+
+    // In a real implementation, you'd call backend to get the hosted URL
+    // For now, open Stripe dashboard
+    const stripeInvoiceUrl = `https://dashboard.stripe.com/invoices/${record.stripeInvoiceId}`;
+    window.open(stripeInvoiceUrl, '_blank');
+  }
+
+  /**
+   * Generate invoice for billing record
+   */
+  generateInvoice(billingRecordId: string): void {
+    this.generatingInvoice = billingRecordId;
+
+    this.billingService.generateInvoice(billingRecordId).subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          alert('Invoice generated successfully!');
+          this.loadBillingRecords(); // Reload to show new invoice
+        } else {
+          alert(response.message || 'Failed to generate invoice');
+        }
+        this.generatingInvoice = null;
+      },
+      error: (error) => {
+        console.error('Error generating invoice:', error);
+        alert('Failed to generate invoice. Please try again.');
+        this.generatingInvoice = null;
+      }
+    });
   }
 
   /**

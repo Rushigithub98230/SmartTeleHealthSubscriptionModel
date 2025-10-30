@@ -79,6 +79,15 @@ export class BillingService {
   }
 
   /**
+   * Generate invoice for a billing record
+   * API: POST /api/Billing/{id}/generate-invoice
+   * Used in: Billing History (generate invoice button)
+   */
+  generateInvoice(billingRecordId: string): Observable<ApiResponse<any>> {
+    return this.commonService.post<any>(`Billing/${billingRecordId}/generate-invoice`, {});
+  }
+
+  /**
    * Export billing records (Admin Only)
    * API: POST /api/Billing/export
    * Used in: Admin Billing Management - Export

@@ -20,5 +20,6 @@ export * from './plan-versioning.service';
 export * from './analytics.service';
 export * from './category.service';
 export * from './master-data.service';
+export * from './system-settings.service';
 
 

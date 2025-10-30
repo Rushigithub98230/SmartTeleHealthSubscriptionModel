@@ -84,19 +84,25 @@ public class LogsService : ILogsService
         {
             _logger.LogInformation("Getting audit logs with filter by user {UserId}", token?.UserID ?? 0);
 
-            var auditLogs = await _auditLogRepository.GetByDateRangeAsync(
-                filter.StartDate ?? DateTime.MinValue,
-                filter.EndDate ?? DateTime.MaxValue);
+            var (logs, totalCount) = await _auditLogRepository.GetAuditLogsAsync(
+                filter.StartDate,
+                filter.EndDate,
+                filter.Type,
+                filter.TableName,
+                filter.UserId,
+                filter.SearchText,
+                filter.Page,
+                filter.PageSize);
 
-            var dtos = _mapper.Map<List<AuditLogDto>>(auditLogs);
+            var dtos = _mapper.Map<List<AuditLogDto>>(logs);
 
             var result = new
             {
-                logs = dtos,
-                totalCount = dtos.Count,
+                items = dtos,  // Changed from 'logs' to 'items' to match frontend expectation
+                totalCount,
                 page = filter.Page,
                 pageSize = filter.PageSize,
-                totalPages = (int)Math.Ceiling(dtos.Count / (double)filter.PageSize)
+                totalPages = (int)Math.Ceiling(totalCount / (double)filter.PageSize)
             };
 
             return new JsonModel
@@ -342,6 +348,66 @@ public class LogsService : ILogsService
             {
                 data = new object(),
                 Message = "Failed to retrieve log statistics",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Gets available table names for audit log filtering.
+    /// </summary>
+    public async Task<JsonModel> GetAvailableTablesAsync(TokenModel token)
+    {
+        try
+        {
+            _logger.LogInformation("Getting available tables for audit log filtering by user {UserId}", token?.UserID ?? 0);
+
+            var tables = await _auditLogRepository.GetAvailableTablesAsync();
+
+            return new JsonModel
+            {
+                data = tables,
+                Message = "Available tables retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting available tables by user {UserId}", token?.UserID ?? 0);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve available tables",
+                StatusCode = 500
+            };
+        }
+    }
+
+    /// <summary>
+    /// Gets available audit types for filtering.
+    /// </summary>
+    public async Task<JsonModel> GetAvailableTypesAsync(TokenModel token)
+    {
+        try
+        {
+            _logger.LogInformation("Getting available types for audit log filtering by user {UserId}", token?.UserID ?? 0);
+
+            var types = await _auditLogRepository.GetAvailableTypesAsync();
+
+            return new JsonModel
+            {
+                data = types,
+                Message = "Available types retrieved successfully",
+                StatusCode = 200
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting available types by user {UserId}", token?.UserID ?? 0);
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Failed to retrieve available types",
                 StatusCode = 500
             };
         }

@@ -27,6 +27,7 @@ export class BillingDetailComponent implements OnInit {
   loading = false;
   error: string | null = null;
   downloadingInvoice = false;
+  generatingInvoice = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -34,6 +35,67 @@ export class BillingDetailComponent implements OnInit {
     private billingService: BillingService,
     private invoiceService: InvoiceService
   ) {}
+
+  /**
+   * Check if invoice exists for this billing record
+   */
+  hasInvoice(): boolean {
+    return !!(this.billingRecord?.invoiceNumber || this.billingRecord?.stripeInvoiceId);
+  }
+
+  /**
+   * Navigate to dedicated invoice detail page
+   */
+  viewInvoiceDetail(): void {
+    if (this.billingRecord?.invoiceNumber) {
+      console.log('🔗 [BILLING-DETAIL] Navigating to invoice detail:', this.billingRecord.invoiceNumber);
+      this.router.navigate(['/web/invoices', this.billingRecord.invoiceNumber]);
+    }
+  }
+
+  /**
+   * Generate invoice for this billing record
+   */
+  generateInvoiceForBilling(): void {
+    if (!this.billingRecord?.id) {
+      console.error('❌ [BILLING-DETAIL] No billing record ID to generate invoice');
+      return;
+    }
+
+    this.generatingInvoice = true;
+    console.log('🔄 [BILLING-DETAIL] Generating invoice for billing record:', this.billingRecord.id);
+
+    this.invoiceService.generateInvoice(this.billingRecord.id).subscribe({
+      next: (response) => {
+        console.log('📄 [BILLING-DETAIL] Generate invoice response:', response);
+
+        if (response.statusCode === 200) {
+          alert('Invoice generated successfully!');
+          this.loadBillingDetail(); // Reload to show new invoice
+        } else {
+          alert(response.message || 'Failed to generate invoice');
+          console.error('❌ [BILLING-DETAIL] Failed to generate invoice:', response.message);
+        }
+        this.generatingInvoice = false;
+      },
+      error: (error) => {
+        console.error('❌ [BILLING-DETAIL] Error generating invoice:', error);
+        alert(error.error?.message || 'Failed to generate invoice');
+        this.generatingInvoice = false;
+      }
+    });
+  }
+
+  /**
+   * View invoice in Stripe dashboard
+   */
+  viewInStripe(): void {
+    if (this.billingRecord?.stripeInvoiceId) {
+      const stripeUrl = `https://dashboard.stripe.com/invoices/${this.billingRecord.stripeInvoiceId}`;
+      console.log('🔗 [BILLING-DETAIL] Opening Stripe invoice:', stripeUrl);
+      window.open(stripeUrl, '_blank');
+    }
+  }
 
   ngOnInit(): void {
     this.billingId = this.route.snapshot.params['id'];

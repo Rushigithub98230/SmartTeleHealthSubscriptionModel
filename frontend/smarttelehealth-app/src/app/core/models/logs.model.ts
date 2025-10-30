@@ -50,6 +50,7 @@ export interface AuditLogFilterDto {
   startDate?: Date;
   endDate?: Date;
   userId?: number;
+  entityId?: string;
   searchTerm?: string;
   page?: number;
   pageSize?: number;

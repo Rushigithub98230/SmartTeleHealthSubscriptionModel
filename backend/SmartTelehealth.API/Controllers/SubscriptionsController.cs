@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Core.DTOs;
+using SmartTelehealth.Core.Enums;
 using System.Security.Claims;
 
 namespace SmartTelehealth.API.Controllers;
@@ -22,6 +24,8 @@ public class SubscriptionsController : BaseController
     private readonly ISubscriptionPlanService _subscriptionPlanService;
     private readonly IPrivilegeService _privilegeService;
     private readonly ISubscriptionBillingService _subscriptionBillingService;
+    private readonly IStripeSynchronizationService _stripeSyncService;
+    private readonly ILogger<SubscriptionsController> _logger;
     
 
     /// <summary>
@@ -32,13 +36,22 @@ public class SubscriptionsController : BaseController
     /// <param name="subscriptionPlanService">Service for handling subscription plan-related business logic</param>
     /// <param name="privilegeService">Service for privilege management operations</param>
     /// <param name="subscriptionBillingService">Service for subscription billing operations</param>
-    public SubscriptionsController(ISubscriptionService subscriptionService, ISubscriptionLifecycleService subscriptionLifecycleService, ISubscriptionPlanService subscriptionPlanService, IPrivilegeService privilegeService, ISubscriptionBillingService subscriptionBillingService)
+    public SubscriptionsController(
+        ISubscriptionService subscriptionService, 
+        ISubscriptionLifecycleService subscriptionLifecycleService, 
+        ISubscriptionPlanService subscriptionPlanService, 
+        IPrivilegeService privilegeService, 
+        ISubscriptionBillingService subscriptionBillingService,
+        IStripeSynchronizationService stripeSyncService,
+        ILogger<SubscriptionsController> logger)
     {
         _subscriptionService = subscriptionService;
         _subscriptionLifecycleService = subscriptionLifecycleService;
         _subscriptionPlanService = subscriptionPlanService;
         _privilegeService = privilegeService;
         _subscriptionBillingService = subscriptionBillingService;
+        _stripeSyncService = stripeSyncService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -98,11 +111,38 @@ public class SubscriptionsController : BaseController
     /// 6. Sets up billing dates and audit fields
     /// 7. Creates initial privilege usage records
     /// 8. Sends welcome notifications
+    /// 
+    /// ⚠️ SECURITY: This endpoint is restricted to ADMIN users only.
+    /// Regular users MUST use the Stripe Checkout flow (POST /api/Checkout/create-session/{planId})
+    /// to ensure payment is verified before subscription creation.
     /// </remarks>
     [HttpPost]
     public async Task<JsonModel> CreateSubscription([FromBody] CreateSubscriptionDto createDto)
     {
-        return await _subscriptionLifecycleService.CreateSubscriptionAsync(createDto, GetToken(HttpContext));
+        var token = GetToken(HttpContext);
+        
+        // SECURITY: Only admins can create subscriptions directly (bypassing payment)
+        // Regular users MUST use POST /api/Checkout/create-session for Stripe Checkout flow
+        if (token.RoleID != (int)RoleId.Admin)
+        {
+            _logger.LogWarning(
+                "❌ SECURITY: User {UserId} (Role: {RoleId}) attempted to create subscription directly (non-admin). " +
+                "Rejecting request. Users must use Stripe Checkout flow.", 
+                token.UserID, token.RoleID);
+            
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = "Direct subscription creation is restricted to administrators. " +
+                         "Please use the checkout flow to purchase a subscription.", 
+                StatusCode = 403 
+            };
+        }
+        
+        _logger.LogInformation("✅ Admin {AdminId} creating subscription directly for user {UserId}", 
+            token.UserID, createDto.UserId);
+        
+        return await _subscriptionLifecycleService.CreateSubscriptionAsync(createDto, token);
     }
 
     /// <summary>
@@ -123,9 +163,9 @@ public class SubscriptionsController : BaseController
     /// - Prevents further billing for the subscription
     /// </remarks>
     [HttpPost("{id}/cancel")]
-    public async Task<JsonModel> CancelSubscription(string id, [FromBody] string reason)
+    public async Task<JsonModel> CancelSubscription(string id, [FromBody] CancelSubscriptionDto dto)
     {
-        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, reason, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, dto?.Reason, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -171,6 +211,206 @@ public class SubscriptionsController : BaseController
     {
         return await _subscriptionLifecycleService.ResumeSubscriptionAsync(id, GetToken(HttpContext));
     }
+
+    #region Scheduled Plan Changes (No Proration)
+
+    /// <summary>
+    /// Schedules a subscription upgrade to take effect at the next billing cycle.
+    /// User continues with current plan and privileges until the next billing date (no immediate proration).
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription to upgrade</param>
+    /// <param name="newPlanId">The GUID of the plan to upgrade to</param>
+    /// <returns>JsonModel containing scheduled upgrade confirmation and effective date</returns>
+    /// <remarks>
+    /// This endpoint implements scheduled upgrades without immediate proration:
+    /// - User pays for current plan until end of billing cycle
+    /// - New plan takes effect at next billing date
+    /// - Privileges remain unchanged until effective date
+    /// - User can cancel the scheduled change anytime before it takes effect
+    /// 
+    /// Validation Rules:
+    /// - Subscription must be "Active"
+    /// - New plan price must be higher than current plan (for upgrade)
+    /// - Cannot schedule if another plan change is already pending
+    /// - Effective date is automatically set to NextBillingDate
+    /// 
+    /// Example Request:
+    /// POST /api/subscriptions/{id}/schedule-upgrade
+    /// {
+    ///   "newPlanId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    /// }
+    /// 
+    /// Example Success Response (200):
+    /// {
+    ///   "data": {
+    ///     "subscriptionId": "...",
+    ///     "currentPlanName": "Basic Plan",
+    ///     "newPlanName": "Premium Plan",
+    ///     "changeEffectiveDate": "2025-11-28T00:00:00Z",
+    ///     "newPrice": 49.99,
+    ///     "message": "Your subscription will upgrade to Premium Plan on Nov 28, 2025..."
+    ///   },
+    ///   "message": "Upgrade to Premium Plan scheduled for Nov 28, 2025",
+    ///   "statusCode": 200
+    /// }
+    /// 
+    /// Error Responses:
+    /// - 400: Subscription not active / New plan not higher priced / Change already scheduled
+    /// - 404: Subscription or plan not found
+    /// - 403: User doesn't own this subscription
+    /// 
+    /// Access Control:
+    /// - Users can schedule upgrades for their own subscriptions
+    /// - Admins can schedule upgrades for any subscription
+    /// </remarks>
+    [HttpPost("{id}/schedule-upgrade")]
+    [Authorize]
+    public async Task<JsonModel> ScheduleUpgrade(string id, [FromBody] SchedulePlanChangeDto dto)
+    {
+        if (!Guid.TryParse(id, out var subscriptionId))
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Invalid subscription ID format",
+                StatusCode = 400
+            };
+        }
+
+        return await _subscriptionLifecycleService.ScheduleUpgradeAsync(
+            subscriptionId,
+            dto.NewPlanId,
+            GetToken(HttpContext)
+        );
+    }
+
+    /// <summary>
+    /// Schedules a subscription downgrade to take effect at the next billing cycle.
+    /// User continues with current plan and privileges until the next billing date (no immediate proration).
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription to downgrade</param>
+    /// <param name="newPlanId">The GUID of the plan to downgrade to</param>
+    /// <returns>JsonModel containing scheduled downgrade confirmation, effective date, and savings</returns>
+    /// <remarks>
+    /// This endpoint implements scheduled downgrades without immediate proration:
+    /// - User retains current plan features until end of billing cycle
+    /// - New plan takes effect at next billing date
+    /// - Privileges remain unchanged until effective date
+    /// - User can cancel the scheduled change anytime before it takes effect
+    /// - System calculates and displays monthly savings
+    /// 
+    /// Validation Rules:
+    /// - Subscription must be "Active"
+    /// - New plan price must be lower than current plan (for downgrade)
+    /// - Cannot schedule if another plan change is already pending
+    /// - Effective date is automatically set to NextBillingDate
+    /// 
+    /// Example Request:
+    /// POST /api/subscriptions/{id}/schedule-downgrade
+    /// {
+    ///   "newPlanId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    /// }
+    /// 
+    /// Example Success Response (200):
+    /// {
+    ///   "data": {
+    ///     "subscriptionId": "...",
+    ///     "currentPlanName": "Premium Plan",
+    ///     "newPlanName": "Basic Plan",
+    ///     "changeEffectiveDate": "2025-11-28T00:00:00Z",
+    ///     "newPrice": 19.99,
+    ///     "currentPriceSavings": 30.00,
+    ///     "message": "Your subscription will downgrade to Basic Plan on Nov 28, 2025. You'll save $30.00/month."
+    ///   },
+    ///   "message": "Downgrade to Basic Plan scheduled for Nov 28, 2025",
+    ///   "statusCode": 200
+    /// }
+    /// 
+    /// Error Responses:
+    /// - 400: Subscription not active / New plan not lower priced / Change already scheduled
+    /// - 404: Subscription or plan not found
+    /// - 403: User doesn't own this subscription
+    /// 
+    /// Access Control:
+    /// - Users can schedule downgrades for their own subscriptions
+    /// - Admins can schedule downgrades for any subscription
+    /// </remarks>
+    [HttpPost("{id}/schedule-downgrade")]
+    [Authorize]
+    public async Task<JsonModel> ScheduleDowngrade(string id, [FromBody] SchedulePlanChangeDto dto)
+    {
+        if (!Guid.TryParse(id, out var subscriptionId))
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Invalid subscription ID format",
+                StatusCode = 400
+            };
+        }
+
+        return await _subscriptionLifecycleService.ScheduleDowngradeAsync(
+            subscriptionId,
+            dto.NewPlanId,
+            GetToken(HttpContext)
+        );
+    }
+
+    /// <summary>
+    /// Cancels a scheduled plan change (upgrade or downgrade) for a subscription.
+    /// User will stay on their current plan indefinitely.
+    /// </summary>
+    /// <param name="id">The unique identifier of the subscription</param>
+    /// <returns>JsonModel containing cancellation confirmation</returns>
+    /// <remarks>
+    /// This endpoint cancels any pending plan changes:
+    /// - Removes scheduled upgrade or downgrade
+    /// - User stays on current plan indefinitely
+    /// - Can only cancel if a plan change is actually scheduled
+    /// - No penalty or fee for cancellation
+    /// 
+    /// Example Request:
+    /// DELETE /api/subscriptions/{id}/scheduled-change
+    /// 
+    /// Example Success Response (200):
+    /// {
+    ///   "data": {
+    ///     "subscriptionId": "..."
+    ///   },
+    ///   "message": "Canceled scheduled change to Premium Plan. You'll stay on your current plan.",
+    ///   "statusCode": 200
+    /// }
+    /// 
+    /// Error Responses:
+    /// - 400: No plan change is scheduled
+    /// - 404: Subscription not found
+    /// - 403: User doesn't own this subscription
+    /// 
+    /// Access Control:
+    /// - Users can cancel scheduled changes for their own subscriptions
+    /// - Admins can cancel scheduled changes for any subscription
+    /// </remarks>
+    [HttpDelete("{id}/scheduled-change")]
+    [Authorize]
+    public async Task<JsonModel> CancelScheduledPlanChange(string id)
+    {
+        if (!Guid.TryParse(id, out var subscriptionId))
+        {
+            return new JsonModel
+            {
+                data = new object(),
+                Message = "Invalid subscription ID format",
+                StatusCode = 400
+            };
+        }
+
+        return await _subscriptionLifecycleService.CancelScheduledPlanChangeAsync(
+            subscriptionId,
+            GetToken(HttpContext)
+        );
+    }
+
+    #endregion
 
     /// <summary>
     /// Purchases additional privilege credits for a subscription with immediate upfront payment.
@@ -799,9 +1039,9 @@ public class SubscriptionsController : BaseController
     /// - Maintains subscription cancellation audit trails
     /// </remarks>
     [HttpPost("admin/{id}/cancel")]
-    public async Task<JsonModel> CancelUserSubscription(string id, [FromBody] string? reason)
+    public async Task<JsonModel> CancelUserSubscription(string id, [FromBody] CancelSubscriptionDto dto)
     {
-        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, reason, GetToken(HttpContext));
+        return await _subscriptionLifecycleService.CancelSubscriptionAsync(id, dto?.Reason, GetToken(HttpContext));
     }
 
     /// <summary>
@@ -900,6 +1140,160 @@ public class SubscriptionsController : BaseController
     public async Task<JsonModel> PerformBulkAction([FromBody] List<BulkActionRequestDto> actions)
     {
         return await _subscriptionLifecycleService.PerformBulkActionAsync(actions, GetToken(HttpContext));
+    }
+
+    /// <summary>
+    /// Checks if a user is eligible to subscribe to a specific plan.
+    /// Validates against existing active subscriptions to prevent duplicates.
+    /// </summary>
+    /// <param name="planId">The unique identifier of the plan to check eligibility for</param>
+    /// <returns>JsonModel containing eligibility status and reason if not eligible</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Checks for existing active or paused subscriptions
+    /// - Validates that the plan exists and is active
+    /// - Returns clear messaging if user is not eligible
+    /// - Used before initiating checkout to prevent duplicate subscriptions
+    /// - Authenticated users can check their own eligibility
+    /// - Returns 200 with { isEligible: true/false, reason: string }
+    /// </remarks>
+    [HttpGet("eligibility/{planId}")]
+    [Authorize]
+    public async Task<JsonModel> CheckEligibility(Guid planId)
+    {
+        try
+        {
+            var token = GetToken(HttpContext);
+            var userId = token.UserID;
+            
+            // Check for existing active/paused subscriptions
+            var activeSubsResult = await _subscriptionService.GetUserSubscriptionsAsync(userId, token);
+            
+            if (activeSubsResult.StatusCode == 200 && activeSubsResult.data != null)
+            {
+                var subs = activeSubsResult.data as IEnumerable<SubscriptionDto>;
+                if (subs != null && subs.Any(s => 
+                    s.Status == "Active" || 
+                    s.Status == "TrialActive" || 
+                    s.Status == "Paused"))
+                {
+                    return new JsonModel 
+                    { 
+                        data = new { isEligible = false, reason = "You already have an active or paused subscription. Please cancel or let it expire before subscribing to a new plan." },
+                        StatusCode = 200 
+                    };
+                }
+            }
+            
+            // Check if plan exists and is active
+            var plan = await _subscriptionPlanService.GetPlanByIdAsync(planId.ToString(), token);
+            if (plan.StatusCode != 200 || plan.data == null)
+            {
+                return new JsonModel 
+                { 
+                    data = new { isEligible = false, reason = "Plan not found or is no longer available" },
+                    StatusCode = 200 
+                };
+            }
+            
+            var planDto = plan.data as SubscriptionPlanDto;
+            if (planDto != null && !planDto.IsActive)
+            {
+                return new JsonModel 
+                { 
+                    data = new { isEligible = false, reason = "This plan is no longer available for new subscriptions" },
+                    StatusCode = 200 
+                };
+            }
+            
+            return new JsonModel 
+            { 
+                data = new { isEligible = true, reason = string.Empty },
+                StatusCode = 200 
+            };
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel 
+            { 
+                data = new { isEligible = false, reason = "Error checking eligibility" },
+                Message = $"Error: {ex.Message}",
+                StatusCode = 500 
+            };
+        }
+    }
+
+    /// <summary>
+    /// Retries payment for a subscription with failed payment status.
+    /// Allows users to manually retry failed payments after updating payment method.
+    /// </summary>
+    /// <param name="subscriptionId">The unique identifier of the subscription to retry payment for</param>
+    /// <returns>JsonModel containing the payment retry result</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Validates subscription ownership (users can only retry their own subscriptions)
+    /// - Checks that subscription status is PaymentFailed or Suspended
+    /// - Retrieves latest failed invoice from Stripe
+    /// - Attempts to charge the default payment method
+    /// - Reactivates subscription if payment succeeds
+    /// - Updates subscription status and resets failed attempt counter
+    /// - Provides clear feedback on retry success or failure
+    /// - Used when users update payment method after failure
+    /// </remarks>
+    [HttpPost("{subscriptionId}/retry-payment")]
+    [Authorize]
+    public async Task<JsonModel> RetryPayment(Guid subscriptionId)
+    {
+        try
+        {
+            var token = GetToken(HttpContext);
+            var userId = token.UserID;
+            
+            // Get subscription and verify ownership
+            var subResult = await _subscriptionService.GetSubscriptionAsync(subscriptionId.ToString(), token);
+            if (subResult.StatusCode != 200 || subResult.data == null)
+            {
+                return new JsonModel { data = new object(), Message = "Subscription not found", StatusCode = 404 };
+            }
+            
+            var subscription = subResult.data as SubscriptionDto;
+            if (subscription == null)
+            {
+                return new JsonModel { data = new object(), Message = "Invalid subscription data", StatusCode = 400 };
+            }
+            
+            // Verify ownership (non-admin users can only retry their own subscriptions)
+            if (subscription.UserId != userId && token.RoleID != (int)RoleId.Admin)
+            {
+                return new JsonModel { data = new object(), Message = "Unauthorized - you can only retry payments for your own subscriptions", StatusCode = 403 };
+            }
+            
+            // Check if retry is needed
+            if (subscription.Status != "PaymentFailed" && subscription.Status != "Suspended")
+            {
+                return new JsonModel 
+                { 
+                    data = new object(), 
+                    Message = $"Payment retry not available for subscriptions with status '{subscription.Status}'. Only PaymentFailed or Suspended subscriptions can be retried.", 
+                    StatusCode = 400 
+                };
+            }
+            
+            // Use billing service to retry payment
+            // Note: RetryFailedPaymentAsync should handle getting latest invoice and retrying payment
+            var retryResult = await _subscriptionBillingService.RetryFailedPaymentAsync(subscriptionId, token);
+            
+            return retryResult;
+        }
+        catch (Exception ex)
+        {
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"Error retrying payment: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
     }
 
     /// <summary>
@@ -1233,7 +1627,7 @@ public class SubscriptionsController : BaseController
     public async Task<JsonModel> CancelCurrentUserSubscription([FromBody] CancelSubscriptionDto dto)
     {
         var token = GetToken(HttpContext);
-        var result = await _subscriptionLifecycleService.CancelSubscriptionAsync(dto.SubscriptionId.ToString(), null, token);
+        var result = await _subscriptionLifecycleService.CancelSubscriptionAsync(dto.SubscriptionId.ToString(), dto.Reason, token);
         if (result.StatusCode != 200) 
             return new JsonModel { data = new object(), Message = result.Message, StatusCode = result.StatusCode };
         return result;
@@ -1318,17 +1712,112 @@ public class SubscriptionsController : BaseController
             return new JsonModel { data = new object(), Message = "Privilege could not be used or limit reached.", StatusCode = 400 };
         return new JsonModel { data = true, Message = "Privilege used successfully", StatusCode = 200 };
     }
+
+    #region Phase 3: Admin Stripe Synchronization Endpoints
+
+    /// <summary>
+    /// Manually triggers a full Stripe synchronization for all subscriptions.
+    /// This endpoint performs the same operation as the hourly background job, but on-demand.
+    /// </summary>
+    /// <returns>JsonModel containing sync results (synced count, errors, orphaned subscriptions)</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Retrieves all active subscriptions from Stripe
+    /// - Syncs subscription statuses, billing dates, and cancellation flags to local database
+    /// - Detects orphaned Stripe subscriptions (exist in Stripe but not locally)
+    /// - Provides detailed sync report with counts and issues
+    /// - Access restricted to Admin role only
+    /// - Used for manual reconciliation after webhook failures or data inconsistencies
+    /// - Phase 3: Background Sync & Reconciliation
+    /// 
+    /// Returns:
+    /// - 200 OK: Sync completed successfully
+    /// - 500 Internal Server Error: Sync failed
+    /// </remarks>
+    [HttpPost("admin/sync-stripe")]
+    [Authorize(Roles = "Admin")]
+    public async Task<JsonModel> ManualStripeSync()
+    {
+        try
+        {
+            var token = GetToken(HttpContext);
+            
+            _logger.LogInformation("🔧 Admin manual Stripe sync triggered by user {UserId}", token.UserID);
+            
+            var syncResult = await _stripeSyncService.SyncAllSubscriptionsFromStripeAsync(token);
+            
+            _logger.LogInformation("✅ Admin manual Stripe sync completed: {Message}", syncResult.Message);
+            
+            return syncResult;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error during admin manual Stripe sync");
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"Stripe sync failed: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
+    }
+
+    /// <summary>
+    /// Checks consistency of Stripe customer IDs across all users in the system.
+    /// Validates that each user's Stripe customer ID exists in Stripe and emails match.
+    /// </summary>
+    /// <returns>JsonModel containing consistency check results with list of inconsistencies</returns>
+    /// <remarks>
+    /// This endpoint:
+    /// - Gets all users with Stripe customer IDs from local database
+    /// - Verifies each customer ID exists in Stripe
+    /// - Compares email addresses between local and Stripe records
+    /// - Categorizes issues by severity (Critical, Warning, Error)
+    /// - Provides detailed report with userId, email, stripeCustomerId, and issue description
+    /// - Access restricted to Admin role only
+    /// - Used for data integrity audits and troubleshooting
+    /// - Phase 3: Customer ID Integrity Validation
+    /// 
+    /// Returns:
+    /// - 200 OK: Check completed successfully (even if inconsistencies found)
+    /// - 500 Internal Server Error: Check failed
+    /// </remarks>
+    [HttpGet("admin/check-customer-consistency")]
+    [Authorize(Roles = "Admin")]
+    public async Task<JsonModel> CheckCustomerConsistency()
+    {
+        try
+        {
+            var token = GetToken(HttpContext);
+            
+            _logger.LogInformation("🔍 Admin customer ID consistency check triggered by user {UserId}", token.UserID);
+            
+            var consistencyResult = await _stripeSyncService.CheckCustomerIdConsistencyAsync(token);
+            
+            _logger.LogInformation("✅ Admin customer ID consistency check completed: {Message}", 
+                consistencyResult.Message);
+            
+            return consistencyResult;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error during admin customer ID consistency check");
+            return new JsonModel 
+            { 
+                data = new object(), 
+                Message = $"Consistency check failed: {ex.Message}", 
+                StatusCode = 500 
+            };
+        }
+    }
+
+    #endregion
 }
 
 // DTOs for the merged functionality
 public class PurchaseSubscriptionDto
 {
     public Guid PlanId { get; set; }
-}
-
-public class CancelSubscriptionDto
-{
-    public Guid SubscriptionId { get; set; }
 }
 
 public class UsePrivilegeDto

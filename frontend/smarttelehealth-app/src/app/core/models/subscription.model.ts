@@ -68,6 +68,12 @@ export interface SubscriptionDto {
   billingCycleId: string;
   currencyId: string;
   
+  // Scheduled Plan Changes (No Proration)
+  pendingPlanChangeId?: string;
+  pendingPlanName?: string;
+  planChangeEffectiveDate?: Date;
+  pendingChangeType?: 'Upgrade' | 'Downgrade';
+  
   // Computed Properties (from backend)
   isActive: boolean;
   isPaused: boolean;

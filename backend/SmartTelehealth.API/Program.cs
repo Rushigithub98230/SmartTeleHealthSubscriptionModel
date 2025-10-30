@@ -78,11 +78,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Database Configuration - Only register if not in test environment
-if (!builder.Environment.IsEnvironment("Test"))
-{
-    DatabaseRegistration.RegisterDatabaseProvider(builder.Services, builder.Configuration, builder.Environment);
-}
+// Database Configuration is handled in Infrastructure.DependencyInjection
 
 // Identity Configuration
 builder.Services.AddIdentity<User, Role>(options =>
@@ -252,6 +248,9 @@ if (!app.Environment.IsEnvironment("Test"))
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+        
+        // Set the service provider for ApplicationDbContext to enable real-time broadcasting
+        ApplicationDbContext.SetServiceProvider(app.Services);
         
         // Apply pending migrations
         context.Database.Migrate();

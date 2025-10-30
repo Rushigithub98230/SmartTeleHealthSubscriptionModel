@@ -50,7 +50,9 @@ public static class DependencyInjection
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPaymentRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
                 provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnitOfWork>(),
-                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IFailedRefundRepository>()
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IFailedRefundRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingAdjustmentRepository>(),
+                provider.GetRequiredService<IRealTimeLogsService>()
             )
         );
 
@@ -72,6 +74,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<IStripeService>(),
                 provider.GetRequiredService<INotificationService>(),
                 provider.GetRequiredService<IPlanPricingService>(),
+                provider.GetRequiredService<IRealTimeLogsService>(),
                 provider.GetRequiredService<AutoMapper.IMapper>(),
                 provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SubscriptionBillingService>>()
             )
@@ -83,11 +86,29 @@ public static class DependencyInjection
         // Register Analytics Service
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         
+        // Register Reconciliation Service for detecting data inconsistencies
+        services.AddScoped<IReconciliationService, ReconciliationService>();
+        
         // Register Webhook Idempotency Service
         services.AddScoped<IWebhookIdempotencyService, WebhookIdempotencyService>();
         
         // Register Webhook Service
-        services.AddScoped<IWebhookService, WebhookService>();
+        services.AddScoped<IWebhookService, WebhookService>(provider =>
+            new WebhookService(
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionRepository>(),
+                provider.GetRequiredService<ISubscriptionBillingService>(),
+                provider.GetRequiredService<ISubscriptionLifecycleService>(),
+                provider.GetRequiredService<INotificationService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IBillingRepository>(),
+                provider.GetRequiredService<IPaymentService>(),
+                provider.GetRequiredService<ISubscriptionService>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUserSubscriptionPrivilegeUsageRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.ISubscriptionPlanRepository>(),
+                provider.GetRequiredService<SmartTelehealth.Core.Interfaces.IUnprocessedWebhookEventRepository>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<WebhookService>>()
+            )
+        );
         
         // Register Billing Adjustment Service
         services.AddScoped<IBillingAdjustmentService, BillingAdjustmentService>();

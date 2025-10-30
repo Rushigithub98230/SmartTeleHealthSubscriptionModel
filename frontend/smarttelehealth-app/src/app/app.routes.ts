@@ -52,6 +52,20 @@ export const routes: Routes = [
         loadChildren: () => import('./features/user/billing/billing.routes').then(m => m.BILLING_ROUTES)
       },
       {
+        path: 'invoices',
+        canActivate: [authGuard],
+        children: [
+          {
+            path: '',
+            loadComponent: () => import('./features/user/invoices/invoice-list/invoice-list.component').then(m => m.InvoiceListComponent)
+          },
+          {
+            path: ':invoiceNumber',
+            loadComponent: () => import('./features/user/invoices/invoice-detail/invoice-detail.component').then(m => m.InvoiceDetailComponent)
+          }
+        ]
+      },
+      {
         path: 'payment-methods',
         canActivate: [authGuard],
         loadComponent: () => import('./features/user/payment-methods/payment-methods.component').then(m => m.PaymentMethodsComponent)
@@ -128,6 +142,11 @@ export const routes: Routes = [
         path: 'reports',
         canActivate: [adminGuard],
         loadComponent: () => import('./features/admin/reports/reports.component').then(m => m.ReportsComponent)
+      },
+      {
+        path: 'system-settings',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./features/admin/system-settings/system-settings.component').then(m => m.SystemSettingsComponent)
       },
       {
         path: 'settings',

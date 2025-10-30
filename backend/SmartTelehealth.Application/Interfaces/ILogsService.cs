@@ -42,5 +42,15 @@ public interface ILogsService
     /// Gets log statistics for the specified date range.
     /// </summary>
     Task<JsonModel> GetLogStatisticsAsync(DateTime startDate, DateTime endDate, TokenModel token);
+    
+    /// <summary>
+    /// Gets available table names for audit log filtering.
+    /// </summary>
+    Task<JsonModel> GetAvailableTablesAsync(TokenModel token);
+    
+    /// <summary>
+    /// Gets available audit types for filtering.
+    /// </summary>
+    Task<JsonModel> GetAvailableTypesAsync(TokenModel token);
 }
 

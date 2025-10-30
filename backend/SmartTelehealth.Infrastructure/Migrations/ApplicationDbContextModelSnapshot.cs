@@ -5748,6 +5748,16 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("PendingChangeType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("PendingPlanChangeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("PlanChangeEffectiveDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("ProviderId")
                         .HasColumnType("int");
 
@@ -5835,6 +5845,8 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.HasIndex("MasterCurrencyId");
 
                     b.HasIndex("NextBillingDate");
+
+                    b.HasIndex("PendingPlanChangeId");
 
                     b.HasIndex("ProviderId");
 
@@ -6044,6 +6056,9 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<Guid>("CurrencyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("DefaultTaxPercentage")
+                        .HasColumnType("decimal(5,2)");
+
                     b.Property<int?>("DeletedBy")
                         .HasColumnType("int");
 
@@ -6182,6 +6197,10 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("TaxNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Terms")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -6200,7 +6219,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("VersionCreatedDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 28, 8, 59, 7, 478, DateTimeKind.Utc).AddTicks(4720));
+                        .HasDefaultValue(new DateTime(2025, 10, 29, 9, 4, 45, 646, DateTimeKind.Utc).AddTicks(2907));
 
                     b.Property<int>("VersionNumber")
                         .ValueGeneratedOnAdd()
@@ -6460,7 +6479,7 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Property<DateTime>("LastUpdated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasDefaultValue(new DateTime(2025, 10, 28, 8, 59, 7, 635, DateTimeKind.Utc).AddTicks(3030));
+                        .HasDefaultValue(new DateTime(2025, 10, 29, 9, 4, 45, 770, DateTimeKind.Utc).AddTicks(1045));
 
                     b.Property<int>("MaxFailedPaymentAttempts")
                         .ValueGeneratedOnAdd()
@@ -6487,14 +6506,114 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            CreatedDate = new DateTime(2025, 10, 28, 8, 59, 7, 635, DateTimeKind.Utc).AddTicks(3981),
+                            CreatedDate = new DateTime(2025, 10, 29, 9, 4, 45, 770, DateTimeKind.Utc).AddTicks(1555),
                             DefaultAdminCommissionPercent = 20m,
                             DefaultPriceChangeNoticeDays = 10,
                             IsActive = true,
                             IsDeleted = false,
-                            LastUpdated = new DateTime(2025, 10, 28, 8, 59, 7, 635, DateTimeKind.Utc).AddTicks(3978),
+                            LastUpdated = new DateTime(2025, 10, 29, 9, 4, 45, 770, DateTimeKind.Utc).AddTicks(1551),
                             MaxFailedPaymentAttempts = 3
                         });
+                });
+
+            modelBuilder.Entity("SmartTelehealth.Core.Entities.UnprocessedWebhookEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int?>("DeletedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventData")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FailureReason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("LastProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MaxRetries")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("NextRetryAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StripeCustomerId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("StripeEventId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("StripeInvoiceId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("StripeSubscriptionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("DeletedBy");
+
+                    b.HasIndex("UpdatedBy");
+
+                    b.ToTable("UnprocessedWebhookEvents");
                 });
 
             modelBuilder.Entity("SmartTelehealth.Core.Entities.User", b =>
@@ -9619,6 +9738,10 @@ namespace SmartTelehealth.Infrastructure.Migrations
                         .WithMany("Subscriptions")
                         .HasForeignKey("MasterCurrencyId");
 
+                    b.HasOne("SmartTelehealth.Core.Entities.SubscriptionPlan", "PendingPlan")
+                        .WithMany()
+                        .HasForeignKey("PendingPlanChangeId");
+
                     b.HasOne("SmartTelehealth.Core.Entities.Provider", "Provider")
                         .WithMany()
                         .HasForeignKey("ProviderId")
@@ -9646,6 +9769,8 @@ namespace SmartTelehealth.Infrastructure.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("DeletedByUser");
+
+                    b.Navigation("PendingPlan");
 
                     b.Navigation("Provider");
 
@@ -9847,6 +9972,30 @@ namespace SmartTelehealth.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("SmartTelehealth.Core.Entities.SystemSettings", b =>
+                {
+                    b.HasOne("SmartTelehealth.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SmartTelehealth.Core.Entities.User", "DeletedByUser")
+                        .WithMany()
+                        .HasForeignKey("DeletedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SmartTelehealth.Core.Entities.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("DeletedByUser");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("SmartTelehealth.Core.Entities.UnprocessedWebhookEvent", b =>
                 {
                     b.HasOne("SmartTelehealth.Core.Entities.User", "CreatedByUser")
                         .WithMany()

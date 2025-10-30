@@ -152,20 +152,24 @@ public class UserService : IUserService
     {
         try
         {
-            _logger.LogInformation("Getting user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
+            _logger.LogInformation("🔍 Getting user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
             
             var user = await _userRepository.GetByIdWithDetailsAsync(userId);
+            
             if (user == null)
-                return new JsonModel { data = new object(), Message = "User not found", StatusCode = 404 };
+            {
+                _logger.LogWarning("❌ User {UserId} not found in database (may be marked as deleted or doesn't exist)", userId);
+                return new JsonModel { data = new object(), Message = "User not found or account is inactive", StatusCode = 404 };
+            }
 
             var userDto = MapToUserDto(user);
             
-            _logger.LogInformation("User {UserId} retrieved successfully by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
+            _logger.LogInformation("✅ User {UserId} retrieved successfully by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
             return new JsonModel { data = userDto, Message = "User retrieved successfully", StatusCode = 200 };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
+            _logger.LogError(ex, "❌ Error getting user {UserId} by user {TokenUserId}", userId, tokenModel?.UserID ?? 0);
             return new JsonModel { data = new object(), Message = $"Failed to get user: {ex.Message}", StatusCode = 500 };
         }
     }

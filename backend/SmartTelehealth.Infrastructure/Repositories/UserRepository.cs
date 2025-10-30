@@ -54,6 +54,20 @@ public class UserRepository : RepositoryBase<User>, IUserRepository
             .FirstOrDefaultAsync(u => u.StripeCustomerId == stripeCustomerId && !u.IsDeleted);
     }
 
+    public async Task<bool> UpdateStripeCustomerIdAsync(int userId, string stripeCustomerId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+            return false;
+        
+        user.StripeCustomerId = stripeCustomerId;
+        user.UpdatedDate = DateTime.UtcNow;
+        
+        await _context.SaveChangesAsync();
+        
+        return true;
+    }
+
     // Custom method to get all users with related data and business logic
     public async Task<IEnumerable<User>> GetAllWithDetailsAsync()
     {

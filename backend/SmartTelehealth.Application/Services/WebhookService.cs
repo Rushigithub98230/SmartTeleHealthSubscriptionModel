@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
 using SmartTelehealth.Application.DTOs;
 using SmartTelehealth.Application.Interfaces;
+using SmartTelehealth.Application.Utilities;
 using SmartTelehealth.Core.DTOs;
 using SmartTelehealth.Core.Entities;
+using SmartTelehealth.Core.Enums;
 using SmartTelehealth.Core.Interfaces;
 using Stripe;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -26,6 +29,9 @@ public class WebhookService : IWebhookService
     private readonly IBillingRepository _billingRepository;
     private readonly IPaymentService _paymentService;
     private readonly ISubscriptionService _subscriptionService;
+    private readonly IUserSubscriptionPrivilegeUsageRepository _privilegeUsageRepository;
+    private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
+    private readonly IUnprocessedWebhookEventRepository _unprocessedWebhookEventRepository;
     private readonly ILogger<WebhookService> _logger;
 
     public WebhookService(
@@ -37,6 +43,9 @@ public class WebhookService : IWebhookService
         IBillingRepository billingRepository,
         IPaymentService paymentService,
         ISubscriptionService subscriptionService,
+        IUserSubscriptionPrivilegeUsageRepository privilegeUsageRepository,
+        ISubscriptionPlanRepository subscriptionPlanRepository,
+        IUnprocessedWebhookEventRepository unprocessedWebhookEventRepository,
         ILogger<WebhookService> logger)
     {
         _subscriptionRepository = subscriptionRepository ?? throw new ArgumentNullException(nameof(subscriptionRepository));
@@ -47,6 +56,9 @@ public class WebhookService : IWebhookService
         _billingRepository = billingRepository ?? throw new ArgumentNullException(nameof(billingRepository));
         _paymentService = paymentService ?? throw new ArgumentNullException(nameof(paymentService));
         _subscriptionService = subscriptionService ?? throw new ArgumentNullException(nameof(subscriptionService));
+        _privilegeUsageRepository = privilegeUsageRepository ?? throw new ArgumentNullException(nameof(privilegeUsageRepository));
+        _subscriptionPlanRepository = subscriptionPlanRepository ?? throw new ArgumentNullException(nameof(subscriptionPlanRepository));
+        _unprocessedWebhookEventRepository = unprocessedWebhookEventRepository ?? throw new ArgumentNullException(nameof(unprocessedWebhookEventRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -112,39 +124,262 @@ public class WebhookService : IWebhookService
 
             _logger.LogInformation("Processing subscription updated event for Stripe subscription {StripeSubscriptionId}", subscription.Id);
 
-            var tokenModel = new TokenModel { UserID = 1 }; // System user for webhook processing
+            var tokenModel = new TokenModel { UserID = 1, RoleID = 1 }; // System user for webhook processing
             var localSubscriptionResult = await _subscriptionService.GetByStripeSubscriptionIdAsync(subscription.Id, tokenModel);
             
             if (localSubscriptionResult.StatusCode == 200)
             {
-                var subscriptionData = localSubscriptionResult.data as dynamic;
-                if (subscriptionData != null)
+                var subscriptionDataObj = localSubscriptionResult.data;
+                if (subscriptionDataObj != null)
                 {
+                    Guid subscriptionId;
+                    
+                    // Try to extract subscription ID safely
+                    if (subscriptionDataObj is SubscriptionDto dto)
+                    {
+                        if (!Guid.TryParse(dto.Id, out subscriptionId))
+                        {
+                            _logger.LogError("Failed to parse subscription ID from DTO");
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        dynamic subscriptionData = subscriptionDataObj;
+                        if (!Guid.TryParse(subscriptionData.id.ToString(), out subscriptionId))
+                        {
+                            _logger.LogError("Failed to parse subscription ID from dynamic object");
+                            return;
+                        }
+                    }
+
+                    var newPrice = subscription.Items.Data.FirstOrDefault()?.Price.UnitAmount / 100m ?? 0;
+                    var localSubscription = await _subscriptionRepository.GetByIdWithDetailsAsync(subscriptionId);
+                    
+                    if (localSubscription == null)
+                    {
+                        _logger.LogWarning("Local subscription {SubscriptionId} not found for Stripe subscription {StripeSubscriptionId}", 
+                            subscriptionId, subscription.Id);
+                        return;
+                    }
+
+                    // ENHANCED: Sync all subscription fields from Stripe
                     var updateDto = new UpdateSubscriptionDto
                     {
                         Status = MapStripeStatusToLocal(subscription.Status),
                         NextBillingDate = GetNextBillingDateFromSubscription(subscription),
-                        CurrentPrice = subscription.Items.Data.FirstOrDefault()?.Price.UnitAmount / 100m ?? 0,
+                        CurrentPrice = newPrice,
                         StripeSubscriptionId = subscription.Id,
                         UpdatedDate = DateTime.UtcNow
                     };
 
-                    // Add trial information if available
+                    // Sync status changes (active/paused/past_due/canceled from Stripe dashboard)
+                    var newStatus = MapStripeStatusToLocal(subscription.Status);
+                    if (localSubscription.Status != newStatus)
+                    {
+                        _logger.LogInformation("Status change detected for subscription {SubscriptionId}: {OldStatus} -> {NewStatus}", 
+                            subscriptionId, localSubscription.Status, newStatus);
+                        
+                        // Handle status-specific updates
+                        if (newStatus == Core.Entities.Subscription.SubscriptionStatuses.Paused && 
+                            subscription.PauseCollection != null && 
+                            subscription.PauseCollection.ResumesAt.HasValue)
+                        {
+                            updateDto.PausedDate = subscription.PauseCollection.ResumesAt.Value;
+                        }
+                        else if (newStatus == Core.Entities.Subscription.SubscriptionStatuses.Cancelled)
+                        {
+                            updateDto.CancelledDate = DateTime.UtcNow;
+                            updateDto.CancellationReason = "Cancelled via Stripe dashboard";
+                        }
+                    }
+
+                    // Sync current_period_end (billing period end date) - update directly on entity
+                    if (subscription.CurrentPeriodEnd != default)
+                    {
+                        var newEndDate = subscription.CurrentPeriodEnd.ToUniversalTime();
+                        if (localSubscription.EndDate != newEndDate)
+                        {
+                            _logger.LogInformation("End date updated for subscription {SubscriptionId}: {OldDate} -> {NewDate}", 
+                                subscriptionId, localSubscription.EndDate, newEndDate);
+                            localSubscription.EndDate = newEndDate;
+                        }
+                    }
+
+                    // Sync trial_end (trial expiration date)
                     if (subscription.TrialEnd.HasValue)
                     {
-                        updateDto.TrialEndDate = subscription.TrialEnd.Value;
+                        var newTrialEnd = subscription.TrialEnd.Value.ToUniversalTime();
+                        if (localSubscription.TrialEndDate != newTrialEnd)
+                        {
+                            _logger.LogInformation("Trial end date updated for subscription {SubscriptionId}: {OldDate} -> {NewDate}", 
+                                subscriptionId, localSubscription.TrialEndDate, newTrialEnd);
+                            updateDto.TrialEndDate = newTrialEnd;
+                        }
                     }
-
-                    // Add pause information if subscription is paused
-                    if (subscription.PauseCollection != null)
+                    else if (localSubscription.TrialEndDate.HasValue && !subscription.TrialEnd.HasValue)
                     {
-                        updateDto.PausedDate = subscription.PauseCollection.ResumesAt;
+                        // Trial ended - clear trial end date
+                        updateDto.TrialEndDate = null;
                     }
 
-                    await _lifecycleService.UpdateSubscriptionAsync(localSubscriptionResult.data.ToString(), updateDto, tokenModel);
+                    // Sync price updates
+                    if (Math.Abs(localSubscription.CurrentPrice - newPrice) > 0.01m)
+                    {
+                        _logger.LogInformation("Price updated for subscription {SubscriptionId}: ${OldPrice} -> ${NewPrice}", 
+                            subscriptionId, localSubscription.CurrentPrice, newPrice);
+                        updateDto.CurrentPrice = newPrice;
+                    }
 
-                    _logger.LogInformation("Successfully updated subscription {SubscriptionId} via webhook. Status: {Status}", 
-                        subscription.Id, subscription.Status);
+                    // Sync collection_method changes (if supported)
+                    if (!string.IsNullOrEmpty(subscription.CollectionMethod))
+                    {
+                        _logger.LogDebug("Collection method for subscription {SubscriptionId}: {Method}", 
+                            subscriptionId, subscription.CollectionMethod);
+                    }
+
+                    // 🎯 DETECT SCHEDULED PLAN CHANGE EXECUTION
+                    // Check if this subscription has a pending plan change that Stripe just executed
+                    bool planChangeExecuted = false;
+                    
+                    if (localSubscription != null && 
+                        localSubscription.PendingPlanChangeId.HasValue && 
+                        !string.IsNullOrEmpty(subscription.Items.Data.FirstOrDefault()?.Price.Id))
+                    {
+                        var newStripePriceId = subscription.Items.Data.FirstOrDefault()?.Price.Id;
+                        var pendingPlan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(localSubscription.PendingPlanChangeId.Value);
+                        
+                        if (pendingPlan != null)
+                        {
+                            // Check if the new Stripe price matches the pending plan's price
+                            var pendingPlanStripePriceId = GetStripePriceIdForPlan(pendingPlan);
+                            
+                            if (pendingPlanStripePriceId == newStripePriceId || 
+                                Math.Abs(newPrice - pendingPlan.BasePrice) < 0.01m)
+                            {
+                                _logger.LogInformation("🎉 SCHEDULED PLAN CHANGE EXECUTED! Subscription {SubscriptionId} switched from {OldPlan} to {NewPlan}", 
+                                    localSubscription.Id, localSubscription.SubscriptionPlan?.Name, pendingPlan.Name);
+                                
+                                planChangeExecuted = true;
+                                
+                                // Apply the plan change locally
+                                localSubscription.SubscriptionPlanId = localSubscription.PendingPlanChangeId.Value;
+                                localSubscription.CurrentPrice = pendingPlan.BasePrice;
+                                
+                                // Also sync status and date changes from Stripe
+                                localSubscription.Status = MapStripeStatusToLocal(subscription.Status);
+                                if (subscription.CurrentPeriodEnd != default)
+                                {
+                                    localSubscription.EndDate = subscription.CurrentPeriodEnd.ToUniversalTime();
+                                }
+                                if (subscription.TrialEnd.HasValue)
+                                {
+                                    localSubscription.TrialEndDate = subscription.TrialEnd.Value.ToUniversalTime();
+                                }
+                                else if (localSubscription.TrialEndDate.HasValue && !subscription.TrialEnd.HasValue)
+                                {
+                                    localSubscription.TrialEndDate = null;
+                                }
+                                
+                                // Clear pending change fields
+                                localSubscription.PendingPlanChangeId = null;
+                                localSubscription.PlanChangeEffectiveDate = null;
+                                localSubscription.PendingChangeType = null;
+                                
+                                localSubscription.UpdatedBy = tokenModel.UserID;
+                                localSubscription.UpdatedDate = DateTime.UtcNow;
+                                
+                                await _subscriptionRepository.UpdateAsync(localSubscription);
+                                await _subscriptionRepository.SaveChangesAsync();
+                                
+                                _logger.LogInformation("✅ Updated local subscription to new plan {PlanId}", pendingPlan.Id);
+                                
+                                // Reset privileges to new plan's limits
+                                try
+                                {
+                                    _logger.LogInformation("🔄 Resetting privileges to new plan limits for subscription {SubscriptionId}", 
+                                        localSubscription.Id);
+                                    
+                                    // Get all privilege usage records for this subscription
+                                    var usageRecords = await _privilegeUsageRepository.GetBySubscriptionIdAsync(localSubscription.Id);
+                                    
+                                    if (usageRecords != null && usageRecords.Any())
+                                    {
+                                        // Reload subscription with plan details for privilege reset
+                                        var subWithPlan = await _subscriptionRepository.GetByIdWithDetailsAsync(localSubscription.Id);
+                                        
+                                        if (subWithPlan != null && subWithPlan.SubscriptionPlan?.PlanPrivileges != null)
+                                        {
+                                            // Reset each privilege to new plan's limits
+                                            foreach (var usage in usageRecords)
+                                            {
+                                                var planPrivilege = subWithPlan.SubscriptionPlan.PlanPrivileges
+                                                    .FirstOrDefault(pp => pp.PrivilegeId == usage.PrivilegeId);
+                                                
+                                                if (planPrivilege != null)
+                                                {
+                                                    usage.UsedValue = 0;
+                                                    usage.ResetAt = DateTime.UtcNow;
+                                                    usage.UpdatedBy = tokenModel.UserID;
+                                                    usage.UpdatedDate = DateTime.UtcNow;
+                                                    
+                                                    await _privilegeUsageRepository.UpdateAsync(usage);
+                                                }
+                                            }
+                                            
+                                            await _privilegeUsageRepository.SaveChangesAsync();
+                                            
+                                            _logger.LogInformation("✅ Successfully reset {Count} privileges for subscription {SubscriptionId}", 
+                                                usageRecords.Count(), localSubscription.Id);
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError(ex, "❌ Error resetting privileges after plan change for subscription {SubscriptionId}", 
+                                        localSubscription.Id);
+                                    // Don't fail webhook processing if privilege reset fails
+                                }
+                                
+                                // Send notification to user about completed plan change
+                                try
+                                {
+                                    var user = await _userRepository.GetByIdAsync(localSubscription.UserId);
+                                    if (user != null)
+                                    {
+                                        _logger.LogInformation("📧 User {UserId} will be notified about completed plan change", user.Id);
+                                        // TODO: Implement SendPlanChangeCompletedNotificationAsync in INotificationService
+                                        // await _notificationService.SendPlanChangeCompletedNotificationAsync(
+                                        //     user.Email,
+                                        //     user.FirstName,
+                                        //     localSubscription.SubscriptionPlan?.Name ?? "your old plan",
+                                        //     pendingPlan.Name,
+                                        //     pendingPlan.BasePrice
+                                        // );
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Failed to send plan change notification to user {UserId}", 
+                                        localSubscription.UserId);
+                                }
+                            }
+                        }
+                    }
+
+                    // Standard subscription update (if plan change wasn't executed)
+                    if (!planChangeExecuted)
+                    {
+                        // Save any direct entity changes (like EndDate)
+                        await _subscriptionRepository.UpdateAsync(localSubscription);
+                        await _subscriptionRepository.SaveChangesAsync();
+                        
+                        // Apply other updates via lifecycle service
+                        await _lifecycleService.UpdateSubscriptionAsync(subscriptionId.ToString(), updateDto, tokenModel);
+
+                        _logger.LogInformation("Successfully updated subscription {SubscriptionId} via webhook. Status: {Status}", 
+                            subscription.Id, subscription.Status);
+                    }
                 }
             }
             else
@@ -154,9 +389,21 @@ public class WebhookService : IWebhookService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing subscription updated event");
+            _logger.LogError(ex, "❌ Error processing subscription updated event");
             throw;
         }
+    }
+    
+    /// <summary>
+    /// Helper method to get the Stripe price ID for a plan
+    /// </summary>
+    private string GetStripePriceIdForPlan(SubscriptionPlan plan)
+    {
+        if (string.IsNullOrEmpty(plan.StripePriceId))
+        {
+            throw new Exception($"No Stripe price ID configured for plan {plan.Name}");
+        }
+        return plan.StripePriceId;
     }
 
     /// <summary>
@@ -832,15 +1079,20 @@ public class WebhookService : IWebhookService
                             reason = "Subscription reactivated after successful payment";
                         }
 
+                        // CRITICAL: Sync billing dates from Stripe invoice to ensure accuracy
                         var updateDto = new UpdateSubscriptionDto
                         {
                             Status = newStatus,
                             LastPaymentDate = DateTime.UtcNow,
                             FailedPaymentAttempts = 0, // Reset failed attempts
-                            LastPaymentError = null // Clear error
+                            LastPaymentError = null, // Clear error
+                            NextBillingDate = invoice.PeriodEnd.ToUniversalTime()
                         };
 
                         await _lifecycleService.UpdateSubscriptionAsync(localSubscriptionResult.data.ToString(), updateDto, tokenModel);
+                        
+                        _logger.LogInformation("💳 Updated subscription billing dates - NextBillingDate: {NextBilling}, BillingReason: {BillingReason}", 
+                            invoice.PeriodEnd.ToUniversalTime(), invoice.BillingReason ?? "N/A");
 
                         // Send payment success notification
                         await _notificationService.CreateNotificationAsync(new CreateNotificationDto
@@ -1002,26 +1254,50 @@ public class WebhookService : IWebhookService
                     var subscriptionData = localSubscriptionResult.data as dynamic;
                     if (subscriptionData != null)
                     {
-                        // Update subscription status to PaymentFailed
+                        // Get current failed attempts count
+                        int currentFailedAttempts = subscriptionData.FailedPaymentAttempts ?? 0;
+                        int newFailedAttempts = currentFailedAttempts + 1;
+                        
+                        _logger.LogWarning("⚠️ Payment failed for subscription {SubscriptionId} - Attempt #{Attempts}", 
+                            subscriptionId, newFailedAttempts);
+                        
+                        // Determine status based on failed attempts
+                        string newStatus = "PaymentFailed";
+                        if (newFailedAttempts >= 3)
+                        {
+                            newStatus = "Suspended";
+                            _logger.LogError("🚫 Suspending subscription {SubscriptionId} after {Attempts} failed payment attempts", 
+                                subscriptionId, newFailedAttempts);
+                        }
+                        
+                        // Update subscription status to PaymentFailed or Suspended
                         var updateDto = new UpdateSubscriptionDto
                         {
-                            Status = "PaymentFailed",
+                            Status = newStatus,
                             LastPaymentFailedDate = DateTime.UtcNow,
-                            LastPaymentError = "Payment failed via Stripe",
-                            FailedPaymentAttempts = 1 // Increment failed attempts
+                            LastPaymentError = $"Payment failed via Stripe - Invoice: {invoice.Number}",
+                            FailedPaymentAttempts = newFailedAttempts
                         };
                         
                         await _lifecycleService.UpdateSubscriptionAsync(localSubscriptionResult.data.ToString(), updateDto, tokenModel);
 
-                        // Send payment failure notification
+                        // Send payment failure notification with escalated priority for suspensions
+                        string notificationTitle = newStatus == "Suspended" 
+                            ? "Subscription Suspended - Action Required" 
+                            : "Payment Failed";
+                        string notificationMessage = newStatus == "Suspended"
+                            ? $"Your subscription has been suspended after {newFailedAttempts} failed payment attempts. Please update your payment method immediately to restore access. Invoice: {invoice.Number}"
+                            : $"Your payment for subscription has failed (Attempt #{newFailedAttempts}). Please update your payment method to continue your subscription. Invoice: {invoice.Number}";
+                        string notificationPriority = newStatus == "Suspended" ? "Critical" : "High";
+                        
                         await _notificationService.CreateNotificationAsync(new CreateNotificationDto
                         {
                             UserId = subscriptionData.UserId,
-                            Title = "Payment Failed",
-                            Message = $"Your payment for subscription has failed. Please update your payment method to continue your subscription. Invoice: {invoice.Number}",
+                            Title = notificationTitle,
+                            Message = notificationMessage,
                             Type = "PaymentFailed",
                             IsRead = false,
-                            Priority = "High"
+                            Priority = notificationPriority
                         }, tokenModel);
 
                         // Create billing record for failed payment
@@ -1148,22 +1424,110 @@ public class WebhookService : IWebhookService
     {
         try
         {
+            _logger.LogInformation("💰 WEBHOOK: invoice.created - Event ID: {EventId}", stripeEvent.Id);
+            
             var invoice = stripeEvent.Data.Object as Stripe.Invoice;
             if (invoice == null)
             {
-                _logger.LogWarning("Invoice created event received but no invoice data found");
+                _logger.LogWarning("❌ Invoice created event received but no invoice data found");
                 return;
             }
 
-            _logger.LogInformation("Processing invoice created event for invoice {InvoiceId}", invoice.Id);
+            _logger.LogInformation("📋 Processing invoice created for invoice {InvoiceId}, subscription {SubscriptionId}", 
+                invoice.Id, invoice.SubscriptionId);
+            _logger.LogInformation("💵 Amount: ${Amount}, Status: {Status}, Number: {Number}", 
+                invoice.AmountDue / 100m, invoice.Status, invoice.Number);
             
-            // Log invoice creation
-            _logger.LogInformation("Invoice {InvoiceId} created for amount {Amount} with status {Status}", 
-                invoice.Id, invoice.AmountDue, invoice.Status);
+            // Skip if not related to subscription
+            if (string.IsNullOrEmpty(invoice.SubscriptionId))
+            {
+                _logger.LogInformation("ℹ️ Invoice {InvoiceId} is not associated with a subscription, skipping", invoice.Id);
+                return;
+            }
+            
+            var tokenModel = new TokenModel { UserID = 1, RoleID = (int)Core.Enums.RoleId.Admin };
+            
+            // Find local subscription
+            var subscription = await _subscriptionRepository
+                .GetByStripeSubscriptionIdAsync(invoice.SubscriptionId, tokenModel);
+            
+            if (subscription == null)
+            {
+                _logger.LogWarning("⚠️ Local subscription not found for Stripe subscription {StripeSubscriptionId}, queueing for retry", 
+                    invoice.SubscriptionId);
+                
+                // Queue the event for retry processing
+                await QueueEventForRetryAsync(stripeEvent, "Local subscription not found yet");
+                return;
+            }
+            
+            _logger.LogInformation("✅ Found local subscription {SubscriptionId} for user {UserId}", 
+                subscription.Id, subscription.UserId);
+            
+            // Check if billing record already exists (idempotency)
+            var existingBillingRecord = await _billingRepository
+                .GetByStripeInvoiceIdAsync(invoice.Id);
+            
+            if (existingBillingRecord != null)
+            {
+                _logger.LogInformation("ℹ️ BillingRecord already exists for invoice {InvoiceId}, updating...", 
+                    invoice.Id);
+                
+                // Update existing record
+                existingBillingRecord.InvoiceNumber = invoice.Number;
+                existingBillingRecord.Amount = invoice.AmountDue / 100m;
+                existingBillingRecord.TotalAmount = invoice.AmountDue / 100m;
+                existingBillingRecord.TaxAmount = (invoice.Tax ?? 0) / 100m;
+                existingBillingRecord.Status = MapStripeInvoiceStatusToBillingStatus(invoice.Status);
+                existingBillingRecord.Description = $"Subscription Invoice - {subscription.SubscriptionPlan?.Name ?? "Plan"}";
+                existingBillingRecord.DueDate = invoice.DueDate?.ToUniversalTime();
+                existingBillingRecord.UpdatedDate = DateTime.UtcNow;
+                existingBillingRecord.UpdatedBy = 1;
+                
+                await _billingRepository.UpdateBillingRecordAsync(existingBillingRecord);
+                
+                _logger.LogInformation("✅ Updated BillingRecord {BillingRecordId} for invoice {InvoiceId}", 
+                    existingBillingRecord.Id, invoice.Id);
+            }
+            else
+            {
+                _logger.LogInformation("🆕 Creating new BillingRecord for invoice {InvoiceId}", invoice.Id);
+                
+                // Create new billing record
+                var billingRecord = new BillingRecord
+                {
+                    Id = Guid.NewGuid(),
+                    SubscriptionId = subscription.Id,
+                    UserId = subscription.UserId,
+                    CurrencyId = subscription.SubscriptionPlan?.CurrencyId ?? Guid.Empty,
+                    StripeInvoiceId = invoice.Id,
+                    InvoiceNumber = invoice.Number,
+                    Amount = invoice.AmountDue / 100m,
+                    TotalAmount = invoice.AmountDue / 100m,
+                    TaxAmount = (invoice.Tax ?? 0) / 100m,
+                    Status = MapStripeInvoiceStatusToBillingStatus(invoice.Status),
+                    Type = BillingRecord.BillingType.Subscription,
+                    BillingDate = invoice.Created.ToUniversalTime(),
+                    DueDate = invoice.DueDate?.ToUniversalTime(),
+                    Description = $"Subscription Invoice - {subscription.SubscriptionPlan?.Name ?? "Plan"}",
+                    IsRecurring = true,
+                    CreatedBy = 1,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedBy = 1,
+                    UpdatedDate = DateTime.UtcNow
+                };
+                
+                await _billingRepository.CreateBillingRecordAsync(billingRecord);
+                
+                _logger.LogInformation("✅ Created BillingRecord {BillingRecordId} for invoice {InvoiceId}", 
+                    billingRecord.Id, invoice.Id);
+            }
+            
+            _logger.LogInformation("🎉 Successfully processed invoice.created for {InvoiceId}", invoice.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing invoice created event");
+            _logger.LogError(ex, "❌ CRITICAL ERROR processing invoice created event");
             throw;
         }
     }
@@ -1175,22 +1539,103 @@ public class WebhookService : IWebhookService
     {
         try
         {
+            _logger.LogInformation("📄 WEBHOOK: invoice.finalized - Event ID: {EventId}", stripeEvent.Id);
+            
             var invoice = stripeEvent.Data.Object as Stripe.Invoice;
             if (invoice == null)
             {
-                _logger.LogWarning("Invoice finalized event received but no invoice data found");
+                _logger.LogWarning("❌ Invoice finalized event received but no invoice data found");
                 return;
             }
 
-            _logger.LogInformation("Processing invoice finalized event for invoice {InvoiceId}", invoice.Id);
+            _logger.LogInformation("📋 Processing invoice finalized for invoice {InvoiceId}", invoice.Id);
+            _logger.LogInformation("💵 Finalized Amount: ${Amount}, Status: {Status}", 
+                invoice.AmountDue / 100m, invoice.Status);
             
-            // Log invoice finalization
-            _logger.LogInformation("Invoice {InvoiceId} finalized for amount {Amount}", 
-                invoice.Id, invoice.AmountDue);
+            // Skip if not related to subscription
+            if (string.IsNullOrEmpty(invoice.SubscriptionId))
+            {
+                _logger.LogInformation("ℹ️ Invoice {InvoiceId} is not associated with a subscription, skipping", invoice.Id);
+                return;
+            }
+            
+            var tokenModel = new TokenModel { UserID = 1, RoleID = (int)Core.Enums.RoleId.Admin };
+            
+            // Find local subscription
+            var subscription = await _subscriptionRepository
+                .GetByStripeSubscriptionIdAsync(invoice.SubscriptionId, tokenModel);
+            
+            if (subscription == null)
+            {
+                _logger.LogWarning("⚠️ Local subscription not found for Stripe subscription {StripeSubscriptionId}, queueing for retry", 
+                    invoice.SubscriptionId);
+                
+                // Queue the event for retry processing
+                await QueueEventForRetryAsync(stripeEvent, "Local subscription not found yet");
+                return;
+            }
+            
+            // Find or create billing record
+            var billingRecord = await _billingRepository.GetByStripeInvoiceIdAsync(invoice.Id);
+            
+            if (billingRecord == null)
+            {
+                _logger.LogInformation("🆕 BillingRecord not found, creating for finalized invoice {InvoiceId}", invoice.Id);
+                
+                // Create new billing record (idempotency - webhook may arrive out of order)
+                billingRecord = new BillingRecord
+                {
+                    Id = Guid.NewGuid(),
+                    SubscriptionId = subscription.Id,
+                    UserId = subscription.UserId,
+                    CurrencyId = subscription.SubscriptionPlan?.CurrencyId ?? Guid.Empty,
+                    StripeInvoiceId = invoice.Id,
+                    InvoiceNumber = invoice.Number,
+                    Amount = invoice.AmountDue / 100m,
+                    TotalAmount = invoice.AmountDue / 100m,
+                    TaxAmount = (invoice.Tax ?? 0) / 100m,
+                    Status = MapStripeInvoiceStatusToBillingStatus(invoice.Status),
+                    Type = BillingRecord.BillingType.Subscription,
+                    BillingDate = invoice.Created.ToUniversalTime(),
+                    DueDate = invoice.DueDate?.ToUniversalTime(),
+                    Description = $"Subscription Invoice - {subscription.SubscriptionPlan?.Name ?? "Plan"}",
+                    IsRecurring = true,
+                    CreatedBy = 1,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedBy = 1,
+                    UpdatedDate = DateTime.UtcNow
+                };
+                
+                await _billingRepository.CreateBillingRecordAsync(billingRecord);
+                
+                _logger.LogInformation("✅ Created BillingRecord {BillingRecordId} for finalized invoice {InvoiceId}", 
+                    billingRecord.Id, invoice.Id);
+            }
+            else
+            {
+                _logger.LogInformation("🔄 Updating existing BillingRecord for finalized invoice {InvoiceId}", invoice.Id);
+                
+                // Update existing record with finalized details
+                billingRecord.InvoiceNumber = invoice.Number ?? billingRecord.InvoiceNumber;
+                billingRecord.Amount = invoice.AmountDue / 100m;
+                billingRecord.TotalAmount = invoice.AmountDue / 100m;
+                billingRecord.TaxAmount = (invoice.Tax ?? 0) / 100m;
+                billingRecord.Status = MapStripeInvoiceStatusToBillingStatus(invoice.Status);
+                billingRecord.DueDate = invoice.DueDate?.ToUniversalTime();
+                billingRecord.UpdatedDate = DateTime.UtcNow;
+                billingRecord.UpdatedBy = 1;
+                
+                await _billingRepository.UpdateBillingRecordAsync(billingRecord);
+                
+                _logger.LogInformation("✅ Updated BillingRecord {BillingRecordId} for finalized invoice {InvoiceId}", 
+                    billingRecord.Id, invoice.Id);
+            }
+            
+            _logger.LogInformation("🎉 Successfully processed invoice.finalized for {InvoiceId}", invoice.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing invoice finalized event");
+            _logger.LogError(ex, "❌ CRITICAL ERROR processing invoice finalized event");
             throw;
         }
     }
@@ -1281,21 +1726,50 @@ public class WebhookService : IWebhookService
     {
         try
         {
+            _logger.LogInformation("🚫 WEBHOOK: invoice.voided - Event ID: {EventId}", stripeEvent.Id);
+            
             var invoice = stripeEvent.Data.Object as Stripe.Invoice;
             if (invoice == null)
             {
-                _logger.LogWarning("Invoice voided event received but no invoice data found");
+                _logger.LogWarning("❌ Invoice voided event received but no invoice data found");
                 return;
             }
 
-            _logger.LogInformation("Processing invoice voided event for invoice {InvoiceId}", invoice.Id);
+            _logger.LogInformation("📋 Processing invoice voided for invoice {InvoiceId}", invoice.Id);
             
-            // Log invoice voided
-            _logger.LogInformation("Invoice {InvoiceId} voided", invoice.Id);
+            // Skip if not related to subscription
+            if (string.IsNullOrEmpty(invoice.SubscriptionId))
+            {
+                _logger.LogInformation("ℹ️ Invoice {InvoiceId} is not associated with a subscription, skipping", invoice.Id);
+                return;
+            }
+            
+            // Find billing record
+            var billingRecord = await _billingRepository.GetByStripeInvoiceIdAsync(invoice.Id);
+            
+            if (billingRecord == null)
+            {
+                _logger.LogWarning("⚠️ BillingRecord not found for voided invoice {InvoiceId}", invoice.Id);
+                return;
+            }
+            
+            _logger.LogInformation("🔄 Updating BillingRecord {BillingRecordId} to Cancelled status", billingRecord.Id);
+            
+            // Update billing record status to Cancelled
+            billingRecord.Status = BillingRecord.BillingStatus.Cancelled;
+            billingRecord.ErrorMessage = "Invoice voided in Stripe";
+            billingRecord.UpdatedDate = DateTime.UtcNow;
+            billingRecord.UpdatedBy = 1;
+            
+            await _billingRepository.UpdateBillingRecordAsync(billingRecord);
+            
+            _logger.LogInformation("✅ Updated BillingRecord {BillingRecordId} for voided invoice {InvoiceId}", 
+                billingRecord.Id, invoice.Id);
+            _logger.LogInformation("🎉 Successfully processed invoice.voided for {InvoiceId}", invoice.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing invoice voided event");
+            _logger.LogError(ex, "❌ CRITICAL ERROR processing invoice voided event");
             throw;
         }
     }
@@ -1520,6 +1994,7 @@ public class WebhookService : IWebhookService
 
     /// <summary>
     /// Handles customer updated event from Stripe
+    /// Syncs customer data changes (email, metadata) to local User entity
     /// </summary>
     public async Task HandleCustomerUpdatedAsync(Event stripeEvent)
     {
@@ -1534,8 +2009,77 @@ public class WebhookService : IWebhookService
 
             _logger.LogInformation("Processing customer updated event for customer {CustomerId}", customer.Id);
             
-            // Log customer update
-            _logger.LogInformation("Customer {CustomerId} updated", customer.Id);
+            // Find local user by Stripe customer ID
+            var user = await _userRepository.GetUserByStripeCustomerIdAsync(customer.Id);
+            if (user == null)
+            {
+                _logger.LogWarning("Local user not found for Stripe customer {CustomerId}, skipping sync", customer.Id);
+                return;
+            }
+
+            _logger.LogInformation("Found local user {UserId} for Stripe customer {CustomerId}", user.Id, customer.Id);
+
+            bool hasChanges = false;
+
+            // Sync email if changed
+            if (!string.IsNullOrEmpty(customer.Email) && user.Email != customer.Email)
+            {
+                _logger.LogInformation("Email changed for user {UserId}: {OldEmail} -> {NewEmail}", 
+                    user.Id, user.Email, customer.Email);
+                user.Email = customer.Email;
+                hasChanges = true;
+            }
+
+            // Sync name if changed
+            if (!string.IsNullOrEmpty(customer.Name))
+            {
+                // Split name into first and last if possible
+                var nameParts = customer.Name.Split(' ', 2);
+                if (nameParts.Length > 0 && user.FirstName != nameParts[0])
+                {
+                    _logger.LogInformation("First name changed for user {UserId}: {OldName} -> {NewName}", 
+                        user.Id, user.FirstName, nameParts[0]);
+                    user.FirstName = nameParts[0];
+                    hasChanges = true;
+                }
+                if (nameParts.Length > 1 && user.LastName != nameParts[1])
+                {
+                    _logger.LogInformation("Last name changed for user {UserId}: {OldName} -> {NewName}", 
+                        user.Id, user.LastName, nameParts[1]);
+                    user.LastName = nameParts[1];
+                    hasChanges = true;
+                }
+            }
+
+            // Sync phone if changed
+            if (!string.IsNullOrEmpty(customer.Phone) && user.PhoneNumber != customer.Phone)
+            {
+                _logger.LogInformation("Phone changed for user {UserId}: {OldPhone} -> {NewPhone}", 
+                    user.Id, user.PhoneNumber, customer.Phone);
+                user.PhoneNumber = customer.Phone;
+                hasChanges = true;
+            }
+
+            // Sync metadata if available
+            if (customer.Metadata != null && customer.Metadata.Any())
+            {
+                foreach (var metadata in customer.Metadata)
+                {
+                    _logger.LogDebug("Customer metadata: {Key} = {Value}", metadata.Key, metadata.Value);
+                    // Store important metadata in user notes or custom fields if needed
+                }
+            }
+
+            if (hasChanges)
+            {
+                user.UpdatedDate = DateTime.UtcNow;
+                await _userRepository.UpdateUserAsync(user);
+                _logger.LogInformation("Successfully synced customer data for user {UserId}", user.Id);
+            }
+            else
+            {
+                _logger.LogInformation("No changes detected for user {UserId}", user.Id);
+            }
         }
         catch (Exception ex)
         {
@@ -1546,6 +2090,7 @@ public class WebhookService : IWebhookService
 
     /// <summary>
     /// Handles customer deleted event from Stripe
+    /// Marks user inactive and cancels all subscriptions to maintain data integrity
     /// </summary>
     public async Task HandleCustomerDeletedAsync(Event stripeEvent)
     {
@@ -1558,13 +2103,85 @@ public class WebhookService : IWebhookService
                 return;
             }
 
-            _logger.LogInformation("Processing customer deleted event for customer {CustomerId}", customer.Id);
+            _logger.LogWarning("⚠️ CRITICAL: Processing customer deleted event for customer {CustomerId}", customer.Id);
             
-            // Log customer deletion
-            _logger.LogInformation("Customer {CustomerId} deleted", customer.Id);
+            // Find local user by Stripe customer ID
+            var user = await _userRepository.GetUserByStripeCustomerIdAsync(customer.Id);
+            if (user == null)
+            {
+                _logger.LogWarning("Local user not found for Stripe customer {CustomerId}, nothing to cleanup", customer.Id);
+                return;
+            }
+
+            _logger.LogWarning("⚠️ Found local user {UserId} for deleted Stripe customer {CustomerId}", user.Id, customer.Id);
+
+            var tokenModel = new TokenModel { UserID = 1, RoleID = (int)Core.Enums.RoleId.Admin };
+
+            // Get all subscriptions for this user and filter for active ones
+            var allSubscriptions = await _subscriptionRepository.GetByUserIdAsync(user.Id);
+            var subscriptions = allSubscriptions.Where(s => 
+                s.Status == Core.Entities.Subscription.SubscriptionStatuses.Active || 
+                s.Status == Core.Entities.Subscription.SubscriptionStatuses.Paused).ToList();
             
-            // Note: Customer deletion should be handled carefully as it affects all subscriptions
-            // We typically don't delete customers automatically but mark them as inactive
+            _logger.LogWarning("⚠️ Found {Count} active subscriptions for user {UserId}, cancelling all", 
+                subscriptions.Count(), user.Id);
+            
+            // Cancel all subscriptions
+            int cancelledCount = 0;
+            foreach (var subscription in subscriptions)
+            {
+                try
+                {
+                    var cancelResult = await _lifecycleService.CancelSubscriptionAsync(
+                        subscription.Id.ToString(), 
+                        "Customer deleted from Stripe", 
+                        tokenModel);
+                    
+                    if (cancelResult.StatusCode == 200)
+                    {
+                        cancelledCount++;
+                        _logger.LogInformation("✅ Cancelled subscription {SubscriptionId} for deleted customer", subscription.Id);
+                    }
+                    else
+                    {
+                        _logger.LogError("❌ Failed to cancel subscription {SubscriptionId}: {Error}", 
+                            subscription.Id, cancelResult.Message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error cancelling subscription {SubscriptionId} for deleted customer", subscription.Id);
+                }
+            }
+
+            // Mark user as inactive (don't delete - preserve audit trail)
+            user.IsActive = false;
+            user.UpdatedDate = DateTime.UtcNow;
+            await _userRepository.UpdateUserAsync(user);
+
+            _logger.LogWarning(
+                "⚠️ CRITICAL ACTION COMPLETED: User {UserId} marked inactive, {CancelledCount}/{TotalCount} subscriptions cancelled " +
+                "due to Stripe customer deletion {CustomerId}",
+                user.Id, cancelledCount, subscriptions.Count(), customer.Id);
+
+            // Send critical alert notification (if notification service supports admin alerts)
+            try
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+                {
+                    UserId = 1, // Admin user
+                    Title = "CRITICAL: Customer Deleted from Stripe",
+                    Message = $"Customer {customer.Id} was deleted from Stripe. User {user.Id} ({user.Email}) marked inactive. " +
+                             $"{cancelledCount} subscriptions cancelled.",
+                    Type = "SystemAlert",
+                    IsRead = false,
+                    Priority = "Critical"
+                }, tokenModel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send critical alert notification for customer deletion");
+            }
         }
         catch (Exception ex)
         {
@@ -1643,51 +2260,63 @@ public class WebhookService : IWebhookService
     {
         try
         {
+            _logger.LogInformation("🔔 WEBHOOK RECEIVED: checkout.session.completed - Event ID: {EventId}", stripeEvent.Id);
+            
             var session = stripeEvent.Data.Object as Stripe.Checkout.Session;
             if (session == null)
             {
-                _logger.LogWarning("Checkout session completed event received but no session data found");
+                _logger.LogError("❌ Checkout session completed event received but no session data found - Event ID: {EventId}", stripeEvent.Id);
                 return;
             }
 
-            _logger.LogInformation("Processing checkout session completed event for session {SessionId}", session.Id);
-
-            // Log checkout session completion
-            _logger.LogInformation("Checkout session {SessionId} completed for customer {CustomerId}", 
-                session.Id, session.CustomerId);
+            _logger.LogInformation("✅ Processing checkout session completed event for session {SessionId}", session.Id);
+            _logger.LogInformation("📋 Session Details - Customer: {CustomerId}, Payment Status: {PaymentStatus}, Amount: {Amount}", 
+                session.CustomerId, session.PaymentStatus, session.AmountTotal);
+            _logger.LogInformation("📦 Session Metadata: {Metadata}", string.Join(", ", session.Metadata.Select(x => $"{x.Key}={x.Value}")));
 
             // Extract user ID from session metadata
             if (!session.Metadata.TryGetValue("created_by_user_id", out var userIdStr) || 
                 !int.TryParse(userIdStr, out var userId))
             {
-                _logger.LogWarning("No valid user ID found in checkout session {SessionId} metadata", session.Id);
+                _logger.LogError("❌ No valid user ID found in checkout session {SessionId} metadata. Metadata keys: {MetadataKeys}", 
+                    session.Id, string.Join(", ", session.Metadata.Keys));
                 return;
             }
+            
+            _logger.LogInformation("👤 Extracted User ID: {UserId} from checkout session {SessionId}", userId, session.Id);
 
             // Get the subscription from Stripe
             if (string.IsNullOrEmpty(session.SubscriptionId))
             {
-                _logger.LogWarning("No subscription ID found in checkout session {SessionId}", session.Id);
+                _logger.LogError("❌ No subscription ID found in checkout session {SessionId}", session.Id);
                 return;
             }
+            
+            _logger.LogInformation("💳 Stripe Subscription ID: {StripeSubscriptionId}", session.SubscriptionId);
 
             // Extract plan ID from session metadata (much better approach!)
             if (!session.Metadata.TryGetValue("plan_id", out var planIdStr) || 
                 !Guid.TryParse(planIdStr, out var planId))
             {
-                _logger.LogError("No valid plan ID found in checkout session {SessionId} metadata", session.Id);
+                _logger.LogError("❌ No valid plan ID found in checkout session {SessionId} metadata. Metadata keys: {MetadataKeys}", 
+                    session.Id, string.Join(", ", session.Metadata.Keys));
                 return;
             }
+            
+            _logger.LogInformation("📦 Extracted Plan ID: {PlanId} from checkout session {SessionId}", planId, session.Id);
 
             var tokenModel = new TokenModel { UserID = userId, RoleID = 1 }; // Default role for system operations
 
             // Get the subscription plan using the plan ID
+            _logger.LogInformation("🔍 Fetching subscription plan {PlanId} from database...", planId);
             var plan = await _subscriptionRepository.GetSubscriptionPlanByIdAsync(planId);
             if (plan == null)
             {
-                _logger.LogError("Failed to get subscription plan {PlanId} for session {SessionId}", planId, session.Id);
+                _logger.LogError("❌ Failed to get subscription plan {PlanId} for session {SessionId}", planId, session.Id);
                 return;
             }
+            
+            _logger.LogInformation("✅ Found subscription plan: {PlanName} (ID: {PlanId})", plan.Name, plan.Id);
 
             // Create subscription in our database using existing method
             var createDto = new CreateSubscriptionDto
@@ -1701,58 +2330,38 @@ public class WebhookService : IWebhookService
                 StartImmediately = true,
                 IsActive = true
             };
+            
+            _logger.LogInformation("🚀 Syncing subscription for User {UserId} with Plan {PlanId}...", userId, plan.Id);
 
-            // Create subscription using the existing lifecycle service method
-            var result = await _lifecycleService.CreateSubscriptionAsync(createDto, tokenModel);
-
-            if (result.StatusCode == 200)
+            // Use the dedicated lifecycle service method for syncing checkout subscriptions
+            // This ensures proper privilege initialization, notifications, and follows separation of concerns
+            var stripePriceId = session.Metadata.ContainsKey("price_id") ? session.Metadata["price_id"] : null;
+            
+            var result = await _lifecycleService.SyncSubscriptionFromCheckoutAsync(
+                userId,
+                plan.Id,
+                session.SubscriptionId,
+                session.CustomerId,
+                stripePriceId,
+                tokenModel
+            );
+            
+            if (result.StatusCode == 201 || result.StatusCode == 200)
             {
-                // CRITICAL FIX: Update the subscription with Stripe IDs after creation
-                var subscription = result.data as SubscriptionDto;
-                if (subscription != null)
-                {
-                    try
-                    {
-                        // Get the subscription entity from database
-                        var subscriptionEntity = await _subscriptionRepository.GetByIdAsync(Guid.Parse(subscription.Id));
-                        if (subscriptionEntity != null)
-                        {
-                            // Update Stripe integration fields
-                            subscriptionEntity.StripeSubscriptionId = session.SubscriptionId;
-                            subscriptionEntity.StripeCustomerId = session.CustomerId;
-                            subscriptionEntity.StripePriceId = session.Metadata["price_id"];
-                            subscriptionEntity.UpdatedBy = userId;
-                            subscriptionEntity.UpdatedDate = DateTime.UtcNow;
-                            
-                            // Save the updated subscription
-                            await _subscriptionRepository.UpdateAsync(subscriptionEntity);
-                            await _subscriptionRepository.SaveChangesAsync();
-                            
-                            _logger.LogInformation("Successfully updated subscription {SubscriptionId} with Stripe IDs from checkout session {SessionId} for user {UserId}", 
-                                subscription.Id, session.Id, userId);
-                        }
-                        else
-                        {
-                            _logger.LogError("Failed to find subscription entity {SubscriptionId} for Stripe ID update", subscription.Id);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to update subscription {SubscriptionId} with Stripe IDs from checkout session {SessionId}", 
-                            subscription.Id, session.Id);
-                        // Don't throw - subscription was created successfully, just Stripe ID sync failed
-                    }
-                }
+                _logger.LogInformation("🎉 SUBSCRIPTION SYNCED SUCCESSFULLY! User {UserId} now has access to Plan {PlanName}", 
+                    userId, plan.Name);
             }
             else
             {
-                _logger.LogError("Failed to create subscription from checkout session {SessionId} for user {UserId}: {Message}", 
-                    session.Id, userId, result.Message);
+                _logger.LogError("❌ Failed to sync subscription for user {UserId}: {Message}", 
+                    userId, result.Message);
+                throw new Exception($"Failed to sync subscription: {result.Message}");
             }
+            
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing checkout session completed event");
+            _logger.LogError(ex, "❌ CRITICAL ERROR processing checkout session completed event for session {SessionId}", stripeEvent.Data.Object.GetType().GetProperty("Id")?.GetValue(stripeEvent.Data.Object)?.ToString() ?? "Unknown");
             throw;
         }
     }
@@ -1973,6 +2582,128 @@ public class WebhookService : IWebhookService
         {
             _logger.LogError(ex, "Error handling trial payment failure for subscription {SubscriptionId}", subscriptionId);
         }
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Maps Stripe invoice status to local BillingRecord.BillingStatus enum
+    /// </summary>
+    private BillingRecord.BillingStatus MapStripeInvoiceStatusToBillingStatus(string? stripeStatus)
+    {
+        return stripeStatus?.ToLower() switch
+        {
+            "draft" => BillingRecord.BillingStatus.Pending,
+            "open" => BillingRecord.BillingStatus.Pending,
+            "paid" => BillingRecord.BillingStatus.Paid,
+            "uncollectible" => BillingRecord.BillingStatus.Failed,
+            "void" => BillingRecord.BillingStatus.Cancelled,
+            _ => BillingRecord.BillingStatus.Pending
+        };
+    }
+
+    /// <summary>
+    /// Gets the appropriate Stripe price ID for a subscription plan based on its billing cycle.
+    /// NEW ARCHITECTURE: Each plan has ONE billing cycle, therefore ONE Stripe price.
+    /// </summary>
+    private string GetStripePriceIdForPlan(SubscriptionPlan plan, int billingCycleDays)
+    {
+        if (string.IsNullOrEmpty(plan.StripePriceId))
+        {
+            _logger.LogError("Plan {PlanId} ({PlanName}) has no StripePriceId configured", plan.Id, plan.Name);
+            throw new InvalidOperationException($"Plan {plan.Name} does not have a Stripe price ID configured");
+        }
+
+        _logger.LogInformation("Using Stripe price {StripePriceId} for plan {PlanName} (Billing Cycle: {Days} days)", 
+            plan.StripePriceId, plan.Name, billingCycleDays);
+        
+        return plan.StripePriceId;
+    }
+
+    /// <summary>
+    /// Queues a webhook event for retry processing when related entities are not found
+    /// </summary>
+    private async Task QueueEventForRetryAsync(Event stripeEvent, string failureReason)
+    {
+        try
+        {
+            // Check if event is already queued to avoid duplicates
+            var existingEvent = await _unprocessedWebhookEventRepository.GetByStripeEventIdAsync(stripeEvent.Id);
+            if (existingEvent != null)
+            {
+                _logger.LogInformation("Event {EventId} already queued for retry, skipping", stripeEvent.Id);
+                return;
+            }
+
+            var unprocessedEvent = new UnprocessedWebhookEvent
+            {
+                Id = Guid.NewGuid(),
+                StripeEventId = stripeEvent.Id,
+                EventType = stripeEvent.Type,
+                EventData = stripeEvent.ToJson(),
+                StripeSubscriptionId = ExtractStripeSubscriptionId(stripeEvent),
+                StripeInvoiceId = ExtractStripeInvoiceId(stripeEvent),
+                StripeCustomerId = ExtractStripeCustomerId(stripeEvent),
+                FailureReason = failureReason,
+                RetryCount = 0,
+                MaxRetries = 48, // 24 hours with 5-minute intervals
+                NextRetryAt = DateTime.UtcNow.AddMinutes(5),
+                Status = UnprocessedWebhookEvent.ProcessingStatus.Pending,
+                ReceivedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            await _unprocessedWebhookEventRepository.CreateAsync(unprocessedEvent);
+            _logger.LogInformation("Queued webhook event {EventId} for retry processing", stripeEvent.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error queueing webhook event {EventId} for retry", stripeEvent.Id);
+        }
+    }
+
+    /// <summary>
+    /// Extracts Stripe subscription ID from various event types
+    /// </summary>
+    private string? ExtractStripeSubscriptionId(Event stripeEvent)
+    {
+        return stripeEvent.Type switch
+        {
+            "invoice.created" or "invoice.finalized" or "invoice.payment_succeeded" or "invoice.payment_failed" =>
+                (stripeEvent.Data.Object as Stripe.Invoice)?.SubscriptionId,
+            "customer.subscription.updated" or "customer.subscription.deleted" =>
+                (stripeEvent.Data.Object as Stripe.Subscription)?.Id,
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// Extracts Stripe invoice ID from invoice events
+    /// </summary>
+    private string? ExtractStripeInvoiceId(Event stripeEvent)
+    {
+        return stripeEvent.Type.StartsWith("invoice.") 
+            ? (stripeEvent.Data.Object as Stripe.Invoice)?.Id 
+            : null;
+    }
+
+    /// <summary>
+    /// Extracts Stripe customer ID from various event types
+    /// </summary>
+    private string? ExtractStripeCustomerId(Event stripeEvent)
+    {
+        return stripeEvent.Type switch
+        {
+            "invoice.created" or "invoice.finalized" or "invoice.payment_succeeded" or "invoice.payment_failed" =>
+                (stripeEvent.Data.Object as Stripe.Invoice)?.CustomerId,
+            "customer.subscription.updated" or "customer.subscription.deleted" =>
+                (stripeEvent.Data.Object as Stripe.Subscription)?.CustomerId,
+            "customer.updated" or "customer.deleted" =>
+                (stripeEvent.Data.Object as Stripe.Customer)?.Id,
+            _ => null
+        };
     }
 
     #endregion

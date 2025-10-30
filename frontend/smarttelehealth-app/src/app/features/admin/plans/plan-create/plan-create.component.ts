@@ -6,7 +6,8 @@ import {
   SubscriptionPlanService,
   CategoryService,
   PrivilegeService,
-  MasterDataService
+  MasterDataService,
+  SystemSettingsService
 } from '../../../../core/services';
 import {
   CreateSubscriptionPlanDto,
@@ -15,6 +16,7 @@ import {
   PrivilegeDto
 } from '../../../../core/models';
 import { BillingCycleDto, CurrencyDto } from '../../../../core/models/master-data.model';
+import { SystemSettingsDto } from '../../../../core/services/system-settings.service';
 
 /**
  * Admin Create Plan Component - 4-Step Stepper Form
@@ -57,6 +59,7 @@ export class PlanCreateComponent implements OnInit {
   selectedPrivileges: PlanPrivilegeDto[] = [];
   billingCycles: BillingCycleDto[] = [];
   currencies: CurrencyDto[] = [];
+  systemSettings: SystemSettingsDto | null = null;
 
   // UI state
   loading = false;
@@ -71,11 +74,13 @@ export class PlanCreateComponent implements OnInit {
     private categoryService: CategoryService,
     private privilegeService: PrivilegeService,
     private masterDataService: MasterDataService,
+    private systemSettingsService: SystemSettingsService,
     private router: Router
   ) {}
 
   ngOnInit(): void {
     this.initForms();
+    this.loadSystemSettings();
     this.loadCategories();
     this.loadPrivileges();
     this.loadBillingCycles();
@@ -95,6 +100,45 @@ export class PlanCreateComponent implements OnInit {
     // Listen to billing form changes
     this.billingForm.valueChanges.subscribe(() => {
       console.log('💰 Billing form changed - price updated');
+    });
+  }
+
+  /**
+   * Load system settings for default values
+   * API: GET /api/admin/SystemSettings
+   */
+  loadSystemSettings(): void {
+    this.systemSettingsService.getSettings().subscribe({
+      next: (response) => {
+        if (response.statusCode === 200) {
+          this.systemSettings = response.data;
+          console.log('✅ Loaded system settings:', this.systemSettings);
+          // Apply system settings to forms after they're loaded
+          this.applySystemSettingsToForms();
+        }
+      },
+      error: (error) => {
+        console.error('❌ Error loading system settings:', error);
+        // Continue without system settings - forms will use hardcoded defaults
+      }
+    });
+  }
+
+  /**
+   * Apply system settings as default values to forms
+   */
+  applySystemSettingsToForms(): void {
+    if (!this.systemSettings) return;
+
+    // Apply to billing form defaults
+    this.billingForm.patchValue({
+      adminCommissionPercent: this.systemSettings.defaultAdminCommissionPercent,
+      priceChangeNoticeDays: this.systemSettings.defaultPriceChangeNoticeDays
+    });
+
+    console.log('✅ Applied system settings to forms:', {
+      adminCommissionPercent: this.systemSettings.defaultAdminCommissionPercent,
+      priceChangeNoticeDays: this.systemSettings.defaultPriceChangeNoticeDays
     });
   }
 
@@ -135,6 +179,7 @@ export class PlanCreateComponent implements OnInit {
     });
 
     // Step 3: Billing & Discounts Form
+    // Note: Default values will be overridden by system settings in applySystemSettingsToForms()
     this.billingForm = this.fb.group({
       // ✅ Promotional Discount Fields (matching backend)
       discountPercentage: [0, [Validators.min(0), Validators.max(100)]],
@@ -143,9 +188,13 @@ export class PlanCreateComponent implements OnInit {
       // ✅ Billing Discount Field
       billingDiscountPercentage: [0, [Validators.min(0), Validators.max(100)]],
       
-      // ✅ Commission and Settings
-      adminCommissionPercent: [10, [Validators.min(0), Validators.max(100)]],
-      priceChangeNoticeDays: [10]
+      // ✅ Commission and Settings (will be patched from system settings)
+      adminCommissionPercent: [20, [Validators.min(0), Validators.max(100)]], // Default 20%, will be overridden
+      priceChangeNoticeDays: [10, [Validators.min(0)]], // Default 10 days, will be overridden
+      
+      // ✅ Tax Fields
+      defaultTaxPercentage: [0, [Validators.min(0), Validators.max(100)]],
+      taxNotes: ['', Validators.maxLength(500)]
     });
   }
 
@@ -433,6 +482,9 @@ export class PlanCreateComponent implements OnInit {
       isAutoCalculatedPrice: true, // ✅ Always true - price is calculated from privileges
       adminCommissionPercent: this.billingForm.value.adminCommissionPercent,
       priceChangeNoticeDays: this.billingForm.value.priceChangeNoticeDays,
+      // ✅ Tax fields
+      defaultTaxPercentage: this.billingForm.value.defaultTaxPercentage,
+      taxNotes: this.billingForm.value.taxNotes,
       privileges: this.selectedPrivileges
     };
 
@@ -538,6 +590,16 @@ export class PlanCreateComponent implements OnInit {
     
     // Ensure price doesn't go negative (matching backend)
     return Math.max(price, 0);
+  }
+
+  /**
+   * Calculate total price including tax
+   */
+  calculateTotalWithTax(): number {
+    const basePrice = this.calculateFinalPrice();
+    const taxPercent = this.billingForm.value.defaultTaxPercentage || 0;
+    const taxAmount = basePrice * (taxPercent / 100);
+    return basePrice + taxAmount;
   }
 
   /**
