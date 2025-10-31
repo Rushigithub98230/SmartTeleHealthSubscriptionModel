@@ -7,6 +7,9 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- THIS SCRIPT USES EXACT TABLE NAMES FROM DbContext
 -- ═══════════════════════════════════════════════════════════════════════════════
+-- IMPORTANT: This script requires an existing [dbo].[User] table with [UserID] column
+-- All foreign keys referencing Users are configured to use [dbo].[User]([UserID])
+-- ═══════════════════════════════════════════════════════════════════════════════
 
 USE [SmartTelehealth]
 GO
@@ -394,9 +397,9 @@ BEGIN
     ALTER TABLE [Subscriptions] ADD CONSTRAINT [FK_Subscriptions_PendingPlan_PendingPlanChangeId]
         FOREIGN KEY ([PendingPlanChangeId]) REFERENCES [SubscriptionPlans]([Id]) ON DELETE RESTRICT;
     
-    -- UNCOMMENT TO ENABLE USER FK:
-    -- ALTER TABLE [Subscriptions] ADD CONSTRAINT [FK_Subscriptions_Users_UserId]
-    --     FOREIGN KEY ([UserId]) REFERENCES [Users]([Id]) ON DELETE RESTRICT;
+    -- Foreign Key to existing User table
+    ALTER TABLE [Subscriptions] ADD CONSTRAINT [FK_Subscriptions_Users_UserId]
+        FOREIGN KEY ([UserId]) REFERENCES [dbo].[User]([UserID]) ON DELETE RESTRICT;
     
     CREATE INDEX [IX_Subscriptions_UserId] ON [Subscriptions]([UserId]);
     CREATE INDEX [IX_Subscriptions_SubscriptionPlanId] ON [Subscriptions]([SubscriptionPlanId]);
@@ -441,7 +444,7 @@ BEGIN
     ALTER TABLE [SubscriptionStatusHistories] ADD CONSTRAINT [FK_SubscriptionStatusHistories_Subscription_SubscriptionId]
         FOREIGN KEY ([SubscriptionId]) REFERENCES [Subscriptions]([Id]) ON DELETE CASCADE;
     ALTER TABLE [SubscriptionStatusHistories] ADD CONSTRAINT [FK_SubscriptionStatusHistories_Users_ChangedByUserId]
-        FOREIGN KEY ([ChangedByUserId]) REFERENCES [Users]([Id]) ON DELETE SET NULL;
+        FOREIGN KEY ([ChangedByUserId]) REFERENCES [dbo].[User]([UserID]) ON DELETE SET NULL;
     
     CREATE INDEX [IX_SubscriptionStatusHistories_SubscriptionId] ON [SubscriptionStatusHistories]([SubscriptionId]);
     CREATE INDEX [IX_SubscriptionStatusHistories_ChangedAt] ON [SubscriptionStatusHistories]([ChangedAt]);
@@ -578,9 +581,9 @@ BEGIN
     ALTER TABLE [BillingRecords] ADD CONSTRAINT [FK_BillingRecords_Currency_CurrencyId]
         FOREIGN KEY ([CurrencyId]) REFERENCES [MasterCurrencies]([Id]) ON DELETE RESTRICT;
     
-    -- UNCOMMENT TO ENABLE USER FK:
-    -- ALTER TABLE [BillingRecords] ADD CONSTRAINT [FK_BillingRecords_Users_UserId]
-    --     FOREIGN KEY ([UserId]) REFERENCES [Users]([Id]) ON DELETE RESTRICT;
+    -- Foreign Key to existing User table
+    ALTER TABLE [BillingRecords] ADD CONSTRAINT [FK_BillingRecords_Users_UserId]
+        FOREIGN KEY ([UserId]) REFERENCES [dbo].[User]([UserID]) ON DELETE RESTRICT;
     
     CREATE INDEX [IX_BillingRecords_UserId] ON [BillingRecords]([UserId]);
     CREATE INDEX [IX_BillingRecords_SubscriptionId] ON [BillingRecords]([SubscriptionId]);
@@ -719,9 +722,9 @@ BEGIN
     ALTER TABLE [PaymentRefunds] ADD CONSTRAINT [FK_PaymentRefunds_SubscriptionPayment_SubscriptionPaymentId]
         FOREIGN KEY ([SubscriptionPaymentId]) REFERENCES [SubscriptionPayments]([Id]) ON DELETE CASCADE;
     
-    -- UNCOMMENT TO ENABLE USER FK:
-    -- ALTER TABLE [PaymentRefunds] ADD CONSTRAINT [FK_PaymentRefunds_Users_ProcessedByUserId]
-    --     FOREIGN KEY ([ProcessedByUserId]) REFERENCES [Users]([Id]) ON DELETE SET NULL;
+    -- Foreign Key to existing User table
+    ALTER TABLE [PaymentRefunds] ADD CONSTRAINT [FK_PaymentRefunds_Users_ProcessedByUserId]
+        FOREIGN KEY ([ProcessedByUserId]) REFERENCES [dbo].[User]([UserID]) ON DELETE SET NULL;
     
     CREATE INDEX [IX_PaymentRefunds_SubscriptionPaymentId] ON [PaymentRefunds]([SubscriptionPaymentId]);
     CREATE INDEX [IX_PaymentRefunds_ProcessedByUserId] ON [PaymentRefunds]([ProcessedByUserId]);
@@ -765,9 +768,9 @@ BEGIN
     ALTER TABLE [FailedRefunds] ADD CONSTRAINT [FK_FailedRefunds_BillingRecord_BillingRecordId]
         FOREIGN KEY ([BillingRecordId]) REFERENCES [BillingRecords]([Id]) ON DELETE CASCADE;
     
-    -- UNCOMMENT TO ENABLE USER FK:
-    -- ALTER TABLE [FailedRefunds] ADD CONSTRAINT [FK_FailedRefunds_Users_UserId]
-    --     FOREIGN KEY ([UserId]) REFERENCES [Users]([Id]) ON DELETE RESTRICT;
+    -- Foreign Key to existing User table
+    ALTER TABLE [FailedRefunds] ADD CONSTRAINT [FK_FailedRefunds_Users_UserId]
+        FOREIGN KEY ([UserId]) REFERENCES [dbo].[User]([UserID]) ON DELETE RESTRICT;
     
     CREATE INDEX [IX_FailedRefunds_BillingRecordId] ON [FailedRefunds]([BillingRecordId]);
     CREATE INDEX [IX_FailedRefunds_UserId] ON [FailedRefunds]([UserId]);
@@ -904,17 +907,16 @@ GO
 -- SECTION 9: ADD MISSING CONSTRAINTS
 -- ═══════════════════════════════════════════════════════════════════════════════
 
--- Add BillingAdjustments AppliedBy FK if Users table exists
--- IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Users')
--- BEGIN
---     ALTER TABLE [BillingAdjustments] ADD CONSTRAINT [FK_BillingAdjustments_Users_AppliedBy]
---         FOREIGN KEY ([AppliedBy]) REFERENCES [Users]([Id]) ON DELETE RESTRICT;
--- END
--- GO
+-- Foreign Key to existing User table for BillingAdjustments.AppliedBy
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'User' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    ALTER TABLE [BillingAdjustments] ADD CONSTRAINT [FK_BillingAdjustments_Users_AppliedBy]
+        FOREIGN KEY ([AppliedBy]) REFERENCES [dbo].[User]([UserID]) ON DELETE RESTRICT;
+END
+GO
 
 PRINT '✅ All subscription management tables created successfully!'
-PRINT '⚠️  NOTE: Some Foreign Keys to Users table are commented out.'
-PRINT '   Uncomment them when you have your Users table in the same database.'
+PRINT '✅ All Foreign Keys to User table have been configured.'
 GO
 
 -- ═══════════════════════════════════════════════════════════════════════════════
