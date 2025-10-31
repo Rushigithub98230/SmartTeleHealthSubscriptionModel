@@ -546,7 +546,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     public async Task<JsonModel> ActivatePlanAsync(string planId, TokenModel tokenModel)
     {
         try
-        {
+        {   
             // Admin only method - validate admin role
             if (tokenModel.RoleID != (int)RoleId.Admin)
             {
